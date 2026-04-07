@@ -40,7 +40,7 @@ npx ben-harness
 
 ### Skills
 
-将选中的 skills 合并到目标项目的 `skills-lock.json`，然后执行 `npx skills experimental_install`。
+通过 `npx skills add` 逐个安装选中的 skills，同时安装到 Claude Code 和 Codex。
 
 | Skill | 来源 | 说明 |
 |---|---|---|
@@ -51,7 +51,7 @@ npx ben-harness
 | planning-with-files | [OthmanAdi/planning-with-files](https://github.com/OthmanAdi/planning-with-files) | 文件化任务计划与进度跟踪 |
 | playwright-cli | [microsoft/playwright-cli](https://github.com/microsoft/playwright-cli) | 浏览器自动化与测试 |
 
-智能合并：hash 相同跳过，hash 不同提示更新，新 skill 直接添加。
+支持 project 和 global 两种安装范围。
 
 ### Plugins
 
