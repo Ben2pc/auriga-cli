@@ -1,19 +1,29 @@
 import fs from "node:fs";
 import path from "node:path";
 import { checkbox, select } from "@inquirer/prompts";
-import { exec, log } from "./utils.js";
+import { exec, log, withEsc } from "./utils.js";
 import type { PluginsConfig, PluginDef } from "./utils.js";
 
-function getInstalledPlugins(): Set<string> {
+function getInstalledPlugins(): Map<string, string[]> {
   try {
     const output = exec("claude plugins list");
-    const installed = new Set<string>();
-    for (const match of output.matchAll(/❯\s+(\S+)/g)) {
-      installed.add(match[1]);
+    const installed = new Map<string, string[]>();
+    let currentPlugin = "";
+    for (const line of output.split("\n")) {
+      const pluginMatch = line.match(/❯\s+(\S+)/);
+      if (pluginMatch) {
+        currentPlugin = pluginMatch[1];
+      }
+      const scopeMatch = line.match(/Scope:\s+(\w+)/);
+      if (scopeMatch && currentPlugin) {
+        const scopes = installed.get(currentPlugin) || [];
+        scopes.push(scopeMatch[1]);
+        installed.set(currentPlugin, scopes);
+      }
     }
     return installed;
   } catch {
-    return new Set();
+    return new Map();
   }
 }
 
@@ -54,30 +64,28 @@ export async function installPlugins(packageRoot: string): Promise<void> {
     return;
   }
 
-  const scope = await select({
+  const scope = await withEsc(select({
     message: "Plugins installation scope:",
     choices: [
       { name: "User (user-level)", value: "user" as const },
       { name: "Project (current project)", value: "project" as const },
     ],
-  });
+  }));
 
   const installed = getInstalledPlugins();
 
-  const selected = await checkbox({
+  const selected = await withEsc(checkbox({
     message: "Select plugins to install:",
     choices: config.plugins.map((p) => {
-      const isInstalled = installed.has(p.package);
+      const scopes = installed.get(p.package);
+      const suffix = scopes ? ` (installed: ${scopes.join(", ")})` : "";
       return {
-        name: isInstalled
-          ? `${p.name} — ${p.description} (already installed)`
-          : `${p.name} — ${p.description}`,
+        name: `${p.name} — ${p.description}${suffix}`,
         value: p,
-        disabled: isInstalled ? "(already installed)" : false,
-        checked: !isInstalled,
+        checked: !scopes,
       };
     }),
-  });
+  }));
 
   if (selected.length === 0) {
     log.skip("No plugins selected");

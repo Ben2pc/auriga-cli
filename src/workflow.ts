@@ -1,13 +1,13 @@
 import fs from "node:fs";
 import path from "node:path";
-import { input, confirm } from "@inquirer/prompts";
-import { log } from "./utils.js";
+import { input } from "@inquirer/prompts";
+import { log, withEsc } from "./utils.js";
 
 export async function installWorkflow(packageRoot: string): Promise<void> {
-  const targetDir = await input({
+  const targetDir = await withEsc(input({
     message: "Workflow install target directory:",
     default: process.cwd(),
-  });
+  }));
 
   const resolved = path.resolve(targetDir);
   if (!fs.existsSync(resolved)) {
@@ -21,14 +21,9 @@ export async function installWorkflow(packageRoot: string): Promise<void> {
 
   // Copy CLAUDE.md
   if (fs.existsSync(targetClaude)) {
-    const overwrite = await confirm({
-      message: "Target already has CLAUDE.md. Overwrite?",
-      default: false,
-    });
-    if (!overwrite) {
-      log.skip("CLAUDE.md (kept existing)");
-      return;
-    }
+    const bakPath = targetClaude + ".bak";
+    fs.copyFileSync(targetClaude, bakPath);
+    log.warn(`Existing CLAUDE.md backed up to CLAUDE.md.bak`);
   }
 
   fs.copyFileSync(sourceClaude, targetClaude);

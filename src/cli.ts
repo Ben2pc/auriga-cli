@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { checkbox } from "@inquirer/prompts";
-import { getPackageRoot } from "./utils.js";
+import { getPackageRoot, withEsc } from "./utils.js";
 import { installWorkflow } from "./workflow.js";
 import { installSkills } from "./skills.js";
 import { installPlugins } from "./plugins.js";
@@ -11,7 +11,7 @@ async function main(): Promise<void> {
 
   const packageRoot = getPackageRoot();
 
-  const moduleTypes = await checkbox({
+  const moduleTypes = await withEsc(checkbox({
     message: "Select module types to install:",
     choices: [
       {
@@ -30,7 +30,7 @@ async function main(): Promise<void> {
         checked: true,
       },
     ],
-  });
+  }));
 
   if (moduleTypes.length === 0) {
     console.log("Nothing selected. Bye!");
@@ -56,10 +56,9 @@ async function main(): Promise<void> {
 }
 
 main().catch((err) => {
-  // Ctrl-C / ESC graceful exit
   if (
     err instanceof Error &&
-    (err.name === "ExitPromptError" || err.message.includes("User force closed"))
+    ["ExitPromptError", "CancelPromptError"].includes(err.name)
   ) {
     console.log("\nCancelled.");
     process.exit(0);

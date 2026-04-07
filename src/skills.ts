@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { checkbox, select, confirm, input } from "@inquirer/prompts";
-import { exec, log } from "./utils.js";
+import { exec, log, withEsc } from "./utils.js";
 import type { SkillsLock, SkillEntry } from "./utils.js";
 
 export async function installSkills(packageRoot: string): Promise<void> {
@@ -15,22 +15,22 @@ export async function installSkills(packageRoot: string): Promise<void> {
     return;
   }
 
-  const scope = await select({
+  const scope = await withEsc(select({
     message: "Skills installation scope:",
     choices: [
       { name: "Project (current directory)", value: "project" as const },
       { name: "Global (user-level)", value: "global" as const },
     ],
-  });
+  }));
 
-  const selected = await checkbox({
+  const selected = await withEsc(checkbox({
     message: "Select skills to install:",
     choices: sourceEntries.map(([name, entry]) => ({
       name: `${name} (${entry.source})`,
       value: name,
       checked: true,
     })),
-  });
+  }));
 
   if (selected.length === 0) {
     log.skip("No skills selected");
@@ -49,10 +49,10 @@ async function installProjectSkills(
   sourceLock: SkillsLock,
   selected: string[],
 ): Promise<void> {
-  const targetDir = await input({
+  const targetDir = await withEsc(input({
     message: "Skills target directory:",
     default: process.cwd(),
-  });
+  }));
 
   const resolved = path.resolve(targetDir);
   const targetLockPath = path.join(resolved, "skills-lock.json");
@@ -79,10 +79,10 @@ async function installProjectSkills(
       log.skip(`${name} (up to date)`);
     } else {
       // Different hash — prompt update
-      const update = await confirm({
+      const update = await withEsc(confirm({
         message: `${name}: hash differs. Update?`,
         default: true,
-      });
+      }));
       if (update) {
         targetLock.skills[name] = sourceEntry;
         changed = true;

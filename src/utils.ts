@@ -50,6 +50,22 @@ export function exec(
   }) as string;
 }
 
+// --- ESC support ---
+
+export function withEsc<T>(
+  prompt: Promise<T> & { cancel?: () => void },
+): Promise<T> {
+  const onKeypress = (_: unknown, key: { name: string }) => {
+    if (key.name === "escape") {
+      prompt.cancel?.();
+    }
+  };
+  process.stdin.on("keypress", onKeypress);
+  return prompt.finally(() => {
+    process.stdin.removeListener("keypress", onKeypress);
+  });
+}
+
 // --- Log ---
 
 const reset = "\x1b[0m";
