@@ -52,6 +52,19 @@ export function exec(
   }) as string;
 }
 
+// --- Language config ---
+
+export interface LangOption {
+  value: string;
+  label: string;
+  file: string;
+}
+
+export const LANGUAGES: LangOption[] = [
+  { value: "en", label: "English", file: "CLAUDE.md" },
+  { value: "zh-CN", label: "中文", file: "CLAUDE.zh-CN.md" },
+];
+
 // --- Remote content ---
 
 const REPO = "Ben2pc/ben-harness";
@@ -80,6 +93,16 @@ export async function fetchContentRoot(): Promise<string> {
   }
 
   return tmpDir;
+}
+
+export async function fetchExtraContent(
+  tmpDir: string,
+  file: string,
+): Promise<void> {
+  const content = await fetchFile(file);
+  const dest = path.join(tmpDir, file);
+  fs.mkdirSync(path.dirname(dest), { recursive: true });
+  fs.writeFileSync(dest, content);
 }
 
 // --- ESC support ---
