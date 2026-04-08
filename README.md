@@ -1,74 +1,76 @@
+English | [中文](README.zh-CN.md)
+
 # ben-harness
 
-模块化的 Claude Code harness —— 按需选装你需要的部分。
+A modular Claude Code harness — install only the parts you need.
 
-这个仓库本身就是一个完整配置好的 harness 项目。可以直接 clone 查看完整配置，也可以用 CLI 把各模块安装到你自己的项目中。
+This repo itself is a fully configured harness project. You can clone it to see the full setup, or use the CLI to install individual modules into your own project.
 
-## 包含什么
+## What's Included
 
-| 模块 | 说明 |
+| Module | Description |
 |---|---|
-| **Workflow** | `CLAUDE.md` 开发工作流：需求澄清 → TDD → Review，Harness 原则，Subagent 使用指南 |
-| **Skills** | 开发流程 skills —— brainstorming、systematic-debugging、TDD、verification、planning、playwright |
-| **Plugins** | 推荐的 Claude Code 插件 —— skill-creator、claude-md-management、hookify、codex |
+| **Workflow** | `CLAUDE.md` development workflow: requirement clarification -> TDD -> Review, Harness principles, Subagent usage guide |
+| **Skills** | Development process skills — brainstorming, systematic-debugging, TDD, verification, planning, playwright |
+| **Plugins** | Recommended Claude Code plugins — skill-creator, claude-md-management, hookify, codex |
 
-## 快速开始
+## Quick Start
 
 ```bash
 npx ben-harness
 ```
 
-交互式菜单，按需选择安装：
+Interactive menu — select what to install:
 
 ```
-? 选择要安装的模块类型：
+? Select module types to install:
   ◉ Workflow — CLAUDE.md + AGENTS.md
-  ◉ Skills — 开发流程 skills
-  ◉ Plugins — Claude Code 插件
+  ◉ Skills — Development process skills
+  ◉ Plugins — Claude Code plugins
 ```
 
-每个模块支持作用域选择（Skills: project/global，Plugins: user/project）。
+Each module supports scope selection (Skills: project/global, Plugins: user/project).
 
-## 模块详情
+## Module Details
 
 ### Workflow
 
-将 `CLAUDE.md` 复制到目标项目，并创建 `AGENTS.md` 软链接以兼容不同 Agent 框架。
+Copies `CLAUDE.md` to the target project and creates an `AGENTS.md` symlink for compatibility with different Agent frameworks. Supports English and Chinese — you choose during installation.
 
-- 目标已有 `CLAUDE.md` 时会提示确认是否覆盖
-- 涵盖：需求澄清、TDD、代码 Review、分支工作流、Subagent 编排
+- Backs up existing `CLAUDE.md` before overwriting
+- Covers: requirement clarification, TDD, code review, branch workflow, subagent orchestration
 
 ### Skills
 
-通过 `npx skills add` 逐个安装选中的 skills，同时安装到 Claude Code 和 Codex。
+Installs selected skills via `npx skills add`, targeting both Claude Code and Codex.
 
-| Skill | 来源 | 说明 |
+| Skill | Source | Description |
 |---|---|---|
-| brainstorming | [obra/superpowers](https://github.com/obra/superpowers) | 需求澄清与设计探索 |
-| systematic-debugging | [obra/superpowers](https://github.com/obra/superpowers) | 系统化调试，先找根因再修复 |
-| test-driven-development | [obra/superpowers](https://github.com/obra/superpowers) | 测试驱动开发流程 |
-| verification-before-completion | [obra/superpowers](https://github.com/obra/superpowers) | 完成前验证，用证据说话 |
-| planning-with-files | [OthmanAdi/planning-with-files](https://github.com/OthmanAdi/planning-with-files) | 文件化任务计划与进度跟踪 |
-| playwright-cli | [microsoft/playwright-cli](https://github.com/microsoft/playwright-cli) | 浏览器自动化与测试 |
-| ui-ux-pro-max | [nextlevelbuilder/ui-ux-pro-max-skill](https://github.com/nextlevelbuilder/ui-ux-pro-max-skill) | UI/UX 设计与开发增强 |
+| brainstorming | [obra/superpowers](https://github.com/obra/superpowers) | Requirement clarification and design exploration |
+| systematic-debugging | [obra/superpowers](https://github.com/obra/superpowers) | Systematic debugging — find root cause before fixing |
+| test-driven-development | [obra/superpowers](https://github.com/obra/superpowers) | Test-driven development workflow |
+| verification-before-completion | [obra/superpowers](https://github.com/obra/superpowers) | Pre-completion verification — evidence before assertions |
+| planning-with-files | [OthmanAdi/planning-with-files](https://github.com/OthmanAdi/planning-with-files) | File-based task planning and progress tracking |
+| playwright-cli | [microsoft/playwright-cli](https://github.com/microsoft/playwright-cli) | Browser automation and testing |
+| ui-ux-pro-max | [nextlevelbuilder/ui-ux-pro-max-skill](https://github.com/nextlevelbuilder/ui-ux-pro-max-skill) | UI/UX design and development enhancement |
 
-支持 project 和 global 两种安装范围。
+Supports both project and global installation scopes.
 
 ### Plugins
 
-通过 `claude plugins install` 安装选中的插件，自动添加所需的 marketplace。
+Installs selected plugins via `claude plugins install`, automatically adding required marketplaces.
 
-| 插件 | 说明 |
+| Plugin | Description |
 |---|---|
-| skill-creator | 创建和管理自定义 skills |
-| claude-md-management | 审计和改进 CLAUDE.md |
-| hookify | 从对话分析创建 hooks |
-| codex | Codex 跨模型协作 |
+| skill-creator | Create and manage custom skills |
+| claude-md-management | Audit and improve CLAUDE.md |
+| hookify | Create hooks from conversation analysis |
+| codex | Codex cross-model collaboration |
 
-## 环境要求
+## Requirements
 
 - Node.js >= 18
-- [Claude Code](https://docs.anthropic.com/en/docs/claude-code)（Plugins 模块需要）
+- [Claude Code](https://docs.anthropic.com/en/docs/claude-code) (required for Plugins module)
 
 ## License
 

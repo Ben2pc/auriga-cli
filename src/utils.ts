@@ -58,6 +58,7 @@ const REPO = "Ben2pc/ben-harness";
 const BRANCH = "main";
 const CONTENT_FILES = [
   "CLAUDE.md",
+  "CLAUDE.zh-CN.md",
   "skills-lock.json",
   ".claude/plugins.json",
 ];

@@ -1,9 +1,18 @@
 import fs from "node:fs";
 import path from "node:path";
-import { input } from "@inquirer/prompts";
+import { input, select } from "@inquirer/prompts";
 import { log, withEsc } from "./utils.js";
 
 export async function installWorkflow(packageRoot: string): Promise<void> {
+  const lang = await withEsc(select({
+    message: "CLAUDE.md language:",
+    choices: [
+      { name: "English", value: "en" as const },
+      { name: "中文", value: "zh-CN" as const },
+    ],
+    default: "en",
+  }));
+
   const targetDir = await withEsc(input({
     message: "Workflow install target directory:",
     default: process.cwd(),
@@ -15,7 +24,8 @@ export async function installWorkflow(packageRoot: string): Promise<void> {
     return;
   }
 
-  const sourceClaude = path.join(packageRoot, "CLAUDE.md");
+  const sourceFile = lang === "zh-CN" ? "CLAUDE.zh-CN.md" : "CLAUDE.md";
+  const sourceClaude = path.join(packageRoot, sourceFile);
   const targetClaude = path.join(resolved, "CLAUDE.md");
   const targetAgents = path.join(resolved, "AGENTS.md");
 
@@ -27,7 +37,7 @@ export async function installWorkflow(packageRoot: string): Promise<void> {
   }
 
   fs.copyFileSync(sourceClaude, targetClaude);
-  log.ok("CLAUDE.md copied");
+  log.ok(`CLAUDE.md copied (${lang})`);
 
   // Create AGENTS.md symlink
   try {
