@@ -35,9 +35,9 @@ npx ben-harness
 
 ### Workflow
 
-将 `CLAUDE.md` 复制到目标项目，并创建 `AGENTS.md` 软链接以兼容不同 Agent 框架。
+将 `CLAUDE.md` 复制到目标项目，并创建 `AGENTS.md` 软链接以兼容不同 Agent 框架。支持中英文版本，安装时可选择。
 
-- 目标已有 `CLAUDE.md` 时会提示确认是否覆盖
+- 目标已有 `CLAUDE.md` 时会自动备份后覆盖
 - 涵盖：需求澄清、TDD、代码 Review、分支工作流、Subagent 编排
 
 ### Skills

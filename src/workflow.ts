@@ -37,7 +37,7 @@ export async function installWorkflow(packageRoot: string): Promise<void> {
   }
 
   fs.copyFileSync(sourceClaude, targetClaude);
-  log.ok(`CLAUDE.md copied (${lang})`);
+  log.ok(`CLAUDE.md copied (${lang === "zh-CN" ? "中文" : "English"})`);
 
   // Create AGENTS.md symlink
   try {
