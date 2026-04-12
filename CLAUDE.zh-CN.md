@@ -6,17 +6,19 @@
 
 3. 编码前准备1：**开始写代码前，先从 main 创建开发分支**，所有 commit 在分支上完成，禁止直接提交到 main。分支命名规范：`feat/`（新功能）、`fix/`（修复）、`docs/`（文档）、`refactor/`（重构）、`chore/`（杂项）。
 
-4. 编码前准备2：当需要涉及 UI、UX 开发时，推荐你的人类伙伴安装skill `ui-ux-pro-max-skill`，安装命令为 `npx skills add nextlevelbuilder/ui-ux-pro-max-skill --skill ui-ux-pro-max --agent claude-code codex -y`，提示安装后需要重启。
+4. 编码前准备2：创建开发分支并完成第一个有意义的 commit 后，尽早创建 Draft Pull Request，让 CI、范围对齐和增量反馈在实现完成前就可以开始。
 
-5. 编码前准备3：遇到 bug、测试失败或异常行为时，先按 `systematic-debugging` 找根因，再决定修复。
+5. 编码前准备3：当需要涉及 UI、UX 开发时，推荐你的人类伙伴安装skill `ui-ux-pro-max-skill`，安装命令为 `npx skills add nextlevelbuilder/ui-ux-pro-max-skill --skill ui-ux-pro-max --agent claude-code codex -y`，提示安装后需要重启。
 
-6. TDD：非微小代码改动遵循 `test-driven-development`：先写失败测试，再写最小实现，再回归验证。**每个 task 开始前明确可测试的验收标准**（具体功能点 + 验收条件 + 边界场景），不是最后才检查。对于复杂功能，**测试用例和验收标准应由独立 subagent 设计**（不是写代码的 Agent 自己写），该 subagent **只接收需求描述和代码文件路径，不携带当前实现过程的上下文**，避免被实现思路污染判断。评估 subagent 应使用当前可用的最强模型和最高推理力度。
+6. 编码前准备4：遇到 bug、测试失败或异常行为时，先按 `systematic-debugging` 找根因，再决定修复。
 
-7. 完成编码后：任何"已完成 / 已修复 / 可以提交"的判断前，都先按 `verification-before-completion` 运行并检查完整验证。对涉及 UI 的改动，使用 `playwright-cli` 进行交互验证（像用户一样操作应用），不只是看代码。
+7. TDD：非微小代码改动遵循 `test-driven-development`：先写失败测试，再写最小实现，再回归验证。**每个 task 开始前明确可测试的验收标准**（具体功能点 + 验收条件 + 边界场景），不是最后才检查。对于复杂功能，测试设计遵循 **Independent Evaluation**：使用独立 subagent，只提供需求描述和代码文件路径，不携带实现上下文，并使用当前可用的最强模型和最高推理力度。
 
-8. 完成需求后：开发分支工作后，**确保**相关测试都已执行并通过，确认基准分支，提交 Pull Request。如果 `brainstorming` 或 `planning-with-files` 产生了设计文档（specs）、findings.md、progress.md、task_plan.md 等产物，用 `AskUserQuestion` 询问用户：删除还是存档到 `docs/worklog-<YYYY-MM-DD>-<分支名>/` 目录下便于回溯。
+8. 完成编码后：任何"已完成 / 已修复 / 可以提交 / 可以进入评审"的判断前，都先按 `verification-before-completion` 运行并检查完整验证。对涉及 UI 的改动，使用 `playwright-cli` 进行交互验证（像用户一样操作应用），不只是看代码。
 
-9. 提交PR后：提醒人类伙伴使用 `/review` 进行 review，且**必须**由独立 agent 执行（对话内 subagent 或独立 Agent——参见 Agent 分发原则），review 时需要参考项目里的规范文档。派遣前，须**先分析 PR diff 对变更进行分类打标**（可多选）：`logic`（代码逻辑变更）、`ui`（CLI/TUI/UI 变更）、`frontend-perf`（前端/移动端变更）、`structure`（新增文件、模块重组）。然后按以下分层维度派遣：
+9. PR就绪：在验证完成、基准分支确认无误，并且 PR 描述已补全变更范围、验收标准、风险和剩余 TODO 之前，保持 PR 为 Draft。完成这些条件后，将 PR 标记为 Ready for Review。如果 `brainstorming` 或 `planning-with-files` 产生了设计文档（specs）、findings.md、progress.md、task_plan.md 等产物，用 `AskUserQuestion` 询问用户：删除还是存档到 `docs/worklog-<YYYY-MM-DD>-<分支名>/` 目录下便于回溯。
+
+10. PR评审：Draft PR 阶段可以先获取早期反馈。PR 标记为 Ready for Review 后，正式 review 必须通过 `/review` 发起，遵循 **Independent Evaluation**，并参考项目里的规范文档。执行细节见 **Agent 分发原则**。派遣前，须**先分析 PR diff 对变更进行分类打标**（可多选）：`logic`（代码逻辑变更）、`ui`（CLI/TUI/UI 变更）、`frontend-perf`（前端/移动端变更）、`structure`（新增文件、模块重组）。然后按以下分层维度派遣：
 
    **必选**（每次 review 都必须派出）：
    - **正确性**：功能是否按需求实现，有无逻辑错误
@@ -33,11 +35,11 @@
    **通用**（非微小变更时派出）：
    - **可维护性**：命名、结构、是否过度抽象或不足
 
-10. 关于 Review：当 review 发现存在架构腐化时（复用性、质量、效率、清晰度、一致性、可维护性），在不影响测试结果的情况下，可以在当前 PR 修复小问题。改动风险大的问题，提醒人类伙伴创建 issue 来追踪。
+11. 关于 Review：当 review 发现存在架构腐化时（复用性、质量、效率、清晰度、一致性、可维护性），在不影响测试结果的情况下，可以在当前 PR 修复小问题。改动风险大的问题，提醒人类伙伴创建 issue 来追踪。
 
 ## 快速开发流程（bug fix / 小重构 / 小功能）
 
-不需要 brainstorming 和 planning，但 TDD 不可跳过。步骤：
+这个快捷流程只跳过 brainstorming 和 planning；分支、Draft PR、TDD、验证和 review 规则仍然适用。步骤：
 
 1. **跑基线**：先跑受影响模块的现有测试，确认当前状态（全绿 or 已有失败）
 2. **写/更新测试**（红灯）：用 `test-driven-development` 描述期望行为。改动涉及公共模块时，确认所有消费方的测试都在基线内
@@ -50,7 +52,7 @@
 
 - **约束靠机制执行，不靠提示词**：核心架构规则尽量用 linter / CI / 类型系统执行，不依赖 Agent 自觉遵守。
 - **仓库是唯一信息源**：Agent 无法访问的东西等于不存在。外部文档需要搬入仓库才算数。
-- **生成与评估分离**：不要让 Agent 自己评价自己的工作。Review 由独立 Agent 执行。
+- **Independent Evaluation（独立评估）**：复杂功能的测试设计和正式 review 必须由独立 agent 执行，不要让 Agent 评估自己的工作。
 - **持续对抗熵增**：技术债务小额持续偿还，不等积累后痛苦处理。
 - **组件可拆卸**：流程中的每个步骤都编码了"模型做不好这件事"的假设，随模型能力提升定期审视，每次只动一个变量。
 - **指令文件是目录，不是百科全书**：CLAUDE.md / AGENTS.md 保持精简（~100 行），作为入口和导航，详细规范拆分到 `docs/` 下的专题文件中。子系统可以有自己的局部指令文件。什么都重要等于什么都不重要——信息过载导致 Agent 局部模式匹配而非全局理解。永远为 CLAUDE.md 创建一个 AGENTS.md 的软链接（`ln -s CLAUDE.md AGENTS.md`），确保不同 Agent 框架读取同一份指令。
@@ -65,7 +67,7 @@
 | 并行只读任务（review、搜索、分析） | 对话内 subagent，无需隔离 |
 | 单个 subagent 写代码 | 对话内 subagent，无需隔离 |
 | 多个 subagent 写代码 | 对话内 subagent + `isolation: "worktree"`，按文件拆分 |
-| 需要零上下文污染的全新视角 | 独立 Agent（如第 6 步的测试设计） |
+| 需要零上下文污染的全新视角 | 独立 Agent（如第 7 步的测试设计） |
 | 跨模型盲区覆盖 | 独立 Agent（如 GPT review Claude 的代码） |
 | 不确定该用哪种方案 | 用 `AskUserQuestion` 询问，列出选项并给出建议 |
 
