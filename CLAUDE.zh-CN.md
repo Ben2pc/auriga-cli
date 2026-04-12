@@ -6,17 +6,19 @@
 
 3. 编码前准备1：**开始写代码前，先从 main 创建开发分支**，所有 commit 在分支上完成，禁止直接提交到 main。分支命名规范：`feat/`（新功能）、`fix/`（修复）、`docs/`（文档）、`refactor/`（重构）、`chore/`（杂项）。
 
-4. 编码前准备2：当需要涉及 UI、UX 开发时，推荐你的人类伙伴安装skill `ui-ux-pro-max-skill`，安装命令为 `npx skills add nextlevelbuilder/ui-ux-pro-max-skill --skill ui-ux-pro-max --agent claude-code codex -y`，提示安装后需要重启。
+4. 编码前准备2：创建开发分支并完成第一个有意义的 commit 后，尽早创建 Draft Pull Request，让 CI、范围对齐和增量反馈在实现完成前就可以开始。
 
-5. 编码前准备3：遇到 bug、测试失败或异常行为时，先按 `systematic-debugging` 找根因，再决定修复。
+5. 编码前准备3：当需要涉及 UI、UX 开发时，推荐你的人类伙伴安装skill `ui-ux-pro-max-skill`，安装命令为 `npx skills add nextlevelbuilder/ui-ux-pro-max-skill --skill ui-ux-pro-max --agent claude-code codex -y`，提示安装后需要重启。
 
-6. TDD：非微小代码改动遵循 `test-driven-development`：先写失败测试，再写最小实现，再回归验证。**每个 task 开始前明确可测试的验收标准**（具体功能点 + 验收条件 + 边界场景），不是最后才检查。对于复杂功能，**测试用例和验收标准应由独立 subagent 设计**（不是写代码的 Agent 自己写），该 subagent **只接收需求描述和代码文件路径，不携带当前实现过程的上下文**，避免被实现思路污染判断。评估 subagent 应使用当前可用的最强模型和最高推理力度。
+6. 编码前准备4：遇到 bug、测试失败或异常行为时，先按 `systematic-debugging` 找根因，再决定修复。
 
-7. 完成编码后：任何"已完成 / 已修复 / 可以提交"的判断前，都先按 `verification-before-completion` 运行并检查完整验证。对涉及 UI 的改动，使用 `playwright-cli` 进行交互验证（像用户一样操作应用），不只是看代码。
+7. TDD：非微小代码改动遵循 `test-driven-development`：先写失败测试，再写最小实现，再回归验证。**每个 task 开始前明确可测试的验收标准**（具体功能点 + 验收条件 + 边界场景），不是最后才检查。对于复杂功能，**测试用例和验收标准应由独立 subagent 设计**（不是写代码的 Agent 自己写），该 subagent **只接收需求描述和代码文件路径，不携带当前实现过程的上下文**，避免被实现思路污染判断。评估 subagent 应使用当前可用的最强模型和最高推理力度。
 
-8. 完成需求后：开发分支工作后，**确保**相关测试都已执行并通过，确认基准分支，提交 Pull Request。如果 `brainstorming` 或 `planning-with-files` 产生了设计文档（specs）、findings.md、progress.md、task_plan.md 等产物，用 `AskUserQuestion` 询问用户：删除还是存档到 `docs/worklog-<YYYY-MM-DD>-<分支名>/` 目录下便于回溯。
+8. 完成编码后：任何"已完成 / 已修复 / 可以提交 / 可以发起正式评审"的判断前，都先按 `verification-before-completion` 运行并检查完整验证。对涉及 UI 的改动，使用 `playwright-cli` 进行交互验证（像用户一样操作应用），不只是看代码。
 
-9. 提交PR后：提醒人类伙伴使用 `/review` 进行 review，且**必须**由独立 agent 执行（对话内 subagent 或独立 Agent——参见 Agent 分发原则），review 时需要参考项目里的规范文档。派遣前，须**先分析 PR diff 对变更进行分类打标**（可多选）：`logic`（代码逻辑变更）、`ui`（CLI/TUI/UI 变更）、`frontend-perf`（前端/移动端变更）、`structure`（新增文件、模块重组）。然后按以下分层维度派遣：
+9. 完成需求后：在将 PR 标记为 Ready for Review 前，**确保**相关测试都已执行并通过，确认基准分支，并在 PR 描述中补全变更范围、验收标准、风险和剩余 TODO。如果 `brainstorming` 或 `planning-with-files` 产生了设计文档（specs）、findings.md、progress.md、task_plan.md 等产物，用 `AskUserQuestion` 询问用户：删除还是存档到 `docs/worklog-<YYYY-MM-DD>-<分支名>/` 目录下便于回溯。
+
+10. 提交PR后：Draft PR 阶段可以先获取早期反馈，但正式 review 必须在 PR 标记为 Ready for Review 之后，通过 `/review` 发起，且**必须**由独立 agent 执行（对话内 subagent 或独立 Agent——参见 Agent 分发原则），review 时需要参考项目里的规范文档。派遣前，须**先分析 PR diff 对变更进行分类打标**（可多选）：`logic`（代码逻辑变更）、`ui`（CLI/TUI/UI 变更）、`frontend-perf`（前端/移动端变更）、`structure`（新增文件、模块重组）。然后按以下分层维度派遣：
 
    **必选**（每次 review 都必须派出）：
    - **正确性**：功能是否按需求实现，有无逻辑错误
@@ -33,7 +35,7 @@
    **通用**（非微小变更时派出）：
    - **可维护性**：命名、结构、是否过度抽象或不足
 
-10. 关于 Review：当 review 发现存在架构腐化时（复用性、质量、效率、清晰度、一致性、可维护性），在不影响测试结果的情况下，可以在当前 PR 修复小问题。改动风险大的问题，提醒人类伙伴创建 issue 来追踪。
+11. 关于 Review：当 review 发现存在架构腐化时（复用性、质量、效率、清晰度、一致性、可维护性），在不影响测试结果的情况下，可以在当前 PR 修复小问题。改动风险大的问题，提醒人类伙伴创建 issue 来追踪。
 
 ## 快速开发流程（bug fix / 小重构 / 小功能）
 
@@ -65,7 +67,7 @@
 | 并行只读任务（review、搜索、分析） | 对话内 subagent，无需隔离 |
 | 单个 subagent 写代码 | 对话内 subagent，无需隔离 |
 | 多个 subagent 写代码 | 对话内 subagent + `isolation: "worktree"`，按文件拆分 |
-| 需要零上下文污染的全新视角 | 独立 Agent（如第 6 步的测试设计） |
+| 需要零上下文污染的全新视角 | 独立 Agent（如第 7 步的测试设计） |
 | 跨模型盲区覆盖 | 独立 Agent（如 GPT review Claude 的代码） |
 | 不确定该用哪种方案 | 用 `AskUserQuestion` 询问，列出选项并给出建议 |
 
