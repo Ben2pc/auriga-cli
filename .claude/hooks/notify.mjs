@@ -22,7 +22,7 @@ process.stdin.on("end", () => {
       const args = [
         "-title", title,
         "-message", message,
-        "-sound", "Glass",
+        "-sound", "Submarine",
         "-sender", "com.apple.Terminal",
       ];
       if (subtitle) args.push("-subtitle", subtitle);
@@ -33,7 +33,7 @@ process.stdin.on("end", () => {
 
     const displayTitle = subtitle ? `${title} · ${subtitle}` : title;
     const escape = (s) => s.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
-    const script = `display notification "${escape(message)}" with title "${escape(displayTitle)}" sound name "Glass"`;
+    const script = `display notification "${escape(message)}" with title "${escape(displayTitle)}" sound name "Submarine"`;
     spawnSync("osascript", ["-e", script], { stdio: "ignore" });
   } catch {
     // swallow — never block Claude on notification failures
