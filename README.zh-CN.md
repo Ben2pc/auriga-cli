@@ -12,7 +12,7 @@
 |---|---|
 | **Workflow** | `CLAUDE.md` 开发工作流：需求澄清 → TDD → Review，Harness 原则，Subagent 使用指南 |
 | **Skills** | 开发流程 skills —— brainstorming、systematic-debugging、TDD、verification、planning、playwright |
-| **Plugins** | 推荐的 Claude Code 插件 —— skill-creator、claude-md-management、hookify、codex |
+| **Plugins** | 推荐的 Claude Code 插件 —— skill-creator、claude-md-management、codex |
 
 ## 快速开始
 
@@ -64,7 +64,6 @@ npx auriga-cli
 |---|---|
 | skill-creator | 创建和管理自定义 skills |
 | claude-md-management | 审计和改进 CLAUDE.md |
-| hookify | 从对话分析创建 hooks |
 | codex | Codex 跨模型协作 |
 
 ## 环境要求

@@ -11,11 +11,6 @@
       "description": "Audit and improve CLAUDE.md files"
     },
     {
-      "name": "hookify",
-      "package": "hookify@claude-plugins-official",
-      "description": "Create hooks from conversation analysis"
-    },
-    {
       "name": "codex",
       "package": "codex@openai-codex",
       "description": "Cross-model collaboration with Codex",
