@@ -12,7 +12,7 @@ This repo itself is a fully configured harness project. You can clone it to see 
 |---|---|
 | **Workflow** | `CLAUDE.md` development workflow: requirement clarification -> TDD -> Review, Harness principles, Subagent usage guide |
 | **Skills** | Development process skills — brainstorming, systematic-debugging, TDD, verification, planning, playwright |
-| **Plugins** | Recommended Claude Code plugins — skill-creator, claude-md-management, hookify, codex |
+| **Plugins** | Recommended Claude Code plugins — skill-creator, claude-md-management, codex |
 
 ## Quick Start
 
@@ -64,7 +64,6 @@ Installs selected plugins via `claude plugins install`, automatically adding req
 |---|---|
 | skill-creator | Create and manage custom skills |
 | claude-md-management | Audit and improve CLAUDE.md |
-| hookify | Create hooks from conversation analysis |
 | codex | Codex cross-model collaboration |
 
 ## Requirements

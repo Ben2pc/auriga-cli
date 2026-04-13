@@ -41,7 +41,7 @@ async function main(): Promise<void> {
         checked: true,
       },
       {
-        name: "Plugins — Claude Code plugins (skill-creator, hookify, codex...)",
+        name: "Plugins — Claude Code plugins (skill-creator, claude-md-management, codex...)",
         value: "plugins" as const,
         checked: true,
       },
