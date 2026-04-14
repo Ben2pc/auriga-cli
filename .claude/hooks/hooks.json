@@ -11,7 +11,12 @@
       "deps": [
         { "name": "terminal-notifier", "via": "brew", "optional": true }
       ],
-      "marker": "auriga:notify"
+      "marker": "auriga:notify",
+      "customizeHints": [
+        "Sound → edit {hookDir}/config.json  (e.g. \"sound\": \"Submarine\")",
+        "Icon  → replace {hookDir}/icon.png with your own 512×512 PNG",
+        "Docs  → {hookDir}/README.md"
+      ]
     }
   ]
 }

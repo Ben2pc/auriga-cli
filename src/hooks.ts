@@ -34,6 +34,13 @@ export interface HookDef {
   preserveFiles?: string[];
   deps?: HookDep[];
   marker: string;
+  /**
+   * Per-hook customization hints rendered in the post-install summary.
+   * The literal `{hookDir}` is substituted with the hook's resolved
+   * install directory at print time. Empty / omitted → installer falls
+   * back to a generic "see <dir>/README.md" pointer.
+   */
+  customizeHints?: string[];
 }
 
 export interface HooksConfig {
@@ -170,6 +177,18 @@ function validateHookEntry(hook: unknown, idx: number): void {
   }
   if (typeof h.marker !== "string" || h.marker.length === 0) {
     throw new Error(`hooks.json: hooks[${idx}].marker must be a non-empty string`);
+  }
+  if (h.customizeHints !== undefined) {
+    if (!Array.isArray(h.customizeHints)) {
+      throw new Error(`hooks.json: hooks[${idx}].customizeHints must be an array`);
+    }
+    for (const hint of h.customizeHints) {
+      if (typeof hint !== "string" || hint.length === 0 || hint.length > 200) {
+        throw new Error(
+          `hooks.json: hooks[${idx}].customizeHints entries must be non-empty strings ≤200 chars`,
+        );
+      }
+    }
   }
 }
 
@@ -862,11 +881,17 @@ export async function installHooks(packageRoot: string): Promise<void> {
       log.skip(`already registered in ${settingsRel}`);
     }
 
-    // Per-hook customize tip with REAL paths instead of <hook-dir>
-    // placeholders the user has to mentally substitute.
-    console.log(`  Customize ${hook.name}:`);
-    console.log(`    • Sound → edit ${dirRel}/config.json  (e.g. "sound": "Submarine")`);
-    console.log(`    • Icon  → replace ${dirRel}/icon.png with your own 512×512 PNG`);
-    console.log(`    • Docs  → ${dirRel}/README.md`);
+    // Per-hook customize tips, sourced from registry metadata so adding a
+    // new hook doesn't require touching the installer. `{hookDir}` is
+    // substituted with the resolved install directory.
+    const hints = hook.customizeHints ?? [];
+    if (hints.length > 0) {
+      console.log(`  Customize ${hook.name}:`);
+      for (const hint of hints) {
+        console.log(`    • ${hint.replace(/\{hookDir\}/g, dirRel)}`);
+      }
+    } else {
+      console.log(`  See ${dirRel}/README.md for customization options.`);
+    }
   }
 }

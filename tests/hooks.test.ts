@@ -284,6 +284,36 @@ describe("loadHooksConfig", () => {
     }
   });
 
+  test("rejects malformed customizeHints", () => {
+    const badCases: Array<[unknown, string]> = [
+      ["not-an-array", "string instead of array"],
+      [[""], "empty string entry"],
+      [["x".repeat(201)], "entry over 200 chars"],
+      [[42], "non-string entry"],
+    ];
+    for (const [hints, label] of badCases) {
+      writeRegistry(SCRATCH, {
+        hooks: [
+          {
+            name: "evil",
+            description: "x",
+            runtimePlatforms: ["darwin"],
+            settingsEvents: [{ event: "Notification" }],
+            command: VALID_CMD,
+            files: ["index.mjs"],
+            marker: "auriga:evil",
+            customizeHints: hints,
+          },
+        ],
+      });
+      assert.throws(
+        () => loadHooksConfig(SCRATCH),
+        /customizeHints/,
+        `expected reject for ${label}`,
+      );
+    }
+  });
+
   test("accepts python3 and bash as runtime, with valid path", () => {
     writeRegistry(SCRATCH, {
       hooks: [
