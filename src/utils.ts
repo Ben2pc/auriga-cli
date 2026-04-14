@@ -31,6 +31,49 @@ export interface PluginsConfig {
   plugins: PluginDef[];
 }
 
+export interface HookDep {
+  name: string;
+  via: "brew";
+  optional?: boolean;
+}
+
+export interface HookSettingsEvent {
+  event: string;
+  matcher?: string;
+}
+
+export interface HookDef {
+  name: string;
+  description: string;
+  runtimePlatforms: string[];
+  settingsEvents: HookSettingsEvent[];
+  command: string;
+  files: string[];
+  preserveFiles?: string[];
+  deps?: HookDep[];
+  marker: string;
+}
+
+export interface HooksConfig {
+  hooks: HookDef[];
+}
+
+export interface SettingsHookAction {
+  type: "command";
+  command: string;
+  _marker?: string;
+}
+
+export interface SettingsHookGroup {
+  matcher?: string;
+  hooks: SettingsHookAction[];
+}
+
+export interface SettingsFile {
+  hooks?: Record<string, SettingsHookGroup[]>;
+  [key: string]: unknown;
+}
+
 // --- Package root ---
 
 export function getPackageRoot(): string {
@@ -73,6 +116,7 @@ const CONTENT_FILES = [
   "CLAUDE.md",
   "skills-lock.json",
   ".claude/plugins.json",
+  ".claude/hooks/hooks.json",
 ];
 
 async function fetchFile(file: string): Promise<string> {
@@ -80,6 +124,13 @@ async function fetchFile(file: string): Promise<string> {
   const res = await fetch(url);
   if (!res.ok) throw new Error(`Failed to fetch ${url}: ${res.status}`);
   return res.text();
+}
+
+async function fetchFileBinary(file: string): Promise<Buffer> {
+  const url = `https://raw.githubusercontent.com/${REPO}/${BRANCH}/${file}`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`Failed to fetch ${url}: ${res.status}`);
+  return Buffer.from(await res.arrayBuffer());
 }
 
 export async function fetchContentRoot(): Promise<string> {
@@ -107,6 +158,47 @@ export async function fetchExtraContent(
   const dest = path.join(tmpDir, file);
   fs.mkdirSync(path.dirname(dest), { recursive: true });
   fs.writeFileSync(dest, content);
+}
+
+export async function fetchExtraContentBinary(
+  tmpDir: string,
+  file: string,
+): Promise<void> {
+  const buf = await fetchFileBinary(file);
+  const dest = path.join(tmpDir, file);
+  fs.mkdirSync(path.dirname(dest), { recursive: true });
+  fs.writeFileSync(dest, buf);
+}
+
+// --- Settings hook merge (pure) ---
+
+export function addHookToSettings(
+  settings: SettingsFile,
+  event: string,
+  command: string,
+  marker: string,
+): { settings: SettingsFile; mutated: boolean } {
+  const next: SettingsFile = JSON.parse(JSON.stringify(settings ?? {}));
+  if (!next.hooks || typeof next.hooks !== "object") next.hooks = {};
+  const list: SettingsHookGroup[] = Array.isArray(next.hooks[event])
+    ? (next.hooks[event] as SettingsHookGroup[])
+    : [];
+
+  for (const group of list) {
+    if (!group?.hooks || !Array.isArray(group.hooks)) continue;
+    for (const action of group.hooks) {
+      if (action && action._marker === marker) {
+        next.hooks[event] = list;
+        return { settings: next, mutated: false };
+      }
+    }
+  }
+
+  list.push({
+    hooks: [{ type: "command", command, _marker: marker }],
+  });
+  next.hooks[event] = list;
+  return { settings: next, mutated: true };
 }
 
 // --- ESC support ---
