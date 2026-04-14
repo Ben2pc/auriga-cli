@@ -1,3 +1,5 @@
+import { spawnSync } from "node:child_process";
+import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -54,6 +56,88 @@ export interface SettingsHookGroup {
 export interface SettingsFile {
   hooks?: Record<string, SettingsHookGroup[]>;
   [key: string]: unknown;
+}
+
+// --- Registry validation ---
+// hooks.json is fetched at runtime from raw.githubusercontent.com, so any
+// downstream code that interpolates registry values into shell commands or
+// filesystem paths is one force-push away from RCE / arbitrary-file-write
+// for every user running `npx auriga-cli`. Validate every untrusted value
+// once at load time, then trust it through the rest of the install flow.
+
+const HOOK_NAME_RE = /^[a-z][a-z0-9-]*$/;
+const DEP_NAME_RE = /^[a-z0-9][a-z0-9._+-]*$/;
+
+function isSafeRelativePath(file: unknown): boolean {
+  if (typeof file !== "string" || file.length === 0) return false;
+  if (file.startsWith("/") || file.startsWith("\\")) return false;
+  if (file.includes("\0")) return false;
+  const normalized = path.posix.normalize(file);
+  if (normalized !== file) return false;
+  if (normalized === ".." || normalized.startsWith("../") || normalized.includes("/../")) return false;
+  return true;
+}
+
+function validateHookEntry(hook: unknown, idx: number): void {
+  if (!hook || typeof hook !== "object") {
+    throw new Error(`hooks.json: hooks[${idx}] is not an object`);
+  }
+  const h = hook as Record<string, unknown>;
+  if (typeof h.name !== "string" || !HOOK_NAME_RE.test(h.name)) {
+    throw new Error(
+      `hooks.json: hooks[${idx}].name must match ${HOOK_NAME_RE} (got ${JSON.stringify(h.name)})`,
+    );
+  }
+  if (!Array.isArray(h.files)) {
+    throw new Error(`hooks.json: hooks[${idx}].files must be an array`);
+  }
+  for (const f of h.files) {
+    if (!isSafeRelativePath(f)) {
+      throw new Error(
+        `hooks.json: hooks[${idx}].files contains unsafe path ${JSON.stringify(f)}`,
+      );
+    }
+  }
+  if (h.preserveFiles !== undefined) {
+    if (!Array.isArray(h.preserveFiles)) {
+      throw new Error(`hooks.json: hooks[${idx}].preserveFiles must be an array`);
+    }
+    for (const f of h.preserveFiles) {
+      if (!isSafeRelativePath(f)) {
+        throw new Error(
+          `hooks.json: hooks[${idx}].preserveFiles contains unsafe path ${JSON.stringify(f)}`,
+        );
+      }
+    }
+  }
+  if (h.deps !== undefined) {
+    if (!Array.isArray(h.deps)) {
+      throw new Error(`hooks.json: hooks[${idx}].deps must be an array`);
+    }
+    for (const d of h.deps) {
+      if (!d || typeof d !== "object") {
+        throw new Error(`hooks.json: hooks[${idx}].deps entry is not an object`);
+      }
+      const dn = (d as Record<string, unknown>).name;
+      if (typeof dn !== "string" || !DEP_NAME_RE.test(dn)) {
+        throw new Error(
+          `hooks.json: hooks[${idx}].deps name must match ${DEP_NAME_RE} (got ${JSON.stringify(dn)})`,
+        );
+      }
+    }
+  }
+  if (!Array.isArray(h.runtimePlatforms)) {
+    throw new Error(`hooks.json: hooks[${idx}].runtimePlatforms must be an array`);
+  }
+  if (!Array.isArray(h.settingsEvents)) {
+    throw new Error(`hooks.json: hooks[${idx}].settingsEvents must be an array`);
+  }
+  if (typeof h.command !== "string" || h.command.length === 0) {
+    throw new Error(`hooks.json: hooks[${idx}].command must be a non-empty string`);
+  }
+  if (typeof h.marker !== "string" || h.marker.length === 0) {
+    throw new Error(`hooks.json: hooks[${idx}].marker must be a non-empty string`);
+  }
 }
 
 /**
@@ -163,13 +247,17 @@ function brewAvailable(): boolean {
 }
 
 function installDep(dep: HookDep): boolean {
-  console.log(`  Installing ${dep.name} via Homebrew (may prompt for password)...`);
-  try {
-    exec(`brew install ${dep.name}`, { inherit: true });
-    return true;
-  } catch {
+  // Defense-in-depth: the registry validator already enforced this regex,
+  // but re-check here so a future code path that constructs a HookDep
+  // outside the validator still can't shell-inject through this function.
+  if (!DEP_NAME_RE.test(dep.name)) {
+    log.error(`refusing to install dep with unsafe name: ${JSON.stringify(dep.name)}`);
     return false;
   }
+  console.log(`  Installing ${dep.name} via Homebrew (may prompt for password)...`);
+  // argv form, NOT shell-interpolated — registry compromise can't escape into a shell command.
+  const result = spawnSync("brew", ["install", dep.name], { stdio: "inherit" });
+  return result.status === 0;
 }
 
 /**
@@ -280,16 +368,48 @@ function mergeHookIntoSettings(
   if (mutated) {
     backupOnce(resolved.settingsPath);
     fs.mkdirSync(path.dirname(resolved.settingsPath), { recursive: true });
-    const tmp = resolved.settingsPath + ".tmp";
-    fs.writeFileSync(tmp, JSON.stringify(next, null, 2) + "\n");
-    fs.renameSync(tmp, resolved.settingsPath);
+    atomicWriteFile(resolved.settingsPath, JSON.stringify(next, null, 2) + "\n");
   }
   return { ok: true, mutated };
 }
 
+/**
+ * Write `content` to `filePath` atomically and TOCTOU-safely.
+ *
+ * A predictable tmp name like `settings.json.tmp` lets a local attacker
+ * pre-create that path as a symlink pointing at, say, ~/.ssh/authorized_keys
+ * — the next install would then clobber the link target. Defenses: random
+ * suffix so the tmp name can't be predicted, plus O_CREAT|O_EXCL so we
+ * refuse to open the path at all if anything (file or symlink) exists
+ * there. Restrictive 0o600 perms in case the parent directory is
+ * world-writable. Final rename(2) is the atomic step.
+ */
+function atomicWriteFile(filePath: string, content: string): void {
+  const dir = path.dirname(filePath);
+  const base = path.basename(filePath);
+  const suffix = crypto.randomBytes(8).toString("hex");
+  const tmp = path.join(dir, `.${base}.${suffix}.tmp`);
+  const fd = fs.openSync(
+    tmp,
+    fs.constants.O_CREAT | fs.constants.O_EXCL | fs.constants.O_WRONLY,
+    0o600,
+  );
+  try {
+    fs.writeSync(fd, content);
+  } finally {
+    fs.closeSync(fd);
+  }
+  fs.renameSync(tmp, filePath);
+}
+
 export function loadHooksConfig(packageRoot: string): HooksConfig {
   const configPath = path.join(packageRoot, ".claude", "hooks", "hooks.json");
-  return JSON.parse(fs.readFileSync(configPath, "utf-8")) as HooksConfig;
+  const raw = JSON.parse(fs.readFileSync(configPath, "utf-8")) as { hooks?: unknown };
+  if (!raw || !Array.isArray(raw.hooks)) {
+    throw new Error(`${configPath} must have a "hooks" array at the top level`);
+  }
+  raw.hooks.forEach((h, i) => validateHookEntry(h, i));
+  return raw as HooksConfig;
 }
 
 function relativeFromCwd(absPath: string): string {
