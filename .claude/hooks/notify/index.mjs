@@ -110,21 +110,19 @@ process.stdin.on("end", () => {
     const subtitle = data.notification_type ? String(data.notification_type) : "";
     const activate = resolveActivate(cfg);
 
-    // Backend preference: alerter > terminal-notifier > osascript.
+    // Backend preference: alerter > osascript.
     //
     // alerter wins because its --app-icon flag lets us replace the
     // small top-left app icon with the Auriga brand mark — the only
     // backend that can do that. Cost: alerter blocks until click or
-    // --timeout, so we have to dispatch it through a detached worker
-    // and read its stdout for the click signal.
+    // --timeout, so we dispatch it through a detached worker and the
+    // worker reads its stdout for the click signal.
     //
-    // terminal-notifier is the fallback for users who haven't run the
-    // installer since 1.2.0 (or whose alerter install failed). It
-    // can't customize the small icon, but `-activate` lets the OS
-    // handle click activation natively, so we don't need a worker.
-    //
-    // osascript is the final fallback. No icon, no `-activate`, but
-    // it's always present on macOS.
+    // osascript is the fallback when alerter isn't installed (e.g.
+    // brew tap install failed, or the user is running this hook in a
+    // project that hasn't been re-installed via the auriga-cli
+    // installer). It's always present on macOS but can't show a
+    // custom icon and can't activate an app on click.
     const al = spawnSync("which", ["alerter"], { encoding: "utf8" });
     if (al.status === 0 && al.stdout.trim()) {
       const args = [
@@ -134,10 +132,11 @@ process.stdin.on("end", () => {
         "--timeout", "30",
       ];
       if (subtitle) args.push("--subtitle", subtitle);
-      if (iconAbs) {
-        args.push("--app-icon", iconAbs);
-        args.push("--content-image", iconAbs);
-      }
+      // Only --app-icon, not --content-image. macOS notifications
+      // would otherwise show the same Auriga mark twice (small +
+      // large) — visual noise. The small position is the one that
+      // identifies "who sent this", which is what we care about.
+      if (iconAbs) args.push("--app-icon", iconAbs);
       if (cfg.sender) args.push("--sender", cfg.sender);
 
       const job = JSON.stringify({ bin: "alerter", args, activate });
@@ -146,21 +145,6 @@ process.stdin.on("end", () => {
         stdio: "ignore",
       });
       child.unref();
-      return;
-    }
-
-    const tn = spawnSync("which", ["terminal-notifier"], { encoding: "utf8" });
-    if (tn.status === 0 && tn.stdout.trim()) {
-      const args = [
-        "-title", title,
-        "-message", message,
-        "-sound", cfg.sound,
-      ];
-      if (cfg.sender) args.push("-sender", cfg.sender);
-      if (activate) args.push("-activate", activate);
-      if (subtitle) args.push("-subtitle", subtitle);
-      if (iconAbs) args.push("-contentImage", iconAbs);
-      spawnSync("terminal-notifier", args, { stdio: "ignore" });
       return;
     }
 

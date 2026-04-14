@@ -69,25 +69,22 @@ notification permission for your terminal app being set to "None" in
 ## How it works
 
 `index.mjs` reads the `Notification` event payload from stdin and picks
-the first available notification backend, in this order:
+the first available notification backend:
 
-1. **`alerter`** *(preferred)* — Swift-based successor to
-   terminal-notifier with `--app-icon` for the small top-left icon next
-   to the title. The auriga-cli installer auto-installs it via
+1. **`alerter`** *(preferred)* — Swift-based notification CLI with
+   `--app-icon` for the small top-left icon next to the title. The
+   auriga-cli installer auto-installs it via
    `brew install vjeantet/tap/alerter`. alerter blocks until the user
    clicks or `--timeout` fires, so the hook spawns it through a
    detached background worker and exits immediately — Claude Code is
    never blocked. The worker watches alerter's stdout for
    `@CONTENTCLICKED` and, on click, runs `osascript` to bring the
    resolved `activate` bundle to the foreground.
-2. **`terminal-notifier`** *(fallback)* — used when alerter isn't
-   installed (e.g. on machines that haven't run auriga-cli ≥ 1.2.0).
-   Cannot customize the small icon, but the OS handles click
-   activation natively via `-activate <bundle-id>`, so no worker is
-   needed.
-3. **`osascript`** *(final fallback)* — `display notification` via
+2. **`osascript`** *(fallback)* — `display notification` via
    AppleScript. Always present on macOS. No custom icon, no click
-   activation.
+   activation. Used when alerter isn't installed (e.g. brew tap
+   install failed at install time, or the hook is in a project that
+   hasn't been re-installed by the auriga-cli installer).
 
 ## Re-installing
 
