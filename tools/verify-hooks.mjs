@@ -15,10 +15,18 @@ import { fileURLToPath } from "node:url";
 import fs from "node:fs";
 import path from "node:path";
 
-import { installHook, loadHooksConfig } from "../dist/hooks.js";
+import {
+  addHookToSettings,
+  cleanHookFromScope,
+  findStaleScopes,
+  installHook,
+  loadHooksConfig,
+  removeHookFromSettings,
+} from "../dist/hooks.js";
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const TEST_PROJECT = "/tmp/test-auriga-hooks";
+const SCRATCH_REGISTRY_DIR = "/tmp/test-auriga-bad-registry";
 
 let pass = 0;
 let fail = 0;
@@ -149,6 +157,191 @@ async function run() {
     encoding: "utf8",
   });
   check("installed index.mjs runs without error", proc.status === 0, proc.stderr || "");
+
+  console.log("\n--- Phase 5: addHookToSettings throws on shape corruption ---");
+  // settings.hooks.Notification exists but is not an array
+  let threw = false;
+  try {
+    addHookToSettings(
+      { hooks: { Notification: null } },
+      "Notification",
+      "node /x.mjs",
+      "auriga:notify",
+    );
+  } catch {
+    threw = true;
+  }
+  check("non-array hooks.Notification throws", threw);
+
+  threw = false;
+  try {
+    addHookToSettings(
+      { hooks: [] }, // hooks itself is an array, not an object
+      "Notification",
+      "node /x.mjs",
+      "auriga:notify",
+    );
+  } catch {
+    threw = true;
+  }
+  check("non-object hooks throws", threw);
+
+  console.log("\n--- Phase 6: command-equality dedupe (manual entries with no marker) ---");
+  // Pre-existing manual entry with the same command but no marker — dedupe must not duplicate.
+  const manualSettings = {
+    hooks: {
+      Notification: [
+        { hooks: [{ type: "command", command: 'node "/x.mjs"' }] },
+      ],
+    },
+  };
+  const dedupResult = addHookToSettings(
+    manualSettings,
+    "Notification",
+    'node "/x.mjs"',
+    "auriga:notify",
+  );
+  check("manual entry with same command is not duplicated", dedupResult.mutated === false);
+  check(
+    "manual entry preserved unchanged (we did NOT stamp our marker on someone else's entry)",
+    dedupResult.settings.hooks.Notification[0].hooks[0]._marker === undefined,
+  );
+
+  console.log("\n--- Phase 7: registry validator rejects path traversal ---");
+  rmrf(SCRATCH_REGISTRY_DIR);
+  fs.mkdirSync(path.join(SCRATCH_REGISTRY_DIR, ".claude/hooks"), { recursive: true });
+
+  // Bad files path: ".."
+  fs.writeFileSync(
+    path.join(SCRATCH_REGISTRY_DIR, ".claude/hooks/hooks.json"),
+    JSON.stringify({
+      hooks: [
+        {
+          name: "evil",
+          description: "x",
+          runtimePlatforms: ["darwin"],
+          settingsEvents: [{ event: "Notification" }],
+          command: "node /x",
+          files: ["../../../etc/passwd"],
+          marker: "auriga:evil",
+        },
+      ],
+    }),
+  );
+  threw = false;
+  try {
+    loadHooksConfig(SCRATCH_REGISTRY_DIR);
+  } catch {
+    threw = true;
+  }
+  check("hook.files containing '..' is rejected at load time", threw);
+
+  // Bad hook.name: contains slash
+  fs.writeFileSync(
+    path.join(SCRATCH_REGISTRY_DIR, ".claude/hooks/hooks.json"),
+    JSON.stringify({
+      hooks: [
+        {
+          name: "../foo",
+          description: "x",
+          runtimePlatforms: ["darwin"],
+          settingsEvents: [{ event: "Notification" }],
+          command: "node /x",
+          files: ["index.mjs"],
+          marker: "auriga:evil",
+        },
+      ],
+    }),
+  );
+  threw = false;
+  try {
+    loadHooksConfig(SCRATCH_REGISTRY_DIR);
+  } catch {
+    threw = true;
+  }
+  check("hook.name containing path separator is rejected at load time", threw);
+
+  // Bad dep.name: shell metachars
+  fs.writeFileSync(
+    path.join(SCRATCH_REGISTRY_DIR, ".claude/hooks/hooks.json"),
+    JSON.stringify({
+      hooks: [
+        {
+          name: "evil",
+          description: "x",
+          runtimePlatforms: ["darwin"],
+          settingsEvents: [{ event: "Notification" }],
+          command: "node /x",
+          files: ["index.mjs"],
+          deps: [{ name: "; rm -rf /", via: "brew" }],
+          marker: "auriga:evil",
+        },
+      ],
+    }),
+  );
+  threw = false;
+  try {
+    loadHooksConfig(SCRATCH_REGISTRY_DIR);
+  } catch {
+    threw = true;
+  }
+  check("dep.name with shell metachars is rejected at load time", threw);
+
+  console.log("\n--- Phase 8: malformed settings.json aborts cleanly (no orphan files) ---");
+  const orphanProject = "/tmp/test-auriga-orphan";
+  rmrf(orphanProject);
+  fs.mkdirSync(path.join(orphanProject, ".claude"), { recursive: true });
+  fs.writeFileSync(
+    path.join(orphanProject, ".claude/settings.local.json"),
+    "{ this is: not valid json",
+  );
+  const orphanResult = await installHook(notify, "project-local", orphanProject, REPO_ROOT);
+  check(
+    "installHook aborts with a clear reason on malformed settings",
+    typeof orphanResult.aborted === "string" && orphanResult.aborted.includes("not valid JSON"),
+  );
+  check(
+    "no hook directory created when settings parse failed (no orphan files)",
+    !fs.existsSync(path.join(orphanProject, ".claude/hooks/notify")),
+  );
+
+  console.log("\n--- Phase 9: cross-scope cleanup ---");
+  // Fresh project, install at project-local
+  const crossProject = "/tmp/test-auriga-cross";
+  rmrf(crossProject);
+  fs.mkdirSync(crossProject, { recursive: true });
+  await installHook(notify, "project-local", crossProject, REPO_ROOT);
+  check(
+    "project-local install creates settings.local.json",
+    fs.existsSync(path.join(crossProject, ".claude/settings.local.json")),
+  );
+
+  // Now ask: if we were about to install at "project" scope (committed), would we find the project-local stale entry?
+  const staleList = findStaleScopes(notify, "project", crossProject);
+  check(
+    "findStaleScopes detects existing project-local entry",
+    staleList.length === 1 && staleList[0].scope === "project-local" && staleList[0].count === 1,
+  );
+
+  // Clean it
+  const cleanResult = cleanHookFromScope(notify, "project-local", crossProject);
+  check("cleanHookFromScope reports 1 removal", cleanResult.removed === 1);
+
+  // Verify settings.local.json no longer carries the marker
+  const cleanedSettings = JSON.parse(
+    fs.readFileSync(path.join(crossProject, ".claude/settings.local.json"), "utf8"),
+  );
+  const markerStillThere = JSON.stringify(cleanedSettings).includes("auriga:notify");
+  check("after clean, marker is gone from settings.local.json", !markerStillThere);
+
+  // Idempotent: cleaning again removes 0
+  const secondClean = cleanHookFromScope(notify, "project-local", crossProject);
+  check("second cleanHookFromScope is a no-op (removed=0)", secondClean.removed === 0);
+
+  // removeHookFromSettings pure function: no marker → no removal
+  const noMarkerSettings = { hooks: { Notification: [{ hooks: [{ type: "command", command: "x" }] }] } };
+  const noRemove = removeHookFromSettings(noMarkerSettings, "auriga:notify");
+  check("removeHookFromSettings is a no-op when marker absent", noRemove.removed === 0);
 
   console.log(`\n${pass} passed, ${fail} failed`);
   process.exit(fail === 0 ? 0 : 1);
