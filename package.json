@@ -1,7 +1,7 @@
 {
   "name": "auriga-cli",
   "version": "1.0.0",
-  "description": "Interactive CLI to install Claude Code harness modules (Workflow, Skills, Plugins)",
+  "description": "Interactive CLI to install Claude Code harness modules (Workflow, Skills, Recommended Skills, Plugins, Hooks)",
   "type": "module",
   "bin": {
     "auriga-cli": "dist/cli.js"

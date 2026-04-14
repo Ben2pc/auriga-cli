@@ -11,7 +11,7 @@ Interactive CLI (`npx auriga-cli`) that modularly installs Claude Code harness c
 ```
 src/
   cli.ts        — Entry point, main menu, module dispatch
-  utils.ts      — Types, constants, remote fetch, exec, logging, settings merge
+  utils.ts      — Constants, remote fetch, exec, logging
   workflow.ts   — CLAUDE.md + AGENTS.md installation
   skills.ts     — Workflow skills + recommended skills installation
   plugins.ts    — Plugin + marketplace installation
