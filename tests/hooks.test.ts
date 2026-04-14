@@ -1,8 +1,9 @@
 import { spawnSync } from "node:child_process";
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
-import { before, describe, test } from "node:test";
+import { after, before, describe, test } from "node:test";
 
 import {
   addHookToSettings,
@@ -17,14 +18,27 @@ import type { HookDef, SettingsFile } from "../src/hooks.js";
 // `npm test` always runs with cwd = package root.
 const REPO_ROOT = process.cwd();
 
-function freshDir(p: string): void {
-  if (fs.existsSync(p)) fs.rmSync(p, { recursive: true, force: true });
-  fs.mkdirSync(p, { recursive: true });
+// Track every scratch dir we mint so a single after-hook can sweep them
+// up, even on test failure. Hardcoded /tmp paths would race across
+// concurrent test runs and leave litter behind on crash.
+const scratchDirs: string[] = [];
+
+function makeScratch(label: string): string {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), `auriga-test-${label}-`));
+  scratchDirs.push(dir);
+  return dir;
 }
 
+after(() => {
+  for (const d of scratchDirs) {
+    fs.rmSync(d, { recursive: true, force: true });
+  }
+});
+
 function writeRegistry(dir: string, content: unknown): void {
-  freshDir(path.join(dir, ".claude/hooks"));
-  fs.writeFileSync(path.join(dir, ".claude/hooks/hooks.json"), JSON.stringify(content));
+  const hooksDir = path.join(dir, ".claude/hooks");
+  fs.mkdirSync(hooksDir, { recursive: true });
+  fs.writeFileSync(path.join(hooksDir, "hooks.json"), JSON.stringify(content));
 }
 
 // ---------------------------------------------------------------------------
@@ -164,7 +178,12 @@ describe("removeHookFromSettings", () => {
 // ---------------------------------------------------------------------------
 
 describe("loadHooksConfig", () => {
-  const SCRATCH = "/tmp/test-auriga-bad-registry";
+  // Each test below overwrites SCRATCH/.claude/hooks/hooks.json via
+  // writeRegistry, so a single per-suite scratch dir is enough.
+  let SCRATCH: string;
+  before(() => {
+    SCRATCH = makeScratch("registry");
+  });
 
   test("accepts the real notify hook from this repo", () => {
     const config = loadHooksConfig(REPO_ROOT);
@@ -356,8 +375,7 @@ describe("installHook (integration)", () => {
   });
 
   test("fresh install at project-local scope writes all files + settings", async () => {
-    const TEST_PROJECT = "/tmp/test-auriga-fresh";
-    freshDir(TEST_PROJECT);
+    const TEST_PROJECT = makeScratch("fresh");
 
     const r = await installHook(notify, "project-local", TEST_PROJECT, REPO_ROOT);
 
@@ -386,8 +404,7 @@ describe("installHook (integration)", () => {
   });
 
   test("re-run preserves user customizations and is idempotent", async () => {
-    const TEST_PROJECT = "/tmp/test-auriga-rerun";
-    freshDir(TEST_PROJECT);
+    const TEST_PROJECT = makeScratch("rerun");
     const r1 = await installHook(notify, "project-local", TEST_PROJECT, REPO_ROOT);
 
     // User edits config + icon
@@ -420,8 +437,8 @@ describe("installHook (integration)", () => {
   });
 
   test("settings.local.json with sibling keys is not clobbered", async () => {
-    const TEST_PROJECT = "/tmp/test-auriga-siblings";
-    freshDir(path.join(TEST_PROJECT, ".claude"));
+    const TEST_PROJECT = makeScratch("siblings");
+    fs.mkdirSync(path.join(TEST_PROJECT, ".claude"), { recursive: true });
     const customSettings = {
       enabledPlugins: { "fake@market": true },
       someUnrelatedKey: "preserve me",
@@ -441,8 +458,7 @@ describe("installHook (integration)", () => {
   });
 
   test("installed runtime fires against a stdin payload", async () => {
-    const TEST_PROJECT = "/tmp/test-auriga-runtime";
-    freshDir(TEST_PROJECT);
+    const TEST_PROJECT = makeScratch("runtime");
     const r = await installHook(notify, "project-local", TEST_PROJECT, REPO_ROOT);
 
     const proc = spawnSync("node", [path.join(r.hookDir, "index.mjs")], {
@@ -458,8 +474,8 @@ describe("installHook (integration)", () => {
   });
 
   test("malformed settings.json aborts cleanly with no orphan files", async () => {
-    const TEST_PROJECT = "/tmp/test-auriga-orphan";
-    freshDir(path.join(TEST_PROJECT, ".claude"));
+    const TEST_PROJECT = makeScratch("orphan");
+    fs.mkdirSync(path.join(TEST_PROJECT, ".claude"), { recursive: true });
     fs.writeFileSync(
       path.join(TEST_PROJECT, ".claude/settings.local.json"),
       "{ this is: not valid json",
@@ -489,8 +505,7 @@ describe("findStaleScopes / cleanHookFromScope", () => {
   });
 
   test("detects + removes a project-local entry when installing into project scope", async () => {
-    const TEST_PROJECT = "/tmp/test-auriga-cross";
-    freshDir(TEST_PROJECT);
+    const TEST_PROJECT = makeScratch("cross");
 
     await installHook(notify, "project-local", TEST_PROJECT, REPO_ROOT);
     assert.ok(fs.existsSync(path.join(TEST_PROJECT, ".claude/settings.local.json")));
