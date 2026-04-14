@@ -43,10 +43,15 @@ tools/notify-icon/  — Dev-only assets for regenerating notify/icon.png
 ## Commands
 
 ```bash
-npm run build    # tsc
+npm run build    # tsc → dist/
 npm run dev      # tsc --watch
 npm start        # node dist/cli.js
 DEV=1 npm start  # use local files instead of fetching from GitHub
+
+npm test         # tsc -p tsconfig.test.json → dist-test/, then node --test
+                 #   Hook installer unit + integration tests live in tests/.
+                 #   Run before opening any PR that touches src/hooks.ts,
+                 #   src/utils.ts, or .claude/hooks/.
 ```
 
 ## Data Sources

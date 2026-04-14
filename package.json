@@ -12,7 +12,9 @@
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",
-    "start": "node dist/cli.js"
+    "start": "node dist/cli.js",
+    "test": "tsc -p tsconfig.test.json && DEV=1 node --test dist-test/tests/hooks.test.js",
+    "test:watch": "tsc -p tsconfig.test.json --watch & node --test --watch dist-test/tests/hooks.test.js"
   },
   "engines": {
     "node": ">=18"
