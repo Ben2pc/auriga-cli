@@ -8,12 +8,13 @@ import { after, before, describe, test } from "node:test";
 import {
   addHookToSettings,
   cleanHookFromScope,
+  depBinary,
   findStaleScopes,
   installHook,
   loadHooksConfig,
   removeHookFromSettings,
 } from "../src/hooks.js";
-import type { HookDef, SettingsFile } from "../src/hooks.js";
+import type { HookDef, HookDep, SettingsFile } from "../src/hooks.js";
 
 // `npm test` always runs with cwd = package root.
 const REPO_ROOT = process.cwd();
@@ -190,6 +191,13 @@ describe("loadHooksConfig", () => {
     const notify = config.hooks.find((h) => h.name === "notify");
     assert.ok(notify, "notify hook present in registry");
     assert.deepEqual(notify?.runtimePlatforms, ["darwin"]);
+    // Lock in the alerter dep — guard against accidental revert to
+    // terminal-notifier (whose lack of --app-icon is the reason we
+    // switched in 1.2.0).
+    assert.ok(
+      notify?.deps?.some((d) => d.name === "vjeantet/tap/alerter"),
+      "notify hook must declare vjeantet/tap/alerter as a dep",
+    );
   });
 
   // Valid command shape used by every fixture below so the failure under test
@@ -246,6 +254,76 @@ describe("loadHooksConfig", () => {
       ],
     });
     assert.throws(() => loadHooksConfig(SCRATCH), /deps name must match/);
+  });
+
+  test("accepts brew tap-style dep names", () => {
+    // Positive coverage for the DEP_NAME_RE relaxation in 1.2.0 — without
+    // these, someone could re-tighten the regex and only the `; rm -rf /`
+    // negative test above would still pass, silently breaking
+    // tap-prefixed deps like vjeantet/tap/alerter.
+    const okNames = [
+      "alerter",                  // flat formula
+      "terminal-notifier",        // flat formula with hyphen
+      "vjeantet/tap/alerter",     // owner/tap/formula (the real case)
+      "homebrew/cask/jq",         // 2-slash form
+      "user/repo",                // 1-slash form
+      "lib.foo",                  // dotted
+      "lib+plus",                 // plus sign
+    ];
+    for (const name of okNames) {
+      writeRegistry(SCRATCH, {
+        hooks: [
+          {
+            name: "ok",
+            description: "x",
+            runtimePlatforms: ["darwin"],
+            settingsEvents: [{ event: "Notification" }],
+            command: VALID_CMD,
+            files: ["index.mjs"],
+            deps: [{ name, via: "brew" }],
+            marker: "auriga:ok",
+          },
+        ],
+      });
+      assert.doesNotThrow(
+        () => loadHooksConfig(SCRATCH),
+        `expected dep name ${JSON.stringify(name)} to be accepted`,
+      );
+    }
+  });
+
+  test("rejects malformed dep names beyond the relaxation", () => {
+    // Boundary cases — the relaxation should add tap-prefixed names but
+    // nothing more. These should still all be rejected.
+    const badNames = [
+      "a/b/c/d",         // 3 slashes — exceeds the {0,2} bound
+      "/leading-slash",  // leading slash → empty first segment
+      "trailing-slash/", // trailing slash → empty last segment
+      "double//slash",   // empty middle segment
+      "../escape",       // path traversal disguised as a name
+      "name with space", // whitespace
+    ];
+    for (const name of badNames) {
+      writeRegistry(SCRATCH, {
+        hooks: [
+          {
+            name: "evil",
+            description: "x",
+            runtimePlatforms: ["darwin"],
+            settingsEvents: [{ event: "Notification" }],
+            command: VALID_CMD,
+            files: ["index.mjs"],
+            deps: [{ name, via: "brew" }],
+            marker: "auriga:evil",
+          },
+        ],
+      });
+      assert.throws(
+        () => loadHooksConfig(SCRATCH),
+        /deps name must match/,
+        `expected dep name ${JSON.stringify(name)} to be rejected`,
+      );
+    }
   });
 
   test("rejects unsafe command shapes", () => {
@@ -540,4 +618,30 @@ describe("findStaleScopes / cleanHookFromScope", () => {
     const second = cleanHookFromScope(notify, "project-local", TEST_PROJECT);
     assert.equal(second.removed, 0, "second clean is a no-op");
   });
+});
+
+// ---------------------------------------------------------------------------
+// depBinary — pure function unit tests
+// ---------------------------------------------------------------------------
+
+describe("depBinary", () => {
+  // depBinary derives the executable name to pass to `which` from the
+  // brew package name. Flat formula names map to themselves; tap-prefixed
+  // names map to the formula segment after the last slash. Without this,
+  // checking `which vjeantet/tap/alerter` would always fail because no
+  // such binary exists in PATH — only `alerter` does.
+  const cases: Array<[string, string]> = [
+    ["alerter", "alerter"],
+    ["terminal-notifier", "terminal-notifier"],
+    ["vjeantet/tap/alerter", "alerter"],
+    ["homebrew/cask/jq", "jq"],
+    ["user/repo", "repo"],
+    ["node@20", "node@20"],
+  ];
+  for (const [name, expected] of cases) {
+    test(`${name} → ${expected}`, () => {
+      const dep: HookDep = { name, via: "brew" };
+      assert.equal(depBinary(dep), expected);
+    });
+  }
 });
