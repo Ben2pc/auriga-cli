@@ -782,12 +782,20 @@ export async function installHooks(packageRoot: string): Promise<void> {
     );
 
     // User scope mutates ~/.claude/settings.json — global, affects every
-    // project on this machine. The select label says so but a passive
-    // label is easy to miss; one explicit warning before any mutation.
+    // project on this machine. A passive select label and a one-line warn
+    // both scroll past quickly. Make the user explicitly opt in to the
+    // global mutation; default to "no" so a missed Enter is the safe path.
     if (scope === "user") {
-      log.warn(
-        "User scope will modify your global ~/.claude/settings.json (a .bak snapshot is taken before any change).",
+      const proceed = await withEsc(
+        confirm({
+          message: `Modify your global ~/.claude/settings.json? This affects every project on this machine. A .bak snapshot is taken before any change.`,
+          default: false,
+        }),
       );
+      if (!proceed) {
+        log.skip(`${hook.name} skipped (user cancelled global install)`);
+        continue;
+      }
     }
 
     // Project scopes need a target directory; user scope does not.
@@ -815,6 +823,13 @@ export async function installHooks(packageRoot: string): Promise<void> {
       if (remove) {
         const cleaned = cleanHookFromScope(hook, entry.scope, projectBaseForHook);
         log.ok(`removed ${cleaned.removed} from ${relativeFromCwd(cleaned.settingsPath)}`);
+      } else {
+        // The user explicitly chose not to clean — make the consequence
+        // visible so it isn't a silent footgun. The hook will fire from
+        // BOTH scopes on every Notification event.
+        log.warn(
+          `${hook.name} will fire from BOTH ${entry.scope} and ${scope} on every event. Run \`auriga-cli\` again or edit ${relativeFromCwd(entry.settingsPath)} to clean it up later.`,
+        );
       }
     }
 
