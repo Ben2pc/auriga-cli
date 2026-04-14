@@ -31,49 +31,6 @@ export interface PluginsConfig {
   plugins: PluginDef[];
 }
 
-export interface HookDep {
-  name: string;
-  via: "brew";
-  optional?: boolean;
-}
-
-export interface HookSettingsEvent {
-  event: string;
-  matcher?: string;
-}
-
-export interface HookDef {
-  name: string;
-  description: string;
-  runtimePlatforms: string[];
-  settingsEvents: HookSettingsEvent[];
-  command: string;
-  files: string[];
-  preserveFiles?: string[];
-  deps?: HookDep[];
-  marker: string;
-}
-
-export interface HooksConfig {
-  hooks: HookDef[];
-}
-
-export interface SettingsHookAction {
-  type: "command";
-  command: string;
-  _marker?: string;
-}
-
-export interface SettingsHookGroup {
-  matcher?: string;
-  hooks: SettingsHookAction[];
-}
-
-export interface SettingsFile {
-  hooks?: Record<string, SettingsHookGroup[]>;
-  [key: string]: unknown;
-}
-
 // --- Package root ---
 
 export function getPackageRoot(): string {
@@ -168,37 +125,6 @@ export async function fetchExtraContentBinary(
   const dest = path.join(tmpDir, file);
   fs.mkdirSync(path.dirname(dest), { recursive: true });
   fs.writeFileSync(dest, buf);
-}
-
-// --- Settings hook merge (pure) ---
-
-export function addHookToSettings(
-  settings: SettingsFile,
-  event: string,
-  command: string,
-  marker: string,
-): { settings: SettingsFile; mutated: boolean } {
-  const next: SettingsFile = JSON.parse(JSON.stringify(settings ?? {}));
-  if (!next.hooks || typeof next.hooks !== "object") next.hooks = {};
-  const list: SettingsHookGroup[] = Array.isArray(next.hooks[event])
-    ? (next.hooks[event] as SettingsHookGroup[])
-    : [];
-
-  for (const group of list) {
-    if (!group?.hooks || !Array.isArray(group.hooks)) continue;
-    for (const action of group.hooks) {
-      if (action && action._marker === marker) {
-        next.hooks[event] = list;
-        return { settings: next, mutated: false };
-      }
-    }
-  }
-
-  list.push({
-    hooks: [{ type: "command", command, _marker: marker }],
-  });
-  next.hooks[event] = list;
-  return { settings: next, mutated: true };
 }
 
 // --- ESC support ---

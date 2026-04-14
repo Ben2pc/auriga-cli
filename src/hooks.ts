@@ -3,18 +3,95 @@ import os from "node:os";
 import path from "node:path";
 import { checkbox, input, select } from "@inquirer/prompts";
 import {
-  addHookToSettings,
   exec,
   fetchExtraContentBinary,
   log,
   withEsc,
 } from "./utils.js";
-import type {
-  HookDef,
-  HookDep,
-  HooksConfig,
-  SettingsFile,
-} from "./utils.js";
+
+// --- Hook registry types ---
+
+export interface HookDep {
+  name: string;
+  via: "brew";
+  optional?: boolean;
+}
+
+export interface HookSettingsEvent {
+  event: string;
+  matcher?: string;
+}
+
+export interface HookDef {
+  name: string;
+  description: string;
+  runtimePlatforms: string[];
+  settingsEvents: HookSettingsEvent[];
+  command: string;
+  files: string[];
+  preserveFiles?: string[];
+  deps?: HookDep[];
+  marker: string;
+}
+
+export interface HooksConfig {
+  hooks: HookDef[];
+}
+
+// --- Claude Code settings.json shape ---
+
+export interface SettingsHookAction {
+  type: "command";
+  command: string;
+  _marker?: string;
+}
+
+export interface SettingsHookGroup {
+  matcher?: string;
+  hooks: SettingsHookAction[];
+}
+
+export interface SettingsFile {
+  hooks?: Record<string, SettingsHookGroup[]>;
+  [key: string]: unknown;
+}
+
+/**
+ * Pure, idempotent settings merge. Deep-clones input, dedupes by sentinel
+ * `_marker` (NOT command-string equality) so re-running across path drift
+ * never produces duplicate hook entries. The marker is the only identifier
+ * the future uninstall command will use, so it must round-trip through
+ * Claude Code's settings reader unchanged (Claude Code ignores unknown
+ * fields on hook actions, which is how we get away with it).
+ */
+export function addHookToSettings(
+  settings: SettingsFile,
+  event: string,
+  command: string,
+  marker: string,
+): { settings: SettingsFile; mutated: boolean } {
+  const next: SettingsFile = JSON.parse(JSON.stringify(settings ?? {}));
+  if (!next.hooks || typeof next.hooks !== "object") next.hooks = {};
+  const list: SettingsHookGroup[] = Array.isArray(next.hooks[event])
+    ? (next.hooks[event] as SettingsHookGroup[])
+    : [];
+
+  for (const group of list) {
+    if (!group?.hooks || !Array.isArray(group.hooks)) continue;
+    for (const action of group.hooks) {
+      if (action && action._marker === marker) {
+        next.hooks[event] = list;
+        return { settings: next, mutated: false };
+      }
+    }
+  }
+
+  list.push({
+    hooks: [{ type: "command", command, _marker: marker }],
+  });
+  next.hooks[event] = list;
+  return { settings: next, mutated: true };
+}
 
 type Scope = "project-local" | "project" | "user";
 
