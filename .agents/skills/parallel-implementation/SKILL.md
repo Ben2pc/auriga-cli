@@ -1,6 +1,6 @@
 ---
 name: parallel-implementation
-description: Plan how to slice a non-trivial coding task across parallel subagents. Returns a dispatch plan (file assignments, dependencies, output-format contracts) — the main Agent then executes it with the Agent tool + `isolation: "worktree"`. Invoke during TDD green phase when implementation naturally spans multiple independent files, or when the user explicitly asks for parallel / multi-agent implementation.
+description: "Plan how to slice a non-trivial coding task across parallel subagents. Returns a dispatch plan (file assignments, dependencies, output-format contracts) — the main Agent then executes it with the Agent tool + `isolation: \"worktree\"`. Invoke during TDD green phase when implementation naturally spans multiple independent files, or when the user explicitly asks for parallel / multi-agent implementation."
 ---
 
 # Parallel Implementation
@@ -125,7 +125,7 @@ The skill does none of this — it only produced the plan.
 - ❌ Omitting the output format column — a slice without a format contract will dump context and waste the dispatch
 - ❌ Forcing parallelism where the task is naturally serial — Step 1 should have terminated the skill
 - ❌ Slicing too small just to have more parallelism — Step 4's size filter is not optional
-- ❌ Attempting to coordinate subagents mid-flight via shared state — see CLAUDE.md "Agent Dispatch Principles" for why this is architecturally impossible in Claude Code
+- ❌ Attempting to coordinate subagents mid-flight via shared state — no current CLI runtime (Claude Code, Codex CLI, etc.) has an agent-to-agent channel; serialize through the main Agent or merge into a single-line task
 
 ## Example invocation
 

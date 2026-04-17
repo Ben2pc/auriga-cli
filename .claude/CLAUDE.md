@@ -58,6 +58,7 @@ npm test         # tsc -p tsconfig.test.json → dist-test/, then node --test
 | File | Maintained by | Purpose |
 |------|--------------|---------|
 | `skills-lock.json` | `npx skills` CLI | Skill registry (do NOT edit structure manually) |
+| `external/g-claude-code-plugins/` | git submodule | Upstream source for the three orchestration skills (`deep-review`, `test-designer`, `parallel-implementation`). Iterate in the submodule → open a PR against `Ben2pc/g-claude-code-plugins` → after merge, re-run `npx skills add Ben2pc/g-claude-code-plugins --skill <name> --agent claude-code codex --yes` here to sync `skills-lock.json` and bump the submodule pointer |
 | `.claude/plugins.json` | Manual | Plugin definitions |
 | `.claude/hooks/hooks.json` | Manual | Hook definitions (one entry per hook directory) |
 | `CLAUDE.md` / `CLAUDE.zh-CN.md` | Manual | Workflow templates (the product). **Must be edited in tandem** — both languages must stay in sync |

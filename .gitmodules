@@ -1,0 +1,3 @@
+[submodule "external/g-claude-code-plugins"]
+	path = external/g-claude-code-plugins
+	url = git@github.com:Ben2pc/g-claude-code-plugins.git
