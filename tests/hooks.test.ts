@@ -97,8 +97,12 @@ describe("addHookToSettings", () => {
       matcher: "Bash",
       ifRule: "Bash(gh pr ready)",
     });
-    const action = r.settings.hooks?.PreToolUse?.[0].hooks[0];
-    assert.equal(action?.if, "Bash(gh pr ready)");
+    const group = r.settings.hooks?.PreToolUse?.[0];
+    // Both levels land in the right place: matcher on the group, if on
+    // the action. If they ever get swapped, Claude Code would silently
+    // misroute hook dispatch.
+    assert.equal(group?.matcher, "Bash");
+    assert.equal(group?.hooks[0]?.if, "Bash(gh pr ready)");
   });
 
   test("options absent → no matcher / no if written", () => {
@@ -247,7 +251,9 @@ describe("loadHooksConfig", () => {
     }
   });
 
-  test("rejects malformed if-rule in settingsEvents", () => {
+  test("rejects malformed if-rule — trailing content after closing paren", () => {
+    // The tail `; rm -rf /` is outside the parens and defeats the $
+    // anchor. Exercises the outer-shape constraint of IF_RE.
     writeRegistry(SCRATCH, {
       hooks: [
         {
@@ -258,6 +264,27 @@ describe("loadHooksConfig", () => {
           command: 'node "$HOOK_DIR/index.mjs"',
           files: ["index.mjs"],
           marker: "auriga:evil",
+        },
+      ],
+    });
+    assert.throws(() => loadHooksConfig(SCRATCH), /settingsEvents.if must match/);
+  });
+
+  test("rejects nested parens inside the if-rule body", () => {
+    // Nested / unbalanced parens like `Bash(foo(bar))` are rejected by
+    // the tightened body class (no `(` / `)` allowed in the substring).
+    // The earlier regex allowed this and would have produced a settings
+    // value that Claude Code's permission-rule parser may misinterpret.
+    writeRegistry(SCRATCH, {
+      hooks: [
+        {
+          name: "nested",
+          description: "x",
+          runtimePlatforms: ["darwin"],
+          settingsEvents: [{ event: "PreToolUse", matcher: "Bash", if: "Bash(foo(bar))" }],
+          command: 'node "$HOOK_DIR/index.mjs"',
+          files: ["index.mjs"],
+          marker: "auriga:nested",
         },
       ],
     });

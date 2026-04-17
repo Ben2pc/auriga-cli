@@ -24,8 +24,9 @@ export interface HookSettingsEvent {
   /** Tool-name / regex filter; mapped onto the container-level
    *  `matcher` field in settings.json. Absent → every tool fires. */
   matcher?: string;
-  /** Permission-rule-syntax filter (e.g. `Bash(gh pr create)`) — mapped
-   *  onto the nested action-level `if` field in settings.json. Lets the
+  /** Permission-rule-syntax filter — mapped onto the nested action-level
+   *  `if` field in settings.json. Format: `<ToolName>(<substring>)`, e.g.
+   *  `Bash(gh pr create)` — see IF_RE for the exact grammar. Lets the
    *  Claude Code runtime skip hook dispatch when the tool input doesn't
    *  match, avoiding a Node subprocess spawn per unrelated call.
    *  Absent → no registry-level content filter (the hook script runs
@@ -63,8 +64,8 @@ export interface SettingsHookAction {
   command: string;
   _marker?: string;
   /** Per-action permission-rule filter (Claude Code ≥ 2026-04 schema).
-   *  Older runtimes ignore unknown fields, so emitting this is
-   *  forward-safe. */
+   *  Format: `<ToolName>(<substring>)`. Older runtimes ignore unknown
+   *  fields, so emitting this is forward-safe. */
   if?: string;
 }
 
@@ -108,16 +109,27 @@ const EVENT_NAME_RE = /^[A-Za-z][A-Za-z0-9_-]*$/;
 const COMMAND_RE = /^(node|python3|bash) "\$HOOK_DIR\/[A-Za-z0-9_-]+\.[A-Za-z0-9]+"$/;
 // Claude Code permission-rule syntax for the `if` field:
 //   <ToolName>(<substring>)
-// The tool name is an EVENT_NAME-shaped identifier (already validated
-// elsewhere for hook events — same character set). The substring is a
-// glob-ish literal the runtime matches against the tool input; we
-// constrain it to printable ASCII without parens, backticks, backslash,
-// or newlines. No shell metacharacters, no nested structure, and the
-// string itself never reaches a shell — Claude Code parses and uses it
-// directly. Registry compromise therefore cannot pivot this field into
-// command execution, only into a more permissive match pattern (the
-// hook still fires under its own configured scope).
-const IF_RE = /^[A-Z][A-Za-z0-9_-]*\([\x20-\x5B\x5D-\x5F\x61-\x7E]{1,200}\)$/;
+// Tool name: EVENT_NAME-shape identifier, bounded to 64 chars so a
+// malicious registry can't inflate settings.json with a gigantic prefix.
+// Substring body: 1-200 printable-ASCII chars, with parens, backslash,
+// and backtick explicitly excluded so the anchored `\(...\)` wrapper
+// actually delimits a well-formed outer parenthesis pair.
+//
+// The safety argument is NOT that IF_RE strips shell metacharacters —
+// `$ " ' ; | & < > *` are all inside the allowed byte range and left
+// intact. The defense is that this string never reaches a shell: it's
+// written verbatim into settings.json as a JSON string and read by
+// Claude Code's in-process permission-rule matcher. A registry
+// compromise can widen or misdirect the match pattern (causing the hook
+// to fire on unintended inputs or not fire at all) but cannot pivot
+// into command execution from this field.
+//
+// Body range decomposition (what the char class actually covers):
+//   0x20-0x27  space through single-quote       (excludes nothing)
+//   0x2A-0x5B  asterisk through left-bracket    (excludes `(` 0x28, `)` 0x29)
+//   0x5D-0x5F  right-bracket through underscore (excludes `\` 0x5C)
+//   0x61-0x7E  lowercase through tilde          (excludes `` ` `` 0x60)
+const IF_RE = /^[A-Z][A-Za-z0-9_-]{0,63}\([\x20-\x27\x2A-\x5B\x5D-\x5F\x61-\x7E]{1,200}\)$/;
 
 function isSafeRelativePath(file: unknown): boolean {
   if (typeof file !== "string" || file.length === 0) return false;
@@ -238,6 +250,19 @@ function validateHookEntry(hook: unknown, idx: number): void {
  *      user (or another tool) already added an equivalent entry by hand
  *      and never wrote our marker. Without this fallback we would happily
  *      append a duplicate next to it and the hook would fire twice.
+ *
+ * `options.matcher` writes to the container-level `matcher` (tool-name
+ * filter); `options.ifRule` writes to the action-level `if` (permission-
+ * rule substring filter, Claude Code ≥ 2026-04). Either or both may be
+ * absent. Registry callers pass values validated by loadHooksConfig;
+ * direct programmatic callers are trusted (the pure-API surface is
+ * intentionally not re-validated here).
+ *
+ * Known upgrade gap: if an entry with the same marker already exists
+ * (even with a different matcher/if), we short-circuit on marker and
+ * do NOT mutate the existing group. Users upgrading from a registry
+ * version that lacked matcher/if won't pick up the new fields on a
+ * plain re-install — fixing that is a separate PR.
  *
  * Throws if `settings.hooks[event]` exists but is not an array — that
  * means the user has hand-edited their settings into a shape we do not
