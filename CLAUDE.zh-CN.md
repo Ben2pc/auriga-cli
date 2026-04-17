@@ -14,7 +14,7 @@
 
 7. TDD：非微小代码改动遵循 `test-driven-development`：先写失败测试，再写最小实现，再回归验证。**每个 task 开始前明确可测试的验收标准**（具体功能点 + 验收条件 + 边界场景），不是最后才检查。对于复杂功能，调用 `test-designer` skill——它内置 **Independent Evaluation**，派遣零上下文的 agent，仅接收需求描述和代码路径（不包含实现方案），以最高推理力度返回可执行的失败测试。
 
-8. 并行实现：绿灯阶段的实现如果自然跨多个独立文件，调用 `parallel-implementation` skill——它返回分片计划（文件归属、依赖关系、每片的输出格式契约）；根据计划用并行 `Agent` 调用 + `isolation: "worktree"` 派遣。
+8. 并行实现：绿灯阶段**满足以下任一条件**时才调用 `parallel-implementation`：(a) 跨多个独立模块的 **0→1 新建**——规划分层并行切片；(b) 改动涉及 **≥3 个模块**——用 `AskUserQuestion` 让用户确认后再派遣；(c) 改动涉及 **≥5 个文件且每个文件 diff >50 行**——主动建议并行。skill 返回分片计划（文件归属、依赖关系、每片的输出格式契约）；根据计划用并行 `Agent` 调用 + `isolation: "worktree"` 派遣。低于这些门槛就串行写——多 agent 的开销不值得。
 
 9. 完成编码后：任何"已完成 / 已修复 / 可以提交 / 可以进入评审"的判断前，都先按 `verification-before-completion` 运行并检查完整验证。对涉及 UI 的改动，使用 `playwright-cli` 进行交互验证（像用户一样操作应用），不只是看代码。
 
