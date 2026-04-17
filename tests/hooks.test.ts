@@ -200,6 +200,17 @@ describe("loadHooksConfig", () => {
     );
   });
 
+  test("accepts the real pr-create-guard and pr-ready-guard hooks", () => {
+    const config = loadHooksConfig(REPO_ROOT);
+    for (const name of ["pr-create-guard", "pr-ready-guard"] as const) {
+      const h = config.hooks.find((x) => x.name === name);
+      assert.ok(h, `${name} hook present in registry`);
+      assert.equal(h?.marker, `auriga:${name}`);
+      assert.equal(h?.settingsEvents[0]?.event, "PreToolUse");
+      assert.equal(h?.settingsEvents[0]?.matcher, "Bash");
+    }
+  });
+
   // Valid command shape used by every fixture below so the failure under test
   // can only come from the field being exercised, not from command validation.
   const VALID_CMD = 'node "$HOOK_DIR/index.mjs"';
