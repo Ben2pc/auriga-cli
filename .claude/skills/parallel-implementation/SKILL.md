@@ -68,7 +68,7 @@ For each remaining slice, estimate diff size. Rule of thumb:
 
 - **< ~30 lines of actual change** → main Agent writes it directly; dispatch overhead (context setup, worktree spin-up, result merge) outweighs parallelism gain
 - **~30–150 lines** → dispatch candidate
-- **> 150 lines or architectural** → dispatch, and note "override to a stronger reasoning model at high effort" on the slice if the main Agent's current model is not already that
+- **> 150 lines or architectural** → dispatch, and note "override to a stronger reasoning model at `xhigh` effort (the maximum the runtime supports)" on the slice if the main Agent's current model is not already that
 
 Drop small slices from the plan; note them as "main Agent handles inline".
 
@@ -106,7 +106,8 @@ Annotate:
   - User or main Agent asked for a specific model (e.g., "use opus high for the resolver slice")
   - Slice is architectural / high-stakes and benefits from a stronger reasoning model at higher effort than the main Agent's current setting
   - Slice is mechanical boilerplate that can safely drop to a faster/cheaper model
-- Write the override as a neutral phrase the main Agent can translate (e.g., `stronger reasoning model, high effort`, `fast mechanical model`), not a specific model name, unless the user named one.
+- Write the override as a neutral phrase the main Agent can translate (e.g., `stronger reasoning model, xhigh effort`, `fast mechanical model`), not a specific model name, unless the user named one.
+- Effort levels (when named) escalate: `low` → `medium` → `high` → `xhigh`. **Complex / architectural slices default to `xhigh`** (the max the runtime supports). `high` is appropriate for medium-complexity work; lower levels only for mechanical tasks.
 
 ## Handoff to Main Agent
 
