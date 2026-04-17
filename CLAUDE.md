@@ -37,13 +37,22 @@ The only exception to skip TDD: pure documentation, pure configuration, or pure 
 
 ## Document Conventions
 
-Session-ephemeral planning artifacts have canonical locations so Agents and the `pr-ready-guard` hook agree on what counts as "stray":
+Repo documentation lives under `docs/`, directory-per-purpose, so Agents, the `pr-ready-guard` hook, and human reviewers all agree on where to place and find each document category.
 
-- **planning-with-files outputs**: `findings.md`, `progress.md`, `task_plan.md` at repo root
-- **brainstorming specs**: `docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md`
-- **Archived worklogs**: `docs/worklog-<YYYY-MM-DD>-<branch-name>/` (the destination chosen in step 10 when the PR is marked Ready for Review)
+| Directory | Purpose | Lifecycle |
+|---|---|---|
+| `docs/worklog-<YYYY-MM-DD>-<branch-name>/` | Archived session-ephemeral planning artifacts (`findings.md`, `progress.md`, `task_plan.md`, design specs). Created at step 10 when the PR is marked Ready for Review. | Permanent after PR merge |
+| `docs/rules/` | Coding conventions, review checklists, naming / style decisions. | Long-lived, maintained |
+| `docs/` (future) | Reserved for structured sets added on demand: `architecture/` (design docs), `runbooks/` (ops procedures), `adr/` (architecture decision records), `onboarding/`, etc. Prefer one directory per document category over mixing. | Varies |
 
-Before marking a PR ready, any non-archived planning artifact at the paths above must be archived to the worklog path or deleted — `pr-ready-guard` blocks `gh pr ready` otherwise.
+### Session-ephemeral planning paths (before archival)
+
+Until step 10's archive-or-delete decision, these paths are the **only** legal homes for "still in play" planning artifacts:
+
+- `findings.md`, `progress.md`, `task_plan.md` at **repo root** (produced by `planning-with-files`)
+- `docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md` (produced by `brainstorming` skill)
+
+Before the PR is marked ready, these must be archived to the worklog path above or deleted — `pr-ready-guard` blocks `gh pr ready` otherwise.
 
 # Harness Principles
 

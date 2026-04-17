@@ -37,13 +37,22 @@
 
 ## 文档规范
 
-会话临时产出的 planning 文档有固定存放位置，方便 Agent 与 `pr-ready-guard` hook 对齐"游离文档"定义：
+仓库文档统一放 `docs/` 下，按用途分目录，让 Agent、`pr-ready-guard` hook、人工 reviewer 对"文档该放哪、从哪找"有一致认知。
 
-- **planning-with-files 产物**：仓库根目录的 `findings.md`、`progress.md`、`task_plan.md`
-- **brainstorming specs**：`docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md`
-- **归档 worklog**：`docs/worklog-<YYYY-MM-DD>-<branch-name>/`（step 10 Ready for Review 时选择的归档目录）
+| 目录 | 用途 | 生命周期 |
+|---|---|---|
+| `docs/worklog-<YYYY-MM-DD>-<branch-name>/` | 已归档的 session-ephemeral planning 产物（`findings.md`、`progress.md`、`task_plan.md`、设计 spec）。在 step 10 PR ready 时归档。 | PR merge 后永久保留 |
+| `docs/rules/` | 编码规范、review checklist、命名 / 风格约定 | 长期维护 |
+| `docs/` 其他 | 按需扩展的结构化目录：`architecture/`（设计文档）、`runbooks/`（运维流程）、`adr/`（架构决策记录）、`onboarding/` 等。一类文档一个目录，不混放 | 因类而异 |
 
-PR 标记 ready 前，上述位置的非归档 planning 产物必须归档到 worklog 路径或删除——否则 `pr-ready-guard` 会拦截 `gh pr ready`。
+### 归档前的 planning 产物位置
+
+在 step 10 的归档/删除决策之前，"进行中"的 planning 产物**只能**放这些位置：
+
+- 仓库根目录的 `findings.md`、`progress.md`、`task_plan.md`（`planning-with-files` 产出）
+- `docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md`（`brainstorming` skill 产出）
+
+PR 标记 ready 前，上述位置的非归档产物必须归档到 worklog 路径或删除——否则 `pr-ready-guard` 会拦截 `gh pr ready`。
 
 # Harness 原则
 

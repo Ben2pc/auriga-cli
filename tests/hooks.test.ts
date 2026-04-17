@@ -202,11 +202,18 @@ describe("loadHooksConfig", () => {
 
   test("accepts the real pr-create-guard and pr-ready-guard hooks", () => {
     const config = loadHooksConfig(REPO_ROOT);
-    for (const name of ["pr-create-guard", "pr-ready-guard"] as const) {
+    // pr-create-guard runs PostToolUse (queries the real PR after
+    // creation succeeds), pr-ready-guard runs PreToolUse (blocks
+    // structural problems before the Draft → Ready state flip).
+    const expected: Record<string, string> = {
+      "pr-create-guard": "PostToolUse",
+      "pr-ready-guard": "PreToolUse",
+    };
+    for (const name of Object.keys(expected)) {
       const h = config.hooks.find((x) => x.name === name);
       assert.ok(h, `${name} hook present in registry`);
       assert.equal(h?.marker, `auriga:${name}`);
-      assert.equal(h?.settingsEvents[0]?.event, "PreToolUse");
+      assert.equal(h?.settingsEvents[0]?.event, expected[name]);
       assert.equal(h?.settingsEvents[0]?.matcher, "Bash");
     }
   });
