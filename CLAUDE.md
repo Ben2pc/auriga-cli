@@ -35,6 +35,16 @@ Skip brainstorming and planning only; branch, Draft PR, TDD, verification, and r
 
 The only exception to skip TDD: pure documentation, pure configuration, or pure prompt changes (no code logic changes).
 
+## Document Conventions
+
+Session-ephemeral planning artifacts have canonical locations so Agents and the `pr-ready-guard` hook agree on what counts as "stray":
+
+- **planning-with-files outputs**: `findings.md`, `progress.md`, `task_plan.md` at repo root
+- **brainstorming specs**: `docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md`
+- **Archived worklogs**: `docs/worklog-<YYYY-MM-DD>-<branch-name>/` (the destination chosen in step 10 when the PR is marked Ready for Review)
+
+Before marking a PR ready, any non-archived planning artifact at the paths above must be archived to the worklog path or deleted — `pr-ready-guard` blocks `gh pr ready` otherwise.
+
 # Harness Principles
 
 - **Enforce constraints via mechanisms, not prompts**: Core architectural rules should be enforced via linters / CI / type systems, not by relying on Agents to self-police.

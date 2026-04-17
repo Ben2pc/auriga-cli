@@ -35,6 +35,16 @@
 
 跳过 TDD 的唯一例外：纯文档、纯配置、纯 prompt 改动（无代码逻辑变更）。
 
+## 文档规范
+
+会话临时产出的 planning 文档有固定存放位置，方便 Agent 与 `pr-ready-guard` hook 对齐"游离文档"定义：
+
+- **planning-with-files 产物**：仓库根目录的 `findings.md`、`progress.md`、`task_plan.md`
+- **brainstorming specs**：`docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md`
+- **归档 worklog**：`docs/worklog-<YYYY-MM-DD>-<branch-name>/`（step 10 Ready for Review 时选择的归档目录）
+
+PR 标记 ready 前，上述位置的非归档 planning 产物必须归档到 worklog 路径或删除——否则 `pr-ready-guard` 会拦截 `gh pr ready`。
+
 # Harness 原则
 
 - **约束靠机制执行，不靠提示词**：核心架构规则尽量用 linter / CI / 类型系统执行，不依赖 Agent 自觉遵守。
