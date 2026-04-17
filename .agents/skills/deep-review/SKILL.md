@@ -98,7 +98,7 @@ Aggregate all reviewer outputs into a single report:
 **Classification rule**:
 - **Blocking** = correctness bug, security vulnerability, breaks existing tests/contracts
 - **Non-blocking** = maintainability / style / minor perf
-- **Architectural** = decay worth tracking as a separate issue (per the workflow "About Review" rule)
+- **Architectural** = decay worth tracking as a separate issue (don't bundle risky, out-of-scope changes into a review-cycle PR)
 
 ## Output Format (for each dispatched reviewer)
 

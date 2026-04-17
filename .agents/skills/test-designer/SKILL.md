@@ -138,8 +138,8 @@ Assistant:
      respecting deps and detecting cycles. Must handle: transitive deps,
      diamond deps, self-references, missing deps, cycles."
   2. Code paths: src/plugins.ts, .claude/plugins.json schema, tests/ dir
-  3. Dispatch to codex-agent with opus / high effort, read-only on src/,
-     writable on tests/
+  3. Dispatch to an independent-agent skill (fresh session) at `xhigh` effort,
+     read-only on src/, writable on tests/
   4. Agent returns: test plan (5 categories, 18 tests), tests/resolver.test.ts
      with failing assertions + per-test rationale comments
   5. Main Agent runs tests → all red → validates rationale → hands off
