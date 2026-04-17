@@ -109,6 +109,22 @@ const cases = [
     // gracefully inject the fallback message — not crash, not block.
     expect: { status: 0, stdoutIncludes: "pr-create-guard" },
   },
+  {
+    name: "inline URL in command body does NOT leak into extractPRRef",
+    payload: {
+      hook_event_name: "PostToolUse",
+      tool_name: "Bash",
+      // Body mentions an old PR's URL; tool_response has no URL.
+      // The hook must NOT fetch the old PR — it should take the
+      // passive-nudge path instead.
+      tool_input: {
+        command:
+          'gh pr create --title foo --body "refs https://github.com/some-owner/some-repo/pull/42"',
+      },
+      tool_response: { stdout: "creating pull request...", exit_code: 0 },
+    },
+    expect: { status: 0, stdoutIncludes: "could not identify" },
+  },
 ];
 
 let failed = 0;

@@ -132,6 +132,32 @@ const cases = [
     setup: () => ({ cwd: makeRepo(), cmd: "gh pr ready" }),
     expect: { status: 0, stderrNotIncludes: "stray" },
   },
+  {
+    name: "stray-doc check uses git toplevel, not cwd (subdir invocation)",
+    setup: () => {
+      const dir = makeRepo();
+      fs.writeFileSync(path.join(dir, "findings.md"), "# at root\n");
+      const subdir = path.join(dir, "src");
+      fs.mkdirSync(subdir, { recursive: true });
+      // Agent fires the hook from inside src/ — must still see root findings.md
+      return { cwd: subdir, cmd: "gh pr ready" };
+    },
+    expect: { status: 2, stderrIncludes: "findings.md" },
+  },
+  {
+    name: "explicit PR ref skips unpushed-commit check on current branch",
+    setup: () => {
+      const dir = makeRepo();
+      // Fake a scenario where current branch has "unpushed" commits by
+      // just not having an upstream — countUnpushed would already return
+      // 0 in that case, so this test primarily confirms that extractPRRef
+      // returning a value doesn't break the stray-check flow.
+      return { cwd: dir, cmd: "gh pr ready 15" };
+    },
+    // Clean repo + explicit ref → no block, filter path runs; gh may
+    // fail in test env so we only assert: no block on unpushed.
+    expect: { status: 0, stderrNotIncludes: "unpushed" },
+  },
 ];
 
 let failed = 0;

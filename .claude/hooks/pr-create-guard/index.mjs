@@ -34,7 +34,7 @@ process.stdin.on("end", () => {
     // created, so there's nothing to snapshot.
     if (looksLikeFailure(data?.tool_response)) return exit0();
 
-    const prRef = extractPRRef(data?.tool_response, cmd);
+    const prRef = extractPRRef(data?.tool_response);
     if (!prRef) {
       // Can't identify which PR was created (unusual — gh pr create
       // normally prints the URL). Fall back to a passive nudge.
@@ -70,11 +70,11 @@ function looksLikeFailure(resp) {
 }
 
 // Pull a PR reference out of the tool_response. gh pr create prints the
-// URL on success; we look for github.com/.../pull/N. If no URL is in
-// the response, we return null and the caller falls back to a passive
-// nudge — we don't try to reconstruct the ref from the command.
-function extractPRRef(resp, cmd) {
-  const haystack = stringifyResponse(resp) + "\n" + cmd;
+// URL on success; we look for github.com/.../pull/N. Only the response
+// is searched — an inline `--body` that mentions some unrelated old PR
+// URL must not be mistaken for "the PR just created".
+function extractPRRef(resp) {
+  const haystack = stringifyResponse(resp);
   const m = haystack.match(/https?:\/\/[^\s"]+\/pull\/(\d+)/);
   if (m) return m[0]; // use the full URL — gh pr view accepts it
   return null;

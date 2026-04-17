@@ -33,7 +33,11 @@ process.stdin.on("end", () => {
     // is the first unambiguous structural problem, not a grab-bag.
 
     // B2/B3: stray planning artifacts (repo-root files + spec glob).
-    const stray = findStrayDocs();
+    // Anchor at the git toplevel, not process.cwd — hooks fire from
+    // whatever subdir the Agent was in when it ran the command, and
+    // we want the stray check to apply to the whole repo.
+    const repoRoot = gitToplevel() ?? process.cwd();
+    const stray = findStrayDocs(repoRoot);
     if (stray.root.length > 0 || stray.specs.length > 0) {
       const parts = [];
       if (stray.root.length > 0) {
@@ -49,19 +53,24 @@ process.stdin.on("end", () => {
       );
     }
 
-    // B1: unpushed commits. Requires a valid git dir; if git exits with
-    // any error we assume the branch isn't tracking a remote yet and
-    // skip this check (a brand-new unpushed branch with no upstream
-    // would fire it spuriously otherwise).
-    const unpushed = countUnpushed();
-    if (unpushed > 0) {
-      return block(
-        `${unpushed} unpushed commit${unpushed === 1 ? "" : "s"} on current branch. Push first so the PR reflects your local state.`,
-      );
+    // B1: unpushed commits on current branch. Only meaningful when the
+    // Agent is marking the current branch's PR ready — if an explicit
+    // PR ref was passed (`gh pr ready 15` / `gh pr ready <url>`), the
+    // current branch may be unrelated and its push state is irrelevant.
+    // Skip B1 in that case; the ref-specified PR either has its own
+    // pushed commits (handled upstream by gh) or the Agent knows what
+    // it's doing.
+    const prRef = extractPRRef(cmd);
+    if (prRef === null) {
+      const unpushed = countUnpushed();
+      if (unpushed > 0) {
+        return block(
+          `${unpushed} unpushed commit${unpushed === 1 ? "" : "s"} on current branch. Push first so the PR reflects your local state.`,
+        );
+      }
     }
 
     // Filter path: body snapshot. gh failures are non-fatal.
-    const prRef = extractPRRef(cmd);
     const body = fetchBody(prRef);
     if (body === null) {
       // Nothing useful to say without a body; stay out of the way.
@@ -75,18 +84,17 @@ process.stdin.on("end", () => {
 
 // ---------------------------------------------------------------------
 
-function findStrayDocs() {
-  const cwd = process.cwd();
+function findStrayDocs(repoRoot) {
   const rootFiles = ["findings.md", "progress.md", "task_plan.md"];
   const root = rootFiles.filter((f) => {
     try {
-      return fs.statSync(path.join(cwd, f)).isFile();
+      return fs.statSync(path.join(repoRoot, f)).isFile();
     } catch {
       return false;
     }
   });
 
-  const specDir = path.join(cwd, "docs", "superpowers", "specs");
+  const specDir = path.join(repoRoot, "docs", "superpowers", "specs");
   let specs = [];
   try {
     const entries = fs.readdirSync(specDir);
@@ -98,6 +106,16 @@ function findStrayDocs() {
     // dir doesn't exist — no spec docs. Not stray.
   }
   return { root, specs };
+}
+
+function gitToplevel() {
+  const r = spawnSync("git", ["rev-parse", "--show-toplevel"], {
+    encoding: "utf8",
+    timeout: 3000,
+  });
+  if (r.status !== 0) return null;
+  const out = (r.stdout ?? "").trim();
+  return out.length > 0 ? out : null;
 }
 
 function countUnpushed() {
