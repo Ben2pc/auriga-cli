@@ -4,7 +4,7 @@
 
 ## What it does
 
-Runs only when the matched tool is `Bash` and its command contains `gh pr ready`. For any other tool / command the hook exits 0 silently.
+Runs only when the matched tool is `Bash` and its command contains `gh pr ready`. The registry declares `matcher: "Bash"` + `if: "Bash(gh pr ready)"`, so Claude Code ≥ 2026-04 skips the subprocess spawn entirely on non-matching calls. The script also does the substring check internally for compatibility with older runtimes.
 
 ### Hard block (exit 2) — structural signals only
 

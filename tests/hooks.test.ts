@@ -82,6 +82,32 @@ describe("addHookToSettings", () => {
     assert.equal(input.hooks, undefined);
   });
 
+  test("matcher option writes to the container-level matcher field", () => {
+    const r = addHookToSettings({}, "PreToolUse", "node /x.mjs", "auriga:x", {
+      matcher: "Bash",
+    });
+    assert.equal(r.mutated, true);
+    const group = r.settings.hooks?.PreToolUse?.[0];
+    assert.equal(group?.matcher, "Bash");
+    assert.equal(group?.hooks[0]?.command, "node /x.mjs");
+  });
+
+  test("ifRule option writes to the action-level if field", () => {
+    const r = addHookToSettings({}, "PreToolUse", "node /x.mjs", "auriga:x", {
+      matcher: "Bash",
+      ifRule: "Bash(gh pr ready)",
+    });
+    const action = r.settings.hooks?.PreToolUse?.[0].hooks[0];
+    assert.equal(action?.if, "Bash(gh pr ready)");
+  });
+
+  test("options absent → no matcher / no if written", () => {
+    const r = addHookToSettings({}, "Notification", "node /x.mjs", "auriga:notify");
+    const group = r.settings.hooks?.Notification?.[0];
+    assert.equal(group?.matcher, undefined);
+    assert.equal(group?.hooks[0]?.if, undefined);
+  });
+
   test("dedupes by marker across path drift", () => {
     const s1 = addHookToSettings({}, "Notification", "node /old/path.mjs", "auriga:notify").settings;
     const s2 = addHookToSettings(s1, "Notification", "node /completely/different.mjs", "auriga:notify");
@@ -205,17 +231,37 @@ describe("loadHooksConfig", () => {
     // pr-create-guard runs PostToolUse (queries the real PR after
     // creation succeeds), pr-ready-guard runs PreToolUse (blocks
     // structural problems before the Draft → Ready state flip).
-    const expected: Record<string, string> = {
-      "pr-create-guard": "PostToolUse",
-      "pr-ready-guard": "PreToolUse",
+    // Both should declare an `if` so Claude Code ≥ 2026-04 can skip
+    // the spawn entirely on non-matching Bash calls.
+    const expected: Record<string, { event: string; ifRule: string }> = {
+      "pr-create-guard": { event: "PostToolUse", ifRule: "Bash(gh pr create)" },
+      "pr-ready-guard": { event: "PreToolUse", ifRule: "Bash(gh pr ready)" },
     };
     for (const name of Object.keys(expected)) {
       const h = config.hooks.find((x) => x.name === name);
       assert.ok(h, `${name} hook present in registry`);
       assert.equal(h?.marker, `auriga:${name}`);
-      assert.equal(h?.settingsEvents[0]?.event, expected[name]);
+      assert.equal(h?.settingsEvents[0]?.event, expected[name].event);
       assert.equal(h?.settingsEvents[0]?.matcher, "Bash");
+      assert.equal(h?.settingsEvents[0]?.if, expected[name].ifRule);
     }
+  });
+
+  test("rejects malformed if-rule in settingsEvents", () => {
+    writeRegistry(SCRATCH, {
+      hooks: [
+        {
+          name: "evil",
+          description: "x",
+          runtimePlatforms: ["darwin"],
+          settingsEvents: [{ event: "PreToolUse", matcher: "Bash", if: "Bash(gh pr ready); rm -rf /" }],
+          command: 'node "$HOOK_DIR/index.mjs"',
+          files: ["index.mjs"],
+          marker: "auriga:evil",
+        },
+      ],
+    });
+    assert.throws(() => loadHooksConfig(SCRATCH), /settingsEvents.if must match/);
   });
 
   // Valid command shape used by every fixture below so the failure under test

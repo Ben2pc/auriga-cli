@@ -21,7 +21,16 @@ export interface HookDep {
 
 export interface HookSettingsEvent {
   event: string;
+  /** Tool-name / regex filter; mapped onto the container-level
+   *  `matcher` field in settings.json. Absent → every tool fires. */
   matcher?: string;
+  /** Permission-rule-syntax filter (e.g. `Bash(gh pr create)`) — mapped
+   *  onto the nested action-level `if` field in settings.json. Lets the
+   *  Claude Code runtime skip hook dispatch when the tool input doesn't
+   *  match, avoiding a Node subprocess spawn per unrelated call.
+   *  Absent → no registry-level content filter (the hook script runs
+   *  for every invocation that passed `matcher`). */
+  if?: string;
 }
 
 export interface HookDef {
@@ -53,6 +62,10 @@ export interface SettingsHookAction {
   type: "command";
   command: string;
   _marker?: string;
+  /** Per-action permission-rule filter (Claude Code ≥ 2026-04 schema).
+   *  Older runtimes ignore unknown fields, so emitting this is
+   *  forward-safe. */
+  if?: string;
 }
 
 export interface SettingsHookGroup {
@@ -93,6 +106,18 @@ const EVENT_NAME_RE = /^[A-Za-z][A-Za-z0-9_-]*$/;
 // the form requires a code change here, intentionally — see the security
 // review trail in PR #7 for context.
 const COMMAND_RE = /^(node|python3|bash) "\$HOOK_DIR\/[A-Za-z0-9_-]+\.[A-Za-z0-9]+"$/;
+// Claude Code permission-rule syntax for the `if` field:
+//   <ToolName>(<substring>)
+// The tool name is an EVENT_NAME-shaped identifier (already validated
+// elsewhere for hook events — same character set). The substring is a
+// glob-ish literal the runtime matches against the tool input; we
+// constrain it to printable ASCII without parens, backticks, backslash,
+// or newlines. No shell metacharacters, no nested structure, and the
+// string itself never reaches a shell — Claude Code parses and uses it
+// directly. Registry compromise therefore cannot pivot this field into
+// command execution, only into a more permissive match pattern (the
+// hook still fires under its own configured scope).
+const IF_RE = /^[A-Z][A-Za-z0-9_-]*\([\x20-\x5B\x5D-\x5F\x61-\x7E]{1,200}\)$/;
 
 function isSafeRelativePath(file: unknown): boolean {
   if (typeof file !== "string" || file.length === 0) return false;
@@ -174,6 +199,12 @@ function validateHookEntry(hook: unknown, idx: number): void {
         `hooks.json: hooks[${idx}].settingsEvents.matcher must match ${EVENT_NAME_RE} (got ${JSON.stringify(matcher)})`,
       );
     }
+    const ifRule = (evt as Record<string, unknown>).if;
+    if (ifRule !== undefined && (typeof ifRule !== "string" || !IF_RE.test(ifRule))) {
+      throw new Error(
+        `hooks.json: hooks[${idx}].settingsEvents.if must match ${IF_RE} (got ${JSON.stringify(ifRule)})`,
+      );
+    }
   }
   if (typeof h.command !== "string" || !COMMAND_RE.test(h.command)) {
     throw new Error(
@@ -218,6 +249,7 @@ export function addHookToSettings(
   event: string,
   command: string,
   marker: string,
+  options: { matcher?: string; ifRule?: string } = {},
 ): { settings: SettingsFile; mutated: boolean } {
   const next: SettingsFile = JSON.parse(JSON.stringify(settings ?? {}));
   if (next.hooks !== undefined && (typeof next.hooks !== "object" || Array.isArray(next.hooks))) {
@@ -254,9 +286,11 @@ export function addHookToSettings(
     }
   }
 
-  list.push({
-    hooks: [{ type: "command", command, _marker: marker }],
-  });
+  const action: SettingsHookAction = { type: "command", command, _marker: marker };
+  if (options.ifRule !== undefined) action.if = options.ifRule;
+  const group: SettingsHookGroup = { hooks: [action] };
+  if (options.matcher !== undefined) group.matcher = options.matcher;
+  list.push(group);
   next.hooks[event] = list;
   return { settings: next, mutated: true };
 }
@@ -552,7 +586,10 @@ function writeMergedSettings(
   let next = parsed;
   for (const evt of hook.settingsEvents) {
     const cmd = hook.command.replace(/\$HOOK_DIR/g, resolved.commandHookDir);
-    const result = addHookToSettings(next, evt.event, cmd, hook.marker);
+    const result = addHookToSettings(next, evt.event, cmd, hook.marker, {
+      matcher: evt.matcher,
+      ifRule: evt.if,
+    });
     if (result.mutated) mutated = true;
     next = result.settings;
   }
