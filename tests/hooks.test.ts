@@ -82,6 +82,105 @@ describe("addHookToSettings", () => {
     assert.equal(input.hooks, undefined);
   });
 
+  test("matcher option writes to the container-level matcher field", () => {
+    const r = addHookToSettings({}, "PreToolUse", "node /x.mjs", "auriga:x", {
+      matcher: "Bash",
+    });
+    assert.equal(r.mutated, true);
+    const group = r.settings.hooks?.PreToolUse?.[0];
+    assert.equal(group?.matcher, "Bash");
+    assert.equal(group?.hooks[0]?.command, "node /x.mjs");
+  });
+
+  test("ifRule option writes to the action-level if field", () => {
+    const r = addHookToSettings({}, "PreToolUse", "node /x.mjs", "auriga:x", {
+      matcher: "Bash",
+      ifRule: "Bash(gh pr ready)",
+    });
+    const group = r.settings.hooks?.PreToolUse?.[0];
+    // Both levels land in the right place: matcher on the group, if on
+    // the action. If they ever get swapped, Claude Code would silently
+    // misroute hook dispatch.
+    assert.equal(group?.matcher, "Bash");
+    assert.equal(group?.hooks[0]?.if, "Bash(gh pr ready)");
+  });
+
+  test("options absent → no matcher / no if written", () => {
+    const r = addHookToSettings({}, "Notification", "node /x.mjs", "auriga:notify");
+    const group = r.settings.hooks?.Notification?.[0];
+    assert.equal(group?.matcher, undefined);
+    assert.equal(group?.hooks[0]?.if, undefined);
+  });
+
+  test("upgrade path: existing entry with missing matcher + if gets updated", () => {
+    // Simulates a user who installed an older registry version (pre-if)
+    // and re-runs the installer after hooks.json declared matcher + if.
+    // addHookToSettings must update the two fields in place while
+    // leaving the rest of the entry alone.
+    const s1 = addHookToSettings({}, "PreToolUse", "node /x.mjs", "auriga:upgrade").settings;
+    assert.equal(s1.hooks?.PreToolUse?.[0].matcher, undefined);
+    const s2 = addHookToSettings(s1, "PreToolUse", "node /x.mjs", "auriga:upgrade", {
+      matcher: "Bash",
+      ifRule: "Bash(gh pr ready)",
+    });
+    assert.equal(s2.mutated, true);
+    const group = s2.settings.hooks?.PreToolUse?.[0];
+    assert.equal(group?.matcher, "Bash");
+    assert.equal(group?.hooks[0]?.if, "Bash(gh pr ready)");
+  });
+
+  test("upgrade path: matcher / if already match → no-op", () => {
+    const s1 = addHookToSettings({}, "PreToolUse", "node /x.mjs", "auriga:steady", {
+      matcher: "Bash",
+      ifRule: "Bash(gh pr ready)",
+    }).settings;
+    const s2 = addHookToSettings(s1, "PreToolUse", "node /x.mjs", "auriga:steady", {
+      matcher: "Bash",
+      ifRule: "Bash(gh pr ready)",
+    });
+    assert.equal(s2.mutated, false);
+  });
+
+  test("upgrade path: changing only ifRule updates only the action-level if", () => {
+    const s1 = addHookToSettings({}, "PreToolUse", "node /x.mjs", "auriga:partial", {
+      matcher: "Bash",
+    }).settings;
+    const s2 = addHookToSettings(s1, "PreToolUse", "node /x.mjs", "auriga:partial", {
+      matcher: "Bash",
+      ifRule: "Bash(gh pr ready)",
+    });
+    assert.equal(s2.mutated, true);
+    const group = s2.settings.hooks?.PreToolUse?.[0];
+    assert.equal(group?.matcher, "Bash");
+    assert.equal(group?.hooks[0]?.if, "Bash(gh pr ready)");
+  });
+
+  test("defense-in-depth: rejects programmatic ifRule bypassing registry validator", () => {
+    // Direct API caller tries to sneak in a rule with nested parens —
+    // which is blocked at the registry layer by IF_RE. addHookToSettings
+    // re-validates so settings.json can never receive malformed values
+    // through a non-registry code path (future internal caller, library
+    // consumer, etc).
+    assert.throws(
+      () =>
+        addHookToSettings({}, "PreToolUse", "node /x.mjs", "auriga:bad", {
+          matcher: "Bash",
+          ifRule: "Bash(foo(bar))",
+        }),
+      /addHookToSettings: options\.ifRule/,
+    );
+  });
+
+  test("defense-in-depth: rejects programmatic matcher that doesn't match EVENT_NAME_RE", () => {
+    assert.throws(
+      () =>
+        addHookToSettings({}, "PreToolUse", "node /x.mjs", "auriga:bad", {
+          matcher: "Bash; rm -rf /",
+        }),
+      /addHookToSettings: options\.matcher/,
+    );
+  });
+
   test("dedupes by marker across path drift", () => {
     const s1 = addHookToSettings({}, "Notification", "node /old/path.mjs", "auriga:notify").settings;
     const s2 = addHookToSettings(s1, "Notification", "node /completely/different.mjs", "auriga:notify");
@@ -205,17 +304,60 @@ describe("loadHooksConfig", () => {
     // pr-create-guard runs PostToolUse (queries the real PR after
     // creation succeeds), pr-ready-guard runs PreToolUse (blocks
     // structural problems before the Draft → Ready state flip).
-    const expected: Record<string, string> = {
-      "pr-create-guard": "PostToolUse",
-      "pr-ready-guard": "PreToolUse",
+    // Both should declare an `if` so Claude Code ≥ 2026-04 can skip
+    // the spawn entirely on non-matching Bash calls.
+    const expected: Record<string, { event: string; ifRule: string }> = {
+      "pr-create-guard": { event: "PostToolUse", ifRule: "Bash(gh pr create)" },
+      "pr-ready-guard": { event: "PreToolUse", ifRule: "Bash(gh pr ready)" },
     };
     for (const name of Object.keys(expected)) {
       const h = config.hooks.find((x) => x.name === name);
       assert.ok(h, `${name} hook present in registry`);
       assert.equal(h?.marker, `auriga:${name}`);
-      assert.equal(h?.settingsEvents[0]?.event, expected[name]);
+      assert.equal(h?.settingsEvents[0]?.event, expected[name].event);
       assert.equal(h?.settingsEvents[0]?.matcher, "Bash");
+      assert.equal(h?.settingsEvents[0]?.if, expected[name].ifRule);
     }
+  });
+
+  test("rejects malformed if-rule — trailing content after closing paren", () => {
+    // The tail `; rm -rf /` is outside the parens and defeats the $
+    // anchor. Exercises the outer-shape constraint of IF_RE.
+    writeRegistry(SCRATCH, {
+      hooks: [
+        {
+          name: "evil",
+          description: "x",
+          runtimePlatforms: ["darwin"],
+          settingsEvents: [{ event: "PreToolUse", matcher: "Bash", if: "Bash(gh pr ready); rm -rf /" }],
+          command: 'node "$HOOK_DIR/index.mjs"',
+          files: ["index.mjs"],
+          marker: "auriga:evil",
+        },
+      ],
+    });
+    assert.throws(() => loadHooksConfig(SCRATCH), /settingsEvents.if must match/);
+  });
+
+  test("rejects nested parens inside the if-rule body", () => {
+    // Nested / unbalanced parens like `Bash(foo(bar))` are rejected by
+    // the tightened body class (no `(` / `)` allowed in the substring).
+    // The earlier regex allowed this and would have produced a settings
+    // value that Claude Code's permission-rule parser may misinterpret.
+    writeRegistry(SCRATCH, {
+      hooks: [
+        {
+          name: "nested",
+          description: "x",
+          runtimePlatforms: ["darwin"],
+          settingsEvents: [{ event: "PreToolUse", matcher: "Bash", if: "Bash(foo(bar))" }],
+          command: 'node "$HOOK_DIR/index.mjs"',
+          files: ["index.mjs"],
+          marker: "auriga:nested",
+        },
+      ],
+    });
+    assert.throws(() => loadHooksConfig(SCRATCH), /settingsEvents.if must match/);
   });
 
   // Valid command shape used by every fixture below so the failure under test

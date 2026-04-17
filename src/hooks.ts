@@ -21,7 +21,17 @@ export interface HookDep {
 
 export interface HookSettingsEvent {
   event: string;
+  /** Tool-name / regex filter; mapped onto the container-level
+   *  `matcher` field in settings.json. Absent → every tool fires. */
   matcher?: string;
+  /** Permission-rule-syntax filter — mapped onto the nested action-level
+   *  `if` field in settings.json. Format: `<ToolName>(<substring>)`, e.g.
+   *  `Bash(gh pr create)` — see IF_RE for the exact grammar. Lets the
+   *  Claude Code runtime skip hook dispatch when the tool input doesn't
+   *  match, avoiding a Node subprocess spawn per unrelated call.
+   *  Absent → no registry-level content filter (the hook script runs
+   *  for every invocation that passed `matcher`). */
+  if?: string;
 }
 
 export interface HookDef {
@@ -53,6 +63,10 @@ export interface SettingsHookAction {
   type: "command";
   command: string;
   _marker?: string;
+  /** Per-action permission-rule filter (Claude Code ≥ 2026-04 schema).
+   *  Format: `<ToolName>(<substring>)`. Older runtimes ignore unknown
+   *  fields, so emitting this is forward-safe. */
+  if?: string;
 }
 
 export interface SettingsHookGroup {
@@ -93,6 +107,29 @@ const EVENT_NAME_RE = /^[A-Za-z][A-Za-z0-9_-]*$/;
 // the form requires a code change here, intentionally — see the security
 // review trail in PR #7 for context.
 const COMMAND_RE = /^(node|python3|bash) "\$HOOK_DIR\/[A-Za-z0-9_-]+\.[A-Za-z0-9]+"$/;
+// Claude Code permission-rule syntax for the `if` field:
+//   <ToolName>(<substring>)
+// Tool name: EVENT_NAME-shape identifier, bounded to 64 chars so a
+// malicious registry can't inflate settings.json with a gigantic prefix.
+// Substring body: 1-200 printable-ASCII chars, with parens, backslash,
+// and backtick explicitly excluded so the anchored `\(...\)` wrapper
+// actually delimits a well-formed outer parenthesis pair.
+//
+// The safety argument is NOT that IF_RE strips shell metacharacters —
+// `$ " ' ; | & < > *` are all inside the allowed byte range and left
+// intact. The defense is that this string never reaches a shell: it's
+// written verbatim into settings.json as a JSON string and read by
+// Claude Code's in-process permission-rule matcher. A registry
+// compromise can widen or misdirect the match pattern (causing the hook
+// to fire on unintended inputs or not fire at all) but cannot pivot
+// into command execution from this field.
+//
+// Body range decomposition (what the char class actually covers):
+//   0x20-0x27  space through single-quote       (excludes nothing)
+//   0x2A-0x5B  asterisk through left-bracket    (excludes `(` 0x28, `)` 0x29)
+//   0x5D-0x5F  right-bracket through underscore (excludes `\` 0x5C)
+//   0x61-0x7E  lowercase through tilde          (excludes `` ` `` 0x60)
+const IF_RE = /^[A-Z][A-Za-z0-9_-]{0,63}\([\x20-\x27\x2A-\x5B\x5D-\x5F\x61-\x7E]{1,200}\)$/;
 
 function isSafeRelativePath(file: unknown): boolean {
   if (typeof file !== "string" || file.length === 0) return false;
@@ -174,6 +211,12 @@ function validateHookEntry(hook: unknown, idx: number): void {
         `hooks.json: hooks[${idx}].settingsEvents.matcher must match ${EVENT_NAME_RE} (got ${JSON.stringify(matcher)})`,
       );
     }
+    const ifRule = (evt as Record<string, unknown>).if;
+    if (ifRule !== undefined && (typeof ifRule !== "string" || !IF_RE.test(ifRule))) {
+      throw new Error(
+        `hooks.json: hooks[${idx}].settingsEvents.if must match ${IF_RE} (got ${JSON.stringify(ifRule)})`,
+      );
+    }
   }
   if (typeof h.command !== "string" || !COMMAND_RE.test(h.command)) {
     throw new Error(
@@ -208,6 +251,24 @@ function validateHookEntry(hook: unknown, idx: number): void {
  *      and never wrote our marker. Without this fallback we would happily
  *      append a duplicate next to it and the hook would fire twice.
  *
+ * `options.matcher` writes to the container-level `matcher` (tool-name
+ * filter); `options.ifRule` writes to the action-level `if` (permission-
+ * rule substring filter, Claude Code ≥ 2026-04). Either or both may be
+ * absent.
+ *
+ * Upgrade path: if an entry with our marker already exists but its
+ * matcher / if disagrees with the desired values, we update those two
+ * fields in place (preserving everything else — command, sibling
+ * actions, the user's other groups — untouched). This is the path for
+ * a user who installed an older registry version and re-runs the
+ * installer after hooks.json changed. Pure no-op when the existing
+ * fields already match.
+ *
+ * Inputs are defense-in-depth revalidated here against IF_RE + the
+ * event-name regex even though registry callers already passed
+ * loadHooksConfig, so a direct library caller can't write malformed
+ * values into settings.json by bypassing the registry loader.
+ *
  * Throws if `settings.hooks[event]` exists but is not an array — that
  * means the user has hand-edited their settings into a shape we do not
  * recognize, and silently replacing it with an empty array would lose
@@ -218,7 +279,23 @@ export function addHookToSettings(
   event: string,
   command: string,
   marker: string,
+  options: { matcher?: string; ifRule?: string } = {},
 ): { settings: SettingsFile; mutated: boolean } {
+  // Defense-in-depth: registry callers pre-validate via loadHooksConfig,
+  // but a direct programmatic caller could bypass that. Refuse values
+  // that wouldn't have cleared the registry validator, so settings.json
+  // can never receive a malformed string through this function.
+  if (options.matcher !== undefined && !EVENT_NAME_RE.test(options.matcher)) {
+    throw new Error(
+      `addHookToSettings: options.matcher must match ${EVENT_NAME_RE} (got ${JSON.stringify(options.matcher)})`,
+    );
+  }
+  if (options.ifRule !== undefined && !IF_RE.test(options.ifRule)) {
+    throw new Error(
+      `addHookToSettings: options.ifRule must match ${IF_RE} (got ${JSON.stringify(options.ifRule)})`,
+    );
+  }
+
   const next: SettingsFile = JSON.parse(JSON.stringify(settings ?? {}));
   if (next.hooks !== undefined && (typeof next.hooks !== "object" || Array.isArray(next.hooks))) {
     throw new Error(
@@ -240,8 +317,21 @@ export function addHookToSettings(
     for (const action of group.hooks) {
       if (!action) continue;
       if (action._marker === marker) {
+        // Our entry already exists. Upgrade matcher / if in place if
+        // they drifted from the desired values; leave command + other
+        // fields alone (users may have hand-tweaked; we only own the
+        // two fields registry declares).
+        let drifted = false;
+        if (options.matcher !== undefined && group.matcher !== options.matcher) {
+          group.matcher = options.matcher;
+          drifted = true;
+        }
+        if (options.ifRule !== undefined && action.if !== options.ifRule) {
+          action.if = options.ifRule;
+          drifted = true;
+        }
         next.hooks[event] = list;
-        return { settings: next, mutated: false };
+        return { settings: next, mutated: drifted };
       }
       if (action.type === "command" && action.command === command) {
         // A pre-existing entry (manual or from another tool) already
@@ -254,9 +344,11 @@ export function addHookToSettings(
     }
   }
 
-  list.push({
-    hooks: [{ type: "command", command, _marker: marker }],
-  });
+  const action: SettingsHookAction = { type: "command", command, _marker: marker };
+  if (options.ifRule !== undefined) action.if = options.ifRule;
+  const group: SettingsHookGroup = { hooks: [action] };
+  if (options.matcher !== undefined) group.matcher = options.matcher;
+  list.push(group);
   next.hooks[event] = list;
   return { settings: next, mutated: true };
 }
@@ -552,7 +644,10 @@ function writeMergedSettings(
   let next = parsed;
   for (const evt of hook.settingsEvents) {
     const cmd = hook.command.replace(/\$HOOK_DIR/g, resolved.commandHookDir);
-    const result = addHookToSettings(next, evt.event, cmd, hook.marker);
+    const result = addHookToSettings(next, evt.event, cmd, hook.marker, {
+      matcher: evt.matcher,
+      ifRule: evt.if,
+    });
     if (result.mutated) mutated = true;
     next = result.settings;
   }

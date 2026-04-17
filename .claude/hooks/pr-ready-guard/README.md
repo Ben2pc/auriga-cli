@@ -21,6 +21,10 @@ When all block checks pass, the hook fetches the real PR body via `gh pr view --
 
 If gh is missing / unauthenticated / times out, the hook exits 0 silently — no crash, no false block.
 
+## Dispatch
+
+The registry declares `matcher: "Bash"` + `if: "Bash(gh pr ready)"`, so Claude Code ≥ 2026-04 skips the subprocess spawn entirely on non-matching calls. The script also does the substring check internally for compatibility with older runtimes.
+
 ## Design principles
 
 1. **Block only on structural signals.** File existence and git-status diffs are binary facts; text-content "is the body good enough" is judgment, which belongs to the Agent, not to a regex in a hook.

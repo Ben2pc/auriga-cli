@@ -16,6 +16,10 @@ On a successful `gh pr create`:
 
 On failure (gh returned non-zero, URL not extractable, gh unavailable / unauthenticated), the hook falls back to a passive nudge — never crashes, never blocks.
 
+## Dispatch
+
+The registry declares `matcher: "Bash"` + `if: "Bash(gh pr create)"`, so Claude Code ≥ 2026-04 skips the subprocess spawn entirely on non-matching calls. The script also does the substring check internally for compatibility with older runtimes.
+
 ## Why PostToolUse (not PreToolUse)
 
 Running *after* the tool lets us query the real PR state via `gh pr view`. The PreToolUse alternative requires parsing `gh pr create`'s free-form command line (tokenizer + heredoc handling + `--body` / `-b` / `--body-file` / `--template` source resolution), which is brittle and produces false positives on exotic body sources.
