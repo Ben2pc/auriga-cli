@@ -68,7 +68,7 @@ For each remaining slice, estimate diff size. Rule of thumb:
 
 - **< ~30 lines of actual change** → main Agent writes it directly; dispatch overhead (context setup, worktree spin-up, result merge) outweighs parallelism gain
 - **~30–150 lines** → dispatch candidate
-- **> 150 lines or architectural** → dispatch, and consider assigning to a stronger model (opus / gpt-5.4 high effort)
+- **> 150 lines or architectural** → dispatch, and note "override to a stronger reasoning model at high effort" on the slice if the main Agent's current model is not already that
 
 Drop small slices from the plan; note them as "main Agent handles inline".
 
@@ -89,16 +89,24 @@ An unspecified format = the subagent dumps verbose context back, cancelling the 
 
 Emit a single table the main Agent can execute against:
 
-| Slice | Writer | Files | Depends on | Output format |
-|---|---|---|---|---|
-| 1 | subagent (sonnet) | `src/plugins.ts` | — | unified diff + one-line rationale |
-| 2 | subagent (sonnet) | `tests/plugins.test.ts` | slice 1 signature only | test file + requirement map |
-| 3 | main Agent | `src/cli.ts` | slice 1 complete | (inline, no dispatch) |
+| Slice | Writer | Model | Files | Depends on | Output format |
+|---|---|---|---|---|---|
+| 1 | subagent | inherit | `src/plugins.ts` | — | unified diff + one-line rationale |
+| 2 | subagent | inherit | `tests/plugins.test.ts` | slice 1 signature only | test file + requirement map |
+| 3 | main Agent | — | `src/cli.ts` | slice 1 complete | (inline, no dispatch) |
 
 Annotate:
 - Which slices are **parallelizable now** (no blocking deps)
 - Which are **gated** (wait for a prior slice)
 - Which are **inline** (main Agent, no subagent)
+
+**Model column contract**:
+- Default value is **`inherit`** — subagent uses whatever model the main Agent is currently running (could be any Claude model, Codex / GPT-5.4, or a future main Agent runtime). Don't hardcode Anthropic-specific or OpenAI-specific model names as the default.
+- Set an **explicit override** only when the caller has a reason:
+  - User or main Agent asked for a specific model (e.g., "use opus high for the resolver slice")
+  - Slice is architectural / high-stakes and benefits from a stronger reasoning model at higher effort than the main Agent's current setting
+  - Slice is mechanical boilerplate that can safely drop to a faster/cheaper model
+- Write the override as a neutral phrase the main Agent can translate (e.g., `stronger reasoning model, high effort`, `fast mechanical model`), not a specific model name, unless the user named one.
 
 ## Handoff to Main Agent
 
@@ -139,10 +147,10 @@ Assistant (runs parallel-implementation):
   Step 5 (output contract): each subagent returns unified diff + a
                             one-sentence description of the bug it fixes
   Step 6 (plan):
-    | Slice | Writer | Files | Depends on | Output format |
-    | A | subagent (sonnet) | src/cli.ts + tests     | — | diff + rationale |
-    | B | subagent (sonnet) | src/hooks.ts + tests   | — | diff + rationale |
-    | C | subagent (sonnet) | src/plugins.ts + tests | — | diff + rationale |
+    | Slice | Writer | Model | Files | Depends on | Output format |
+    | A | subagent | inherit | src/cli.ts + tests     | — | diff + rationale |
+    | B | subagent | inherit | src/hooks.ts + tests   | — | diff + rationale |
+    | C | subagent | inherit | src/plugins.ts + tests | — | diff + rationale |
   Parallelizable now: A, B, C (no gating)
 
 Main Agent:
