@@ -154,10 +154,12 @@ function resolveIcon(iconPath) {
 // Claude Code is never blocked waiting on a notification banner.
 //
 // alerter contract (verified against v26.5):
-//   - blocks until user interacts OR --timeout fires
+//   - blocks until user interacts OR the notification is replaced/dismissed
 //   - prints "@CONTENTCLICKED" to stdout when the banner content is clicked
-//   - prints "@TIMEOUT" / "@CLOSED" / "@ACTIONCLICKED" for other outcomes
-// We only react to @CONTENTCLICKED; everything else is a no-op exit.
+//   - prints "@CLOSED" when replaced by a same-group notification or
+//     dismissed via NC; "@TIMEOUT" only if --timeout was set; "@ACTIONCLICKED"
+//     for action buttons. We only react to @CONTENTCLICKED; everything else
+//     is a no-op exit.
 if (process.argv[2] === "--alerter-worker") {
   try {
     const job = JSON.parse(process.argv[3]);
@@ -224,7 +226,13 @@ process.stdin.on("end", () => {
         "--title", title,
         "--message", message,
         "--sound", cfg.sound,
-        "--timeout", "30",
+        // No --timeout: we want alerter to stay alive listening for a
+        // click as long as the notification is in Notification Center,
+        // not just for the few seconds the on-screen banner is visible.
+        // Pairing with --group prevents process accumulation: every
+        // new notification replaces the previous one in the same
+        // group, and the old alerter exits via @CLOSED.
+        "--group", "auriga-notify",
       ];
       if (subtitle) args.push("--subtitle", subtitle);
       // Only --app-icon, not --content-image. macOS notifications

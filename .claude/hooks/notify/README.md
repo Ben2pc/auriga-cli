@@ -92,11 +92,21 @@ decides between three paths:
    `--app-icon` for the small top-left icon next to the title. The
    auriga-cli installer auto-installs it via
    `brew install vjeantet/tap/alerter`. alerter blocks until the user
-   clicks or `--timeout` fires, so the hook spawns it through a
-   detached background worker and exits immediately — Claude Code is
-   never blocked. The worker watches alerter's stdout for
-   `@CONTENTCLICKED` and, on click, runs `osascript` to bring the
+   clicks (or the notification is replaced), so the hook spawns it
+   through a detached background worker and exits immediately —
+   Claude Code is never blocked. The worker watches alerter's stdout
+   for `@CONTENTCLICKED` and, on click, runs `osascript` to bring the
    resolved `activate` bundle to the foreground.
+
+   **No `--timeout` is set**, so the click handler stays alive for as
+   long as the notification lives in Notification Center — clicking
+   later (after the banner has slid off screen) still works. To avoid
+   accumulating worker processes when many notifications fire without
+   being clicked, every notification uses the shared group ID
+   `auriga-notify`: a new notification replaces the previous one in
+   that group, and the old alerter exits via `@CLOSED`. Trade-off: the
+   most recent notification is the only clickable one — older ones in
+   NC become inert.
 2. **`osascript`** *(fallback)* — `display notification` via
    AppleScript. Always present on macOS. No custom icon, no click
    activation. Used when alerter isn't installed (e.g. brew tap
