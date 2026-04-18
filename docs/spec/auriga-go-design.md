@@ -58,4 +58,4 @@ A workflow skill that drives the Agent forward along the CLAUDE.md 12-step workf
 
 ## Next session
 
-Resume brainstorming at §2 (mode semantics and hard-stop whitelist detail). After §2–§8 are closed, finalize this spec, invoke the `writing-plans` skill, and start TDD implementation.
+Resume brainstorming at §2 (mode semantics and hard-stop whitelist detail). After §2–§8 are closed, finalize this spec, then follow workflow step 2 to choose a planning method (built-in Plan or `planning-with-files`) before starting TDD implementation.
