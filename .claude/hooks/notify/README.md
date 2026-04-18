@@ -50,7 +50,9 @@ Edit `config.json` next to this README:
   regardless of focus. Detection uses `osascript` against `System
   Events`, which may trigger a one-time macOS Automation permission
   prompt on first run — denying it is safe (the hook treats permission
-  failure as "can't tell" and shows the full banner).
+  failure as "can't tell" and shows the full banner). If your custom
+  `sound` name doesn't resolve to any file on disk, the focused path
+  also falls through to the full banner so you always get a signal.
 
 The hook is macOS-only at runtime. On other platforms it exits silently
 without doing anything, so it's safe to commit into a repo shared with a
@@ -85,8 +87,9 @@ decides between three paths:
   configured sound via `afplay` (looking under `~/Library/Sounds/` then
   `/System/Library/Sounds/`). Returns immediately.
 - **Full banner + sound** — every other case (terminal not focused,
-  focus check disabled in config, focus undetectable, `AURIGA_NOTIFY_FORCE=1`).
-  Picks the first available notification backend:
+  focus check disabled in config, focus undetectable, sound miss in
+  the focused path, `AURIGA_NOTIFY_FORCE_BANNER=1`). Picks the first
+  available notification backend:
 
 1. **`alerter`** *(preferred)* — Swift-based notification CLI with
    `--app-icon` for the small top-left icon next to the title. The
@@ -102,11 +105,13 @@ decides between three paths:
    long as the notification lives in Notification Center — clicking
    later (after the banner has slid off screen) still works. To avoid
    accumulating worker processes when many notifications fire without
-   being clicked, every notification uses the shared group ID
-   `auriga-notify`: a new notification replaces the previous one in
-   that group, and the old alerter exits via `@CLOSED`. Trade-off: the
-   most recent notification is the only clickable one — older ones in
-   NC become inert.
+   being clicked, every notification uses a **per-project group ID**
+   (`auriga-notify-<sha8(cwd)>`): a new notification in the same
+   project replaces the previous one and the old alerter exits via
+   `@CLOSED`, while notifications from other projects use a different
+   group and don't cannibalize each other. Trade-off: within a single
+   project the most recent notification is the only clickable one —
+   older ones in NC become inert.
 2. **`osascript`** *(fallback)* — `display notification` via
    AppleScript. Always present on macOS. No custom icon, no click
    activation. Used when alerter isn't installed (e.g. brew tap

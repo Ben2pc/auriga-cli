@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { spawn, spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 import fs from "node:fs";
@@ -45,11 +46,8 @@ function loadConfig() {
         parsed.activate === false || typeof parsed.activate === "string"
           ? parsed.activate
           : DEFAULTS.activate,
-      // `soundOnlyWhenFocused` downgrades to sound-only (no banner)
-      // when the terminal that launched Claude is currently the
-      // frontmost app — you're already looking at it, the banner is
-      // visual noise. Default true. Set false to always show the
-      // full banner regardless of focus.
+      // `soundOnlyWhenFocused` toggles the focus-aware downgrade
+      // (see the focus branch in the main flow). Default true.
       soundOnlyWhenFocused:
         typeof parsed.soundOnlyWhenFocused === "boolean"
           ? parsed.soundOnlyWhenFocused
@@ -110,10 +108,10 @@ function isSourceFocused(sourceBundle) {
   return front === sourceBundle;
 }
 
-// Play the configured sound without a banner. Searches user-installed
-// sounds first (~/Library/Sounds), then falls back to the macOS system
-// sound bank. Spawns afplay detached so we don't block the hook return.
-// On miss (custom sound name with no matching file), no-op.
+// Returns true on a successful spawn, false on miss (no matching file
+// or afplay binary missing). Caller decides what to do with a miss —
+// here we fall through to the full banner path so the user always
+// gets *some* signal.
 function playSoundOnly(soundName) {
   if (!soundName) return false;
   const home = process.env.HOME ?? "";
@@ -122,7 +120,7 @@ function playSoundOnly(soundName) {
     candidates.push(path.join(home, "Library", "Sounds", `${soundName}.aiff`));
     candidates.push(path.join(home, "Library", "Sounds", `${soundName}.caf`));
   }
-  candidates.push(`/System/Library/Sounds/${soundName}.aiff`);
+  candidates.push(path.join("/System/Library/Sounds", `${soundName}.aiff`));
   for (const candidate of candidates) {
     try {
       if (fs.statSync(candidate).isFile()) {
@@ -130,6 +128,9 @@ function playSoundOnly(soundName) {
           detached: true,
           stdio: "ignore",
         });
+        // Silence "afplay not found" / spawn errors so they don't
+        // surface as unhandled-error warnings on Node ≥15.
+        child.on("error", () => {});
         child.unref();
         return true;
       }
@@ -138,6 +139,20 @@ function playSoundOnly(soundName) {
     }
   }
   return false;
+}
+
+// Per-project notification group. Without a project-scoped group, two
+// Claude sessions in different projects would silently cannibalize
+// each other's notifications via alerter's same-group replacement.
+// process.cwd() is the directory the hook fires from — typically the
+// project root. 8 hex chars of sha256 is plenty for collision-free
+// grouping across a developer's project set.
+function projectGroupId() {
+  const hash = createHash("sha256")
+    .update(process.cwd())
+    .digest("hex")
+    .slice(0, 8);
+  return `auriga-notify-${hash}`;
 }
 
 function resolveIcon(iconPath) {
@@ -197,14 +212,16 @@ process.stdin.on("end", () => {
     const activate = resolveActivate(cfg, sourceBundle);
 
     // Focus-aware downgrade: when the launching terminal is the
-    // frontmost app, the user is already looking at the conversation —
-    // a banner is just visual noise. Drop to sound-only via afplay.
-    // AURIGA_NOTIFY_FORCE=1 (set by test.mjs) bypasses this so manual
-    // smoke tests always show the full banner.
-    const forceFull = process.env.AURIGA_NOTIFY_FORCE === "1";
+    // frontmost app, drop the banner and play only the sound (you're
+    // already looking, the banner is visual noise). If the configured
+    // sound can't be resolved, fall through to the full banner so the
+    // user always gets *some* signal that Claude is asking.
+    // AURIGA_NOTIFY_FORCE_BANNER=1 (set by test.mjs) bypasses this so
+    // manual smoke tests always show the full banner.
+    const forceFull = process.env.AURIGA_NOTIFY_FORCE_BANNER === "1";
     if (cfg.soundOnlyWhenFocused && !forceFull && isSourceFocused(sourceBundle)) {
-      playSoundOnly(cfg.sound);
-      return;
+      if (playSoundOnly(cfg.sound)) return;
+      // sound miss → fall through
     }
 
     // Backend preference: alerter > osascript.
@@ -229,10 +246,12 @@ process.stdin.on("end", () => {
         // No --timeout: we want alerter to stay alive listening for a
         // click as long as the notification is in Notification Center,
         // not just for the few seconds the on-screen banner is visible.
-        // Pairing with --group prevents process accumulation: every
-        // new notification replaces the previous one in the same
-        // group, and the old alerter exits via @CLOSED.
-        "--group", "auriga-notify",
+        // Pairing with a per-project --group prevents process
+        // accumulation (new notifications in the same group replace
+        // the old, which exits via @CLOSED) AND prevents cross-project
+        // cannibalization (project A's notification doesn't kill
+        // project B's pending click handler).
+        "--group", projectGroupId(),
       ];
       if (subtitle) args.push("--subtitle", subtitle);
       // Only --app-icon, not --content-image. macOS notifications
