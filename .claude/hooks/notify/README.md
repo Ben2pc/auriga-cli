@@ -42,6 +42,17 @@ Edit `config.json` next to this README:
   force a specific app (e.g. `"com.microsoft.VSCode"` to always jump to
   VS Code), or to `false` to opt out entirely (banner is purely
   informational, click does nothing).
+- **`soundOnlyWhenFocused`** *(default `true`)* — when the terminal
+  that launched Claude is the frontmost app at notification time, drop
+  the banner and play only the sound. Rationale: you're already looking
+  at the conversation, the banner is visual noise but a chime still
+  pulls your ear back. Set `false` to always show the full banner
+  regardless of focus. Detection uses `osascript` against `System
+  Events`, which may trigger a one-time macOS Automation permission
+  prompt on first run — denying it is safe (the hook treats permission
+  failure as "can't tell" and shows the full banner). If your custom
+  `sound` name doesn't resolve to any file on disk, the focused path
+  also falls through to the full banner so you always get a signal.
 
 The hook is macOS-only at runtime. On other platforms it exits silently
 without doing anything, so it's safe to commit into a repo shared with a
@@ -68,18 +79,39 @@ notification permission for your terminal app being set to "None" in
 
 ## How it works
 
-`index.mjs` reads the `Notification` event payload from stdin and picks
-the first available notification backend:
+`index.mjs` reads the `Notification` event payload from stdin, then
+decides between three paths:
+
+- **Sound only** — when `soundOnlyWhenFocused` is on AND the launching
+  terminal's bundle ID matches the frontmost app's bundle ID. Plays the
+  configured sound via `afplay` (looking under `~/Library/Sounds/` then
+  `/System/Library/Sounds/`). Returns immediately.
+- **Full banner + sound** — every other case (terminal not focused,
+  focus check disabled in config, focus undetectable, sound miss in
+  the focused path, `AURIGA_NOTIFY_FORCE_BANNER=1`). Picks the first
+  available notification backend:
 
 1. **`alerter`** *(preferred)* — Swift-based notification CLI with
    `--app-icon` for the small top-left icon next to the title. The
    auriga-cli installer auto-installs it via
    `brew install vjeantet/tap/alerter`. alerter blocks until the user
-   clicks or `--timeout` fires, so the hook spawns it through a
-   detached background worker and exits immediately — Claude Code is
-   never blocked. The worker watches alerter's stdout for
-   `@CONTENTCLICKED` and, on click, runs `osascript` to bring the
+   clicks (or the notification is replaced), so the hook spawns it
+   through a detached background worker and exits immediately —
+   Claude Code is never blocked. The worker watches alerter's stdout
+   for `@CONTENTCLICKED` and, on click, runs `osascript` to bring the
    resolved `activate` bundle to the foreground.
+
+   **No `--timeout` is set**, so the click handler stays alive for as
+   long as the notification lives in Notification Center — clicking
+   later (after the banner has slid off screen) still works. To avoid
+   accumulating worker processes when many notifications fire without
+   being clicked, every notification uses a **per-project group ID**
+   (`auriga-notify-<sha8(cwd)>`): a new notification in the same
+   project replaces the previous one and the old alerter exits via
+   `@CLOSED`, while notifications from other projects use a different
+   group and don't cannibalize each other. Trade-off: within a single
+   project the most recent notification is the only clickable one —
+   older ones in NC become inert.
 2. **`osascript`** *(fallback)* — `display notification` via
    AppleScript. Always present on macOS. No custom icon, no click
    activation. Used when alerter isn't installed (e.g. brew tap

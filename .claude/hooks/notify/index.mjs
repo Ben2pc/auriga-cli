@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { spawn, spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 import fs from "node:fs";
@@ -9,7 +10,13 @@ if (process.platform !== "darwin") process.exit(0);
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const SELF = fileURLToPath(import.meta.url);
 
-const DEFAULTS = { icon: "./icon.png", sound: "Submarine", sender: null, activate: undefined };
+const DEFAULTS = {
+  icon: "./icon.png",
+  sound: "Submarine",
+  sender: null,
+  activate: undefined,
+  soundOnlyWhenFocused: true,
+};
 
 // alerter's `--sender` re-routes the notification through a specific
 // app's bundle ID, which determines what notification permission and
@@ -39,6 +46,12 @@ function loadConfig() {
         parsed.activate === false || typeof parsed.activate === "string"
           ? parsed.activate
           : DEFAULTS.activate,
+      // `soundOnlyWhenFocused` toggles the focus-aware downgrade
+      // (see the focus branch in the main flow). Default true.
+      soundOnlyWhenFocused:
+        typeof parsed.soundOnlyWhenFocused === "boolean"
+          ? parsed.soundOnlyWhenFocused
+          : DEFAULTS.soundOnlyWhenFocused,
     };
   } catch {
     return { ...DEFAULTS };
@@ -52,10 +65,94 @@ function loadConfig() {
 // a no-op (banner + sound still fire), so this is safe to enable by
 // default. Users on weird launch chains (ssh, launchd, cron) can pin
 // `activate` in config.json or set it to `false` to opt out.
-function resolveActivate(cfg) {
+function getSourceBundleId() {
+  return process.env.__CFBundleIdentifier ?? null;
+}
+
+function resolveActivate(cfg, sourceBundle) {
   if (cfg.activate === false) return null;
   if (typeof cfg.activate === "string" && cfg.activate.length > 0) return cfg.activate;
-  return process.env.__CFBundleIdentifier ?? null;
+  return sourceBundle;
+}
+
+// Returns the bundle ID of the currently frontmost macOS app, or null
+// if osascript fails / times out / the user has denied "System Events"
+// automation permission. We wrap the AppleScript in try/error so a
+// permission denial returns "" instead of an exit-2 — failing open
+// (caller treats null as "can't tell, just notify").
+function getFrontmostBundleId() {
+  const r = spawnSync(
+    "osascript",
+    [
+      "-e", "try",
+      "-e", "tell application \"System Events\" to bundle identifier of first application process whose frontmost is true",
+      "-e", "on error",
+      "-e", "\"\"",
+      "-e", "end try",
+    ],
+    { encoding: "utf8", timeout: 1500 },
+  );
+  if (r.status !== 0) return null;
+  const out = (r.stdout ?? "").trim();
+  return out.length > 0 ? out : null;
+}
+
+// "Is the terminal that launched Claude currently the user's frontmost
+// app?" Both inputs are bundle IDs (com.googlecode.iterm2,
+// com.apple.Terminal, com.microsoft.VSCode, ...). Return false on any
+// uncertainty so callers default to the louder behavior.
+function isSourceFocused(sourceBundle) {
+  if (!sourceBundle) return false;
+  const front = getFrontmostBundleId();
+  if (!front) return false;
+  return front === sourceBundle;
+}
+
+// Returns true on a successful spawn, false on miss (no matching file
+// or afplay binary missing). Caller decides what to do with a miss —
+// here we fall through to the full banner path so the user always
+// gets *some* signal.
+function playSoundOnly(soundName) {
+  if (!soundName) return false;
+  const home = process.env.HOME ?? "";
+  const candidates = [];
+  if (home) {
+    candidates.push(path.join(home, "Library", "Sounds", `${soundName}.aiff`));
+    candidates.push(path.join(home, "Library", "Sounds", `${soundName}.caf`));
+  }
+  candidates.push(path.join("/System/Library/Sounds", `${soundName}.aiff`));
+  for (const candidate of candidates) {
+    try {
+      if (fs.statSync(candidate).isFile()) {
+        const child = spawn("afplay", [candidate], {
+          detached: true,
+          stdio: "ignore",
+        });
+        // Silence "afplay not found" / spawn errors so they don't
+        // surface as unhandled-error warnings on Node ≥15.
+        child.on("error", () => {});
+        child.unref();
+        return true;
+      }
+    } catch {
+      // not found; try next candidate
+    }
+  }
+  return false;
+}
+
+// Per-project notification group. Without a project-scoped group, two
+// Claude sessions in different projects would silently cannibalize
+// each other's notifications via alerter's same-group replacement.
+// process.cwd() is the directory the hook fires from — typically the
+// project root. 8 hex chars of sha256 is plenty for collision-free
+// grouping across a developer's project set.
+function projectGroupId() {
+  const hash = createHash("sha256")
+    .update(process.cwd())
+    .digest("hex")
+    .slice(0, 8);
+  return `auriga-notify-${hash}`;
 }
 
 function resolveIcon(iconPath) {
@@ -72,10 +169,12 @@ function resolveIcon(iconPath) {
 // Claude Code is never blocked waiting on a notification banner.
 //
 // alerter contract (verified against v26.5):
-//   - blocks until user interacts OR --timeout fires
+//   - blocks until user interacts OR the notification is replaced/dismissed
 //   - prints "@CONTENTCLICKED" to stdout when the banner content is clicked
-//   - prints "@TIMEOUT" / "@CLOSED" / "@ACTIONCLICKED" for other outcomes
-// We only react to @CONTENTCLICKED; everything else is a no-op exit.
+//   - prints "@CLOSED" when replaced by a same-group notification or
+//     dismissed via NC; "@TIMEOUT" only if --timeout was set; "@ACTIONCLICKED"
+//     for action buttons. We only react to @CONTENTCLICKED; everything else
+//     is a no-op exit.
 if (process.argv[2] === "--alerter-worker") {
   try {
     const job = JSON.parse(process.argv[3]);
@@ -109,7 +208,21 @@ process.stdin.on("end", () => {
     const title = String(data.title || "Claude Code");
     const message = String(data.message || "");
     const subtitle = data.notification_type ? String(data.notification_type) : "";
-    const activate = resolveActivate(cfg);
+    const sourceBundle = getSourceBundleId();
+    const activate = resolveActivate(cfg, sourceBundle);
+
+    // Focus-aware downgrade: when the launching terminal is the
+    // frontmost app, drop the banner and play only the sound (you're
+    // already looking, the banner is visual noise). If the configured
+    // sound can't be resolved, fall through to the full banner so the
+    // user always gets *some* signal that Claude is asking.
+    // AURIGA_NOTIFY_FORCE_BANNER=1 (set by test.mjs) bypasses this so
+    // manual smoke tests always show the full banner.
+    const forceFull = process.env.AURIGA_NOTIFY_FORCE_BANNER === "1";
+    if (cfg.soundOnlyWhenFocused && !forceFull && isSourceFocused(sourceBundle)) {
+      if (playSoundOnly(cfg.sound)) return;
+      // sound miss → fall through
+    }
 
     // Backend preference: alerter > osascript.
     //
@@ -130,7 +243,15 @@ process.stdin.on("end", () => {
         "--title", title,
         "--message", message,
         "--sound", cfg.sound,
-        "--timeout", "30",
+        // No --timeout: we want alerter to stay alive listening for a
+        // click as long as the notification is in Notification Center,
+        // not just for the few seconds the on-screen banner is visible.
+        // Pairing with a per-project --group prevents process
+        // accumulation (new notifications in the same group replace
+        // the old, which exits via @CLOSED) AND prevents cross-project
+        // cannibalization (project A's notification doesn't kill
+        // project B's pending click handler).
+        "--group", projectGroupId(),
       ];
       if (subtitle) args.push("--subtitle", subtitle);
       // Only --app-icon, not --content-image. macOS notifications
