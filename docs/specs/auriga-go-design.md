@@ -37,11 +37,38 @@ A workflow skill that drives the Agent forward along the CLAUDE.md 12-step workf
 | Primary data source | **Agent context** — whatever the main Agent already sees (especially `TodoWrite` state and in-flight tasks). |
 | Fallback data sources (probed on miss) | **A**: `planning-with-files` artifacts (`task_plan.md`, `progress.md`). **C**: open Draft PR body TODO checkboxes. **D**: git / filesystem / GitHub state evaluated against the 12-step workflow heuristic. |
 | Fallback protocol | When context is insufficient → probe A/C/D → present findings → confirm with user → write todos → proceed. |
-| Architecture | **Approach 3** — two modes: `mode=auto` (default, internal loop) honours the "reduce prompts" goal; `mode=step` (single action + return) preserves the conservative fallback. |
+| Architecture | **Approach 3** — three modes: `mode=step` (single action + return, conservative); `mode=auto` (default, internal loop, stops at any human-decision gate); `mode=ship` *(Experimental)* (drives spec → PR Ready autonomously; applies CLAUDE.md's strictest defaults at every decision point; runs in-Draft `deep-review` before flipping Ready; loop continues until *tests pass ∧ verification clean ∧ deep-review punch list empty*, or `max-iter` exceeded). |
+
+## Mode comparison (locked in)
+
+| Property | `mode=step` | `mode=auto` | `mode=ship` *(Experimental)* |
+|---|---|---|---|
+| Iteration unit | 1 step → return | Workflow-step loop | Workflow-step loop, terminal state = Draft → Ready candidate |
+| Stop on destructive / irreversible op | yes | yes | yes |
+| Stop on true ambiguity (spec didn't anticipate) | yes | yes | yes |
+| Stop at `AskUserQuestion`-style choice | yes | yes | **no — applies strictest CLAUDE.md default (see ship-defaults table below)** |
+| Test / verification failure | n/a (single step) | stops | **enters fix-loop** (`systematic-debugging` → fix → re-run, until pass or `max-iter` exceeded) |
+| Spec precondition | none | none | **spec exists in `docs/specs/`** OR ship invokes `brainstorming` first (which still asks the user — "strictest default" is *to ask*, not skip) |
+| Default `max-iter` | n/a | ~10 | ~30 |
+| Expected human prompts in session | per step | a few | ideally 0 (Experimental — may surface) |
+
+## Ship-mode strict defaults (locked in)
+
+When `mode=ship` reaches a CLAUDE.md decision point that would normally trigger `AskUserQuestion` or operator judgment, it picks the most rigorous documented option — not the lightest one. Rationale: the human isn't in the loop to catch a too-loose default mid-flight, so each individual decision must err toward more discipline to compensate.
+
+| Workflow decision point | Normally selectable | **Ship default** |
+|---|---|---|
+| Step 2 — planning method | built-in Plan / `planning-with-files` | **`planning-with-files`** (persistent `task_plan.md` + `progress.md` so the loop can resume cleanly across iterations or `/clear`) |
+| Step 7 — test design | inline simple test / `test-designer` | **`test-designer`** (Independent Evaluation — avoids "agent grades own work") |
+| Step 8 — parallel implementation | dispatch when threshold met / inline | **dispatch when threshold met** (don't skip "to save complexity") |
+| Step 9 — verification | `verification-before-completion` | same — already mandatory; ship additionally enters the fix-loop on failure |
+| Step 10 — spec lifecycle at PR Ready | promote / archive / delete | **promote first** (preserve as long-lived reference); archive only when no clear architectural home |
+| Step 11 — review | `/review` (light) or `deep-review` | **`deep-review` mandatory**; ship runs it on the **Draft** before flipping Ready (deliberate exception to the "deep-review only after Ready" rule, justified because ship is producing the Ready candidate) |
+| Flipping Draft → Ready | manual | ship flips automatically once the loop exit condition is met |
 
 ## Open questions (to resolve in next session)
 
-- **§2 Mode semantics** — precise loop contract; per-iteration "next-step intent" echo for visibility; max-iteration / loop-budget cap to prevent runaway.
+- **§2 Mode semantics** — precise loop contract for all three modes (`step` / `auto` / `ship`); per-iteration "next-step intent" echo for visibility; per-mode `max-iter` budget defaults; ship mode's fix-loop sub-state machine on test/verification failure; ship's terminal-state check (`tests pass ∧ verification clean ∧ deep-review punch list empty`).
 - **§3 Hard-stop whitelist** — enumerate concrete commands / patterns that trigger auto→stop (destructive git, main-branch writes, `rm -rf`, `npm publish`, `gh release create`, CI/CD file mutations, etc.).
 - **§4 State detection signals** — the exact git / filesystem / GitHub / test signals probed in fallback path D, and how they map to the 12-step workflow position.
 - **§5 SKILL.md content structure** — the instruction block the Agent follows when the skill is invoked (algorithm, echo contract, stop contract, confirmation contract).
@@ -55,6 +82,7 @@ A workflow skill that drives the Agent forward along the CLAUDE.md 12-step workf
 - **State-detection misreads** in fallback path D — a wrong inference could push the Agent toward the wrong next action. Mitigation: fallback-path results must be confirmed with the user before todos are written.
 - **Loop runaway** in `mode=auto` without an iteration cap. Mitigation: enforce a max-iterations budget in §2.
 - **Version skew** with CLAUDE.md workflow — if the 12-step workflow evolves, `auriga-go`'s encoded view drifts. Mitigation: pin the workflow version in SKILL.md; treat workflow rewrites as a trigger to bump the skill.
+- **Ship mode produces a flawed Ready PR** — high-autonomy mode can ship code with subtle issues that no human caught mid-flight. Mitigations: (i) strictest defaults at every decision point (see "Ship-mode strict defaults"); (ii) in-Draft `deep-review` self-pass before flipping Ready; (iii) `max-iter` cap with a clear "blocked, here's why" PR comment on budget exhaustion (no silent give-up); (iv) `Experimental` tag both in SKILL.md header and as a one-line runtime warning when invoked, so users explicitly opt in; (v) per-iteration intent echo so the audit trail is recoverable post-hoc.
 
 ## Next session
 
