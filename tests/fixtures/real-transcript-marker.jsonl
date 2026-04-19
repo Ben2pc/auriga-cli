@@ -1,0 +1,6 @@
+{"type":"user","message":{"role":"user","content":[{"type":"text","text":"Run ship mode on this PR."}]}}
+{"type":"assistant","message":{"role":"assistant","content":[{"type":"tool_use","id":"toolu_01","name":"Bash","input":{"command":"git status"}}]}}
+{"type":"tool","message":{"role":"tool","content":[{"type":"tool_result","tool_use_id":"toolu_01","content":[{"type":"text","text":"On branch feat/foo\nnothing to commit"}]}]}}
+{"type":"assistant","message":{"role":"assistant","content":[{"type":"tool_use","id":"toolu_02","name":"Bash","input":{"command":"npm test"}}]}}
+{"type":"tool","message":{"role":"tool","content":[{"type":"tool_result","tool_use_id":"toolu_02","content":[{"type":"text","text":"All 21 tests passed."}]}]}}
+{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"All checks pass. The PR is ready for review.\n\n<ship-done>Ready</ship-done>"}]}}
