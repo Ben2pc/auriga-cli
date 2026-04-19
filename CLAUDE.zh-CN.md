@@ -1,4 +1,4 @@
-# 通用 Workflow (v1.3.0)
+# auriga 工作流 (v1.3.0)
 
 1. 需求澄清：新需求先用 `brainstorming` 澄清requirement。**requirement聚焦"做什么"和验收标准，不写具体技术路径**，如果是产品功能优先关注"Why"，让实现阶段的 Agent 自行决定怎么做。
 

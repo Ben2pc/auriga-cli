@@ -10,7 +10,7 @@ This repo itself is a fully configured harness project. You can clone it to see 
 
 | Module | Description |
 |---|---|
-| **Workflow** | `CLAUDE.md` development workflow: requirement clarification -> TDD -> Review, Harness principles, Subagent usage guide |
+| **Workflow** | `CLAUDE.md` auriga workflow: requirement clarification -> TDD -> Review, Harness principles, Subagent usage guide |
 | **Skills** | Development process skills — brainstorming, systematic-debugging, TDD, verification, planning, playwright |
 | **Recommended Skills** | Optional utility skills (e.g. `ui-ux-pro-max`) you can add on top of the workflow skills |
 | **Plugins** | Recommended Claude Code plugins — skill-creator, claude-md-management, codex |

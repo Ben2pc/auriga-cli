@@ -44,7 +44,7 @@ auriga-cli/
 
 ### Workflow
 
-- **内容**：根目录的 `CLAUDE.md`（通用 Workflow、Harness 原则、Subagent 使用原则等）
+- **内容**：根目录的 `CLAUDE.md`（auriga 工作流、Harness 原则、Subagent 使用原则等）
 - **安装方式**：copy 到目标目录
 - **额外操作**：在目标目录创建 `AGENTS.md -> CLAUDE.md` 软链接
 - **冲突处理**：目标已有 CLAUDE.md 时提示用户确认是否覆盖
@@ -98,7 +98,7 @@ auriga-cli/
 $ npx auriga-cli
 
 ? 选择要安装的模块类型：（多选）
-  ◉ Workflow — 通用 Workflow + Harness 原则 + Subagent 原则
+  ◉ Workflow — auriga 工作流 + Harness 原则 + Subagent 原则
   ◉ Skills — 开发流程 skills（brainstorming, TDD, debugging 等）
   ◉ Plugins — Claude Code 插件（skill-creator, hookify, codex 等）
 

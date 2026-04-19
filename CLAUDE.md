@@ -1,4 +1,4 @@
-# General Workflow (v1.3.0)
+# auriga Workflow (v1.3.0)
 
 1. Requirement Clarification: Use `brainstorming` to clarify requirements for new features. **Requirements should focus on "what to do" and acceptance criteria, not specific technical paths.** For product features, prioritize "Why" and let the implementation-stage Agent decide how.
 

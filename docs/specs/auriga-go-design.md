@@ -2,7 +2,7 @@
 
 **Status**: DRAFT · brainstorming complete · 2026-04-18
 **Branch**: `feat/auriga-go-skill`
-**Workflow version anchor**: General Workflow v1.3.0 (`CLAUDE.md`)
+**Workflow version anchor**: auriga Workflow v1.3.0 (`CLAUDE.md`)
 
 ## Purpose
 
