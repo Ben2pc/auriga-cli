@@ -47,6 +47,12 @@
 | `docs/architecture/` | 稳定、长期的设计文档（模块布局、数据流、组件职责）。新条目通常由 `docs/specs/` 晋升而来 | 长期 |
 | `docs/` 其他 | 按需新增：`runbooks/`（运维流程）、`adr/`（架构决策记录）、`onboarding/` 等。一类文档一个目录，不混放 | 因类而异 |
 
+## 工作流自动驾驶（auriga-go）
+
+需要在工作流内做导航——`/clear` 之后恢复、纠正偏离、一次推进多步——用 `/auriga-go` 触发（或说"按照工作流继续"、"按工作流走"）。它读当前状态、判定下一步、回显 intent，然后推进（`auto` 模式，默认）或只给单步建议（`step`）。reminder-based：告诉主 Agent 下一个该调什么 skill，自己不调度。只在硬歧义或破坏性操作前停。裸 "继续" / "next" **不触发**它（那些指的是当前任务而不是工作流）。
+
+Experimental `ship` 模式把小颗粒度 spec 跑到 PR Ready（最严格默认值 + hook 强制的迭代预算）。详见 `skills/auriga-go/references/ship.md`。
+
 # Harness 原则
 
 - **约束靠机制执行，不靠提示词**：核心架构规则尽量用 linter / CI / 类型系统执行，不依赖 Agent 自觉遵守。

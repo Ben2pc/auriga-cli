@@ -1,7 +1,6 @@
-# auriga-go — Workflow Autopilot Skill (Design)
+# auriga-go — Workflow Autopilot Skill
 
-**Status**: DRAFT · brainstorming complete · 2026-04-18
-**Branch**: `feat/auriga-go-skill`
+**Status**: stable · promoted from `docs/specs/` on 2026-04-19
 **Workflow version anchor**: auriga Workflow v1.3.0 (`CLAUDE.md`)
 
 ## Purpose
@@ -25,7 +24,7 @@ A workflow skill that drives the Agent forward along the CLAUDE.md 12-step workf
   - User installs via the standard flow: `npx skills add Ben2pc/auriga-cli --skill auriga-go --agent claude-code codex --yes`.
 - **Tier**: workflow skill (default-on), not a recommended/opt-in utility.
 
-> **Dev iteration note (TBD in §6)**: because `npx skills add` fetches from the GitHub remote, in-repo edits to `skills/auriga-go/` require push-then-resync to propagate into `.agents/skills/auriga-go/`. Need to confirm whether direct edits to `.agents/skills/auriga-go/SKILL.md` for fast feedback (with disciplined back-port to `skills/auriga-go/SKILL.md` before push) is acceptable, or whether DEV-mode supports a local-source override.
+> **Dev iteration note**: `npx skills add` fetches from the GitHub remote, so in-repo edits to `skills/auriga-go/` require push-then-resync to propagate into `.agents/skills/auriga-go/`. For local fast-feedback, symlink `skills/auriga-go/` → `.claude/skills/auriga-go/` so Claude Code project-level skill discovery picks it up directly; `.claude/skills/` is in `.gitignore` patterns or otherwise not committed per project convention.
 
 ## Decisions locked in (brainstorming §1)
 
@@ -75,7 +74,7 @@ When `mode=ship` reaches a CLAUDE.md decision point that would normally trigger 
 | CLAUDE.md integration | **Independent meta-tool** — not embedded in any of the 12 steps. Referenced from the workflow as a compass/autopilot available at any point, not as a numbered step. |
 | Hard-stop enumeration | **No explicit whitelist.** The two contract classes (ambiguity / destructive-or-irreversible) stay as-is; rely on the model to recognize concrete commands in context. Rationale: destructive operations (force-push to shared refs, `npm publish`, broad `rm -rf`, CI/CD file mutations) are low-frequency and context-sensitive — an enumeration would both miss cases and add maintenance drag. |
 | Fallback D state signals | **No fixed signal → workflow-step mapping table.** SKILL.md describes the fallback *intent* (probe git / filesystem / GitHub state → present findings → confirm with user → write todos → proceed); the model derives the concrete signals per situation. Modern models are sufficient for this heuristic. |
-| Intent echo | **Mandatory, one-line format** at the start of every iteration (all three modes): `[auriga-go iter N/M] 现状：<current state> → 下一步：<next action>`. Enables the user to interrupt before a wrong step runs and gives a recoverable audit trail. |
+| Intent echo | **Mandatory, one-line format** at the start of every iteration. step/auto (no hard budget): `[auriga-go iter N] 现状：<state> → 下一步：<action>`. ship (hook-enforced budget): `[auriga-go iter N/M] 现状：<state> → 下一步：<action>`. Enables the user to interrupt before a wrong step runs; the only audit trail for ship. |
 | Fix-loop budgeting (ship) | Fix-loop iterations count against the top-level `max-iter` — single shared budget, no nested counter. |
 | Acceptance criteria | `deep-review` passes on the PR + human-partner dogfooding. No pre-specified smoke/integration test matrix — real usage is the test. |
 
@@ -87,6 +86,16 @@ When `mode=ship` reaches a CLAUDE.md decision point that would normally trigger 
 - **Version skew** with CLAUDE.md workflow — if the 12-step workflow evolves, `auriga-go`'s encoded view drifts. Mitigation: pin the workflow version in SKILL.md; treat workflow rewrites as a trigger to bump the skill.
 - **Ship mode produces a flawed Ready PR** — high-autonomy mode can ship code with subtle issues that no human caught mid-flight. Mitigations: (i) strictest defaults at every decision point (see "Ship-mode strict defaults"); (ii) in-Draft `deep-review` self-pass before flipping Ready; (iii) `max-iter` cap with a clear "blocked, here's why" PR comment on budget exhaustion (no silent give-up); (iv) `Experimental` tag both in SKILL.md header and as a one-line runtime warning when invoked, so users explicitly opt in; (v) per-iteration intent echo so the audit trail is recoverable post-hoc.
 
-## Next
+## Built artifacts
 
-Requirement clarification is complete. Move to workflow step 2: use `AskUserQuestion` to choose a planning method (built-in Plan / `planning-with-files`) before starting TDD implementation. Before flipping the PR Draft → Ready, resolve this spec per CLAUDE.md Document Conventions — promote to `docs/architecture/auriga-go.md` (long-lived reference), archive to `docs/worklog/worklog-<YYYY-MM-DD>-<branch>/`, or delete. `pr-ready-guard` B4 will block otherwise.
+- `skills/auriga-go/SKILL.md` — frontmatter (`hooks.Stop`, `argument-hint`), algorithm, Stop/Confirmation contracts, three-mode table, intent-echo contract, examples
+- `skills/auriga-go/references/ship.md` — hook-backed loop contract, `<ship-done>Ready|Blocked</ship-done>` marker, state-file schema, strict-defaults table, Blocked-exit protocol
+- `skills/auriga-go/scripts/ship-loop.sh` — Stop hook adapted from ralph-loop, state-file-gated so step/auto are untouched; 11-scenario unit tests at `tests/ship-loop.test.sh`
+- `src/skills.ts` `WORKFLOW_SKILLS` includes `"auriga-go"` (default-on tier)
+- `CLAUDE.md` + `CLAUDE.zh-CN.md` reference auriga-go as an independent meta-tool (§ "Workflow Autopilot")
+- `README.md` + `README.zh-CN.md` skills-table row
+- `.claude/CLAUDE.md` dev-guide documents two new conventions (repo-owned skill, skill-bundled hooks)
+
+## Deferred to post-merge follow-up
+
+- `skills-lock.json` registration + `.agents/skills/auriga-go/` sync. Deferred because `npx skills add Ben2pc/auriga-cli --skill auriga-go --agent claude-code codex --yes` fetches from the default branch, so the skill source needs to land on `main` first.
