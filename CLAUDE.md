@@ -1,4 +1,4 @@
-# General Workflow (v1.3.0)
+# auriga Workflow (v1.3.0)
 
 1. Requirement Clarification: Use `brainstorming` to clarify requirements for new features. **Requirements should focus on "what to do" and acceptance criteria, not specific technical paths.** For product features, prioritize "Why" and let the implementation-stage Agent decide how.
 
@@ -46,6 +46,12 @@ Repo documentation lives under `docs/`, directory-per-purpose, so Agents, the `p
 | `docs/specs/` | **Default destination for `brainstorming` outputs.** Temporary working area for active specs / requirement clarifications during development. **Must be empty by PR Ready** — promote each spec to `docs/architecture/` (long-lived reference), archive to `docs/worklog/worklog-<YYYY-MM-DD>-<branch-name>/` (historical trace), or delete. Enforced by `pr-ready-guard`. | Ephemeral during dev |
 | `docs/architecture/` | Stable, long-lived design docs (module layouts, data flows, component responsibilities). New entries usually arrive by promotion from `docs/specs/`. | Long-lived |
 | `docs/` (other categories) | Add one directory per new document category on demand: `runbooks/` (ops procedures), `adr/` (architecture decision records), `onboarding/`, etc. One directory per category; don't mix. | Varies |
+
+## Workflow Autopilot (auriga-go)
+
+For workflow navigation — resuming after `/clear`, correcting drift, or driving forward across multiple steps — invoke `/auriga-go` (or say "按照工作流继续" / "drive the workflow forward"). It inspects state, identifies the next step, records it in the main Agent's native task tracker, then proceeds (`auto` mode, default) or proposes one step (`step`). Reminder-based — it tells the main Agent which skill to invoke next; it does not dispatch skills itself. Stops only at hard ambiguity or destructive operations. Plain "继续" / "next" does **not** trigger it (those refer to the current task).
+
+Experimental `ship` mode drives a small-scope spec → PR Ready autonomously (strictest defaults + hook-enforced iteration budget). See `skills/auriga-go/references/ship.md`.
 
 # Harness Principles
 

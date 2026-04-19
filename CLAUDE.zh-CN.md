@@ -1,4 +1,4 @@
-# 通用 Workflow (v1.3.0)
+# auriga 工作流 (v1.3.0)
 
 1. 需求澄清：新需求先用 `brainstorming` 澄清requirement。**requirement聚焦"做什么"和验收标准，不写具体技术路径**，如果是产品功能优先关注"Why"，让实现阶段的 Agent 自行决定怎么做。
 
@@ -46,6 +46,12 @@
 | `docs/specs/` | **`brainstorming` 输出的默认归宿。** 开发期间存放活跃 spec / 需求澄清的临时工作区。**PR Ready 前必须清空**——每个 spec 晋升到 `docs/architecture/`（长期参考）、归档到 `docs/worklog/worklog-<YYYY-MM-DD>-<branch-name>/`（历史轨迹），或删除。由 `pr-ready-guard` 强制 | 开发期临时 |
 | `docs/architecture/` | 稳定、长期的设计文档（模块布局、数据流、组件职责）。新条目通常由 `docs/specs/` 晋升而来 | 长期 |
 | `docs/` 其他 | 按需新增：`runbooks/`（运维流程）、`adr/`（架构决策记录）、`onboarding/` 等。一类文档一个目录，不混放 | 因类而异 |
+
+## 工作流自动驾驶（auriga-go）
+
+需要在工作流内做导航——`/clear` 之后恢复、纠正偏离、一次推进多步——用 `/auriga-go` 触发（或说"按照工作流继续"、"按工作流走"）。它读当前状态、判定下一步、用主 Agent 自己的 task tracker 记下这一步，然后推进（`auto` 模式，默认）或只给单步建议（`step`）。reminder-based：告诉主 Agent 下一个该调什么 skill，自己不调度。只在硬歧义或破坏性操作前停。裸 "继续" / "next" **不触发**它（那些指的是当前任务而不是工作流）。
+
+Experimental `ship` 模式把小颗粒度 spec 跑到 PR Ready（最严格默认值 + hook 强制的迭代预算）。详见 `skills/auriga-go/references/ship.md`。
 
 # Harness 原则
 

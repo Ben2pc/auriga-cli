@@ -10,7 +10,7 @@ This repo itself is a fully configured harness project. You can clone it to see 
 
 | Module | Description |
 |---|---|
-| **Workflow** | `CLAUDE.md` development workflow: requirement clarification -> TDD -> Review, Harness principles, Subagent usage guide |
+| **Workflow** | `CLAUDE.md` auriga workflow: requirement clarification -> TDD -> Review, Harness principles, Subagent usage guide |
 | **Skills** | Development process skills — brainstorming, systematic-debugging, TDD, verification, planning, playwright |
 | **Recommended Skills** | Optional utility skills (e.g. `ui-ux-pro-max`) you can add on top of the workflow skills |
 | **Plugins** | Recommended Claude Code plugins — skill-creator, claude-md-management, codex |
@@ -60,6 +60,7 @@ Installs selected skills via `npx skills add`, targeting both Claude Code and Co
 | deep-review | [Ben2pc/g-claude-code-plugins](https://github.com/Ben2pc/g-claude-code-plugins) | Multi-dimensional PR review orchestrator (required + conditional reviewers + punch list) |
 | test-designer | [Ben2pc/g-claude-code-plugins](https://github.com/Ben2pc/g-claude-code-plugins) | Independent-Evaluation test designer for TDD red phase |
 | parallel-implementation | [Ben2pc/g-claude-code-plugins](https://github.com/Ben2pc/g-claude-code-plugins) | Slice planner for parallel multi-subagent code writing |
+| auriga-go | [Ben2pc/auriga-cli](https://github.com/Ben2pc/auriga-cli) | Workflow autopilot for the auriga workflow; reminder-based navigation across the 12 steps with an Experimental hook-backed `ship` mode |
 
 Supports both project and global installation scopes.
 

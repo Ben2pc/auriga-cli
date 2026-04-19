@@ -10,7 +10,7 @@
 
 | 模块 | 说明 |
 |---|---|
-| **Workflow** | `CLAUDE.md` 开发工作流：需求澄清 → TDD → Review，Harness 原则，Subagent 使用指南 |
+| **Workflow** | `CLAUDE.md` 里的 auriga 工作流：需求澄清 → TDD → Review，Harness 原则，Subagent 使用指南 |
 | **Skills** | 开发流程 skills —— brainstorming、systematic-debugging、TDD、verification、planning、playwright |
 | **Recommended Skills** | 可选的工具类 skills（如 `ui-ux-pro-max`），在 workflow skills 之外按需追加 |
 | **Plugins** | 推荐的 Claude Code 插件 —— skill-creator、claude-md-management、codex |
@@ -60,6 +60,7 @@ npx auriga-cli
 | deep-review | [Ben2pc/g-claude-code-plugins](https://github.com/Ben2pc/g-claude-code-plugins) | 多维度 PR review 编排器（必选 + 条件 + punch list 汇总） |
 | test-designer | [Ben2pc/g-claude-code-plugins](https://github.com/Ben2pc/g-claude-code-plugins) | TDD 红灯阶段的 Independent Evaluation 测试设计器 |
 | parallel-implementation | [Ben2pc/g-claude-code-plugins](https://github.com/Ben2pc/g-claude-code-plugins) | 多 subagent 并行写代码时的切片计划器 |
+| auriga-go | [Ben2pc/auriga-cli](https://github.com/Ben2pc/auriga-cli) | auriga 工作流的自动驾驶：在 12 步内做 reminder-based 导航；包含 Experimental 的 hook-backed `ship` 模式 |
 
 支持 project 和 global 两种安装范围。
 

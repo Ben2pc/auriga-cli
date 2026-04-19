@@ -8,6 +8,7 @@ import type { SkillsLock } from "./utils.js";
 // directly references. Anything else in skills-lock.json is surfaced via
 // installRecommendedSkills as an opt-in utility.
 const WORKFLOW_SKILLS = [
+  "auriga-go",
   "brainstorming",
   "deep-review",
   "parallel-implementation",
