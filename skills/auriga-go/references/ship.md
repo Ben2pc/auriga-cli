@@ -66,20 +66,13 @@ marker is the only format ship itself mandates (the Stop hook scans
 for nothing else).
 ```
 
-The prompt body is the **same every iteration** — that's the "self-referential" loop property from ralph-loop. Re-invariance matters: after `/clear` or compaction, a fresh Agent must be able to read it cold and continue.
+The prompt body is the **same every iteration** — a fresh Agent (e.g. after `/clear`) must be able to read it cold and continue.
 
-**Iteration count** lives in the state file's `iteration:` field, incremented atomically by the hook on each re-feed. To see the current count: `grep '^iteration:' .claude/auriga-go-ship.local.md`. This is the cross-`/clear` audit surface — the hook does not rely on any echo format in the transcript.
+**Iteration count** lives in the state file's `iteration:` field, incremented atomically by the hook on each re-feed. To see it: `grep '^iteration:' .claude/auriga-go-ship.local.md`.
 
 ## Auto-resume across `/clear`
 
-Skill-scoped hooks and the on-disk state file **survive `/clear` and compaction** (verified in Claude Code source — hooks are session-level, only cleaned up at `SessionEnd`). If you `/clear` mid-ship:
-
-1. Model loses skill content from context
-2. Next Stop event still fires the Stop hook
-3. Hook re-feeds the prompt body as a fresh user turn
-4. The body instructs the Agent to re-read SKILL.md + ship.md and inspect git/PR state → back in loop
-
-No manual resume needed.
+The Stop hook + state file both survive `/clear` and compaction. Mid-ship `/clear` → next Stop fires the hook → hook re-feeds the prompt body → Agent re-reads SKILL.md + ship.md + workflow state and continues. No manual resume needed.
 
 ## Ready terminal conditions
 
