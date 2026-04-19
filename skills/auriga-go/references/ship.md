@@ -45,13 +45,13 @@ session_id: <current Claude Code session ID>
 started_at: <ISO 8601 UTC timestamp>
 ---
 
-Continue auriga-go ship mode. Read skills/auriga-go/SKILL.md and
-skills/auriga-go/references/ship.md for the contract. Your job:
+Continue auriga-go ship mode. Re-read CLAUDE.md (the auriga workflow),
+skills/auriga-go/SKILL.md, and skills/auriga-go/references/ship.md
+before acting. Your job:
 
 1. Inspect current state (git log, docs/specs/, gh pr view) to find
-   where the previous iteration left off in the CLAUDE.md auriga
-   workflow.
-2. Pick up the next workflow step per ship's strict defaults.
+   where the previous iteration left off in the auriga workflow.
+2. Pick up the next phase per CLAUDE.md + ship's strict defaults.
 3. On test/verification failure: systematic-debugging → fix → retry.
 4. When all three Ready terminal conditions hold (tests pass AND
    in-Draft deep-review empty AND PR flipped Draft → Ready), emit
@@ -60,7 +60,7 @@ skills/auriga-go/references/ship.md for the contract. Your job:
    before conditions are met, post the blocker comment on the PR and
    emit <ship-done>Blocked</ship-done>.
 
-Record each workflow step you take through your host Agent's task
+Record each workflow phase you take through your host Agent's task
 tracker — that's your primary in-session audit trail. The <ship-done>
 marker is the only format ship itself mandates (the Stop hook scans
 for nothing else).
@@ -93,16 +93,16 @@ If any fails mid-iteration, continue the main loop: invoke `systematic-debugging
 
 ## Strict defaults per workflow decision
 
-At each decision point in the iteration, pick the most rigorous option:
+At each decision point the auriga workflow surfaces (see `CLAUDE.md` for the authoritative phase list), pick the most rigorous option:
 
-| Decision | ship default |
+| Decision point | ship default |
 |---|---|
-| Planning (step 2) | `planning-with-files` — persistent state survives `/clear` and iterations |
-| Test design (step 7) | `test-designer` — Independent Evaluation |
-| Parallel impl (step 8) | dispatch when threshold met; don't skip "to save complexity" |
-| Spec lifecycle (step 10) | **promote** to `docs/architecture/` first; archive only if no clear architectural home |
-| Review (step 11) | `deep-review` **mandatory on Draft** — deliberate exception to "only after Ready", justified because ship is producing the Ready candidate |
-| Flip Draft → Ready | automatic once all three Ready terminal conditions hold |
+| Choosing a planning method | `planning-with-files` — persistent state survives `/clear` and iterations |
+| Designing tests for the TDD red phase | `test-designer` — Independent Evaluation |
+| Deciding whether to parallelize implementation | dispatch when threshold met; don't skip "to save complexity" |
+| Deciding what to do with the spec at PR readiness | **promote** to `docs/architecture/` first; archive only if no clear architectural home |
+| Picking review rigor | `deep-review` **mandatory on Draft** — deliberate exception to "deep-review only after Ready", justified because ship is producing the Ready candidate |
+| Flipping Draft → Ready | automatic once all three Ready terminal conditions hold |
 
 Decisions not in this table and not pre-decided by the spec → ambiguity → hard stop → `Blocked` exit. **Don't invent a ship default not listed here.**
 

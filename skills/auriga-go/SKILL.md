@@ -1,6 +1,6 @@
 ---
 name: auriga-go
-description: Workflow autopilot for the CLAUDE.md 12-step auriga workflow. Trigger ONLY when (a) the user explicitly invokes `/auriga-go`, or (b) the user's phrasing clearly references the workflow itself — e.g., "按照工作流继续", "按工作流走", "drive the workflow forward", "workflow autopilot", "where are we in the workflow", "我们的 workflow 走到哪了". Do NOT trigger on generic phrases like plain "继续" / "continue" / "next" / "下一步" / "what's next" — those almost always refer to the current specific task (the main Agent can handle them directly), not workflow navigation. Also do not trigger for single-question lookups, one-off commit/push asks, or exploratory discussion. Includes an Experimental `ship` mode that drives spec → PR Ready autonomously (see references/ship.md).
+description: Workflow autopilot for the CLAUDE.md auriga workflow. Trigger ONLY when (a) the user explicitly invokes `/auriga-go`, or (b) the user's phrasing clearly references the workflow itself — e.g., "按照工作流继续", "按工作流走", "drive the workflow forward", "workflow autopilot", "where are we in the workflow", "我们的 workflow 走到哪了". Do NOT trigger on generic phrases like plain "继续" / "continue" / "next" / "下一步" / "what's next" — those almost always refer to the current specific task (the main Agent can handle them directly), not workflow navigation. Also do not trigger for single-question lookups, one-off commit/push asks, or exploratory discussion. Includes an Experimental `ship` mode that drives spec → PR Ready autonomously (see references/ship.md).
 argument-hint: "[step|auto|ship] [max-iter]"
 hooks:
   Stop:
@@ -27,7 +27,7 @@ Drives the Agent forward along the CLAUDE.md general workflow with minimum promp
 - Single-question lookups ("what does this function do?") — just answer
 - Explicit one-off actions ("commit this", "push", "open a PR for X")
 - Exploratory discussion with no implementation intent
-- Tasks the 12-step workflow doesn't cover
+- Tasks the auriga workflow doesn't cover
 
 ## Modes
 
@@ -83,53 +83,35 @@ Try sources in order; stop at the first that gives an unambiguous answer:
 1. **Main Agent context** — the task/todo tracker your Agent is already using, in-flight task description, recent tool results. Usually enough; check this first.
 2. **`task_plan.md` / `progress.md`** — if `planning-with-files` is in use, these track step-by-step progress.
 3. **Open Draft PR body TODOs** — `gh pr view --json body` and look for `- [ ]` checkboxes.
-4. **Repo state heuristics** — derive signals from git / filesystem / GitHub state per situation. Examples (not an exhaustive table — model judges per context):
-   - `git branch --show-current` starts with `feat/`/`fix/`/`docs/` → past step 3
-   - `gh pr list --draft --head $(git branch --show-current)` returns a row → past step 4
-   - `git rev-list @{u}..HEAD --count > 0` → step 10 not done
-   - `docs/specs/*.md` exists → step 1 was run
-   - Recent test/verification command in transcript → step 9 in progress
+4. **Repo state heuristics** — derive signals from git / filesystem / GitHub state per situation. Examples (not an exhaustive table — model judges per context, and the mapping to workflow phases lives in `CLAUDE.md`):
+   - `git branch --show-current` starts with `feat/`/`fix/`/`docs/` → past branch-creation
+   - `gh pr list --draft --head $(git branch --show-current)` returns a row → past Draft-PR creation
+   - `git rev-list @{u}..HEAD --count > 0` → unpushed work, PR readiness not done
+   - `docs/specs/*.md` exists → requirement clarification was run
+   - Recent test/verification command in transcript → verification phase in progress
 
 If sources 2–4 were needed, **fall through to the Confirmation Contract** (below) before writing todos and proceeding. Wrong inferences compound across iterations.
 
 ### 2. Identify next workflow step
 
-Match current state to the CLAUDE.md 12 steps:
+**`CLAUDE.md` is the authoritative source for the workflow itself** — its step list, ordering, and per-step guidance. auriga-go does not encode its own copy of the steps: that would drift the moment the workflow is edited. Re-read `CLAUDE.md` at invocation time and match current state to the phases documented there; pick the earliest unfinished phase applicable to the current work.
 
-1. Requirement clarification (`brainstorming`)
-2. Planning method choice (`AskUserQuestion` → built-in Plan or `planning-with-files`)
-3. Create dev branch from main
-4. Create Draft PR
-5. UI/UX skill recommendation (conditional)
-6. Bug investigation (`systematic-debugging`, conditional)
-7. TDD red phase (`test-driven-development`, optionally `test-designer`)
-8. Parallel implementation (`parallel-implementation`, conditional thresholds)
-9. Verification (`verification-before-completion`)
-10. PR readiness (push, update body, archive specs per Document Conventions, flip Ready)
-11. Formal review (`deep-review`)
-12. Address review findings
-
-Next step = lowest-numbered unfinished step that matches current state. Apply CLAUDE.md's Quick Development Flow exception (skip 1–2) for bug fix / small refactor / small feature when appropriate.
+Apply the workflow's Quick Development Flow exception (skipping the early clarification/planning phases) for bug fixes / small refactors / small features when appropriate — `CLAUDE.md` documents when that exception applies.
 
 ### 3. Record the step in your host Agent's tracker
 
 auriga-go does not prescribe a message format — use whatever in-session task/todo tool your Agent has (different Agents expose different tools, and the tool names change over releases). What matters:
 
 - The current workflow step is **written down**, not just implied, so the user can see it and interrupt if wrong
-- Sub-tasks under that step (e.g. "write failing test → run red → implement → run green" under step 7) go through the same tracker at whatever granularity the Agent normally uses. That's strictly better than a coarse one-liner here, because your Agent's tracker is already the finest-grained view the user has.
+- Sub-tasks under that phase (e.g. "write failing test → run red → implement → run green" under a TDD phase) go through the same tracker at whatever granularity the Agent normally uses. That's strictly better than a coarse one-liner here, because your Agent's tracker is already the finest-grained view the user has.
 
-If your Agent has no tracker available, fall back to a short natural-language announcement ("Working on step 7 — writing the failing test for X") before the first tool call. Don't silently begin.
+If your Agent has no tracker available, fall back to a short natural-language announcement ("Working on the TDD phase — writing the failing test for X") before the first tool call. Don't silently begin.
 
 **ship mode has one extra requirement**: when emitting the loop's terminal decision, output the literal marker `<ship-done>Ready</ship-done>` or `<ship-done>Blocked</ship-done>` as the final assistant text. This is the only string the Stop hook scans — see `references/ship.md`.
 
 ### 4. Recommend next action
 
-This skill **does not dispatch other skills**. For each next step, name the action and let the main Agent execute:
-
-- "Step 1 → invoke `brainstorming` skill, then return."
-- "Step 3 → run `git checkout -b feat/<descriptive-name> main`."
-- "Step 7 → invoke `test-designer` with the spec at `docs/specs/<name>.md`."
-- "Step 11 → invoke `deep-review` (or run `/deep-review`)."
+This skill **does not dispatch other skills**. For each next phase, name the action and let the main Agent execute. Phrase recommendations in the workflow's own terms (as they appear in `CLAUDE.md`) — e.g. "requirement clarification phase → invoke the `brainstorming` skill", "TDD red phase → invoke `test-designer` with the spec", "formal review phase → invoke `deep-review` (or run `/deep-review`)". No hard-coded step numbering here; `CLAUDE.md` is the only enumeration.
 
 This keeps the skill thin and lets the main Agent own tool choice, model selection, and effort tuning. It also avoids the Subagent dispatch traps (output-format contract, isolation, max parallel) that already live in the dispatched skills themselves.
 
@@ -194,15 +176,15 @@ User: continue the workflow
 
 Agent (auriga-go, auto):
   State inference (sources: git + Draft PR):
-  - Current branch feat/auriga-go-skill + Draft PR #20 → step 4 done
-  - docs/specs/auriga-go-design.md exists → step 1 done
-  - No recent test run → step 9 not started
-  Inferred position: step 7 (TDD). Proceed?
+  - Current branch feat/auriga-go-skill + Draft PR #20 → branch + Draft PR created
+  - docs/specs/auriga-go-design.md exists → requirement clarification done
+  - No recent test run → verification not started
+  Inferred position: TDD phase. Proceed?
 
 User: yes
 
 Agent (auriga-go, auto):
-  [records "step 7 TDD — invoke test-designer on docs/specs/auriga-go-design.md"
+  [records "TDD phase — invoke test-designer on docs/specs/auriga-go-design.md"
    as a task in the native tracker, then invokes test-designer]
 ```
 
@@ -212,7 +194,7 @@ Agent (auriga-go, auto):
 User: /auriga-go step
 
 Agent (auriga-go, step):
-  [records "step 10 PR readiness — push + update PR body" as a task]
+  [records "PR readiness phase — push + update PR body" as a task]
   Suggested command: git push && gh pr edit --body-file <updated body>. Proceed?
 ```
 
@@ -220,10 +202,11 @@ Agent (auriga-go, step):
 
 ```
 Agent (auriga-go, auto):
-  [task tracker shows "step 12 — triage deep-review punch list"]
+  [task tracker shows "review-findings phase — triage deep-review punch list"]
 
   Stop: deep-review returned 3 blocking findings. #2 requires an architectural
-  refactor (src/skills.ts); per CLAUDE.md step 12, "high-risk changes should be
-  tracked as separate issues, not bundled into this PR." Need confirmation: fix
-  inside this PR, or open a tracking issue?
+  refactor (src/skills.ts); per the workflow's review-findings guidance
+  (CLAUDE.md), high-risk changes should be tracked as separate issues, not
+  bundled into this PR. Need confirmation: fix inside this PR, or open a
+  tracking issue?
 ```
