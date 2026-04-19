@@ -60,11 +60,15 @@ skills/auriga-go/references/ship.md for the contract. Your job:
    before conditions are met, post the blocker comment on the PR and
    emit <ship-done>Blocked</ship-done>.
 
-Per-iteration intent echo required (all modes):
-  [auriga-go iter N/M] 现状：<state> → 下一步：<action>
+Record each workflow step you take through your host Agent's task
+tracker — that's your primary in-session audit trail. The <ship-done>
+marker is the only format ship itself mandates (the Stop hook scans
+for nothing else).
 ```
 
 The prompt body is the **same every iteration** — that's the "self-referential" loop property from ralph-loop. Re-invariance matters: after `/clear` or compaction, a fresh Agent must be able to read it cold and continue.
+
+**Iteration count** lives in the state file's `iteration:` field, incremented atomically by the hook on each re-feed. To see the current count: `grep '^iteration:' .claude/auriga-go-ship.local.md`. This is the cross-`/clear` audit surface — the hook does not rely on any echo format in the transcript.
 
 ## Auto-resume across `/clear`
 

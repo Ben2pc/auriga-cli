@@ -68,7 +68,9 @@ Examples (what `$ARGUMENTS` receives):
 loop:
   1. Read current state
   2. Identify next workflow step (Stop Contract checked here)
-  3. Echo intent (one line, mandatory)
+  3. Record the step in your host Agent's task tracker / planner
+     (whatever tool your Agent uses to track in-flight tasks — don't
+     just hold it in your head; user can't see what's only in memory)
   4. Recommend next action to main Agent
   5. If mode == step: return
      If mode == auto: continue
@@ -78,7 +80,7 @@ loop:
 
 Try sources in order; stop at the first that gives an unambiguous answer:
 
-1. **Main Agent context** — TodoWrite list, in-flight task description, recent tool results. Usually enough; check this first.
+1. **Main Agent context** — the task/todo tracker your Agent is already using, in-flight task description, recent tool results. Usually enough; check this first.
 2. **`task_plan.md` / `progress.md`** — if `planning-with-files` is in use, these track step-by-step progress.
 3. **Open Draft PR body TODOs** — `gh pr view --json body` and look for `- [ ]` checkboxes.
 4. **Repo state heuristics** — derive signals from git / filesystem / GitHub state per situation. Examples (not an exhaustive table — model judges per context):
@@ -109,19 +111,16 @@ Match current state to the CLAUDE.md 12 steps:
 
 Next step = lowest-numbered unfinished step that matches current state. Apply CLAUDE.md's Quick Development Flow exception (skip 1–2) for bug fix / small refactor / small feature when appropriate.
 
-### 3. Echo intent (mandatory, one line)
+### 3. Record the step in your host Agent's tracker
 
-**Every iteration begins with this echo, before any tool call or recommendation:**
+auriga-go does not prescribe a message format — use whatever in-session task/todo tool your Agent has (different Agents expose different tools, and the tool names change over releases). What matters:
 
-- step / auto (no hard budget): `[auriga-go iter N] 现状：<state> → 下一步：<action>`
-- ship (hard budget from the Stop hook): `[auriga-go iter N/M] 现状：<state> → 下一步：<action>`
+- The current workflow step is **written down**, not just implied, so the user can see it and interrupt if wrong
+- Sub-tasks under that step (e.g. "write failing test → run red → implement → run green" under step 7) go through the same tracker at whatever granularity the Agent normally uses. That's strictly better than a coarse one-liner here, because your Agent's tracker is already the finest-grained view the user has.
 
-Examples:
-- `[auriga-go iter 1] 现状：feat/foo 分支 + Draft PR 已建 + 0 commits → 下一步：step 7 TDD 红灯 (test-designer)` *(auto)*
-- `[auriga-go iter 3] 现状：测试通过 + 未推送 commits → 下一步：step 10 PR readiness (push + update body)` *(auto)*
-- `[auriga-go iter 4/30] 现状：deep-review punch list 空 → 下一步：flip Draft → Ready` *(ship)*
+If your Agent has no tracker available, fall back to a short natural-language announcement ("Working on step 7 — writing the failing test for X") before the first tool call. Don't silently begin.
 
-**Why this is mandatory.** It's the user's interrupt window — they can stop you before a wrong step runs. It's also the only audit trail when something later turns out off. Skipping it to "save tokens" trades cheap token cost for expensive recovery work later.
+**ship mode has one extra requirement**: when emitting the loop's terminal decision, output the literal marker `<ship-done>Ready</ship-done>` or `<ship-done>Blocked</ship-done>` as the final assistant text. This is the only string the Stop hook scans — see `references/ship.md`.
 
 ### 4. Recommend next action
 
@@ -146,7 +145,7 @@ In both cases, **explain why you stopped and what you need from the user** — d
 Everything else is push-forward territory:
 - `AskUserQuestion`-style choices — if the workflow encodes a default (e.g., "use `auto` mode default"), take it; only stop if no reasonable default exists
 - Test failures — invoke `systematic-debugging` and continue
-- Small structural decisions — pick one, note it in the intent echo, move on
+- Small structural decisions — pick one, note it in your task tracker, move on
 
 ## Confirmation Contract (fallback path only)
 
@@ -167,7 +166,7 @@ If main-Agent context was sufficient (source 1 only), skip this — confirmation
 ## Loop budget
 
 - `step`: n/a (single iteration)
-- `auto`: **no hard budget** — hard stops (ambiguity / destructive) and natural human-decision gates (`AskUserQuestion`, Plan approval, Confirmation Contract) do the terminating. The `iter N` in the intent echo is a progress marker, not a countdown.
+- `auto`: **no hard budget** — hard stops (ambiguity / destructive) and natural human-decision gates (`AskUserQuestion`, Plan approval, Confirmation Contract) do the terminating. Iteration count is not a countdown and not surfaced in any prescribed format.
 - `ship`: hard `max-iter` ~30, enforced by the bundled Stop hook at `scripts/ship-loop.sh` (see references/ship.md)
 
 ## Ship mode (Experimental)
@@ -179,7 +178,8 @@ If main-Agent context was sufficient (source 1 only), skip this — confirmation
 ## Anti-patterns
 
 - ❌ Dispatching other skills directly from inside auriga-go — let the main Agent do it; auriga-go only recommends
-- ❌ Skipping the intent echo to "save tokens" — the echo is the user's interrupt window and the only audit trail
+- ❌ Silently starting work on a workflow step — always record it in the task tracker first; the user needs a visible surface to interrupt at
+- ❌ Prescribing a specific echo / log-line format across Agents — different Agent tools ship different task trackers, and a one-liner above tool calls is strictly worse than sub-tasks inside the native tracker
 - ❌ Proceeding past a fallback inference without confirmation — a wrong guess compounds
 - ❌ Continuing past `max-iter` in `ship` — the hook will force-stop, but post a blocker PR comment first so the audit trail isn't empty
 - ❌ Trying to enumerate a hard-stop whitelist in this file — the contract is two classes; the model judges per context
@@ -192,7 +192,7 @@ If main-Agent context was sufficient (source 1 only), skip this — confirmation
 ```
 User: 按照工作流继续
 
-auriga-go (auto):
+Agent (auriga-go, auto):
   状态推断（来自 git + Draft PR）：
   - 当前分支 feat/auriga-go-skill + Draft PR #20 → step 4 已完成
   - docs/specs/auriga-go-design.md 存在 → step 1 已完成
@@ -201,9 +201,9 @@ auriga-go (auto):
 
 User: 确认
 
-auriga-go (auto):
-  [auriga-go iter 2] 现状：spec 完整 + 待 TDD → 下一步：step 7 invoke test-designer
-  → main Agent invokes test-designer with docs/specs/auriga-go-design.md
+Agent (auriga-go, auto):
+  [records "step 7 TDD — invoke test-designer on docs/specs/auriga-go-design.md"
+   as a task in the native tracker, then invokes test-designer]
 ```
 
 ### Step mode for cautious progress
@@ -211,18 +211,18 @@ auriga-go (auto):
 ```
 User: /auriga-go step
 
-auriga-go (step):
-  [auriga-go iter 1] 现状：测试全绿 + 未推送 commits → 下一步：step 10 push + update PR body
+Agent (auriga-go, step):
+  [records "step 10 PR readiness — push + update PR body" as a task]
   推荐执行：git push && gh pr edit --body-file <updated body>。继续吗？
 ```
 
 ### Hard stop on ambiguity
 
 ```
-auriga-go (auto):
-  [auriga-go iter 4] 现状：deep-review 返回 punch list（3 blocking）→ 下一步：决定处理方式
+Agent (auriga-go, auto):
+  [task tracker shows "step 12 — triage deep-review punch list"]
 
-  Stop: 三个 blocking 中 #2 涉及架构调整（重构 src/skills.ts），按 CLAUDE.md
-  step 12 应"高风险变更立 issue 跟踪，不并入本 PR"。需要确认：本 PR 内修复
-  还是新开 issue？
+  Stop: deep-review 返回 3 blocking，#2 涉及架构调整（重构 src/skills.ts），按
+  CLAUDE.md step 12 应"高风险变更立 issue 跟踪，不并入本 PR"。需要确认：本 PR 内
+  修复还是新开 issue？
 ```
