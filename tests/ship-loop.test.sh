@@ -27,7 +27,7 @@ CURRENT=""
 start() {
   CURRENT=$1
   TMP=$(mktemp -d)
-  cd "$TMP"
+  cd "$TMP" || { echo "FATAL: cannot cd into $TMP" >&2; exit 1; }
   mkdir .claude
 }
 

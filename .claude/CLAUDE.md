@@ -65,7 +65,7 @@ npm test         # tsc -p tsconfig.test.json → dist-test/, then node --test
                  #   src/utils.ts, or .claude/hooks/.
 
 bash tests/ship-loop.test.sh
-                 # 11-scenario unit tests for skills/auriga-go/scripts/ship-loop.sh
+                 # Unit tests for skills/auriga-go/scripts/ship-loop.sh
                  # (ship-mode Stop hook). Not wired into `npm test` because it's
                  # bash + jq + perl, not Node. Run before any PR that touches
                  # skills/auriga-go/scripts/ or SKILL.md's `hooks:` frontmatter.
