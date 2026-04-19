@@ -47,12 +47,14 @@ finish_fail() {
 
 # Build a minimal JSONL transcript with one assistant message containing $1 as the text.
 # Optional second arg = path (default ./transcript.jsonl).
+# Schema matches real Claude Code transcripts: top-level .type == "assistant",
+# with .message.role == "assistant" nested inside.
 make_transcript() {
   local text=$1
   local path=${2:-./transcript.jsonl}
   jq -n --arg t "$text" '{
-    role: "assistant",
-    message: { content: [ { type: "text", text: $t } ] }
+    type: "assistant",
+    message: { role: "assistant", content: [ { type: "text", text: $t } ] }
   }' -c > "$path"
   echo "$path"
 }
@@ -301,12 +303,12 @@ start "marker in multi-line text block"
 make_state 2 30
 # Transcript contains two assistant lines; marker is in the LAST.
 jq -n '{
-  role: "assistant",
-  message: { content: [ { type: "text", text: "early assistant text without marker" } ] }
+  type: "assistant",
+  message: { role: "assistant", content: [ { type: "text", text: "early assistant text without marker" } ] }
 }' -c > ./transcript.jsonl
 jq -n '{
-  role: "assistant",
-  message: { content: [ { type: "text", text: "final block.\n<ship-done>Ready</ship-done>" } ] }
+  type: "assistant",
+  message: { role: "assistant", content: [ { type: "text", text: "final block.\n<ship-done>Ready</ship-done>" } ] }
 }' -c >> ./transcript.jsonl
 stdout=$(make_hook_input ./transcript.jsonl | run_hook)
 rc=$?
@@ -386,12 +388,12 @@ start "tool-use-only final turn → no marker, re-feed"
 make_state 4 30
 # Earlier assistant turn with plain text (no marker), then a tool_use-only turn.
 jq -n '{
-  role: "assistant",
-  message: { content: [ { type: "text", text: "thinking about next step" } ] }
+  type: "assistant",
+  message: { role: "assistant", content: [ { type: "text", text: "thinking about next step" } ] }
 }' -c > ./transcript.jsonl
 jq -n '{
-  role: "assistant",
-  message: { content: [ { type: "tool_use", id: "toolu_1", name: "Bash", input: {command: "ls"} } ] }
+  type: "assistant",
+  message: { role: "assistant", content: [ { type: "tool_use", id: "toolu_1", name: "Bash", input: {command: "ls"} } ] }
 }' -c >> ./transcript.jsonl
 stdout=$(make_hook_input ./transcript.jsonl | run_hook)
 rc=$?
@@ -450,8 +452,8 @@ start "long transcript >100 tool_use blocks → pre-filter keeps marker"
 make_state 5 30
 # First: a text message containing the Ready marker.
 jq -n '{
-  role: "assistant",
-  message: { content: [ { type: "text", text: "all done <ship-done>Ready</ship-done>" } ] }
+  type: "assistant",
+  message: { role: "assistant", content: [ { type: "text", text: "all done <ship-done>Ready</ship-done>" } ] }
 }' -c > ./transcript.jsonl
 # Then: 150 tool_use-only assistant messages. Under a naive line-based
 # tail -n 100 these would push the text line off the window and the
@@ -459,8 +461,8 @@ jq -n '{
 i=0
 while [[ $i -lt 150 ]]; do
   jq -n --argjson i "$i" '{
-    role: "assistant",
-    message: { content: [ { type: "tool_use", id: ("toolu_" + ($i | tostring)), name: "Bash", input: {command: "ls"} } ] }
+    type: "assistant",
+    message: { role: "assistant", content: [ { type: "tool_use", id: ("toolu_" + ($i | tostring)), name: "Bash", input: {command: "ls"} } ] }
   }' -c >> ./transcript.jsonl
   i=$((i + 1))
 done
@@ -502,6 +504,26 @@ if [[ $rc -ne 0 ]]; then
   finish_fail "expected exit 0, got $rc"
 elif [[ -f .claude/auriga-go-ship.local.md ]]; then
   finish_fail "state file should have been removed"
+else
+  finish_ok
+fi
+
+# ---- 20. real-schema regression: fixture mirrors actual Claude Code transcript ----
+# Insurance against regressing to .role-based filters. The fixture at
+# tests/fixtures/real-transcript-marker.jsonl uses .type == "assistant" at
+# the top level (not .role), which is the only correct selector in real
+# Claude Code JSONL transcripts.
+start "real-schema fixture: .type==assistant marker detection"
+make_state 3 30
+FIXTURE_PATH="$HERE/fixtures/real-transcript-marker.jsonl"
+stdout=$(make_hook_input "$FIXTURE_PATH" | run_hook)
+rc=$?
+if [[ $rc -ne 0 ]]; then
+  finish_fail "expected exit 0, got $rc (stderr: $(cat stderr.log))"
+elif [[ -f .claude/auriga-go-ship.local.md ]]; then
+  finish_fail "state file should have been removed — Ready marker not detected. stderr: $(cat stderr.log)"
+elif ! grep -q 'detected <ship-done>Ready</ship-done>' stderr.log; then
+  finish_fail "expected Ready detection in stderr, got: $(cat stderr.log)"
 else
   finish_ok
 fi

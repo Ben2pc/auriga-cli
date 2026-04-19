@@ -81,9 +81,12 @@ fi
 # because each content block is its own line — a long fix-loop full of
 # tool_use blocks would otherwise push the earlier text (and any marker)
 # past the tail window.
+#
+# Real Claude Code transcripts use `.type == "assistant"` at the top level
+# (not `.role`); `.message.role` is nested inside. Using `.type` is correct.
 set +e
 LAST_LINES=$(jq -c '
-  select(.role == "assistant") |
+  select(.type == "assistant") |
   select(any(.message.content[]?; .type == "text"))
 ' "$TRANSCRIPT_PATH" 2>/dev/null | tail -n 100)
 set -e
