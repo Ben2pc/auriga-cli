@@ -1,8 +1,8 @@
-# auriga Workflow (v1.3.0)
+# auriga Workflow (v1.4.0)
 
 1. Requirement Clarification: Use `brainstorming` to clarify requirements for new features. **Requirements should focus on "what to do" and acceptance criteria, not specific technical paths.** For product features, prioritize "Why" and let the implementation-stage Agent decide how.
 
-2. Planning: After clarification, use `AskUserQuestion` to ask which planning method to use — e.g., built-in Plan for medium complexity; `planning-with-files` for long-running tasks with local persistent tracking. Plans, design decisions, and tech debt should be versioned artifacts in the repo for subsequent Agent context.
+2. Planning: After clarification, run a **scope triage** before choosing a planning method. Apply the Quick Development Flow (skip planning, go straight to step 3) **only when all three predicates hold**: (a) the work fits within a single module or one cohesive concept; (b) acceptance criteria fit in ≤5 bullets; (c) no cross-boundary interface changes (public APIs, schemas, shared modules). Record the triage verdict in the task tracker (e.g., "scope triage → QDF: single module, 3 acceptance bullets, no interface change"). If any predicate fails or you're unsure, take the full path: use `AskUserQuestion` to ask which planning method to use — e.g., built-in Plan for medium complexity; `planning-with-files` for long-running tasks with local persistent tracking. Plans, design decisions, and tech debt should be versioned artifacts in the repo for subsequent Agent context.
 
 3. Pre-coding 1: **Create a development branch from main before writing code.** All commits go on the branch — never commit directly to main. Branch naming: `feat/` (feature), `fix/` (bugfix), `docs/` (documentation), `refactor/` (refactoring), `chore/` (chores).
 
@@ -26,7 +26,7 @@
 
 ## Quick Development Flow (bug fix / small refactor / small feature)
 
-Skip brainstorming and planning only; branch, Draft PR, TDD, verification, and review rules still apply. Steps:
+Triggered when step 2's scope triage finds all three predicates hold. Skips planning only — requirement clarification (step 1), branch, Draft PR, TDD, verification, and review rules still apply. Steps:
 
 1. **Run baseline**: Run existing tests for affected modules to confirm current state (all green or pre-existing failures)
 2. **Write/update tests** (red): Use `test-driven-development` to describe expected behavior. When changes touch shared modules, ensure all consumers' tests are in the baseline
