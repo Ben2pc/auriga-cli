@@ -100,20 +100,20 @@ Post this as a new PR comment, then flip Draft → Ready, then emit the marker.
 ```markdown
 ## 🚢 ship mode: Ready at iter <N>/<max-iter>
 
-### 自主决定
+### 自主决定 / Autonomous decisions
 <One bullet per decision point that surfaced, naming the decision and
 the strict default chosen. Example:
 - Step 7 test design → test-designer (Independent Evaluation)
 - Step 10 spec lifecycle → promoted docs/specs/X.md to docs/architecture/>
 
-### 迭代中的个案判断
+### 迭代中的个案判断 / Case-specific judgments
 <Bullet list of judgments not pre-decided by the strict-defaults table —
 small structural choices, test-failure fix directions, scope trims.
 One line each: "<decision> — why". Example:
 - Replaced the 4-arg helper with a config object — 3rd caller made the
   positional form unreadable>
 
-### 需要人工验收的点
+### 需要人工验收的点 / Review points
 <Bullet list of things the human partner should eyeball. Frame as
 "please verify", not "I think this is fine". Example:
 - Verify the PR title + body match the actual scope shipped
@@ -161,13 +161,13 @@ No silent give-up.
 ```markdown
 ## 🚫 ship mode: Blocked at iter <N>/<max-iter>
 
-### 自主决定
+### 自主决定 / Autonomous decisions
 <Same framing as the Ready template — what was locked in before the block.>
 
-### 迭代中的个案判断
+### 迭代中的个案判断 / Case-specific judgments
 <Same framing as the Ready template — judgments made up to the blocker.>
 
-### 最近的修复尝试
+### 最近的修复尝试 / Recent fix attempts
 <Up to 3 most recent fix attempts and why each failed. Example:
 1. Tried narrowing the regex to exclude the `---` separator — still matched
    the trailing `---` in markdown tables
@@ -176,17 +176,17 @@ No silent give-up.
 3. Switched to `awk` state machine — works, but tests still red because the
    fixture file itself has CRLF line endings (unconfirmed)>
 
-### Blocked 的原因
+### Blocked 的原因 / Reason for Blocked
 <One paragraph: what's blocking, what class of block this is (ambiguity /
 destructive op / budget exhaustion / spec gap). Be concrete.>
 
-### 人继续的两条路
+### 人继续的两条路 / Paths forward
 1. **Bump max-iter and resume**: `/auriga-go ship <larger number>` if the
    block was just budget and the last attempt was on the right track.
 2. **Take over manually**: checkout the branch, finish by hand. State file
    is already removed, so no ship residue to clean up.
 
-### 需要人工验收的点
+### 需要人工验收的点 / Review points
 <Same framing as the Ready template — even Blocked PRs leave review surface
 for the human to validate.>
 ```
