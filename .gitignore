@@ -4,3 +4,4 @@ dist-test/
 .DS_Store
 .claude/settings.local.json
 .claude/worktrees/
+.claude/auriga-go-ship.local.md

@@ -18,6 +18,31 @@
 
 ## 快速开始
 
+### Agent Bootstrap（非交互）
+
+在 `claude -p`、`claude -p --worktree` 或任何非交互 Agent 会话里想装整套 harness？从这里开始：
+
+```bash
+npx -y auriga-cli guide
+```
+
+会打印一份 5 步 SOP（前置检查 → `install --all` → 可选 recommended skills → 重启 session → 验证）。Agent 照着顺序往下跑就能装完整套 harness，全程不需要人按键。
+
+开头的 `-y` 是 **npx 自己的 flag**（用来跳过"是否要装这个包"的确认），**不是** auriga-cli 的参数。
+
+非交互安装命令：
+
+```bash
+npx -y auriga-cli install --all              # workflow + skills + plugins + hooks（原子）
+npx -y auriga-cli install recommended        # 可选工具 skills（不在 --all 内）
+npx -y auriga-cli install <type> [--flags]   # 单类：workflow | skills | recommended | plugins | hooks
+npx -y auriga-cli --help                     # 完整 catalog + flag 说明
+```
+
+退出码：`0` 成功；`1` 致命错误（前置检查 / 解析 / 拉取失败）；`2` 部分成功——`stderr` 会列出逐类 `[OK]/[FAIL]` 和 `Retry:` 提示。装完后请重启 Claude Code session，让新的 `CLAUDE.md` / skills / plugins 生效。
+
+### 交互式菜单
+
 ```bash
 npx auriga-cli
 ```

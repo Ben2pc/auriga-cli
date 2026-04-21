@@ -18,6 +18,31 @@ This repo itself is a fully configured harness project. You can clone it to see 
 
 ## Quick Start
 
+### Agent Bootstrap (non-TTY)
+
+Running inside `claude -p`, `claude -p --worktree`, or any non-interactive Agent session? Start here:
+
+```bash
+npx -y auriga-cli guide
+```
+
+This prints a 5-step SOP (prerequisite check → `install --all` → optional recommended skills → session reload → verify). Follow it top-to-bottom and the Agent can install the full harness without any human prompt.
+
+The leading `-y` belongs to `npx` (it auto-confirms package installation), **not** to `auriga-cli`.
+
+Non-interactive install commands:
+
+```bash
+npx -y auriga-cli install --all              # workflow + skills + plugins + hooks (atomic)
+npx -y auriga-cli install recommended        # opt-in utility skills (not in --all)
+npx -y auriga-cli install <type> [--flags]   # one of: workflow | skills | recommended | plugins | hooks
+npx -y auriga-cli --help                     # full catalog + flags
+```
+
+Exit codes: `0` success, `1` fatal (precheck / parse / fetch), `2` partial success — `stderr` lists per-category `[OK]/[FAIL]` and a `Retry:` hint. After install, reload the Claude Code session so the new `CLAUDE.md` / skills / plugins are picked up.
+
+### Interactive menu
+
 ```bash
 npx auriga-cli
 ```
