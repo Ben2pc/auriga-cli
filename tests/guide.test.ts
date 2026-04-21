@@ -47,6 +47,16 @@ describe("renderGuide", () => {
     assert.match(out, /Exit this session and start a new one/i);
   });
 
+  // Covers spec §3.6 Step 5 verification checklist content.
+  test("lists the expected install artifacts in the verification section", () => {
+    const out = renderGuide({ color: false, version: "1.8.1" });
+    assert.match(out, /CLAUDE\.md/);
+    assert.match(out, /AGENTS\.md -> CLAUDE\.md/);
+    assert.match(out, /\.agents\/skills\/<name>\//);
+    assert.match(out, /\.claude\/plugins\.json/);
+    assert.match(out, /\.claude\/settings\.json/);
+  });
+
   // Covers spec §3.6 color contract when color output is disabled.
   test("does not emit ANSI escapes when color is false", () => {
     const out = renderGuide({ color: false, version: "1.8.1" });

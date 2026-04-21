@@ -67,34 +67,27 @@
 
 ### Phase 4 — CLI dispatcher + parser + guide + help
 
-状态：**pending**
+状态：**complete（2026-04-21）**
 
 **4.0 — 用 codex 跑 `/test-designer`（Independent Evaluation，TDD red）**
 
 在写任何实现代码 **之前** 做。目的：跨模型盲点覆盖 + 避免测试被 Claude 自身实现思路污染。
 
-- [ ] 4.0.1 `codex-agent` dispatch：
-  - **输入**：spec `docs/specs/2026-04-21-install-subcommand-design.md` 的 §3.2 / §3.5 / §3.6 / §5.2 / §5.3.1 / §7 / §11（仅需求 + 契约 + 验收矩阵；**不给**实现思路）
-  - **要求**：用 `test-designer` skill；effort high；返回可直接保存并运行的失败测试
-  - **作用域**：
-    - `tests/cli-parse.test.ts`：parse 矩阵（合法形式 + fail-fast 规则 8 条 + nargs terminator）
-    - `tests/install-nontty.test.ts`：非交互冒烟 + 分级 exit（mock 三种状况：precheck 失败 / 部分成功 / 全成功）
-    - `tests/guide.test.ts`：SOP 输出快照 + TTY/NO_COLOR 分支 + 带参 fail-fast
-  - **输出契约**：三份测试文件 + 每份顶部一段"覆盖了 spec 哪些段号"的注释；不产出实现代码
-- [ ] 4.0.2 主 Agent 把 codex 产出的三份文件落盘；跑 `npm test` 预期**全部失败**（红）——记录一次 baseline，确认测试确实在测东西
+- [x] 4.0.1 Dispatch：codex 两次空返（exit 0 无输出）→ fallback 到 Claude sonnet subagent，产出三份失败测试（14 条）；红 baseline commit `f61497b`
+- [x] 4.0.2 红 baseline：tsc 3 处错 + assertion 失败均符合"symbol 不存在"预期
 
 **4.1–4.4 — 实现（让测试转绿）**
 
-- [ ] 4.1 `src/cli.ts` 重写——顶层 dispatch (`guide` / `install` / `--help` / `--version` / 无参)
-- [ ] 4.2 `install` 子解析器——按 spec §3.5 + §5.2 的规则逐条实现 fail-fast
-- [ ] 4.3 `src/help.ts` —— 从 `dist/catalog.json` 生成 help 文本
-- [ ] 4.4 `src/guide.ts` —— SOP 模板，TTY/`NO_COLOR` 自动判定
+- [x] 4.1 `src/cli.ts` 重写——`parseArgs` / `main` / `runAll` / `runSingle` / `runLegacyMenu`
+- [x] 4.2 `install` 子解析器——§3.5 + §5.2 规则逐条实现（8 条 fail-fast + nargs `--` terminator + catalog-backed filter 名校验）
+- [x] 4.3 `src/help.ts` —— 从 `dist/catalog.json` 生成 help 文本（padRight/truncate 列格式）
+- [x] 4.4 `src/guide.ts` —— SOP 模板 + TTY/`NO_COLOR` 分支 ANSI
 
 **4.5 — 验证（转绿）**
 
-- [ ] 4.5 `npm test` 全绿；对照 4.0.2 的红→绿 diff，确认每条失败都因实现而通过，没靠跳过
+- [x] 4.5 `npm test` 77/77 绿；`npm run build` 绿；`DEV=1 node dist/cli.js --help` / `guide` / `--version` 手测正常
 
-**出口条件**：`DEV=1 node dist/cli.js guide` 打印 spec §3.6 的 SOP；`DEV=1 node dist/cli.js install`（管道）exit 1 + 预期错误串；`DEV=1 node dist/cli.js --help` 输出目录；4.0.1 codex 产出的测试全部转绿且无 skip。
+**出口条件达成**：所有 14 条红测转绿无 skip；`install --all` 的 precheck / 分级 exit / reload 提醒在 `runAll` 里已一并落地（Phase 5 的范围收窄到"手测 + 回归"）。
 
 ### Phase 5 — install --all 的 precheck + 分级 exit + reload 提醒
 

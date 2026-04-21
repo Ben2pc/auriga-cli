@@ -1,6 +1,5 @@
 import assert from "node:assert/strict";
 import { afterEach, describe, mock, test } from "node:test";
-
 const CATALOG = {
   generatedAt: "2026-04-21T00:00:00.000Z",
   workflowSkills: [{ name: "brainstorming", description: "x" }],
@@ -8,9 +7,7 @@ const CATALOG = {
   plugins: [{ name: "auriga-go", description: "x" }],
   hooks: [{ name: "notify", description: "x" }],
 };
-
 let importSerial = 0;
-
 async function captureStderr<T>(fn: () => Promise<T>): Promise<{ result: T; stderr: string }> {
   const chunks: string[] = [];
   const original = process.stderr.write.bind(process.stderr);
@@ -24,7 +21,6 @@ async function captureStderr<T>(fn: () => Promise<T>): Promise<{ result: T; stde
     process.stderr.write = original;
   }
 }
-
 async function importMain(overrides: {
   exec?: (cmd: string) => string;
   fetchContentRoot?: () => Promise<string>;
@@ -71,15 +67,10 @@ async function importMain(overrides: {
   mock.module(new URL("../src/hooks.js", import.meta.url), {
     namedExports: { installHooks: overrides.installHooks ?? (async () => {}) },
   });
-
   const mod = await import(new URL(`../src/cli.js?case=${importSerial++}`, import.meta.url).href);
   return mod.main;
 }
-
-afterEach(() => {
-  mock.restoreAll();
-});
-
+afterEach(() => { mock.restoreAll(); });
 // Covers spec §5.3.1 non-interactive entry, graded exits, and §11 non-TTY acceptance checks.
 describe("main non-interactive install flow", () => {
   // Covers spec §3.4 and §11 "install with no args in non-TTY" fail-fast behavior.
@@ -89,7 +80,6 @@ describe("main non-interactive install flow", () => {
     assert.equal(result, 1);
     assert.match(stderr, /Interactive mode requires a TTY\. Run 'npx auriga-cli --help' for non-interactive options\./);
   });
-
   // Covers spec §5.3.1 precheck ordering and §11 "claude missing means exit 1 without touching files".
   test("fails precheck before fetch or installers when claude CLI is missing", async () => {
     const calls: string[] = [];
@@ -103,10 +93,18 @@ describe("main non-interactive install flow", () => {
         fetchCalls += 1;
         return process.cwd();
       },
-      installWorkflow: async () => calls.push("workflow"),
-      installSkills: async () => calls.push("skills"),
-      installPlugins: async () => calls.push("plugins"),
-      installHooks: async () => calls.push("hooks"),
+      installWorkflow: async () => {
+        calls.push("workflow");
+      },
+      installSkills: async () => {
+        calls.push("skills");
+      },
+      installPlugins: async () => {
+        calls.push("plugins");
+      },
+      installHooks: async () => {
+        calls.push("hooks");
+      },
     });
     const { result, stderr } = await captureStderr(() => main(["install", "--all"]));
     assert.equal(result, 1);
@@ -114,7 +112,6 @@ describe("main non-interactive install flow", () => {
     assert.deepEqual(calls, []);
     assert.match(stderr, /install Claude Code first|claude/i);
   });
-
   // Covers spec §5.3.1 graded exit 2, per-category stderr status, and retry hint generation.
   test("returns exit 2 with status lines and retry command when one category fails", async () => {
     const main = await importMain({
@@ -133,7 +130,6 @@ describe("main non-interactive install flow", () => {
     assert.match(stderr, /\[OK\]\s+hooks/i);
     assert.match(stderr, /Retry:\s+npx auriga-cli install plugins/i);
   });
-
   // Covers spec §7 success-tail reload reminder and §11 full-install success acceptance.
   test("prints the reload reminder as the final stderr line on success", async () => {
     const main = await importMain({

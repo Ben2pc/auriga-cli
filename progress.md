@@ -6,12 +6,12 @@
 
 ## 当前状态
 
-- **当前 Phase**：Phase 0–3 ✅（最新 commit `3d86bfc`）；可进入 Phase 4
-- **分支**：`feat/install-subcommand`（7 ahead of main）
+- **当前 Phase**：Phase 0–4 ✅；可进入 Phase 5
+- **分支**：`feat/install-subcommand`
 - **Draft PR**：[#31](https://github.com/Ben2pc/auriga-cli/pull/31)（Open / Draft / Mergeable）
-- **npm test**：62/62 绿
-- **Install 函数签名**：4 个 installer 都吃 `InstallOpts`；非交互 code path 就位，等 CLI parser 调用
-- **下一步（可直接执行的动作）**：Phase 4.0——dispatch codex 跑 `/test-designer`（TDD red，Independent Evaluation）产出 3 份失败测试：`tests/cli-parse.test.ts` / `tests/install-nontty.test.ts` / `tests/guide.test.ts`
+- **npm test**：77/77 绿（14 条新测全通过，含 parser / install-nontty / guide）
+- **CLI 实现就位**：`src/cli.ts`（parseArgs + main + runAll/runSingle/runLegacyMenu）、`src/guide.ts`、`src/help.ts`
+- **下一步**：Phase 5（README + 根 `CLAUDE.md` 的 Agent bootstrap recipe，中英双语）；Phase 6 deep-review + Ready
 
 ## Session 1 — 2026-04-21（planning）
 
@@ -33,7 +33,20 @@
 
 ## 测试结果
 
-(空；Phase 2+ 才会有 `npm test` 产出要记录)
+- 2026-04-21 Phase 4：`npm test` 77/77 绿
+  - Phase 4.0 red baseline：14 条新测全失败（符合预期）
+  - Phase 4.1–4.4 实现（`src/cli.ts` / `src/guide.ts` / `src/help.ts`）后全绿
+  - 期间引入 `--experimental-test-module-mocks` flag（Node test runner 模块 mock）
+
+## Session 2 — 2026-04-21（Phase 4 实现）
+
+- Phase 4.0：codex dispatch 受阻（两次 exit 0 无输出）；fallback 到 Claude sonnet subagent 完成，产出 14 条 red 测
+- Phase 4.1–4.4：主 Agent 直接写 `src/cli.ts`（parser + main + runAll/runSingle + legacy menu）/ `src/guide.ts` / `src/help.ts`
+- Phase 4.5：调整 3 处转绿
+  - parser：`--` 后出现位置参数 → 按 §3.5 规则 1 抛 "install takes one <type> at a time"
+  - parser：新增 catalog-backed filter 名校验（sync，读 `dist/catalog.json`）
+  - CLI：TTY-only deps（`@inquirer/prompts`、`printBanner`、`withEsc`）改为动态 import，避免在 mocked utils 场景下解析失败
+  - `package.json` test 脚本加 `--experimental-test-module-mocks`；`require("../package.json")` 改为通过 `getPackageRootSync` 解析（支持 dist/ 与 dist-test/src/ 两套运行路径）
 
 ## 关键决策快照
 
