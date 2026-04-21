@@ -2,19 +2,27 @@ import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 
 import { planSkillInstallCommands } from "../src/skills.js";
+import type { SkillsLock } from "../src/utils.js";
 
-// Mirrors the live skills-lock.json structure — just enough for the planner.
-const LOCK = {
-  brainstorming: { source: "obra/superpowers" },
-  "systematic-debugging": { source: "obra/superpowers" },
-  "test-driven-development": { source: "obra/superpowers" },
-  "verification-before-completion": { source: "obra/superpowers" },
-  "deep-review": { source: "Ben2pc/g-claude-code-plugins" },
-  "test-designer": { source: "Ben2pc/g-claude-code-plugins" },
-  "parallel-implementation": { source: "Ben2pc/g-claude-code-plugins" },
-  "planning-with-files": { source: "OthmanAdi/planning-with-files" },
-  "playwright-cli": { source: "microsoft/playwright-cli" },
-  "ui-ux-pro-max": { source: "nextlevelbuilder/ui-ux-pro-max-skill" },
+// Typed as the real SkillsLock["skills"] shape so schema drift in
+// SkillEntry (new required fields, etc.) surfaces here as a compile error.
+const stub = (source: string) => ({
+  source,
+  sourceType: "github",
+  computedHash: "x",
+});
+
+const LOCK: SkillsLock["skills"] = {
+  brainstorming: stub("obra/superpowers"),
+  "systematic-debugging": stub("obra/superpowers"),
+  "test-driven-development": stub("obra/superpowers"),
+  "verification-before-completion": stub("obra/superpowers"),
+  "deep-review": stub("Ben2pc/g-claude-code-plugins"),
+  "test-designer": stub("Ben2pc/g-claude-code-plugins"),
+  "parallel-implementation": stub("Ben2pc/g-claude-code-plugins"),
+  "planning-with-files": stub("OthmanAdi/planning-with-files"),
+  "playwright-cli": stub("microsoft/playwright-cli"),
+  "ui-ux-pro-max": stub("nextlevelbuilder/ui-ux-pro-max-skill"),
 };
 
 describe("planSkillInstallCommands", () => {
@@ -75,10 +83,9 @@ describe("planSkillInstallCommands", () => {
     ]);
   });
 
-  test("all 10 WORKFLOW_SKILLS-ish entries collapse to 5 commands", () => {
+  test("every distinct source yields one batch", () => {
     const batches = planSkillInstallCommands(Object.keys(LOCK), LOCK, "");
-    // 5 distinct sources in LOCK
-    assert.equal(batches.length, 5);
+    assert.equal(batches.length, 5); // 5 distinct sources in LOCK
   });
 
   test("globalFlag threads into every command", () => {

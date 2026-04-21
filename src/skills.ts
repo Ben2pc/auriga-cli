@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { checkbox, select } from "@inquirer/prompts";
 import { exec, log, withEsc } from "./utils.js";
-import type { SkillsLock } from "./utils.js";
+import type { SkillEntry, SkillsLock } from "./utils.js";
 
 // Curated default-on set: skills that the workflow in the root CLAUDE.md
 // directly references. Anything else in skills-lock.json is surfaced via
@@ -31,16 +31,11 @@ function loadLock(packageRoot: string): SkillsLock {
   );
 }
 
-/**
- * Group selected skills by source and build one `npx skills add` command
- * per group. Same-source skills merge into a single `--skill a b c` list.
- *
- * Pure and deterministic: selection order is preserved; the first
- * occurrence of each source fixes its position in the output.
- */
+// Deterministic: selection order is preserved; the first occurrence of
+// each source fixes its position in the returned array.
 export function planSkillInstallCommands(
   selected: string[],
-  lock: Record<string, { source: string }>,
+  lock: SkillsLock["skills"],
   globalFlag: string,
 ): { source: string; skills: string[]; command: string }[] {
   const bySource = new Map<string, string[]>();
@@ -60,7 +55,7 @@ export function planSkillInstallCommands(
 }
 
 async function installSelected(
-  entries: [string, { source: string }][],
+  entries: [string, SkillEntry][],
   defaultChecked: boolean,
   descriptionMap?: Record<string, string>,
 ): Promise<void> {
