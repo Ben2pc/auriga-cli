@@ -12,7 +12,10 @@ import {
   findStaleScopes,
   installHook,
   loadHooksConfig,
+  mapNonInteractiveScope,
   removeHookFromSettings,
+  resolveHookSelection,
+  findIncompatibleExplicit,
 } from "../src/hooks.js";
 import type { HookDef, HookDep, SettingsFile } from "../src/hooks.js";
 
@@ -804,4 +807,101 @@ describe("depBinary", () => {
       assert.equal(depBinary(dep), expected);
     });
   }
+});
+
+// Covers codex deep-review finding #2: the three-way scope map for the
+// non-interactive install path must distinguish "no --scope passed"
+// (→ project-local, matching the interactive default) from "--scope
+// project" (→ project, shared .claude/settings.json). Earlier code
+// collapsed both cases to project-local, silently landing shared hooks
+// in settings.local.json.
+// Non-interactive hook scope is a two-value map:
+//   undefined / "project" → project (shared .claude/settings.json)
+//   "user"                → user    (~/.claude/settings.json)
+// project-local is only reachable via the TTY menu — see renderTypeHelp
+// hooks section for the user-facing contract.
+describe("mapNonInteractiveScope", () => {
+  test("undefined → project (default for --all and bare install hooks)", () => {
+    assert.equal(mapNonInteractiveScope(undefined), "project");
+  });
+  test("'project' → project (explicit; identical behavior to undefined)", () => {
+    assert.equal(mapNonInteractiveScope("project"), "project");
+  });
+  test("'user' → user (global ~/.claude/settings.json)", () => {
+    assert.equal(mapNonInteractiveScope("user"), "user");
+  });
+  test("unknown string → project (safe default, not a throw)", () => {
+    // CLI parser validates --scope against a whitelist, so this path
+    // is defense-in-depth; stay silent instead of exploding.
+    assert.equal(mapNonInteractiveScope("weird"), "project");
+  });
+});
+
+// defaultOn=false hooks (e.g. notify) are opt-in: bare `install hooks`
+// without --hook skips them; `--hook *` or explicit naming installs.
+describe("resolveHookSelection", () => {
+  const hookA: HookDef = {
+    name: "hook-a",
+    description: "",
+    runtimePlatforms: ["darwin", "linux"],
+    settingsEvents: [{ event: "Stop" }],
+    command: "node \"$HOOK_DIR/index.mjs\"",
+    files: ["index.mjs"],
+    marker: "test:a",
+  };
+  const hookB: HookDef = { ...hookA, name: "hook-b", marker: "test:b" };
+  const hookOptIn: HookDef = {
+    ...hookA,
+    name: "hook-opt-in",
+    marker: "test:opt",
+    defaultOn: false,
+  };
+
+  test("undefined selection → defaultOn !== false (skips notify-class hooks)", () => {
+    const got = resolveHookSelection([hookA, hookB, hookOptIn], undefined).map((h) => h.name);
+    assert.deepEqual(got, ["hook-a", "hook-b"]);
+  });
+  test("['*'] → full compatible set (opt-ins included)", () => {
+    const got = resolveHookSelection([hookA, hookB, hookOptIn], ["*"]).map((h) => h.name);
+    assert.deepEqual(got, ["hook-a", "hook-b", "hook-opt-in"]);
+  });
+  test("explicit name list → exactly those (even when defaultOn is false)", () => {
+    const got = resolveHookSelection([hookA, hookB, hookOptIn], ["hook-opt-in"]).map((h) => h.name);
+    assert.deepEqual(got, ["hook-opt-in"]);
+  });
+});
+
+// Non-interactive `install hooks --hook X` with X unavailable on the
+// current platform used to silently no-op exit 0. Catch that at the
+// installHooks boundary via this helper so CI pipelines see exit 1.
+describe("findIncompatibleExplicit", () => {
+  const darwinOnly: HookDef = {
+    name: "notify",
+    description: "",
+    runtimePlatforms: ["darwin"],
+    settingsEvents: [{ event: "Stop" }],
+    command: "node \"$HOOK_DIR/index.mjs\"",
+    files: ["index.mjs"],
+    marker: "test:notify",
+  };
+  const portable: HookDef = {
+    ...darwinOnly,
+    name: "pr-guard",
+    runtimePlatforms: ["darwin", "linux"],
+    marker: "test:pr",
+  };
+  const all = [darwinOnly, portable];
+
+  test("on darwin: notify is compatible, empty result", () => {
+    const compat = all.filter((h) => h.runtimePlatforms.includes("darwin"));
+    assert.deepEqual(findIncompatibleExplicit(all, compat, ["notify", "pr-guard"]), []);
+  });
+  test("on linux: explicit --hook notify flagged as missing", () => {
+    const compat = all.filter((h) => h.runtimePlatforms.includes("linux"));
+    assert.deepEqual(findIncompatibleExplicit(all, compat, ["notify"]), ["notify"]);
+  });
+  test("unknown names are NOT treated as platform-incompatible (caller handles unknown separately)", () => {
+    const compat = all.filter((h) => h.runtimePlatforms.includes("darwin"));
+    assert.deepEqual(findIncompatibleExplicit(all, compat, ["does-not-exist"]), []);
+  });
 });

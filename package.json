@@ -1,26 +1,30 @@
 {
   "name": "auriga-cli",
-  "version": "1.8.1",
+  "version": "1.9.0",
   "description": "Interactive CLI to install Claude Code harness modules (Workflow, Skills, Recommended Skills, Plugins, Hooks)",
   "type": "module",
   "bin": {
     "auriga-cli": "dist/cli.js"
   },
   "files": [
-    "dist"
+    "dist/*.js",
+    "dist/*.d.ts",
+    "dist/catalog.json"
   ],
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && node dist/build/generate-catalog.js",
     "dev": "tsc --watch",
     "start": "node dist/cli.js",
-    "test": "tsc -p tsconfig.test.json && DEV=1 node --test dist-test/tests/hooks.test.js dist-test/tests/skills.test.js",
-    "test:watch": "tsc -p tsconfig.test.json --watch & node --test --watch dist-test/tests/hooks.test.js dist-test/tests/skills.test.js"
+    "pretest": "npm run build",
+    "test": "tsc -p tsconfig.test.json && DEV=1 node --test --experimental-test-module-mocks dist-test/tests/hooks.test.js dist-test/tests/skills.test.js dist-test/tests/catalog.test.js dist-test/tests/cli-parse.test.js dist-test/tests/install-nontty.test.js dist-test/tests/guide.test.js dist-test/tests/validators.test.js dist-test/tests/entrypoint.test.js",
+    "test:watch": "tsc -p tsconfig.test.json --watch & node --test --watch --experimental-test-module-mocks dist-test/tests/hooks.test.js dist-test/tests/skills.test.js dist-test/tests/catalog.test.js dist-test/tests/cli-parse.test.js dist-test/tests/install-nontty.test.js dist-test/tests/guide.test.js dist-test/tests/validators.test.js dist-test/tests/entrypoint.test.js"
   },
   "engines": {
     "node": ">=18"
   },
   "dependencies": {
-    "@inquirer/prompts": "^8.0.0"
+    "@inquirer/prompts": "^8.0.0",
+    "gray-matter": "^4.0.3"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

@@ -9,6 +9,7 @@ import {
   fetchExtraContentBinary,
   log,
   withEsc,
+  type InstallOpts,
 } from "./utils.js";
 
 // --- Hook registry types ---
@@ -51,6 +52,15 @@ export interface HookDef {
    * back to a generic "see <dir>/README.md" pointer.
    */
   customizeHints?: string[];
+  /**
+   * Whether the hook is part of the default-on set. `false` makes the
+   * hook opt-in: non-interactive `install hooks` with no `--hook` filter
+   * skips it, and the interactive checkbox leaves it unchecked. Absent
+   * / `true` → installed by default. Used for hooks with intrusive
+   * side effects (OS notifications, brew deps, platform constraints)
+   * that users probably want to pick up consciously.
+   */
+  defaultOn?: boolean;
 }
 
 export interface HooksConfig {
@@ -237,6 +247,9 @@ function validateHookEntry(hook: unknown, idx: number): void {
         );
       }
     }
+  }
+  if (h.defaultOn !== undefined && typeof h.defaultOn !== "boolean") {
+    throw new Error(`hooks.json: hooks[${idx}].defaultOn must be a boolean`);
   }
 }
 
@@ -431,6 +444,22 @@ function resolveScope(scope: Scope, projectBase: string, hookName: string): Scop
         : path.join(projectClaude, "settings.json"),
     commandHookDir: `$CLAUDE_PROJECT_DIR/.claude/hooks/${hookName}`,
   };
+}
+
+/**
+ * Non-interactive scope map for hooks.
+ *
+ * Non-interactive surface only knows about two values — `project` (the
+ * default) and `user`. `project-local` exists only in the TTY menu; it's
+ * a per-developer uncommitted scope and carries enough "did you really
+ * mean this?" surface area that we gate it behind an interactive
+ * confirmation rather than exposing it as a CLI flag value.
+ *
+ * Exported so `tests/hooks.test.ts` can lock the contract down as a
+ * unit test.
+ */
+export function mapNonInteractiveScope(scope: string | undefined): Scope {
+  return scope === "user" ? "user" : "project";
 }
 
 function scopeChoices(): { name: string; value: Scope }[] {
@@ -847,7 +876,49 @@ export function cleanHookFromScope(
   return { removed: result.removed, settingsPath: r.settingsPath };
 }
 
-export async function installHooks(packageRoot: string): Promise<void> {
+/**
+ * Non-interactive selection resolver for hooks.
+ *
+ * Diverges from resolvePluginSelection in the no-filter case. Hooks can
+ * carry intrusive side effects (OS notifications, brew deps), so the
+ * safe default is NOT "install everything". Three cases:
+ *
+ * - undefined (no --hook passed) → default-on set (filter on defaultOn !== false)
+ * - ["*"] (explicit opt-in to everything) → full compatible set
+ * - explicit names → exactly those (even if defaultOn is false)
+ */
+export function resolveHookSelection(
+  compatible: HookDef[],
+  selected: string[] | undefined,
+): HookDef[] {
+  if (!selected) return compatible.filter((h) => h.defaultOn !== false);
+  if (selected.length === 1 && selected[0] === "*") return compatible;
+  const wanted = new Set(selected);
+  return compatible.filter((h) => wanted.has(h.name));
+}
+
+/**
+ * Given the full registry and the platform-filtered compatible subset,
+ * return the names in `selected` that refer to real hooks but aren't
+ * available on the current platform. Empty result means the selection
+ * is either fully compatible or references unknown hooks (that case is
+ * left to the catalog validator — we don't pretend unknown names are
+ * platform issues).
+ */
+export function findIncompatibleExplicit(
+  all: HookDef[],
+  compatible: HookDef[],
+  selected: string[],
+): string[] {
+  const compatibleNames = new Set(compatible.map((h) => h.name));
+  const allNames = new Set(all.map((h) => h.name));
+  return selected.filter((n) => allNames.has(n) && !compatibleNames.has(n));
+}
+
+export async function installHooks(
+  packageRoot: string,
+  opts: InstallOpts,
+): Promise<void> {
   const config = loadHooksConfig(packageRoot);
 
   const compatible = config.hooks.filter((h) =>
@@ -860,33 +931,77 @@ export async function installHooks(packageRoot: string): Promise<void> {
     return;
   }
 
-  const selected = await withEsc(
-    checkbox<HookDef>({
-      message: "Select hooks to install:",
-      choices: compatible.map((h) => ({
-        name: `${h.name} — ${h.description}`,
-        value: h,
-        checked: true,
-      })),
-    }),
-  );
+  // Non-interactive explicit `--hook <name>` has stronger intent than
+  // the default set: if the caller named a hook that isn't available
+  // on this platform, fail fast. A silent no-op would let CI pipelines
+  // report success with the intended hook missing.
+  if (!opts.interactive && opts.selected && opts.selected[0] !== "*") {
+    const missing = findIncompatibleExplicit(
+      config.hooks,
+      compatible,
+      opts.selected,
+    );
+    if (missing.length > 0) {
+      throw new Error(
+        `hook${missing.length > 1 ? "s" : ""} not available on ${process.platform}: ${missing.join(", ")}. Run \`npx -y auriga-cli install hooks --help\` to see platform compatibility.`,
+      );
+    }
+  }
+
+  const selected = opts.interactive
+    ? await withEsc(
+      checkbox<HookDef>({
+        message: "Select hooks to install:",
+        choices: compatible.map((h) => ({
+          name: `${h.name} — ${h.description}`,
+          value: h,
+          checked: h.defaultOn !== false,
+        })),
+      }),
+    )
+    : resolveHookSelection(compatible, opts.selected);
+
+  // Surface any opt-in hooks skipped by the default set so the user
+  // isn't silently missing a hook they can see in --help / the README.
+  // Only fires on the non-interactive undefined-selection path (TTY
+  // checkbox already shows them unchecked).
+  if (!opts.interactive && opts.selected === undefined) {
+    const skippedOptIn = compatible.filter((h) => h.defaultOn === false);
+    for (const h of skippedOptIn) {
+      log.skip(
+        `${h.name} (opt-in; re-run \`npx -y auriga-cli install hooks --hook ${h.name}\` to install)`,
+      );
+    }
+  }
 
   if (selected.length === 0) {
     log.skip("No hooks selected");
     return;
   }
 
+  // Non-interactive scope (two values only):
+  //   undefined / "project" → project (shared .claude/settings.json)
+  //   "user"                → user    (~/.claude/settings.json)
+  // project-local is reachable only via the TTY menu.
+  const nonInteractiveScope: Scope = mapNonInteractiveScope(opts.scope);
+
   // Lazily prompted on the first project-scoped hook, then reused. Users
   // who pick only "user" scope are never asked about a project directory.
+  //
+  // Non-interactive path always falls back to `process.cwd()` — the
+  // parser rejects `--cwd` for any non-workflow type (§3.5 rule 5), so
+  // reading `opts.cwd` here would just be dead dispatch.
   let projectBaseResolved: string | null = null;
   async function ensureProjectBase(): Promise<string | null> {
     if (projectBaseResolved !== null) return projectBaseResolved;
-    const projectBase = await withEsc(
-      input({
-        message: "Hooks install target directory:",
-        default: process.cwd(),
-      }),
-    );
+    const projectBase = opts.interactive
+      ? await withEsc(
+        input({
+          message: "Hooks install target directory:",
+          default: process.cwd(),
+        }),
+      )
+      : process.cwd();
     const resolvedPath = path.resolve(projectBase);
     if (!fs.existsSync(resolvedPath) || !fs.statSync(resolvedPath).isDirectory()) {
       log.error(`Not a valid directory: ${resolvedPath}`);
@@ -896,6 +1011,7 @@ export async function installHooks(packageRoot: string): Promise<void> {
     return projectBaseResolved;
   }
 
+  const failures: string[] = [];
   for (const hook of selected) {
     console.log(`\n· ${hook.name}`);
 
@@ -903,19 +1019,23 @@ export async function installHooks(packageRoot: string): Promise<void> {
     // plugins.ts / skills.ts): a future user may want personal dev tools
     // at user level and project-specific hooks at project level. The
     // single-hook case is functionally identical to a single prompt.
-    const scope = await withEsc(
-      select<Scope>({
-        message: `Where to install the ${hook.name} hook?`,
-        choices: scopeChoices(),
-        default: "project-local",
-      }),
-    );
+    const scope: Scope = opts.interactive
+      ? await withEsc(
+        select<Scope>({
+          message: `Where to install the ${hook.name} hook?`,
+          choices: scopeChoices(),
+          default: "project-local",
+        }),
+      )
+      : nonInteractiveScope;
 
     // User scope mutates ~/.claude/settings.json — global, affects every
     // project on this machine. A passive select label and a one-line warn
     // both scroll past quickly. Make the user explicitly opt in to the
     // global mutation; default to "no" so a missed Enter is the safe path.
-    if (scope === "user") {
+    // In non-interactive mode the caller has already expressed intent via
+    // `--scope user`, so we honor it without another confirmation gate.
+    if (opts.interactive && scope === "user") {
       const proceed = await withEsc(
         confirm({
           message: `Modify your global ~/.claude/settings.json? This affects every project on this machine. A .bak snapshot is taken before any change.`,
@@ -939,17 +1059,21 @@ export async function installHooks(packageRoot: string): Promise<void> {
     // Cross-scope cleanup: if this hook's marker is already present in a
     // *different* scope's settings file, leaving it there means the hook
     // will fire from both scopes. Detect, prompt, clean before installing.
+    // In non-interactive mode the default (remove stale) is applied
+    // silently — matches the interactive default: true.
     const stale = findStaleScopes(hook, scope, projectBaseForHook);
     for (const entry of stale) {
       log.warn(
         `Found existing ${hook.name} hook in ${relativeFromCwd(entry.settingsPath)} (${entry.scope} scope, ${entry.count} entr${entry.count === 1 ? "y" : "ies"})`,
       );
-      const remove = await withEsc(
-        confirm({
-          message: `Remove the stale registration so the hook only fires once?`,
-          default: true,
-        }),
-      );
+      const remove = opts.interactive
+        ? await withEsc(
+          confirm({
+            message: `Remove the stale registration so the hook only fires once?`,
+            default: true,
+          }),
+        )
+        : true;
       if (remove) {
         const cleaned = cleanHookFromScope(hook, entry.scope, projectBaseForHook);
         log.ok(`removed ${cleaned.removed} from ${relativeFromCwd(cleaned.settingsPath)}`);
@@ -968,11 +1092,13 @@ export async function installHooks(packageRoot: string): Promise<void> {
       result = await installHook(hook, scope, projectBaseForHook, packageRoot);
     } catch (e) {
       log.error(`${hook.name}: ${(e as Error).message}`);
+      failures.push(hook.name);
       continue;
     }
 
     if (result.aborted) {
       log.error(`${hook.name} aborted: ${result.aborted}`);
+      failures.push(hook.name);
       continue;
     }
 
@@ -986,6 +1112,10 @@ export async function installHooks(packageRoot: string): Promise<void> {
     if (result.settingsError) {
       log.error(`${hook.name}: ${result.settingsError}`);
       log.warn(`Files were copied to ${dirRel} but settings not updated. Add the hook entry manually if you want it active.`);
+      // Registration failure leaves the hook installed-but-inactive. Count
+      // it as a failure so non-interactive `install hooks` exits 2 and the
+      // caller can retry — quietly reporting success would ship a dead hook.
+      failures.push(hook.name);
     } else if (result.settingsMutated) {
       log.ok(`registered in ${settingsRel}`);
     } else {
@@ -1004,5 +1134,11 @@ export async function installHooks(packageRoot: string): Promise<void> {
     } else {
       console.log(`  See ${dirRel}/README.md for customization options.`);
     }
+  }
+
+  if (failures.length > 0 && !opts.interactive) {
+    throw new Error(
+      `${failures.length} hook(s) failed to install: ${failures.join(", ")}`,
+    );
   }
 }

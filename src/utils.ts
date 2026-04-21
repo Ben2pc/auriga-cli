@@ -31,12 +31,65 @@ export interface PluginsConfig {
   plugins: PluginDef[];
 }
 
+// --- Install options (spec §5.3) ---
+
+/**
+ * Shared install function argument shape. Each installer consumes the
+ * subset of fields meaningful to its category; irrelevant fields are
+ * ignored (e.g. `lang` / `cwd` only apply to workflow).
+ *
+ * `interactive` is required (no default) to force callers to be
+ * explicit — silently falling back to prompts in a piped Agent session
+ * was the original bug this spec closes.
+ */
+export interface InstallOpts {
+  /** workflow only — language code from `LANGUAGES`. */
+  lang?: string;
+  /** workflow only — install target directory (absolute or cwd-relative). */
+  cwd?: string;
+  /** skills / recommended / plugins / hooks — `"user"` means install globally. */
+  scope?: "project" | "user";
+  /**
+   * sub-item filter. `undefined` = full set of this category.
+   * Names are validated against the catalog by the CLI layer; installers
+   * take the list as authoritative.
+   */
+  selected?: string[];
+  /** `true` = drive via inquirer prompts (existing interactive UX);
+   *  `false` = non-interactive, use only the fields above. */
+  interactive: boolean;
+}
+
+/**
+ * Whether the current process should be treated as non-interactive.
+ * Used by the top-level CLI dispatcher to pick the interactive vs
+ * non-interactive code path when only the verb was supplied with no
+ * positional types / flags.
+ */
+export function isNonInteractive(): boolean {
+  return !process.stdin.isTTY;
+}
+
 // --- Package root ---
 
+// Walks up from the current module file until it finds the auriga-cli
+// package.json. Handles both `dist/utils.js` (production) and
+// `dist-test/src/utils.js` (test compile output) uniformly — a plain
+// `path.resolve(..., "..")` works for the first but not the second.
 export function getPackageRoot(): string {
   const __filename = fileURLToPath(import.meta.url);
-  // dist/utils.js -> package root
-  return path.resolve(path.dirname(__filename), "..");
+  let dir = path.dirname(__filename);
+  while (dir !== path.dirname(dir)) {
+    const pkgPath = path.join(dir, "package.json");
+    if (fs.existsSync(pkgPath)) {
+      try {
+        const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf-8"));
+        if (pkg.name === "auriga-cli") return dir;
+      } catch { /* malformed parent package.json — keep walking */ }
+    }
+    dir = path.dirname(dir);
+  }
+  return process.cwd();
 }
 
 // --- Exec ---
@@ -68,7 +121,48 @@ export const LANGUAGES: LangOption[] = [
 // --- Remote content ---
 
 const REPO = "Ben2pc/auriga-cli";
-const BRANCH = "main";
+
+/**
+ * Reads `version` from the packaged manifest. Throws when the package
+ * root / manifest is unreadable — callers that need a fallback should
+ * wrap in try/catch and pick their own default (see
+ * `resolveContentRef` for an example).
+ */
+export function readPackageVersion(): string {
+  const pkg = JSON.parse(
+    fs.readFileSync(path.join(getPackageRoot(), "package.json"), "utf-8"),
+  );
+  return pkg.version as string;
+}
+
+/**
+ * Git ref to fetch content from. Defaults to the tag matching the
+ * published CLI version (`v<package.version>`) so a pinned npm install
+ * never drifts against `main`. Overridable via `AURIGA_CONTENT_REF`
+ * (CI / debugging) and auto-falls-back to `main` for the legacy
+ * behavior when `AURIGA_CONTENT_REF=main` or when the package version
+ * can't be read.
+ *
+ * Release discipline: cut the git tag `v<version>` BEFORE `npm
+ * publish`. Publishing without tagging would leave `fetchContentRoot`
+ * hitting a 404 for the first minutes until the tag exists.
+ */
+function resolveContentRef(): string {
+  const override = process.env.AURIGA_CONTENT_REF;
+  if (override && override.length > 0) return override;
+  try {
+    const version = readPackageVersion();
+    if (typeof version === "string" && /^\d+\.\d+\.\d+/.test(version)) {
+      return `v${version}`;
+    }
+  } catch {
+    // Fall through to main; getPackageRoot can legitimately fail in
+    // bizarre installs (broken tarball), and a live-main fetch is
+    // strictly better than a hard crash on `--help`.
+  }
+  return "main";
+}
+
 const CONTENT_FILES = [
   "CLAUDE.md",
   "skills-lock.json",
@@ -77,14 +171,16 @@ const CONTENT_FILES = [
 ];
 
 async function fetchFile(file: string): Promise<string> {
-  const url = `https://raw.githubusercontent.com/${REPO}/${BRANCH}/${file}`;
+  const ref = resolveContentRef();
+  const url = `https://raw.githubusercontent.com/${REPO}/${ref}/${file}`;
   const res = await fetch(url);
   if (!res.ok) throw new Error(`Failed to fetch ${url}: ${res.status}`);
   return res.text();
 }
 
 async function fetchFileBinary(file: string): Promise<Buffer> {
-  const url = `https://raw.githubusercontent.com/${REPO}/${BRANCH}/${file}`;
+  const ref = resolveContentRef();
+  const url = `https://raw.githubusercontent.com/${REPO}/${ref}/${file}`;
   const res = await fetch(url);
   if (!res.ok) throw new Error(`Failed to fetch ${url}: ${res.status}`);
   return Buffer.from(await res.arrayBuffer());
@@ -283,7 +379,11 @@ export function printBanner(version: string): void {
 
 export const log = {
   ok: (msg: string) => console.log(`${green}\u2713${reset} ${msg}`),
-  warn: (msg: string) => console.log(`${yellow}\u26a0${reset} ${msg}`),
-  error: (msg: string) => console.log(`${red}\u2717${reset} ${msg}`),
+  // warn / error go to stderr so shell redirection (and non-interactive
+  // agents) can separate diagnostics from normal CLI output. Earlier
+  // both wrote to stdout via console.log, which collapsed the two
+  // streams and forced callers to re-parse mixed output.
+  warn: (msg: string) => console.error(`${yellow}\u26a0${reset} ${msg}`),
+  error: (msg: string) => console.error(`${red}\u2717${reset} ${msg}`),
   skip: (msg: string) => console.log(`${dim}  skip: ${msg}${reset}`),
 };

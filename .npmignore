@@ -1,0 +1,13 @@
+# `package.json` `files` is the authoritative inclusion list
+# (`dist/*.js`, `dist/*.d.ts`, `dist/catalog.json`). This file is
+# defense-in-depth — same exclusions in case `files` is ever
+# broadened to `["dist"]`.
+
+# Build-time scripts — not consumed at runtime by `npx auriga-cli`.
+# Their only job is to emit dist/catalog.json during `npm run build`.
+dist/build/
+
+# Test artifacts (compiled tests live under dist-test/, not dist/, but
+# excluded here defensively in case that ever changes).
+dist-test/
+tests/

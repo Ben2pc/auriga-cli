@@ -47,6 +47,16 @@
 | `docs/architecture/` | 稳定、长期的设计文档（模块布局、数据流、组件职责）。新条目通常由 `docs/specs/` 晋升而来 | 长期 |
 | `docs/` 其他 | 按需新增：`runbooks/`（运维流程）、`adr/`（架构决策记录）、`onboarding/` 等。一类文档一个目录，不混放 | 因类而异 |
 
+## 重新安装 / 升级 harness
+
+在任意仓库里装或刷新 auriga harness ——交互或非交互都走同一条命令：
+
+```bash
+npx -y auriga-cli guide
+```
+
+打印一份 5 步 SOP（前置检查 → `install --all` → 可选 recommended skills → 重启 session → 验证）。在 `claude -p` / `claude -p --worktree` 里的 Agent 可以端到端跑完，全程不需要 TTY。开头的 `-y` 是 **npx 自己的 flag**，不是 `auriga-cli` 的。装完后重启 Claude Code session，让新版 `CLAUDE.md` / skills / plugins 生效。
+
 ## 工作流自动驾驶（auriga-go）
 
 需要在工作流内做导航——`/clear` 之后恢复、纠正偏离、一次推进多步——用 `/auriga-go` 触发（或说"按照工作流继续"、"按工作流走"）。它读当前状态、判定下一步、用主 Agent 自己的 task tracker 记下这一步，然后推进（`auto` 模式，默认）或只给单步建议（`step`）。reminder-based：告诉主 Agent 下一个该调什么 skill，自己不调度。只在硬歧义或破坏性操作前停。裸 "继续" / "next" **不触发**它（那些指的是当前任务而不是工作流）。

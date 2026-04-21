@@ -47,6 +47,16 @@ Repo documentation lives under `docs/`, directory-per-purpose, so Agents, the `p
 | `docs/architecture/` | Stable, long-lived design docs (module layouts, data flows, component responsibilities). New entries usually arrive by promotion from `docs/specs/`. | Long-lived |
 | `docs/` (other categories) | Add one directory per new document category on demand: `runbooks/` (ops procedures), `adr/` (architecture decision records), `onboarding/`, etc. One directory per category; don't mix. | Varies |
 
+## (Re)Installing or Upgrading This Harness
+
+To install or refresh the auriga harness in any repo — interactive or headless — run:
+
+```bash
+npx -y auriga-cli guide
+```
+
+This prints a 5-step SOP (prerequisite check → `install --all` → optional recommended skills → session reload → verify) that an Agent in `claude -p` / `claude -p --worktree` can follow end-to-end without TTY. The leading `-y` belongs to `npx`, not to `auriga-cli`. After install, reload the Claude Code session so updated `CLAUDE.md` / skills / plugins are picked up.
+
 ## Workflow Autopilot (auriga-go)
 
 For workflow navigation — resuming after `/clear`, correcting drift, or driving forward across multiple steps — invoke `/auriga-go` (or say "按照工作流继续" / "drive the workflow forward"). It inspects state, identifies the next step, records it in the main Agent's native task tracker, then proceeds (`auto` mode, default) or proposes one step (`step`). Reminder-based — it tells the main Agent which skill to invoke next; it does not dispatch skills itself. Stops only at hard ambiguity or destructive operations. Plain "继续" / "next" does **not** trigger it (those refer to the current task).

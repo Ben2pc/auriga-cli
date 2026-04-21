@@ -2,12 +2,12 @@ import fs from "node:fs";
 import path from "node:path";
 import { checkbox, select } from "@inquirer/prompts";
 import { exec, log, withEsc } from "./utils.js";
-import type { SkillEntry, SkillsLock } from "./utils.js";
+import type { InstallOpts, SkillEntry, SkillsLock } from "./utils.js";
 
 // Curated default-on set: skills that the workflow in the root CLAUDE.md
 // directly references. Anything else in skills-lock.json is surfaced via
 // installRecommendedSkills as an opt-in utility.
-const WORKFLOW_SKILLS = [
+export const WORKFLOW_SKILLS = [
   "brainstorming",
   "deep-review",
   "parallel-implementation",
@@ -20,15 +20,44 @@ const WORKFLOW_SKILLS = [
   "verification-before-completion",
 ];
 
-const RECOMMENDED_DESCRIPTIONS: Record<string, string> = {
-  "claude-code-agent": "Delegate tasks to another Claude Code CLI instance",
-  "codex-agent": "Delegate tasks to Codex CLI",
-};
+// Skill names and npm-style sources are interpolated into the shell
+// command we hand to `exec()`. The lock file is fetched from raw GitHub
+// at runtime, so every value must pass a conservative whitelist before
+// we compose the command. Without this a compromised skills-lock.json
+// would execute arbitrary commands via shell metachar injection.
+const SKILL_NAME_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
+const SKILL_SOURCE_RE = /^[A-Za-z0-9][A-Za-z0-9._/-]{0,255}$/;
+
+export function validateSkillsLock(raw: unknown): asserts raw is SkillsLock {
+  if (!raw || typeof raw !== "object") {
+    throw new Error("skills-lock.json: root must be an object");
+  }
+  const lock = raw as Record<string, unknown>;
+  if (!lock.skills || typeof lock.skills !== "object") {
+    throw new Error("skills-lock.json: .skills must be an object");
+  }
+  for (const [name, entry] of Object.entries(lock.skills as Record<string, unknown>)) {
+    if (!SKILL_NAME_RE.test(name)) {
+      throw new Error(`skills-lock.json: skill name ${JSON.stringify(name)} does not match ${SKILL_NAME_RE}`);
+    }
+    if (!entry || typeof entry !== "object") {
+      throw new Error(`skills-lock.json: .skills[${name}] must be an object`);
+    }
+    const src = (entry as Record<string, unknown>).source;
+    if (typeof src !== "string" || !SKILL_SOURCE_RE.test(src)) {
+      throw new Error(
+        `skills-lock.json: .skills[${name}].source ${JSON.stringify(src)} does not match ${SKILL_SOURCE_RE}`,
+      );
+    }
+  }
+}
 
 function loadLock(packageRoot: string): SkillsLock {
-  return JSON.parse(
+  const raw: unknown = JSON.parse(
     fs.readFileSync(path.join(packageRoot, "skills-lock.json"), "utf-8"),
   );
+  validateSkillsLock(raw);
+  return raw;
 }
 
 // Deterministic: selection order is preserved; the first occurrence of
@@ -57,29 +86,36 @@ export function planSkillInstallCommands(
 async function installSelected(
   entries: [string, SkillEntry][],
   defaultChecked: boolean,
-  descriptionMap?: Record<string, string>,
+  opts: InstallOpts,
 ): Promise<void> {
   if (entries.length === 0) {
     log.warn("No skills found");
     return;
   }
 
-  const scope = await withEsc(select({
-    message: "Skills installation scope:",
-    choices: [
-      { name: "Project (current directory)", value: "project" as const },
-      { name: "Global (user-level)", value: "global" as const },
-    ],
-  }));
+  // scope mapping: spec §5.5 — outer `user` → internal `global`.
+  type Scope = "project" | "global";
+  const scope: Scope = opts.interactive
+    ? await withEsc(select<Scope>({
+      message: "Skills installation scope:",
+      choices: [
+        { name: "Project (current directory)", value: "project" },
+        { name: "Global (user-level)", value: "global" },
+      ],
+    }))
+    : opts.scope === "user" ? "global" : "project";
 
-  const selected = await withEsc(checkbox({
-    message: "Select skills to install:",
-    choices: entries.map(([name, entry]) => {
-      const desc = descriptionMap?.[name];
-      const label = desc ? `${name} — ${desc}` : `${name} (${entry.source})`;
-      return { name: label, value: name, checked: defaultChecked };
-    }),
-  }));
+  const availableNames = entries.map(([name]) => name);
+  const selected = opts.interactive
+    ? await withEsc(checkbox({
+      message: "Select skills to install:",
+      choices: entries.map(([name, entry]) => ({
+        name: `${name} (${entry.source})`,
+        value: name,
+        checked: defaultChecked,
+      })),
+    }))
+    : resolveSelected(opts.selected, availableNames);
 
   if (selected.length === 0) {
     log.skip("No skills selected");
@@ -90,6 +126,7 @@ async function installSelected(
   const lock = Object.fromEntries(entries);
   const batches = planSkillInstallCommands(selected, lock, globalFlag);
 
+  const failures: string[] = [];
   for (const batch of batches) {
     console.log(`\nInstalling ${batch.skills.join(", ")} from ${batch.source}...`);
     try {
@@ -97,24 +134,51 @@ async function installSelected(
       for (const name of batch.skills) log.ok(`${name}: installed`);
     } catch {
       log.error(`${batch.source}: failed to install (${batch.skills.join(", ")})`);
+      failures.push(batch.source);
     }
+  }
+  if (failures.length > 0 && !opts.interactive) {
+    throw new Error(
+      `${failures.length} skill batch(es) failed: ${failures.join(", ")}`,
+    );
   }
 }
 
-export async function installSkills(packageRoot: string): Promise<void> {
+/**
+ * Resolves the non-interactive `opts.selected` filter against the set
+ * of names available in the current category. Semantics match spec
+ * §3.2: `undefined` = all; `["*"]` = all; any other list = that list.
+ * The CLI parser is responsible for rejecting unknown names up-front
+ * (so installers can trust the list).
+ */
+function resolveSelected(
+  selected: string[] | undefined,
+  available: string[],
+): string[] {
+  if (!selected || (selected.length === 1 && selected[0] === "*")) {
+    return available;
+  }
+  return selected;
+}
+
+export async function installSkills(
+  packageRoot: string,
+  opts: InstallOpts,
+): Promise<void> {
   const lock = loadLock(packageRoot);
   const entries = Object.entries(lock.skills).filter(
     ([name]) => WORKFLOW_SKILLS.includes(name),
   );
-  await installSelected(entries, true);
+  await installSelected(entries, true, opts);
 }
 
 export async function installRecommendedSkills(
   packageRoot: string,
+  opts: InstallOpts,
 ): Promise<void> {
   const lock = loadLock(packageRoot);
   const entries = Object.entries(lock.skills).filter(
     ([name]) => !WORKFLOW_SKILLS.includes(name),
   );
-  await installSelected(entries, false, RECOMMENDED_DESCRIPTIONS);
+  await installSelected(entries, false, opts);
 }
