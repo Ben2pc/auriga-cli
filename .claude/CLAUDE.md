@@ -14,6 +14,7 @@ src/
   guide.ts      — `npx auriga-cli guide` SOP output (Agent bootstrap)
   help.ts       — `--help` renderer, reads the build-time catalog
   catalog.ts    — Catalog type + loadCatalog() (reads dist/catalog.json)
+  types.ts      — Shared leaf types (CategoryName, CATEGORY_NAMES); kept out of cli.ts so help.ts doesn't reverse-import the entrypoint
   build/
     generate-catalog.ts — Build-time: parses SKILL.md + plugin/hook configs → dist/catalog.json
   utils.ts      — Constants, remote fetch, exec, logging, InstallOpts, getPackageRoot
