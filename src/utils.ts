@@ -72,10 +72,24 @@ export function isNonInteractive(): boolean {
 
 // --- Package root ---
 
+// Walks up from the current module file until it finds the auriga-cli
+// package.json. Handles both `dist/utils.js` (production) and
+// `dist-test/src/utils.js` (test compile output) uniformly — a plain
+// `path.resolve(..., "..")` works for the first but not the second.
 export function getPackageRoot(): string {
   const __filename = fileURLToPath(import.meta.url);
-  // dist/utils.js -> package root
-  return path.resolve(path.dirname(__filename), "..");
+  let dir = path.dirname(__filename);
+  while (dir !== path.dirname(dir)) {
+    const pkgPath = path.join(dir, "package.json");
+    if (fs.existsSync(pkgPath)) {
+      try {
+        const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf-8"));
+        if (pkg.name === "auriga-cli") return dir;
+      } catch { /* malformed parent package.json — keep walking */ }
+    }
+    dir = path.dirname(dir);
+  }
+  return process.cwd();
 }
 
 // --- Exec ---

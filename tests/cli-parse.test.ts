@@ -120,4 +120,16 @@ describe("parseArgs", () => {
     expectParseError(["install", "workflow", "--cwd", "/definitely/not/here"], /cwd|directory|exist/i);
     expectParseError(["guide", "foo"], /guide/i);
   });
+
+  // Covers empty-value and missing-value fail-fast (Phase 7 triage: deep-review edge-cases findings).
+  test("rejects empty or missing values for flags and filters", () => {
+    expectParseError(["install", "workflow", "--lang"], /--lang requires a value/i);
+    expectParseError(["install", "workflow", "--cwd"], /--cwd requires a value/i);
+    expectParseError(["install", "plugins", "--scope"], /--scope requires a value/i);
+    expectParseError(
+      ["install", "skills", "--skill", "--scope", "user"],
+      /--skill requires at least one name/i,
+    );
+    expectParseError(["install", "plugins", "--plugin"], /--plugin requires at least one name/i);
+  });
 });

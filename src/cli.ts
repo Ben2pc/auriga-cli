@@ -1,12 +1,13 @@
 #!/usr/bin/env node
 
-import { createRequire } from "node:module";
+import fs from "node:fs";
+import path from "node:path";
 import {
   exec,
   fetchContentRoot,
+  getPackageRoot,
   isNonInteractive,
   LANGUAGES,
-  log,
   type InstallOpts,
 } from "./utils.js";
 import { installWorkflow } from "./workflow.js";
@@ -17,7 +18,8 @@ import { loadCatalog } from "./catalog.js";
 import { renderHelp } from "./help.js";
 import { renderGuide } from "./guide.js";
 
-const require = createRequire(import.meta.url);
+const RELOAD_REMINDER =
+  "\n⚠ Reload your Claude Code session to pick up the new harness (CLAUDE.md / skills / plugins are loaded at session startup).\n";
 
 // ---------------------------------------------------------------------------
 // parseArgs — pure argv parser (spec §3.5 / §5.2)
@@ -64,6 +66,14 @@ const TYPE_FOR_FILTER = {
 
 function parseErr(msg: string): never {
   throw new Error(msg);
+}
+
+function requireValue(argv: string[], i: number, flag: string): string {
+  const v = argv[i + 1];
+  if (v === undefined || v.startsWith("-")) {
+    parseErr(`${flag} requires a value.`);
+  }
+  return v;
 }
 
 // Consume values for a filter flag until the next flag-like token
@@ -116,23 +126,26 @@ function parseInstall(argv: string[]): InstallParsed {
     }
 
     if (t === "--lang") {
-      out.lang = argv[i + 1];
+      out.lang = requireValue(argv, i, "--lang");
       i += 2;
       continue;
     }
     if (t === "--cwd") {
-      out.cwd = argv[i + 1];
+      out.cwd = requireValue(argv, i, "--cwd");
       i += 2;
       continue;
     }
     if (t === "--scope") {
-      out.scope = argv[i + 1] as "project" | "user";
+      out.scope = requireValue(argv, i, "--scope") as "project" | "user";
       i += 2;
       continue;
     }
 
     if (t in TYPE_FOR_FILTER) {
       const [values, next] = consumeFilter(argv, i + 1);
+      if (values.length === 0) {
+        parseErr(`${t} requires at least one name (or '*' for all).`);
+      }
       out.filter = values;
       filterFlag = t as keyof typeof TYPE_FOR_FILTER;
       i = next;
@@ -200,7 +213,6 @@ function validateInstall(out: InstallParsed, filterFlag: string | null): void {
     }
   }
   if (out.type === "workflow" && out.cwd !== undefined) {
-    const fs = require("node:fs");
     if (!fs.existsSync(out.cwd)) {
       parseErr(`--cwd directory does not exist: ${out.cwd}`);
     }
@@ -214,11 +226,8 @@ function validateInstall(out: InstallParsed, filterFlag: string | null): void {
 
 function validateFilterAgainstCatalog(type: CategoryName, filter: string[]): void {
   if (filter.length === 1 && filter[0] === "*") return;
-  const fs = require("node:fs") as typeof import("node:fs");
-  const path = require("node:path") as typeof import("node:path");
-  const pkgRoot = getPackageRootSync();
-  const catalogPath = path.join(pkgRoot, "dist", "catalog.json");
-  if (!fs.existsSync(catalogPath)) return; // build artifact missing — defer to runtime error
+  const catalogPath = path.join(getPackageRoot(), "dist", "catalog.json");
+  if (!fs.existsSync(catalogPath)) return;
   const catalog = JSON.parse(fs.readFileSync(catalogPath, "utf-8"));
   const bucket =
     type === "skills" ? catalog.workflowSkills
@@ -228,9 +237,7 @@ function validateFilterAgainstCatalog(type: CategoryName, filter: string[]): voi
     : null;
   if (!bucket) return;
   const available = bucket.map((e: { name: string }) => e.name);
-  const singular = type === "recommended" ? "recommended skill"
-    : type === "skills" ? "skill"
-    : type.replace(/s$/, "");
+  const singular = categorySingular(type);
   for (const name of filter) {
     if (!available.includes(name)) {
       parseErr(`unknown ${singular} '${name}'; available: ${available.join(", ")}`);
@@ -238,26 +245,10 @@ function validateFilterAgainstCatalog(type: CategoryName, filter: string[]): voi
   }
 }
 
-function getPackageRootSync(): string {
-  // Mirror utils.ts getPackageRoot but inlined so parseArgs stays purely
-  // synchronous — utils' other exports pull in runtime dependencies.
-  const path = require("node:path") as typeof import("node:path");
-  const url = require("node:url") as typeof import("node:url");
-  const here = url.fileURLToPath(import.meta.url);
-  // dist/cli.js or dist-test/src/cli.js → walk up to package root.
-  let dir = path.dirname(here);
-  while (dir !== path.dirname(dir)) {
-    const candidate = path.join(dir, "package.json");
-    try {
-      const fs = require("node:fs") as typeof import("node:fs");
-      if (fs.existsSync(candidate)) {
-        const pkg = JSON.parse(fs.readFileSync(candidate, "utf-8"));
-        if (pkg.name === "auriga-cli") return dir;
-      }
-    } catch { /* ignore */ }
-    dir = path.dirname(dir);
-  }
-  return process.cwd();
+function categorySingular(type: CategoryName): string {
+  return type === "recommended" ? "recommended skill"
+    : type === "skills" ? "skill"
+    : type.replace(/s$/, "");
 }
 
 function validateScopeValue(scope: string): void {
@@ -270,14 +261,13 @@ function validateScopeValue(scope: string): void {
 // main — returns exit code (spec §5.3.1 / §7)
 // ---------------------------------------------------------------------------
 
-type Category = "workflow" | "skills" | "recommended" | "plugins" | "hooks";
-
-const ALL_CATEGORIES: Category[] = ["workflow", "skills", "plugins", "hooks"];
+// --all excludes `recommended` (per spec §3.2) — they're opt-in utilities.
+const ALL_CATEGORIES: CategoryName[] = ["workflow", "skills", "plugins", "hooks"];
 
 function readVersion(): string {
-  const fs = require("node:fs") as typeof import("node:fs");
-  const path = require("node:path") as typeof import("node:path");
-  const pkg = JSON.parse(fs.readFileSync(path.join(getPackageRootSync(), "package.json"), "utf-8"));
+  const pkg = JSON.parse(
+    fs.readFileSync(path.join(getPackageRoot(), "package.json"), "utf-8"),
+  );
   return pkg.version as string;
 }
 
@@ -293,19 +283,9 @@ export async function main(argv: string[]): Promise<number> {
   const version = readVersion();
 
   if (parsed.command === "help") {
-    // `--help` is a detail view; print full catalog.
     try {
-      const root = isNonInteractive() || process.env.DEV === "1"
-        ? process.cwd()
-        : await fetchContentRoot();
-      // The catalog lives under the package (dist/catalog.json), not
-      // the fetch root, so we point loadCatalog at the package root.
-      const pkgRoot = require("./utils.js").getPackageRoot();
-      const catalog = loadCatalog(pkgRoot);
+      const catalog = loadCatalog(getPackageRoot());
       process.stdout.write(renderHelp(catalog, version));
-      // `root` isn't actually used for help — keeping the fetch for
-      // parity with future callers that might want it.
-      void root;
       return 0;
     } catch (e) {
       process.stderr.write(`${(e as Error).message}\n`);
@@ -353,7 +333,7 @@ async function runInstall(p: InstallParsed): Promise<number> {
  * Precheck external prerequisites before touching any files.
  * Returns null if OK, or an error message.
  */
-function precheckExternal(need: Category[]): string | null {
+function precheckExternal(need: CategoryName[]): string | null {
   if (need.includes("plugins")) {
     try { exec("which claude"); }
     catch { return "'claude' CLI not in PATH. Install Claude Code first (https://docs.claude.com/claude-code), then re-run."; }
@@ -361,25 +341,14 @@ function precheckExternal(need: Category[]): string | null {
   return null;
 }
 
-/**
- * Resolve a filter list through the catalog for a specific category.
- * Returns the validated list, or throws with a helpful message.
- */
-function validateFilter(
-  category: Category,
-  filter: string[] | undefined,
-  available: string[],
-): string[] | undefined {
-  if (!filter) return undefined;
-  if (filter.length === 1 && filter[0] === "*") return undefined;
-  const known = new Set(available);
-  for (const name of filter) {
-    if (!known.has(name)) {
-      const categoryKey = category === "recommended" ? "recommended skill" : category.replace(/s$/, "");
-      throw new Error(`unknown ${categoryKey} '${name}'; available: ${available.join(", ")}`);
-    }
+async function safeFetchContentRoot(): Promise<{ root?: string; err?: string }> {
+  try {
+    return { root: await fetchContentRoot() };
+  } catch (e) {
+    return {
+      err: `fetch failed: ${(e as Error).message}. Check network and retry; if persistent, the GitHub raw endpoint may be blocked in your region.`,
+    };
   }
-  return filter;
 }
 
 async function runAll(p: InstallParsed): Promise<number> {
@@ -389,9 +358,14 @@ async function runAll(p: InstallParsed): Promise<number> {
     return 1;
   }
 
-  const packageRoot = await fetchContentRoot();
-  const status: { category: Category; ok: boolean; err?: string }[] = [];
+  const fetched = await safeFetchContentRoot();
+  if (fetched.err) {
+    process.stderr.write(`${fetched.err}\n`);
+    return 1;
+  }
+  const packageRoot = fetched.root!;
 
+  const status: { category: CategoryName; ok: boolean; err?: string }[] = [];
   for (const category of ALL_CATEGORIES) {
     const opts: InstallOpts = {
       interactive: false,
@@ -405,7 +379,6 @@ async function runAll(p: InstallParsed): Promise<number> {
     }
   }
 
-  // Report per-category status to stderr.
   for (const s of status) {
     if (s.ok) {
       process.stderr.write(`[OK]   ${s.category}\n`);
@@ -416,9 +389,7 @@ async function runAll(p: InstallParsed): Promise<number> {
 
   const failed = status.filter((s) => !s.ok);
   if (failed.length === 0) {
-    process.stderr.write(
-      "\n⚠ Reload your Claude Code session to pick up the new harness (CLAUDE.md / skills / plugins are loaded at session startup).\n",
-    );
+    process.stderr.write(RELOAD_REMINDER);
     return 0;
   }
 
@@ -430,42 +401,31 @@ async function runAll(p: InstallParsed): Promise<number> {
 }
 
 async function runSingle(p: InstallParsed): Promise<number> {
-  const category = p.type as Category;
+  const category = p.type as CategoryName;
   const pre = precheckExternal(category === "plugins" ? ["plugins"] : []);
   if (pre) {
     process.stderr.write(`${pre}\n`);
     return 1;
   }
 
-  const pkgRoot = require("./utils.js").getPackageRoot();
-
-  // Catalog-backed filter validation.
-  let filter = p.filter;
-  try {
-    const cat = loadCatalog(pkgRoot);
-    if (category === "skills") filter = validateFilter("skills", p.filter, cat.workflowSkills.map((e) => e.name));
-    else if (category === "recommended") filter = validateFilter("recommended", p.filter, cat.recommendedSkills.map((e) => e.name));
-    else if (category === "plugins") filter = validateFilter("plugins", p.filter, cat.plugins.map((e) => e.name));
-    else if (category === "hooks") filter = validateFilter("hooks", p.filter, cat.hooks.map((e) => e.name));
-  } catch (e) {
-    process.stderr.write(`${(e as Error).message}\n`);
+  const fetched = await safeFetchContentRoot();
+  if (fetched.err) {
+    process.stderr.write(`${fetched.err}\n`);
     return 1;
   }
+  const packageRoot = fetched.root!;
 
-  const packageRoot = await fetchContentRoot();
   const opts: InstallOpts = {
     interactive: false,
     lang: p.lang,
     cwd: p.cwd,
     scope: p.scope ?? "project",
-    selected: filter,
+    selected: p.filter,
   };
 
   try {
     await dispatchInstaller(category, packageRoot, opts);
-    process.stderr.write(
-      "\n⚠ Reload your Claude Code session to pick up the new harness (CLAUDE.md / skills / plugins are loaded at session startup).\n",
-    );
+    process.stderr.write(RELOAD_REMINDER);
     return 0;
   } catch (e) {
     process.stderr.write(`${(e as Error).message}\n`);
@@ -474,7 +434,7 @@ async function runSingle(p: InstallParsed): Promise<number> {
 }
 
 async function dispatchInstaller(
-  category: Category,
+  category: CategoryName,
   packageRoot: string,
   opts: InstallOpts,
 ): Promise<void> {
@@ -572,5 +532,3 @@ if (invokedAsScript) {
       process.exit(1);
     });
 }
-
-void log;

@@ -7,7 +7,7 @@ import type { InstallOpts, SkillEntry, SkillsLock } from "./utils.js";
 // Curated default-on set: skills that the workflow in the root CLAUDE.md
 // directly references. Anything else in skills-lock.json is surfaced via
 // installRecommendedSkills as an opt-in utility.
-const WORKFLOW_SKILLS = [
+export const WORKFLOW_SKILLS = [
   "brainstorming",
   "deep-review",
   "parallel-implementation",
@@ -92,6 +92,7 @@ async function installSelected(
   const lock = Object.fromEntries(entries);
   const batches = planSkillInstallCommands(selected, lock, globalFlag);
 
+  const failures: string[] = [];
   for (const batch of batches) {
     console.log(`\nInstalling ${batch.skills.join(", ")} from ${batch.source}...`);
     try {
@@ -99,7 +100,13 @@ async function installSelected(
       for (const name of batch.skills) log.ok(`${name}: installed`);
     } catch {
       log.error(`${batch.source}: failed to install (${batch.skills.join(", ")})`);
+      failures.push(batch.source);
     }
+  }
+  if (failures.length > 0 && !opts.interactive) {
+    throw new Error(
+      `${failures.length} skill batch(es) failed: ${failures.join(", ")}`,
+    );
   }
 }
 

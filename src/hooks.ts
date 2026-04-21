@@ -922,6 +922,7 @@ export async function installHooks(
     return projectBaseResolved;
   }
 
+  const failures: string[] = [];
   for (const hook of selected) {
     console.log(`\n· ${hook.name}`);
 
@@ -1002,11 +1003,13 @@ export async function installHooks(
       result = await installHook(hook, scope, projectBaseForHook, packageRoot);
     } catch (e) {
       log.error(`${hook.name}: ${(e as Error).message}`);
+      failures.push(hook.name);
       continue;
     }
 
     if (result.aborted) {
       log.error(`${hook.name} aborted: ${result.aborted}`);
+      failures.push(hook.name);
       continue;
     }
 
@@ -1038,5 +1041,11 @@ export async function installHooks(
     } else {
       console.log(`  See ${dirRel}/README.md for customization options.`);
     }
+  }
+
+  if (failures.length > 0 && !opts.interactive) {
+    throw new Error(
+      `${failures.length} hook(s) failed to install: ${failures.join(", ")}`,
+    );
   }
 }

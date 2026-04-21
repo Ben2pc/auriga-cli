@@ -67,8 +67,9 @@ export async function installPlugins(
   try {
     exec("which claude");
   } catch {
-    log.error("'claude' CLI not found. Please install Claude Code first.");
-    return;
+    const msg = "'claude' CLI not found. Please install Claude Code first.";
+    if (opts.interactive) { log.error(msg); return; }
+    throw new Error(msg);
   }
 
   const configPath = path.join(packageRoot, ".claude", "plugins.json");
@@ -129,6 +130,8 @@ export async function installPlugins(
     }
   }
 
+  const failures: string[] = [];
+
   for (const [name, source] of marketplacesToAdd) {
     console.log(`\nAdding marketplace: ${name}...`);
     try {
@@ -136,6 +139,7 @@ export async function installPlugins(
       log.ok(`Marketplace ${name} added`);
     } catch {
       log.error(`Failed to add marketplace: ${name}`);
+      failures.push(`marketplace ${name}`);
     }
   }
 
@@ -149,6 +153,13 @@ export async function installPlugins(
       log.ok(`${plugin.name} installed`);
     } catch {
       log.error(`Failed to install: ${plugin.name}`);
+      failures.push(plugin.name);
     }
+  }
+
+  if (failures.length > 0 && !opts.interactive) {
+    throw new Error(
+      `${failures.length} plugin operation(s) failed: ${failures.join(", ")}`,
+    );
   }
 }

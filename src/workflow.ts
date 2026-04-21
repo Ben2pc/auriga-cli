@@ -30,8 +30,9 @@ export async function installWorkflow(
 
   const resolved = path.resolve(targetDir);
   if (!fs.existsSync(resolved) || !fs.statSync(resolved).isDirectory()) {
-    log.error(`Not a valid directory: ${resolved}`);
-    return;
+    const msg = `Not a valid directory: ${resolved}`;
+    if (opts.interactive) { log.error(msg); return; }
+    throw new Error(msg);
   }
 
   const langOpt = LANGUAGES.find((l) => l.value === lang)!;

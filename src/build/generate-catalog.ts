@@ -4,22 +4,9 @@ import matter from "gray-matter";
 
 import type { Catalog, CatalogEntry } from "../catalog.js";
 import type { PluginsConfig, SkillsLock } from "../utils.js";
+import { WORKFLOW_SKILLS as WORKFLOW_SKILL_LIST } from "../skills.js";
 
-// Mirror of src/skills.ts WORKFLOW_SKILLS. Kept in lockstep — drift is
-// caught by tests/catalog.test.ts (which enforces the exact workflow skill
-// set) and tests/skills.test.ts (which enforces the skills.ts side).
-const WORKFLOW_SKILLS = new Set([
-  "brainstorming",
-  "deep-review",
-  "parallel-implementation",
-  "planning-with-files",
-  "playwright-cli",
-  "systematic-debugging",
-  "test-designer",
-  "test-driven-development",
-  "ui-ux-pro-max",
-  "verification-before-completion",
-]);
+const WORKFLOW_SKILLS = new Set(WORKFLOW_SKILL_LIST);
 
 interface HookEntry {
   name: string;
