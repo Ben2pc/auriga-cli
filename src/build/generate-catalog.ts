@@ -11,6 +11,7 @@ const WORKFLOW_SKILLS = new Set(WORKFLOW_SKILL_LIST);
 interface HookEntry {
   name: string;
   description: string;
+  defaultOn?: boolean;
 }
 
 interface HooksConfig {
@@ -55,7 +56,7 @@ export function generateCatalog(repoRoot: string): Catalog {
   const hooksCfg = JSON.parse(fs.readFileSync(hooksPath, "utf-8")) as HooksConfig;
   const hooks: CatalogEntry[] = hooksCfg.hooks.map((h) => ({
     name: h.name,
-    description: h.description,
+    description: h.defaultOn === false ? `(opt-in) ${h.description}` : h.description,
   }));
 
   return {

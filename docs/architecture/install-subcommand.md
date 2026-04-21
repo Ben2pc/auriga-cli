@@ -131,7 +131,7 @@ TTY / 非 TTY 判据：`process.stdin.isTTY`（`true` = TTY）。
    - 不匹配（例：`install workflow --skill x` / `install --skill x`）fail-fast
 4. **workflow 类别无子项**，不接受任何 filter flag
 5. **`--lang` / `--cwd` 只对 workflow 生效**；与其它 `<type>` / `--all` 组合时 fail-fast
-6. **`--scope` 对 `skills` / `recommended` / `plugins` 生效**；与 `workflow` / `hooks` 组合时 fail-fast；`install`（TTY 菜单）下忽略（菜单自己会 prompt）
+6. **`--scope` 对 `skills` / `recommended` / `plugins` / `hooks` 生效**（非交互 default 都是 `project`）；与 `workflow` 组合时 fail-fast；`install`（TTY 菜单）下忽略（菜单自己会 prompt）。hooks 的 `project-local` scope 仅交互式菜单可达 — 非交互 `--scope` 只接 `project` / `user` 两值。
 7. **非交互识别**：传了位置 `<type>` 或 `--all` → 非交互；否则走 3.4
 8. **顶层未知参数**：`npx auriga-cli --all` / `npx auriga-cli foo` 等在顶层（未经 `install`）均 fail-fast
 
@@ -497,8 +497,9 @@ exit 2
 
 - skills / recommended: `user` → `npx skills add -g`，`project` → 无 flag
 - plugins: `user` → `claude plugins install --scope user`，`project` → `--scope project`
+- hooks（非交互）: `user` → `~/.claude/settings.json`；默认 / `project` → `./.claude/settings.json`。`project-local`（`./.claude/settings.local.json`）只在 TTY 菜单可选。
 
-`workflow` / `hooks` 不受 `--scope` 影响；与它们组合时 fail-fast（§3.5 规则 6）。
+`workflow` 不受 `--scope` 影响；与它组合时 fail-fast（§3.5 规则 6）。
 
 ## 6. 向后兼容与版本
 
@@ -525,7 +526,7 @@ README 更新：
 | `--all` + `<type>` / filter / `--lang` / `--cwd` | fail-fast + `--all is atomic; no extra types or filters` |
 | filter flag 与 `<type>` 不匹配（例 `install workflow --skill x` / `install --skill x`） | fail-fast + `--skill requires 'install skills'`（依 flag 对应） |
 | `--lang` / `--cwd` 不在 `workflow` 下使用 | fail-fast + `--lang/--cwd only apply to workflow` |
-| `--scope` 与 `workflow` / `hooks` 组合 | fail-fast + `--scope only applies to skills / recommended / plugins` |
+| `--scope` 与 `workflow` 组合 | fail-fast + `--scope does not apply to workflow` |
 | `--skill foo` 未知名字（catalog 校验） | fail-fast + `unknown skill 'foo'; available: ...` |
 | `--lang xx` 不在 LANGUAGES | fail-fast + 列可选 |
 | `--scope foo` 非法值 | fail-fast |
@@ -556,7 +557,7 @@ README 更新：
 
 - `tests/cli-parse.test.ts`：按 §3.5 规则逐条覆盖——
   - 合法路径：`guide`、`install`、`install --all`、`install <type>`（5 个类别）、`install <type> --<filter> a b`
-  - 违法路径：多 type、`--all` + 任何额外参数、filter 不匹配 type、`--lang` 用在非 workflow、`--scope` 用在 workflow / hooks、未知 skill 名、未知 top-level flag、`guide` 带任何参数
+  - 违法路径：多 type、`--all` + 任何额外参数、filter 不匹配 type、`--lang` 用在非 workflow、`--scope` 用在 workflow、未知 skill 名、未知 top-level flag、`guide` 带任何参数
 - `tests/install-nontty.test.ts`：
   - `install`（无参 + `stdin: 'ignore'`）→ exit 1 + 预期错误串
   - `install --all` (precheck pass) → 各 installX 被调用，opts 传递正确，stderr 末尾含 reload 提醒（mock `exec` 避免真跑 `claude plugins install`）
@@ -655,7 +656,8 @@ README 更新：
 - [ ] `npx auriga-cli install --all recommended` exit 1
 - [ ] `npx auriga-cli install workflow --skill foo` exit 1
 - [ ] `npx auriga-cli install --skill foo`（无 type）exit 1
-- [ ] `npx auriga-cli install hooks --scope user` exit 1
+- [ ] `npx auriga-cli install hooks --scope user` → exit 0（hooks 从 v1.9.1 起接受 `--scope`）
+- [ ] `npx auriga-cli install workflow --scope user` exit 1
 - [ ] `npx auriga-cli install skills --skill foo`（未知名）exit 1 + 列可选
 - [ ] `npx auriga-cli guide --anything` / `guide foo`（任意参数）exit 1
 - [ ] CLI 启动时 `dist/catalog.json` 缺失 → exit 1

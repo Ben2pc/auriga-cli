@@ -14,6 +14,7 @@ import {
   loadHooksConfig,
   mapNonInteractiveScope,
   removeHookFromSettings,
+  resolveHookSelection,
 } from "../src/hooks.js";
 import type { HookDef, HookDep, SettingsFile } from "../src/hooks.js";
 
@@ -813,19 +814,58 @@ describe("depBinary", () => {
 // project" (→ project, shared .claude/settings.json). Earlier code
 // collapsed both cases to project-local, silently landing shared hooks
 // in settings.local.json.
+// Non-interactive hook scope is a two-value map:
+//   undefined / "project" → project (shared .claude/settings.json)
+//   "user"                → user    (~/.claude/settings.json)
+// project-local is only reachable via the TTY menu — see renderTypeHelp
+// hooks section for the user-facing contract.
 describe("mapNonInteractiveScope", () => {
-  test("undefined → project-local (matches interactive menu default)", () => {
-    assert.equal(mapNonInteractiveScope(undefined), "project-local");
+  test("undefined → project (default for --all and bare install hooks)", () => {
+    assert.equal(mapNonInteractiveScope(undefined), "project");
   });
-  test("'project' → project (SHARED settings.json — the whole point)", () => {
+  test("'project' → project (explicit; identical behavior to undefined)", () => {
     assert.equal(mapNonInteractiveScope("project"), "project");
   });
   test("'user' → user (global ~/.claude/settings.json)", () => {
     assert.equal(mapNonInteractiveScope("user"), "user");
   });
-  test("unknown string → project-local (safe default, not a throw)", () => {
+  test("unknown string → project (safe default, not a throw)", () => {
     // CLI parser validates --scope against a whitelist, so this path
     // is defense-in-depth; stay silent instead of exploding.
-    assert.equal(mapNonInteractiveScope("weird"), "project-local");
+    assert.equal(mapNonInteractiveScope("weird"), "project");
+  });
+});
+
+// defaultOn=false hooks (e.g. notify) are opt-in: bare `install hooks`
+// without --hook skips them; `--hook *` or explicit naming installs.
+describe("resolveHookSelection", () => {
+  const hookA: HookDef = {
+    name: "hook-a",
+    description: "",
+    runtimePlatforms: ["darwin", "linux"],
+    settingsEvents: [{ event: "Stop" }],
+    command: "node \"$HOOK_DIR/index.mjs\"",
+    files: ["index.mjs"],
+    marker: "test:a",
+  };
+  const hookB: HookDef = { ...hookA, name: "hook-b", marker: "test:b" };
+  const hookOptIn: HookDef = {
+    ...hookA,
+    name: "hook-opt-in",
+    marker: "test:opt",
+    defaultOn: false,
+  };
+
+  test("undefined selection → defaultOn !== false (skips notify-class hooks)", () => {
+    const got = resolveHookSelection([hookA, hookB, hookOptIn], undefined).map((h) => h.name);
+    assert.deepEqual(got, ["hook-a", "hook-b"]);
+  });
+  test("['*'] → full compatible set (opt-ins included)", () => {
+    const got = resolveHookSelection([hookA, hookB, hookOptIn], ["*"]).map((h) => h.name);
+    assert.deepEqual(got, ["hook-a", "hook-b", "hook-opt-in"]);
+  });
+  test("explicit name list → exactly those (even when defaultOn is false)", () => {
+    const got = resolveHookSelection([hookA, hookB, hookOptIn], ["hook-opt-in"]).map((h) => h.name);
+    assert.deepEqual(got, ["hook-opt-in"]);
   });
 });

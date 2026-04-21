@@ -12,6 +12,7 @@
         { "name": "vjeantet/tap/alerter", "via": "brew", "optional": true }
       ],
       "marker": "auriga:notify",
+      "defaultOn": false,
       "customizeHints": [
         "Sound → edit {hookDir}/config.json  (e.g. \"sound\": \"Submarine\")",
         "Icon  → replace {hookDir}/icon.png with your own 512×512 PNG",

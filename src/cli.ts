@@ -16,7 +16,7 @@ import { installSkills, installRecommendedSkills } from "./skills.js";
 import { installPlugins } from "./plugins.js";
 import { installHooks } from "./hooks.js";
 import { loadCatalog } from "./catalog.js";
-import { renderHelp } from "./help.js";
+import { renderHelp, renderTypeHelp } from "./help.js";
 import { renderGuide } from "./guide.js";
 
 const RELOAD_REMINDER =
@@ -38,7 +38,7 @@ export interface InstallParsed {
 }
 
 export type ParsedArgs =
-  | { command: "help" }
+  | { command: "help"; helpType?: CategoryName }
   | { command: "version" }
   | { command: "guide" }
   | { command: "install"; install: InstallParsed };
@@ -60,6 +60,15 @@ const TYPE_FOR_FILTER = {
 
 function parseErr(msg: string): never {
   throw new Error(msg);
+}
+
+// Sentinel thrown by parseInstall when `--help` / `-h` appears in the
+// install subcommand argv. Caught in parseArgs and converted to a
+// ParsedArgs of `{ command: "help", helpType }`. A sentinel class (vs.
+// an error string) keeps the parse error path untouched by the help
+// shortcut, so `install foo --help` still reports the real error.
+class PerTypeHelpRequest {
+  constructor(public readonly type: CategoryName | undefined) {}
 }
 
 function requireValue(argv: string[], i: number, flag: string): string {
@@ -107,7 +116,14 @@ export function parseArgs(argv: string[]): ParsedArgs {
     parseErr(`unknown argument '${head}'. Run 'npx auriga-cli --help' for usage.`);
   }
 
-  return { command: "install", install: parseInstall(argv.slice(1)) };
+  try {
+    return { command: "install", install: parseInstall(argv.slice(1)) };
+  } catch (e) {
+    if (e instanceof PerTypeHelpRequest) {
+      return e.type ? { command: "help", helpType: e.type } : { command: "help" };
+    }
+    throw e;
+  }
 }
 
 function parseInstall(argv: string[]): InstallParsed {
@@ -117,6 +133,13 @@ function parseInstall(argv: string[]): InstallParsed {
   let i = 0;
   while (i < argv.length) {
     const t = argv[i];
+
+    if (t === "--help" || t === "-h") {
+      // Per-type help: `install <type> --help` routes to renderTypeHelp
+      // at the main() dispatch level. parseInstall signals this via a
+      // sentinel thrown up to parseArgs.
+      throw new PerTypeHelpRequest(out.type);
+    }
 
     if (t === "--all") {
       out.all = true;
@@ -202,10 +225,11 @@ function validateInstall(out: InstallParsed, filterFlag: string | null): void {
     parseErr("--lang/--cwd only apply to workflow.");
   }
 
-  // Rule 6: --scope only for skills / recommended / plugins.
+  // Rule 6: --scope only for skills / recommended / plugins / hooks.
+  // workflow (single file + symlink) has no scope concept.
   if (out.scope !== undefined) {
-    if (out.type === "workflow" || out.type === "hooks") {
-      parseErr("--scope only applies to skills / recommended / plugins.");
+    if (out.type === "workflow") {
+      parseErr("--scope does not apply to workflow.");
     }
     validateScopeValue(out.scope);
   }
@@ -290,7 +314,10 @@ export async function main(argv: string[]): Promise<number> {
   if (parsed.command === "help") {
     try {
       const catalog = loadCatalog(getPackageRoot());
-      process.stdout.write(renderHelp(catalog, version));
+      const out = parsed.helpType
+        ? renderTypeHelp(catalog, parsed.helpType, version)
+        : renderHelp(catalog, version);
+      process.stdout.write(out);
       return 0;
     } catch (e) {
       log.error((e as Error).message);
@@ -426,9 +453,9 @@ async function runAll(p: InstallParsed): Promise<number> {
 }
 
 function scopeCategory(c: CategoryName): boolean {
-  // Categories where `--scope` is a real flag (spec §3.2). workflow
-  // and hooks ignore it; don't bolt it onto their retry lines.
-  return c === "skills" || c === "recommended" || c === "plugins";
+  // Categories where `--scope` is a real flag. Only workflow ignores
+  // it (single file + symlink, no scope concept).
+  return c !== "workflow";
 }
 
 async function runSingle(p: InstallParsed): Promise<number> {

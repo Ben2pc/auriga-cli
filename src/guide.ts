@@ -48,30 +48,54 @@ Verify:
 
 If \`claude\` is missing: install Claude Code first, then re-run this guide.
 
-${h("## Step 2 — Install harness")}
+${h("## Step 2 — Read --help BEFORE installing (do not skip)")}
 
-Full install (workflow + skills + plugins + hooks):
+${warn("⚠")} Always inspect the catalog first so you know which skills,
+plugins, and hooks are actually relevant for this project. Blindly
+running \`install --all\` works as a turnkey preset, but for anything
+beyond a greenfield bootstrap you should narrow scope.
+
+Top-level catalog (every workflow skill / recommended skill / plugin /
+hook with a short description):
+  ${cmd("npx -y auriga-cli --help")}
+
+Per-type detail (flags + only that category's catalog slice):
+  ${cmd("npx -y auriga-cli install workflow --help")}
+  ${cmd("npx -y auriga-cli install skills --help")}
+  ${cmd("npx -y auriga-cli install recommended --help")}
+  ${cmd("npx -y auriga-cli install plugins --help")}
+  ${cmd("npx -y auriga-cli install hooks --help")}
+
+${h("## Step 3 — Install")}
+
+Preset — the full default-on set (workflow + skills + plugins + hooks;
+recommended skills are NOT included):
   ${cmd("npx -y auriga-cli install --all")}
 
-(The leading \`-y\` is npx's flag; it suppresses npx's "is it OK to
-install this package?" prompt. Required for non-interactive sessions.)
+Targeted — single category, picking from the catalog surfaced in Step 2:
+  ${cmd("npx -y auriga-cli install workflow --lang en")}
+  ${cmd("npx -y auriga-cli install skills --skill brainstorming test-driven-development")}
+  ${cmd("npx -y auriga-cli install plugins --plugin skill-creator codex --scope user")}
+  ${cmd("npx -y auriga-cli install hooks --hook pr-ready-guard")}
+
+Opt-in hooks: some hooks (e.g. \`notify\`) are NOT in the default set
+because they have side effects (OS notifications, platform-gated deps).
+Name them explicitly to install:
+  ${cmd("npx -y auriga-cli install hooks --hook notify")}
+
+Opt-in recommended skills (cross-model delegation helpers —
+claude-code-agent, codex-agent):
+  ${cmd("npx -y auriga-cli install recommended")}
+
+(The leading \`-y\` is npx's flag; it suppresses the "is it OK to install
+this package?" prompt. Required for non-interactive sessions.)
 
 Exit codes:
-  0  — all categories installed
+  0  — all requested categories installed
   1  — fatal error (parse / fetch / missing prerequisite). Read stderr;
        fix the root cause and re-run the SAME command.
   2  — partial success. stderr lists per-category status. Retry only the
-       failed category, e.g.:
-         ${cmd("npx -y auriga-cli install plugins")}
-         ${cmd("npx -y auriga-cli install hooks")}
-
-${h("## Step 3 — (Optional) Install recommended skills")}
-
-Opt-in utility skills (claude-code-agent, codex-agent — cross-model
-delegation helpers):
-  ${cmd("npx -y auriga-cli install recommended")}
-
-Skip if you don't need cross-model delegation.
+       failed category (the retry line is printed verbatim on stderr).
 
 ${h("## Step 4 — Reload session (REQUIRED when installed non-interactively)")}
 
@@ -94,11 +118,6 @@ Expected artifacts:
   - .agents/skills/<name>/    (one per installed skill)
   - .claude/plugins.json
   - .claude/settings.json     (updated hook registrations, if hooks selected)
-
-${h("## Catalog (for finer control)")}
-
-For per-skill / per-plugin descriptions to decide what to install:
-  ${cmd("npx -y auriga-cli --help")}
 
 ${h("## Troubleshooting")}
 

@@ -162,14 +162,12 @@ describe("main non-interactive install flow", () => {
   // `install --all --scope user` must preserve `--scope user`, otherwise
   // users following the hint silently install into the default project
   // scope and the intended user-scope install stays incomplete.
-  // Covers codex deep-review finding #2: hooks' non-interactive scope map
-  // must distinguish "user didn't pass --scope" (→ project-local, matching
-  // the interactive default) from "user explicitly passed --scope project"
-  // (→ project, i.e. .claude/settings.json, the SHARED config). The prior
-  // wiring collapsed both cases to project-local, so `install --all --scope
-  // project` silently wrote to settings.local.json and users who shipped
-  // the repo expecting teammates to pick up the hook got nothing.
-  test("hooks scope: undefined → installer sees undefined (hooks maps to project-local)", async () => {
+  // cli.ts forwards `opts.scope` straight through to installHooks as-is
+  // (undefined / "project" / "user"); the two-value mapping to
+  // "project-local" vs. "project" vs. "user" lives inside hooks.ts
+  // (mapNonInteractiveScope — unit-tested in tests/hooks.test.ts). These
+  // three tests lock down the cli forwarding contract only.
+  test("hooks forwarding: install --all → installer sees scope undefined", async () => {
     const seen: { scope?: string }[] = [];
     const main = await importMain({
       installHooks: async (_root, opts) => {
@@ -180,7 +178,7 @@ describe("main non-interactive install flow", () => {
     assert.equal(result, 0);
     assert.deepEqual(seen, [{ scope: undefined }]);
   });
-  test("hooks scope: --scope project → installer sees 'project' (not 'project-local')", async () => {
+  test("hooks forwarding: --scope project is passed through verbatim", async () => {
     const seen: { scope?: string }[] = [];
     const main = await importMain({
       installHooks: async (_root, opts) => {
@@ -191,7 +189,7 @@ describe("main non-interactive install flow", () => {
     assert.equal(result, 0);
     assert.deepEqual(seen, [{ scope: "project" }]);
   });
-  test("hooks scope: --scope user → installer sees 'user'", async () => {
+  test("hooks forwarding: --scope user is passed through verbatim", async () => {
     const seen: { scope?: string }[] = [];
     const main = await importMain({
       installHooks: async (_root, opts) => {
@@ -199,6 +197,22 @@ describe("main non-interactive install flow", () => {
       },
     });
     const { result } = await captureStderr(() => main(["install", "--all", "--scope", "user"]));
+    assert.equal(result, 0);
+    assert.deepEqual(seen, [{ scope: "user" }]);
+  });
+  // `install hooks --scope user` (single-type) used to be rejected at parse
+  // time. User manual-test feedback loosened rule 6 to let hooks take
+  // --scope, so verify the single-category path now forwards scope too.
+  test("hooks single-type: install hooks --scope user forwards scope", async () => {
+    const seen: { scope?: string }[] = [];
+    const main = await importMain({
+      installHooks: async (_root, opts) => {
+        seen.push({ scope: opts.scope });
+      },
+    });
+    const { result } = await captureStderr(() =>
+      main(["install", "hooks", "--scope", "user"]),
+    );
     assert.equal(result, 0);
     assert.deepEqual(seen, [{ scope: "user" }]);
   });

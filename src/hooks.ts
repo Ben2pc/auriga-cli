@@ -52,6 +52,15 @@ export interface HookDef {
    * back to a generic "see <dir>/README.md" pointer.
    */
   customizeHints?: string[];
+  /**
+   * Whether the hook is part of the default-on set. `false` makes the
+   * hook opt-in: non-interactive `install hooks` with no `--hook` filter
+   * skips it, and the interactive checkbox leaves it unchecked. Absent
+   * / `true` → installed by default. Used for hooks with intrusive
+   * side effects (OS notifications, brew deps, platform constraints)
+   * that users probably want to pick up consciously.
+   */
+  defaultOn?: boolean;
 }
 
 export interface HooksConfig {
@@ -238,6 +247,9 @@ function validateHookEntry(hook: unknown, idx: number): void {
         );
       }
     }
+  }
+  if (h.defaultOn !== undefined && typeof h.defaultOn !== "boolean") {
+    throw new Error(`hooks.json: hooks[${idx}].defaultOn must be a boolean`);
   }
 }
 
@@ -435,14 +447,19 @@ function resolveScope(scope: Scope, projectBase: string, hookName: string): Scop
 }
 
 /**
- * Three-way scope map for the non-interactive install path (§5.5).
- * Exported only so `tests/hooks.test.ts` can lock the contract down as
- * a unit test — not intended as a general-purpose helper.
+ * Non-interactive scope map for hooks.
+ *
+ * Non-interactive surface only knows about two values — `project` (the
+ * default) and `user`. `project-local` exists only in the TTY menu; it's
+ * a per-developer uncommitted scope and carries enough "did you really
+ * mean this?" surface area that we gate it behind an interactive
+ * confirmation rather than exposing it as a CLI flag value.
+ *
+ * Exported so `tests/hooks.test.ts` can lock the contract down as a
+ * unit test.
  */
 export function mapNonInteractiveScope(scope: string | undefined): Scope {
-  if (scope === "user") return "user";
-  if (scope === "project") return "project";
-  return "project-local";
+  return scope === "user" ? "user" : "project";
 }
 
 function scopeChoices(): { name: string; value: Scope }[] {
@@ -860,14 +877,22 @@ export function cleanHookFromScope(
 }
 
 /**
- * Non-interactive selection resolver for hooks. Mirrors resolvePluginSelection:
- * `undefined` / `["*"]` = full compatible set; explicit names = filter.
+ * Non-interactive selection resolver for hooks.
+ *
+ * Diverges from resolvePluginSelection in the no-filter case. Hooks can
+ * carry intrusive side effects (OS notifications, brew deps), so the
+ * safe default is NOT "install everything". Three cases:
+ *
+ * - undefined (no --hook passed) → default-on set (filter on defaultOn !== false)
+ * - ["*"] (explicit opt-in to everything) → full compatible set
+ * - explicit names → exactly those (even if defaultOn is false)
  */
-function resolveHookSelection(
+export function resolveHookSelection(
   compatible: HookDef[],
   selected: string[] | undefined,
 ): HookDef[] {
-  if (!selected || (selected.length === 1 && selected[0] === "*")) return compatible;
+  if (!selected) return compatible.filter((h) => h.defaultOn !== false);
+  if (selected.length === 1 && selected[0] === "*") return compatible;
   const wanted = new Set(selected);
   return compatible.filter((h) => wanted.has(h.name));
 }
@@ -895,7 +920,7 @@ export async function installHooks(
         choices: compatible.map((h) => ({
           name: `${h.name} — ${h.description}`,
           value: h,
-          checked: true,
+          checked: h.defaultOn !== false,
         })),
       }),
     )
@@ -906,16 +931,10 @@ export async function installHooks(
     return;
   }
 
-  // Non-interactive scope map — three distinct outcomes:
-  //   undefined       → project-local (interactive default; the user
-  //                     didn't declare intent, fall back to the same
-  //                     personal-dev scope the TTY menu picks)
-  //   "project"       → project       (shared .claude/settings.json —
-  //                     commits travel with the repo)
-  //   "user"          → user          (~/.claude/settings.json — global)
-  // Earlier revisions collapsed "project" into "project-local", so
-  // `install --all --scope project` silently landed in settings.local
-  // .json and teammates pulling the branch never picked up the hook.
+  // Non-interactive scope (two values only):
+  //   undefined / "project" → project (shared .claude/settings.json)
+  //   "user"                → user    (~/.claude/settings.json)
+  // project-local is reachable only via the TTY menu.
   const nonInteractiveScope: Scope = mapNonInteractiveScope(opts.scope);
 
   // Lazily prompted on the first project-scoped hook, then reused. Users

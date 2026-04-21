@@ -113,9 +113,35 @@ describe("parseArgs", () => {
     expectParseError(["install", "workflow", "--plugin", "auriga-go"], /--plugin requires 'install plugins'/i);
     expectParseError(["install", "workflow", "--hook", "notify"], /--hook requires 'install hooks'/i);
     expectParseError(["install", "skills", "--lang", "en"], /--lang\/--cwd only apply to workflow/i);
-    expectParseError(["install", "hooks", "--scope", "user"], /--scope only applies to skills \/ recommended \/ plugins/i);
+    expectParseError(["install", "workflow", "--scope", "user"], /--scope does not apply to workflow/i);
     expectParseError(["--all"], /--help/i);
     expectParseError(["foo"], /--help/i);
+  });
+
+  // Hooks now accept --scope in non-interactive mode (default: project).
+  // The TTY menu is the only surface that exposes project-local.
+  test("accepts --scope on install hooks (default: project)", () => {
+    assert.deepEqual(installArgs(["hooks", "--scope", "user", "--hook", "notify"]), {
+      command: "install",
+      install: { all: false, type: "hooks", scope: "user", filter: ["notify"] },
+    });
+    assert.deepEqual(installArgs(["hooks", "--scope", "project"]), {
+      command: "install",
+      install: { all: false, type: "hooks", scope: "project" },
+    });
+    expectParseError(["install", "hooks", "--scope", "project-local"], /scope/i);
+  });
+
+  // Per-type --help / -h short-circuits install parsing and returns
+  // `{ command: "help", helpType }` so main() can render renderTypeHelp.
+  test("install <type> --help routes to per-type help", () => {
+    for (const type of ["workflow", "skills", "recommended", "plugins", "hooks"] as const) {
+      assert.deepEqual(parseArgs(["install", type, "--help"]), { command: "help", helpType: type });
+      assert.deepEqual(parseArgs(["install", type, "-h"]), { command: "help", helpType: type });
+    }
+    // `install --help` (no type) falls back to top-level help.
+    assert.deepEqual(parseArgs(["install", "--help"]), { command: "help" });
+    assert.deepEqual(parseArgs(["install", "-h"]), { command: "help" });
   });
 
   // Covers spec §7 catalog-backed validation, strict value validation, and guide arity fail-fast.

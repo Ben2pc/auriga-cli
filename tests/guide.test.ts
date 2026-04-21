@@ -27,8 +27,8 @@ describe("renderGuide", () => {
     const out = renderGuide({ color: false, version: "1.8.1" });
     for (const heading of [
       "## Step 1 — Prerequisite check",
-      "## Step 2 — Install harness",
-      "## Step 3 — (Optional) Install recommended skills",
+      "## Step 2 — Read --help BEFORE installing",
+      "## Step 3 — Install",
       "## Step 4 — Reload session (REQUIRED when installed non-interactively)",
       "## Step 5 — Verify install",
       "## Troubleshooting",
@@ -37,12 +37,23 @@ describe("renderGuide", () => {
     }
   });
 
+  // Covers the "read --help first" emphasis (user-requested, not in the
+  // original spec §3.6 wording). Agents must inspect the catalog before
+  // deciding scope; --all is a preset, not the default path.
+  test("Step 2 names --help as mandatory and covers per-type --help", () => {
+    const out = renderGuide({ color: false, version: "1.8.1" });
+    assert.match(out, /npx -y auriga-cli --help/);
+    assert.match(out, /npx -y auriga-cli install workflow --help/);
+    assert.match(out, /npx -y auriga-cli install skills --help/);
+    assert.match(out, /npx -y auriga-cli install hooks --help/);
+  });
+
   // Covers spec §3.6 command examples and graded-exit text embedded in the SOP body.
   test("mentions install, retry, and reload guidance in the body", () => {
     const out = renderGuide({ color: false, version: "1.8.1" });
     assert.match(out, /npx -y auriga-cli install --all/);
     assert.match(out, /npx -y auriga-cli install recommended/);
-    assert.match(out, /0\s+— all categories installed/);
+    assert.match(out, /0\s+— all requested categories installed/);
     assert.match(out, /2\s+— partial success/);
     assert.match(out, /Exit this session and start a new one/i);
   });
