@@ -17,7 +17,7 @@ concurrency:
 jobs:
   claude-review:
     # Skip Draft PRs and no-token runs (e.g. fork PRs without secrets).
-    if: github.event.pull_request.draft == false && secrets.CLAUDE_CODE_OAUTH_TOKEN != ""
+    if: github.event.pull_request.draft == false && secrets.CLAUDE_CODE_OAUTH_TOKEN != ''
     # Optional: Filter by PR author
     # if: |
     #   github.event.pull_request.user.login == 'external-contributor' ||
