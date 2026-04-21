@@ -1,0 +1,71 @@
+import assert from "node:assert/strict";
+import { describe, test } from "node:test";
+
+import { main } from "../src/cli.js";
+import { renderGuide } from "../src/guide.js";
+
+const ANSI_RE = /\u001b\[[0-9;]*m/g;
+
+async function captureStderr(fn: () => Promise<number>): Promise<{ code: number; stderr: string }> {
+  const chunks: string[] = [];
+  const original = process.stderr.write.bind(process.stderr);
+  process.stderr.write = ((chunk: string | Uint8Array) => {
+    chunks.push(String(chunk));
+    return true;
+  }) as typeof process.stderr.write;
+  try {
+    return { code: await fn(), stderr: chunks.join("") };
+  } finally {
+    process.stderr.write = original;
+  }
+}
+
+// Covers spec §3.6 guide SOP template and §11 guide acceptance matrix.
+describe("renderGuide", () => {
+  // Covers spec §3.6 required Step 1-5 headings and Troubleshooting section.
+  test("includes the full SOP headings in order", () => {
+    const out = renderGuide({ color: false, version: "1.8.1" });
+    for (const heading of [
+      "## Step 1 — Prerequisite check",
+      "## Step 2 — Install harness",
+      "## Step 3 — (Optional) Install recommended skills",
+      "## Step 4 — Reload session (REQUIRED when installed non-interactively)",
+      "## Step 5 — Verify install",
+      "## Troubleshooting",
+    ]) {
+      assert.match(out, new RegExp(heading.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+    }
+  });
+
+  // Covers spec §3.6 command examples and graded-exit text embedded in the SOP body.
+  test("mentions install, retry, and reload guidance in the body", () => {
+    const out = renderGuide({ color: false, version: "1.8.1" });
+    assert.match(out, /npx -y auriga-cli install --all/);
+    assert.match(out, /npx -y auriga-cli install recommended/);
+    assert.match(out, /0\s+— all categories installed/);
+    assert.match(out, /2\s+— partial success/);
+    assert.match(out, /Exit this session and start a new one/i);
+  });
+
+  // Covers spec §3.6 color contract when color output is disabled.
+  test("does not emit ANSI escapes when color is false", () => {
+    const out = renderGuide({ color: false, version: "1.8.1" });
+    assert.doesNotMatch(out, ANSI_RE);
+  });
+
+  // Covers spec §3.6 color contract when color output is enabled.
+  test("emits ANSI escapes when color is true", () => {
+    const out = renderGuide({ color: true, version: "1.8.1" });
+    assert.match(out, ANSI_RE);
+  });
+});
+
+// Covers spec §3.6 trigger-form constraints and §11 `guide` arity rejection.
+describe("main guide command", () => {
+  // Covers spec §3.6 "guide takes no args" fail-fast behavior.
+  test("returns non-zero when guide receives any extra args", async () => {
+    const { code, stderr } = await captureStderr(() => main(["guide", "foo"]));
+    assert.notEqual(code, 0);
+    assert.match(stderr, /guide/i);
+  });
+});

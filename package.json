@@ -15,8 +15,8 @@
     "build": "tsc && node dist/build/generate-catalog.js",
     "dev": "tsc --watch",
     "start": "node dist/cli.js",
-    "test": "tsc -p tsconfig.test.json && DEV=1 node --test dist-test/tests/hooks.test.js dist-test/tests/skills.test.js dist-test/tests/catalog.test.js",
-    "test:watch": "tsc -p tsconfig.test.json --watch & node --test --watch dist-test/tests/hooks.test.js dist-test/tests/skills.test.js dist-test/tests/catalog.test.js"
+    "test": "tsc -p tsconfig.test.json && DEV=1 node --test dist-test/tests/hooks.test.js dist-test/tests/skills.test.js dist-test/tests/catalog.test.js dist-test/tests/cli-parse.test.js dist-test/tests/install-nontty.test.js dist-test/tests/guide.test.js",
+    "test:watch": "tsc -p tsconfig.test.json --watch & node --test --watch dist-test/tests/hooks.test.js dist-test/tests/skills.test.js dist-test/tests/catalog.test.js dist-test/tests/cli-parse.test.js dist-test/tests/install-nontty.test.js dist-test/tests/guide.test.js"
   },
   "engines": {
     "node": ">=18"
