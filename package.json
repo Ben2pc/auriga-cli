@@ -7,20 +7,23 @@
     "auriga-cli": "dist/cli.js"
   },
   "files": [
-    "dist"
+    "dist/*.js",
+    "dist/*.d.ts",
+    "dist/catalog.json"
   ],
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && node dist/build/generate-catalog.js",
     "dev": "tsc --watch",
     "start": "node dist/cli.js",
-    "test": "tsc -p tsconfig.test.json && DEV=1 node --test dist-test/tests/hooks.test.js dist-test/tests/skills.test.js",
-    "test:watch": "tsc -p tsconfig.test.json --watch & node --test --watch dist-test/tests/hooks.test.js dist-test/tests/skills.test.js"
+    "test": "tsc -p tsconfig.test.json && DEV=1 node --test dist-test/tests/hooks.test.js dist-test/tests/skills.test.js dist-test/tests/catalog.test.js",
+    "test:watch": "tsc -p tsconfig.test.json --watch & node --test --watch dist-test/tests/hooks.test.js dist-test/tests/skills.test.js dist-test/tests/catalog.test.js"
   },
   "engines": {
     "node": ">=18"
   },
   "dependencies": {
-    "@inquirer/prompts": "^8.0.0"
+    "@inquirer/prompts": "^8.0.0",
+    "gray-matter": "^4.0.3"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

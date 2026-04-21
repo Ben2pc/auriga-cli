@@ -1,0 +1,11 @@
+# Keep `files: ["dist"]` as single source of truth for "what to publish";
+# this file only narrows that set.
+
+# Build-time scripts — not consumed at runtime by `npx auriga-cli`.
+# Their only job is to emit dist/catalog.json during `npm run build`.
+dist/build/
+
+# Test artifacts (compiled tests live under dist-test/, not dist/, but
+# excluded here defensively in case that ever changes).
+dist-test/
+tests/
