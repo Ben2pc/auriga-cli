@@ -20,6 +20,15 @@ describe("parseArgs", () => {
     assert.deepEqual(parseArgs(["--version"]), { command: "version" });
     assert.deepEqual(parseArgs(["-v"]), { command: "version" });
     assert.deepEqual(parseArgs(["guide"]), { command: "guide" });
+    // Bare `npx auriga-cli` (no args) must dispatch to the install bare
+    // form, NOT to help — the TTY path serves the legacy checkbox menu
+    // and the non-TTY path emits the "requires a TTY" hint. Routing it to
+    // help would strand users running the documented entrypoint without
+    // an install path. See PR #31 codex review.
+    assert.deepEqual(parseArgs([]), {
+      command: "install",
+      install: { all: false },
+    });
     assert.deepEqual(installArgs([]), {
       command: "install",
       install: { all: false },

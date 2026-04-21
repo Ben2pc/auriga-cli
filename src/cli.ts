@@ -94,7 +94,12 @@ function consumeFilter(argv: string[], start: number): [string[], number] {
 
 export function parseArgs(argv: string[]): ParsedArgs {
   // Top-level verb / flag dispatch.
-  if (argv.length === 0) return { command: "help" };
+  //
+  // Bare `npx auriga-cli` (empty argv) dispatches to the install bare
+  // form, NOT to help — runInstall then picks TTY legacy-menu vs
+  // non-TTY error hint. Routing here to help would break the documented
+  // zero-arg entrypoint used by the interactive menu.
+  if (argv.length === 0) return { command: "install", install: { all: false } };
   const head = argv[0];
   if (head === "--help" || head === "-h" || head === "help") return { command: "help" };
   if (head === "--version" || head === "-v") return { command: "version" };
@@ -393,11 +398,23 @@ async function runAll(p: InstallParsed): Promise<number> {
     return 0;
   }
 
+  // Retry hint must carry `--scope` forward for any category where the
+  // spec-mapped flag applies (skills / recommended / plugins — see §3.2
+  // / §5.5). Dropping it silently retries into the default project
+  // scope and leaves the intended user-scope install incomplete.
+  const scopeSuffix = p.scope ? ` --scope ${p.scope}` : "";
   process.stderr.write("\nRetry:\n");
   for (const s of failed) {
-    process.stderr.write(`  npx auriga-cli install ${s.category}\n`);
+    const suffix = scopeCategory(s.category) ? scopeSuffix : "";
+    process.stderr.write(`  npx auriga-cli install ${s.category}${suffix}\n`);
   }
   return 2;
+}
+
+function scopeCategory(c: CategoryName): boolean {
+  // Categories where `--scope` is a real flag (spec §3.2). workflow
+  // and hooks ignore it; don't bolt it onto their retry lines.
+  return c === "skills" || c === "recommended" || c === "plugins";
 }
 
 async function runSingle(p: InstallParsed): Promise<number> {

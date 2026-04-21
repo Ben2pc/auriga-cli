@@ -130,6 +130,25 @@ describe("main non-interactive install flow", () => {
     assert.match(stderr, /\[OK\]\s+hooks/i);
     assert.match(stderr, /Retry:\s+npx auriga-cli install plugins/i);
   });
+  // Covers the P2 regression from PR #31 codex review: retry hint for
+  // `install --all --scope user` must preserve `--scope user`, otherwise
+  // users following the hint silently install into the default project
+  // scope and the intended user-scope install stays incomplete.
+  test("retry hint preserves --scope when runAll was invoked with non-default scope", async () => {
+    const main = await importMain({
+      installWorkflow: async () => {},
+      installSkills: async () => {},
+      installPlugins: async () => {
+        throw new Error("boom");
+      },
+      installHooks: async () => {},
+    });
+    const { result, stderr } = await captureStderr(() =>
+      main(["install", "--all", "--scope", "user"]),
+    );
+    assert.equal(result, 2);
+    assert.match(stderr, /Retry:\s+npx auriga-cli install plugins --scope user/i);
+  });
   // Covers spec §7 success-tail reload reminder and §11 full-install success acceptance.
   test("prints the reload reminder as the final stderr line on success", async () => {
     const main = await importMain({
