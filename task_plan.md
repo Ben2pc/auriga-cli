@@ -37,18 +37,19 @@
 
 ### Phase 2 — Catalog 基建（底座，先于 CLI）
 
-状态：**pending**
+状态：**complete（2026-04-21，commit `8c5cc46`）**
 
-- [ ] 2.1 `src/catalog.ts` —— 类型定义 + `loadCatalog()` 读取工具
-- [ ] 2.2 `src/build/generate-catalog.ts` —— build 脚本，用 `gray-matter` 解析 SKILL.md frontmatter
-- [ ] 2.3 `package.json`：
-  - `"build"`: `"tsc && node dist/build/generate-catalog.js"`
-  - `"files"`: 显式列表（不含 `dist/build/`）
-  - `dependencies`: 加 `gray-matter`
-- [ ] 2.4 CI 在 build 后跑 `test -f dist/catalog.json`
-- [ ] 2.5 手测 `npm run build`，验 `dist/catalog.json` 结构符合 spec §5.4
+- [x] 2.1 `src/catalog.ts` —— `Catalog` / `CatalogEntry` 类型 + `loadCatalog()`（含"catalog missing"错误）
+- [x] 2.2 `src/build/generate-catalog.ts` —— `generateCatalog()` 纯函数 + CLI 入口；`gray-matter` 解析 SKILL.md frontmatter（处理 parallel-implementation / ui-ux-pro-max 的跨行 description）
+- [x] 2.3 `package.json`：
+  - `"build"`: `"tsc && node dist/build/generate-catalog.js"` ✓
+  - `"files"`: `dist/*.js` + `dist/*.d.ts` + `dist/catalog.json`（glob 排除了 `dist/build/`）✓
+  - `dependencies`: `gray-matter@^4.0.3` ✓
+  - 加了 `.npmignore` 作 defense-in-depth
+- [x] 2.4 CI 校验 — 推迟到 Phase 7（仓库无 GitHub Actions）
+- [x] 2.5 手测 `npm run build` → `✓ catalog.json: 10 workflow / 2 recommended / 4 plugins / 3 hooks`
 
-**出口条件**：`dist/catalog.json` 可复现生成；含 12 个 skill（10 workflow + 2 recommended）+ 4 plugins + 3 hooks。
+**出口条件已达**：`dist/catalog.json` 产出正确；8 条新增 catalog 测试 + 54 既有测试全绿（62/62）；`npm pack --dry-run` 不含 `dist/build/`。
 
 ### Phase 3 — Install 函数签名扩展
 

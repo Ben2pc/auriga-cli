@@ -6,11 +6,12 @@
 
 ## 当前状态
 
-- **当前 Phase**：Phase 0 ✅ + Phase 1 ✅；可进入 Phase 2
-- **分支**：`feat/install-subcommand`（commit `1a2b26b` spec + `d7233af` 规划 + gitignore）
+- **当前 Phase**：Phase 0 ✅ + Phase 1 ✅ + Phase 2 ✅（commit `8c5cc46`）；可进入 Phase 3
+- **分支**：`feat/install-subcommand`（rebased onto 9c94e0f；5 ahead）
 - **Draft PR**：[#31](https://github.com/Ben2pc/auriga-cli/pull/31)（Open / Draft / Mergeable）
 - **CI**：仓库无 GitHub Actions 配置；Phase 7 决定是否顺带加 CI
-- **下一步（可直接执行的动作）**：Phase 2.1——写 `src/catalog.ts`（类型定义 + `loadCatalog()` 读取工具）；然后 2.2 build 脚本（用 `gray-matter`）；然后 2.3 改 `package.json`
+- **npm test**：62/62 绿（8 新增 catalog 测试 + 54 既有）
+- **下一步（可直接执行的动作）**：Phase 3.1——在 `src/utils.ts` 里加 `InstallOpts` 类型 + `isNonInteractive()`；然后依次改 workflow.ts / skills.ts / plugins.ts / hooks.ts 签名
 
 ## Session 1 — 2026-04-21（planning）
 
