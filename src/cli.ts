@@ -75,6 +75,23 @@ function requireValue(argv: string[], i: number, flag: string): string {
   return v;
 }
 
+/**
+ * Handle the `--flag=value` form for single-value flags (--lang, --cwd,
+ * --scope). Returns [value, advance] where `advance` is how many
+ * tokens to consume (1 for equals-form, 2 for space-form).
+ * Rejects empty values (`--lang=`) consistently with requireValue.
+ */
+function readSingleValue(argv: string[], i: number, flag: string): [string, number] {
+  const t = argv[i];
+  const eqIdx = t.indexOf("=");
+  if (eqIdx > 0) {
+    const v = t.slice(eqIdx + 1);
+    if (v.length === 0) parseErr(`${flag} requires a value.`);
+    return [v, 1];
+  }
+  return [requireValue(argv, i, flag), 2];
+}
+
 // Consume values for a filter flag until the next flag-like token
 // ("--..." / "-..."), the explicit "--" terminator, or end-of-argv.
 // Returns [values, nextIndex].
@@ -149,19 +166,25 @@ function parseInstall(argv: string[]): InstallParsed {
       continue;
     }
 
-    if (t === "--lang") {
-      out.lang = requireValue(argv, i, "--lang");
-      i += 2;
+    // Accept both `--lang en` and `--lang=en` (and same for --cwd, --scope).
+    // The equals form is a common CLI affordance; rejecting it confuses
+    // users with any prior gnu-style / node util.parseArgs experience.
+    if (t === "--lang" || t.startsWith("--lang=")) {
+      const [v, advance] = readSingleValue(argv, i, "--lang");
+      out.lang = v;
+      i += advance;
       continue;
     }
-    if (t === "--cwd") {
-      out.cwd = requireValue(argv, i, "--cwd");
-      i += 2;
+    if (t === "--cwd" || t.startsWith("--cwd=")) {
+      const [v, advance] = readSingleValue(argv, i, "--cwd");
+      out.cwd = v;
+      i += advance;
       continue;
     }
-    if (t === "--scope") {
-      out.scope = requireValue(argv, i, "--scope") as "project" | "user";
-      i += 2;
+    if (t === "--scope" || t.startsWith("--scope=")) {
+      const [v, advance] = readSingleValue(argv, i, "--scope");
+      out.scope = v as "project" | "user";
+      i += advance;
       continue;
     }
 

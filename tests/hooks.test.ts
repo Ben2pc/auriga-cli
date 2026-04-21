@@ -15,6 +15,7 @@ import {
   mapNonInteractiveScope,
   removeHookFromSettings,
   resolveHookSelection,
+  findIncompatibleExplicit,
 } from "../src/hooks.js";
 import type { HookDef, HookDep, SettingsFile } from "../src/hooks.js";
 
@@ -867,5 +868,40 @@ describe("resolveHookSelection", () => {
   test("explicit name list → exactly those (even when defaultOn is false)", () => {
     const got = resolveHookSelection([hookA, hookB, hookOptIn], ["hook-opt-in"]).map((h) => h.name);
     assert.deepEqual(got, ["hook-opt-in"]);
+  });
+});
+
+// Non-interactive `install hooks --hook X` with X unavailable on the
+// current platform used to silently no-op exit 0. Catch that at the
+// installHooks boundary via this helper so CI pipelines see exit 1.
+describe("findIncompatibleExplicit", () => {
+  const darwinOnly: HookDef = {
+    name: "notify",
+    description: "",
+    runtimePlatforms: ["darwin"],
+    settingsEvents: [{ event: "Stop" }],
+    command: "node \"$HOOK_DIR/index.mjs\"",
+    files: ["index.mjs"],
+    marker: "test:notify",
+  };
+  const portable: HookDef = {
+    ...darwinOnly,
+    name: "pr-guard",
+    runtimePlatforms: ["darwin", "linux"],
+    marker: "test:pr",
+  };
+  const all = [darwinOnly, portable];
+
+  test("on darwin: notify is compatible, empty result", () => {
+    const compat = all.filter((h) => h.runtimePlatforms.includes("darwin"));
+    assert.deepEqual(findIncompatibleExplicit(all, compat, ["notify", "pr-guard"]), []);
+  });
+  test("on linux: explicit --hook notify flagged as missing", () => {
+    const compat = all.filter((h) => h.runtimePlatforms.includes("linux"));
+    assert.deepEqual(findIncompatibleExplicit(all, compat, ["notify"]), ["notify"]);
+  });
+  test("unknown names are NOT treated as platform-incompatible (caller handles unknown separately)", () => {
+    const compat = all.filter((h) => h.runtimePlatforms.includes("darwin"));
+    assert.deepEqual(findIncompatibleExplicit(all, compat, ["does-not-exist"]), []);
   });
 });

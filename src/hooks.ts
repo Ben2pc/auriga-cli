@@ -897,6 +897,24 @@ export function resolveHookSelection(
   return compatible.filter((h) => wanted.has(h.name));
 }
 
+/**
+ * Given the full registry and the platform-filtered compatible subset,
+ * return the names in `selected` that refer to real hooks but aren't
+ * available on the current platform. Empty result means the selection
+ * is either fully compatible or references unknown hooks (that case is
+ * left to the catalog validator — we don't pretend unknown names are
+ * platform issues).
+ */
+export function findIncompatibleExplicit(
+  all: HookDef[],
+  compatible: HookDef[],
+  selected: string[],
+): string[] {
+  const compatibleNames = new Set(compatible.map((h) => h.name));
+  const allNames = new Set(all.map((h) => h.name));
+  return selected.filter((n) => allNames.has(n) && !compatibleNames.has(n));
+}
+
 export async function installHooks(
   packageRoot: string,
   opts: InstallOpts,
@@ -911,6 +929,23 @@ export async function installHooks(
       `No hooks available for your platform (${process.platform}). Skipping.`,
     );
     return;
+  }
+
+  // Non-interactive explicit `--hook <name>` has stronger intent than
+  // the default set: if the caller named a hook that isn't available
+  // on this platform, fail fast. A silent no-op would let CI pipelines
+  // report success with the intended hook missing.
+  if (!opts.interactive && opts.selected && opts.selected[0] !== "*") {
+    const missing = findIncompatibleExplicit(
+      config.hooks,
+      compatible,
+      opts.selected,
+    );
+    if (missing.length > 0) {
+      throw new Error(
+        `hook${missing.length > 1 ? "s" : ""} not available on ${process.platform}: ${missing.join(", ")}. Run \`npx -y auriga-cli install hooks --help\` to see platform compatibility.`,
+      );
+    }
   }
 
   const selected = opts.interactive

@@ -116,13 +116,19 @@ export async function installPlugins(
   packageRoot: string,
   opts: InstallOpts,
 ): Promise<void> {
-  // Check claude CLI availability
-  try {
-    exec("which claude");
-  } catch {
-    const msg = "'claude' CLI not found. Please install Claude Code first.";
-    if (opts.interactive) { log.error(msg); return; }
-    throw new Error(msg);
+  // Non-interactive path already ran `precheckExternal(["plugins"])` in
+  // cli.ts's runAll / runSingle before dispatching here, so rechecking
+  // `which claude` would be a redundant subprocess on every install.
+  // The interactive TTY menu doesn't have that precheck, so still
+  // validate there — and fail soft (log-and-return) to match the menu's
+  // continue-on-failure ergonomics.
+  if (opts.interactive) {
+    try {
+      exec("which claude");
+    } catch {
+      log.error("'claude' CLI not found. Please install Claude Code first.");
+      return;
+    }
   }
 
   const configPath = path.join(packageRoot, ".claude", "plugins.json");

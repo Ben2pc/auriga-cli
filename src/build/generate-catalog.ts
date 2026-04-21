@@ -1,10 +1,12 @@
 import fs from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import matter from "gray-matter";
 
 import type { Catalog, CatalogEntry } from "../catalog.js";
 import type { PluginsConfig, SkillsLock } from "../utils.js";
-import { WORKFLOW_SKILLS as WORKFLOW_SKILL_LIST } from "../skills.js";
+import { WORKFLOW_SKILLS as WORKFLOW_SKILL_LIST, validateSkillsLock } from "../skills.js";
+import { validatePluginsConfig } from "../plugins.js";
 
 const WORKFLOW_SKILLS = new Set(WORKFLOW_SKILL_LIST);
 
@@ -50,8 +52,15 @@ function readSkillDescription(repoRoot: string, name: string): string {
 }
 
 export function generateCatalog(repoRoot: string): Catalog {
+  // Route build-time reads through the same validators runtime uses.
+  // skills-lock.json is in-tree so exposure is low, but the validator
+  // exists to reject malformed shapes and the catalog bakes these
+  // values into dist/catalog.json shipped to every user — keep
+  // build and runtime on the same schema contract.
   const lockPath = path.join(repoRoot, "skills-lock.json");
-  const lock = JSON.parse(fs.readFileSync(lockPath, "utf-8")) as SkillsLock;
+  const lockRaw: unknown = JSON.parse(fs.readFileSync(lockPath, "utf-8"));
+  validateSkillsLock(lockRaw);
+  const lock = lockRaw as SkillsLock;
 
   const workflowSkills: CatalogEntry[] = [];
   const recommendedSkills: CatalogEntry[] = [];
@@ -62,7 +71,9 @@ export function generateCatalog(repoRoot: string): Catalog {
   }
 
   const pluginsPath = path.join(repoRoot, ".claude", "plugins.json");
-  const pluginsCfg = JSON.parse(fs.readFileSync(pluginsPath, "utf-8")) as PluginsConfig;
+  const pluginsRaw: unknown = JSON.parse(fs.readFileSync(pluginsPath, "utf-8"));
+  validatePluginsConfig(pluginsRaw);
+  const pluginsCfg = pluginsRaw as PluginsConfig;
   const plugins: CatalogEntry[] = pluginsCfg.plugins.map((p) => ({
     name: p.name,
     description: p.description,
@@ -85,7 +96,9 @@ export function generateCatalog(repoRoot: string): Catalog {
 }
 
 function main(): void {
-  const here = path.dirname(new URL(import.meta.url).pathname);
+  // fileURLToPath (not URL.pathname) so the leading-slash Windows path
+  // quirk doesn't break the build on non-POSIX runners.
+  const here = path.dirname(fileURLToPath(import.meta.url));
   // Script lives at dist/build/generate-catalog.js; repo root is two levels up.
   const repoRoot = path.resolve(here, "..", "..");
   const catalog = generateCatalog(repoRoot);
@@ -99,9 +112,10 @@ function main(): void {
 
 // Execute when invoked as a script (not when imported by tests).
 // Compare resolved paths so symlinks don't break the guard.
+// fileURLToPath keeps the Windows leading-slash quirk out of the compare.
 const invokedAsScript =
   process.argv[1] &&
-  fs.realpathSync(process.argv[1]) === fs.realpathSync(new URL(import.meta.url).pathname);
+  fs.realpathSync(process.argv[1]) === fs.realpathSync(fileURLToPath(import.meta.url));
 
 if (invokedAsScript) {
   main();

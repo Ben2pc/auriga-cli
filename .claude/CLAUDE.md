@@ -46,8 +46,15 @@ plugins/
                      `claude plugins marketplace add Ben2pc/auriga-cli`.
 
 tests/
-  hooks.test.ts         — TS tests for the hook installer (npm test)
-  ship-loop.test.sh     — Bash unit tests for plugins/auriga-go/scripts/ship-loop.sh
+  hooks.test.ts         — hook installer unit + integration
+  skills.test.ts        — skill planner unit tests
+  catalog.test.ts       — build-time catalog shape + description overrides
+  cli-parse.test.ts     — parseArgs matrix (spec §3.5 / §5.2)
+  install-nontty.test.ts — non-interactive install dispatch + graded exit
+  guide.test.ts         — renderGuide snapshot + ANSI branch
+  validators.test.ts    — validateSkillsLock / validatePluginsConfig
+  entrypoint.test.ts    — dist/cli.js symlinked-bin guard regression
+  ship-loop.test.sh     — bash unit tests for plugins/auriga-go/scripts/ship-loop.sh
 ```
 
 - No CLI framework — hand-rolled `parseArgs` in `cli.ts` for the non-interactive path; `@inquirer/prompts` (lazy-loaded) for the TTY menu

@@ -249,7 +249,7 @@ Expected artifacts:
 - **不**在 SOP 里嵌入 skill/plugin 列表——列表归 `--help`，guide 只讲"做什么"（职责分工：guide = 流程，help = 目录）
 
 **触发形式约束：**
-- `guide` 不接受**任何**参数；传任意 flag / 位置参数 fail-fast
+- `guide` 不接受任何参数；传任意 flag / 位置参数 fail-fast。**唯一例外**：`guide --help` / `guide -h` 路由到 top-level `--help`（universal affordance），避免用户探索新子命令时被拒绝。其它任何 token（`guide foo`、`guide --lang en`）仍 fail-fast。
 
 ## 4. `--help` 输出契约（详细目录）
 

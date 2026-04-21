@@ -175,6 +175,22 @@ describe("parseArgs", () => {
     expectParseError(["guide", "--lang", "en"], /guide/i);
   });
 
+  // Single-value flags accept both `--flag value` and `--flag=value`
+  // (node util.parseArgs / GNU convention). Multi-value filter flags
+  // are intentionally space-form only — `--skill=a b c` is ambiguous.
+  test("single-value flags accept --flag=value equals form", () => {
+    assert.deepEqual(installArgs(["workflow", "--lang=zh-CN", "--cwd=" + process.cwd()]), {
+      command: "install",
+      install: { all: false, type: "workflow", lang: "zh-CN", cwd: process.cwd() },
+    });
+    assert.deepEqual(installArgs(["skills", "--scope=user", "--skill", "brainstorming"]), {
+      command: "install",
+      install: { all: false, type: "skills", scope: "user", filter: ["brainstorming"] },
+    });
+    expectParseError(["install", "workflow", "--lang="], /--lang requires a value/i);
+    expectParseError(["install", "plugins", "--scope="], /--scope requires a value/i);
+  });
+
   // Covers empty-value and missing-value fail-fast (Phase 7 triage: deep-review edge-cases findings).
   test("rejects empty or missing values for flags and filters", () => {
     expectParseError(["install", "workflow", "--lang"], /--lang requires a value/i);
