@@ -156,6 +156,25 @@ describe("parseArgs", () => {
     expectParseError(["guide", "foo"], /guide/i);
   });
 
+  // Covers Opus review finding #1 — `t in TYPE_FOR_FILTER` walked the
+  // prototype chain, so `install toString` / `install constructor`
+  // would falsely enter the filter-flag branch and surface a confusing
+  // "--toString requires 'install …'" error. Object.hasOwn fixes it.
+  test("rejects Object.prototype keys as install tokens via the generic unknown-arg path", () => {
+    for (const poison of ["toString", "constructor", "hasOwnProperty", "__proto__"]) {
+      expectParseError(["install", poison], /unknown argument/i);
+    }
+  });
+
+  // `guide --help` / `guide -h` routes to top-level help (universal
+  // affordance). Anything else after `guide` still fail-fasts per §3.6.
+  test("guide --help and guide -h route to top-level help", () => {
+    assert.deepEqual(parseArgs(["guide", "--help"]), { command: "help" });
+    assert.deepEqual(parseArgs(["guide", "-h"]), { command: "help" });
+    expectParseError(["guide", "foo"], /guide/i);
+    expectParseError(["guide", "--lang", "en"], /guide/i);
+  });
+
   // Covers empty-value and missing-value fail-fast (Phase 7 triage: deep-review edge-cases findings).
   test("rejects empty or missing values for flags and filters", () => {
     expectParseError(["install", "workflow", "--lang"], /--lang requires a value/i);

@@ -1,5 +1,7 @@
-# Keep `files: ["dist"]` as single source of truth for "what to publish";
-# this file only narrows that set.
+# `package.json` `files` is the authoritative inclusion list
+# (`dist/*.js`, `dist/*.d.ts`, `dist/catalog.json`). This file is
+# defense-in-depth — same exclusions in case `files` is ever
+# broadened to `["dist"]`.
 
 # Build-time scripts — not consumed at runtime by `npx auriga-cli`.
 # Their only job is to emit dist/catalog.json during `npm run build`.

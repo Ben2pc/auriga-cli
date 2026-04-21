@@ -9,6 +9,7 @@ import {
   isNonInteractive,
   LANGUAGES,
   log,
+  readPackageVersion,
   type InstallOpts,
 } from "./utils.js";
 import { installWorkflow } from "./workflow.js";
@@ -101,6 +102,12 @@ export function parseArgs(argv: string[]): ParsedArgs {
   if (head === "--help" || head === "-h" || head === "help") return { command: "help" };
   if (head === "--version" || head === "-v") return { command: "version" };
   if (head === "guide") {
+    // `guide --help` / `guide -h` is a universal affordance — route to
+    // top-level help rather than reject. Anything else after `guide`
+    // (positional, other flags) still fail-fasts per spec §3.6.
+    if (argv.length === 2 && (argv[1] === "--help" || argv[1] === "-h")) {
+      return { command: "help" };
+    }
     if (argv.length > 1) {
       parseErr("guide takes no arguments. Run 'npx auriga-cli --help' for usage.");
     }
@@ -157,7 +164,10 @@ function parseInstall(argv: string[]): InstallParsed {
       continue;
     }
 
-    if (t in TYPE_FOR_FILTER) {
+    // Object.hasOwn (not `in`) so Object.prototype keys like `toString` /
+    // `constructor` don't slip into the filter-flag branch and produce a
+    // misleading error.
+    if (Object.hasOwn(TYPE_FOR_FILTER, t)) {
       if (filterFlag !== null) {
         // A second filter flag on the same install line used to silently
         // overwrite the first. Fail-fast so the user notices — one
@@ -287,12 +297,6 @@ function validateScopeValue(scope: string): void {
 // --all excludes `recommended` (per spec §3.2) — they're opt-in utilities.
 const ALL_CATEGORIES: CategoryName[] = ["workflow", "skills", "plugins", "hooks"];
 
-function readVersion(): string {
-  const pkg = JSON.parse(
-    fs.readFileSync(path.join(getPackageRoot(), "package.json"), "utf-8"),
-  );
-  return pkg.version as string;
-}
 
 export async function main(argv: string[]): Promise<number> {
   let parsed: ParsedArgs;
@@ -303,7 +307,7 @@ export async function main(argv: string[]): Promise<number> {
     return 1;
   }
 
-  const version = readVersion();
+  const version = readPackageVersion();
 
   if (parsed.command === "help") {
     try {
@@ -514,7 +518,7 @@ async function runLegacyMenu(): Promise<number> {
   const { checkbox } = await import("@inquirer/prompts");
   const { printBanner, withEsc } = await import("./utils.js");
 
-  const version = readVersion();
+  const version = readPackageVersion();
   printBanner(version);
   console.log("");
 

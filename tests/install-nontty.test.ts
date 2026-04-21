@@ -41,11 +41,16 @@ async function importMain(overrides: {
       fetchContentRoot: overrides.fetchContentRoot ?? (async () => process.cwd()),
       getPackageRoot: () => process.cwd(),
       isNonInteractive: overrides.isNonInteractive ?? (() => true),
+      readPackageVersion: () => "0.0.0-test",
+      // Shape mirrors the real `log` export (ok / warn / error / skip).
+      // error + warn route to stderr so the test captureStderr() helper
+      // sees them; ok + skip are no-ops because the non-interactive
+      // code path under test doesn't assert on stdout.
       log: {
-        error: (msg: string) => process.stderr.write(`${msg}\n`),
+        ok: () => {},
         warn: (msg: string) => process.stderr.write(`${msg}\n`),
-        info: () => {},
-        success: () => {},
+        error: (msg: string) => process.stderr.write(`${msg}\n`),
+        skip: () => {},
       },
       withEsc: async <T>(prompt: Promise<T>) => prompt,
     },

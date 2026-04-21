@@ -926,6 +926,19 @@ export async function installHooks(
     )
     : resolveHookSelection(compatible, opts.selected);
 
+  // Surface any opt-in hooks skipped by the default set so the user
+  // isn't silently missing a hook they can see in --help / the README.
+  // Only fires on the non-interactive undefined-selection path (TTY
+  // checkbox already shows them unchecked).
+  if (!opts.interactive && opts.selected === undefined) {
+    const skippedOptIn = compatible.filter((h) => h.defaultOn === false);
+    for (const h of skippedOptIn) {
+      log.skip(
+        `${h.name} (opt-in; re-run \`npx -y auriga-cli install hooks --hook ${h.name}\` to install)`,
+      );
+    }
+  }
+
   if (selected.length === 0) {
     log.skip("No hooks selected");
     return;
@@ -939,6 +952,10 @@ export async function installHooks(
 
   // Lazily prompted on the first project-scoped hook, then reused. Users
   // who pick only "user" scope are never asked about a project directory.
+  //
+  // Non-interactive path always falls back to `process.cwd()` — the
+  // parser rejects `--cwd` for any non-workflow type (§3.5 rule 5), so
+  // reading `opts.cwd` here would just be dead dispatch.
   let projectBaseResolved: string | null = null;
   async function ensureProjectBase(): Promise<string | null> {
     if (projectBaseResolved !== null) return projectBaseResolved;
@@ -949,7 +966,7 @@ export async function installHooks(
           default: process.cwd(),
         }),
       )
-      : (opts.cwd ?? process.cwd());
+      : process.cwd();
     const resolvedPath = path.resolve(projectBase);
     if (!fs.existsSync(resolvedPath) || !fs.statSync(resolvedPath).isDirectory()) {
       log.error(`Not a valid directory: ${resolvedPath}`);

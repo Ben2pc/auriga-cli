@@ -47,7 +47,7 @@ export interface InstallOpts {
   lang?: string;
   /** workflow only — install target directory (absolute or cwd-relative). */
   cwd?: string;
-  /** skills / recommended / plugins — `"user"` means install globally. */
+  /** skills / recommended / plugins / hooks — `"user"` means install globally. */
   scope?: "project" | "user";
   /**
    * sub-item filter. `undefined` = full set of this category.
@@ -123,6 +123,19 @@ export const LANGUAGES: LangOption[] = [
 const REPO = "Ben2pc/auriga-cli";
 
 /**
+ * Reads `version` from the packaged manifest. Throws when the package
+ * root / manifest is unreadable — callers that need a fallback should
+ * wrap in try/catch and pick their own default (see
+ * `resolveContentRef` for an example).
+ */
+export function readPackageVersion(): string {
+  const pkg = JSON.parse(
+    fs.readFileSync(path.join(getPackageRoot(), "package.json"), "utf-8"),
+  );
+  return pkg.version as string;
+}
+
+/**
  * Git ref to fetch content from. Defaults to the tag matching the
  * published CLI version (`v<package.version>`) so a pinned npm install
  * never drifts against `main`. Overridable via `AURIGA_CONTENT_REF`
@@ -138,11 +151,9 @@ function resolveContentRef(): string {
   const override = process.env.AURIGA_CONTENT_REF;
   if (override && override.length > 0) return override;
   try {
-    const pkg = JSON.parse(
-      fs.readFileSync(path.join(getPackageRoot(), "package.json"), "utf-8"),
-    );
-    if (typeof pkg.version === "string" && /^\d+\.\d+\.\d+/.test(pkg.version)) {
-      return `v${pkg.version}`;
+    const version = readPackageVersion();
+    if (typeof version === "string" && /^\d+\.\d+\.\d+/.test(version)) {
+      return `v${version}`;
     }
   } catch {
     // Fall through to main; getPackageRoot can legitimately fail in
