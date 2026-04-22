@@ -1,6 +1,6 @@
 ---
 name: deep-review
-description: Run a formal, multi-dimensional code review of a pull request. Reads the PR diff, classifies change types, dispatches parallel reviewers by dimension (correctness, consistency, docs-sync, plus conditional security/edge-cases/UX/performance/structure/maintainability), and synthesizes findings into an actionable punch list. Use when the user asks to review a PR, run /deep-review, mark a PR as ready for review, or requests a formal/thorough code review.
+description: Run a formal, multi-dimensional code review of a pull request. Reads the PR diff, classifies change types, dispatches parallel reviewers by dimension (spec-conformance, correctness incl. test quality, docs-sync, plus conditional robustness/UX/performance/structure and code-quality for non-trivial changes), and synthesizes findings into an actionable punch list. Use when the user asks to review a PR, run /deep-review, mark a PR as ready for review, or requests a formal/thorough code review.
 ---
 
 # Deep Review
@@ -37,8 +37,9 @@ Extract: PR number, title, body, base branch, head branch, full diff.
 Read the diff and assign one or more tags:
 
 - **`logic`** — code logic changes (functions, algorithms, control flow, data handling)
+- **`auth-sensitive`** — sub-tag to `logic`; diff touches authentication / authorization / crypto / secret handling / payment paths. Upgrades Robustness to split out a dedicated Security reviewer with a larger reasoning budget
 - **`ui`** — CLI / TUI / web / mobile UI changes (user-facing interaction surfaces)
-- **`frontend-perf`** — frontend or mobile performance-sensitive changes (rendering, bundle, network, memory)
+- **`perf`** — performance-sensitive changes. Covers frontend (rendering / bundle / network / memory), mobile (startup / main thread / battery), and backend/CLI/data (query patterns / algorithm complexity / I/O / concurrency)
 - **`structure`** — new files, module reorganization, dependency graph changes
 
 Also judge: is this **trivial** (single-line tweak, pure config/doc) or **non-trivial** (any code logic change)?
@@ -49,8 +50,8 @@ Launch these three as read-only subagents **in parallel** (single message, multi
 
 | Reviewer | Focus |
 |---|---|
-| **Correctness** | Does it implement the requirement correctly? Any logic errors? |
-| **Consistency** | Does it follow existing project patterns, naming, structure? |
+| **Spec Conformance** | Locate the spec: PR body acceptance criteria first, then `docs/specs/`, `docs/architecture/`, or `docs/worklog/<branch>/`. Check each AC against the diff and flag: (a) ACs not implemented (missing functionality), (b) scope present in code but absent from spec (scope creep), (c) spec ambiguities the diff resolves in one direction (call out the resolution, mark non-blocking when explicitly documented, blocking otherwise). **If no spec / AC exists, return exactly `"No spec found — cannot evaluate conformance."`** — do not invent ACs from the diff. |
+| **Correctness** | Logic errors (off-by-one, null handling, wrong branch, broken fail-fast paths, bad data transforms), data handling (type / encoding / precision), contract mismatches with callers. **When the diff includes test files, also review test quality**: do tests verify the target behavior (vs. assert on mocks)? Is mock granularity reasonable (over-mocking hides prod drift)? Flaky risk (time / order / network dependencies)? Edge coverage (error paths, empty inputs, concurrency)? |
 | **Documentation sync** | Do changes cause README, CLAUDE.md, API docs, etc. to drift? Remove stale/redundant descriptions — no docs is better than wrong docs. Code is documentation; don't add redundant prose describing code behavior. |
 
 **Each reviewer receives**:
@@ -58,14 +59,16 @@ Launch these three as read-only subagents **in parallel** (single message, multi
 - Relevant project spec docs (if any, e.g., `docs/` topic files)
 - Explicit output format requirement (see "Output format" below)
 
+**Spec Conformance reviewer inputs must exclude** the Agent's own commit messages, PR body rationale sections, and any "autonomous decisions" notes — those bias the reviewer toward confirming the writer's reading. Feed only the spec source + the diff.
+
 ### Step 4: Dispatch conditional reviewers (by tag)
 
 | Tag | Reviewer | Focus |
 |---|---|---|
-| `logic` | **Security** | Injection, XSS, auth bypass, secret leakage, unsafe deserialization |
-| `logic` | **Edge cases** | Exception inputs, concurrency, resource cleanup, error paths |
+| `logic` | **Robustness** | One reviewer, two lenses (present findings grouped under each lens): **Security** — injection, XSS, unsafe deserialization, auth bypass, secret leakage, shell / quote escaping. **Edge cases** — exception inputs, concurrency, resource cleanup, error paths, timeout / retry behavior, race conditions. |
+| `logic` + `auth-sensitive` | **Security** (split out) | Same Security checklist above, but as a dedicated reviewer with a larger reasoning budget (subtle auth / crypto / secret-handling flaws deserve longer analysis). When this fires, Robustness narrows to the Edge-cases lens only — don't double-report. |
 | `ui` | **UX** (consider independent Agent, optionally with `playwright-cli`) | Dead ends, no feedback after action, misclick risk, redundant operations, invisible state — review from a user's perspective |
-| `frontend-perf` | **Performance** | Rendering (unnecessary re-renders, unvirtualized large lists, animation jank); bundle size (untreeshaken deps, uncompressed assets); network (redundant requests, no caching, waterfall loading); memory (leaks, unreleased listeners/timers). Mobile: startup time, offscreen rendering, main thread blocking |
+| `perf` | **Performance** | Three sub-focuses — apply the one(s) matching the changed surface. **Web/Frontend** — rendering (unnecessary re-renders, unvirtualized large lists, animation jank), bundle (untreeshaken deps, uncompressed assets), network (redundant requests, no caching, waterfall loading), memory (leaks, unreleased listeners/timers). **Mobile** — startup time, offscreen rendering, main thread blocking, power/battery, cold vs hot start paths, memory-warning handling. **Backend/CLI/Data** — N+1 queries, algorithm complexity, long-running-process memory, I/O patterns (batch vs per-item), concurrency overhead, cold-start / first-request latency. |
 | `structure` | **Engineering structure** | Are new files in correct directories per existing layering/packaging? Circular dependencies? Cross-layer direct calls? Are shared-module changes assessed for blast radius? Reimplementation of existing reusable modules? |
 
 Launch these in parallel with the required three (same message).
@@ -74,7 +77,9 @@ Launch these in parallel with the required three (same message).
 
 For any non-trivial change, additionally dispatch:
 
-- **Maintainability** — naming, structure, over-abstraction vs. under-abstraction, comment quality
+- **Code Quality** — merges the previous Consistency + Maintainability dimensions. One reviewer, two lenses (present findings grouped under each lens so classification stays clear):
+  - **Consistency**: naming, style, existing project patterns, stale comments, leftover refactoring debt, import/export conventions
+  - **Maintainability**: naming clarity, comment quality (removing redundant / over-describing ones, preserving WHY comments), duplicated logic, premature abstraction vs under-abstraction, dead code, YAGNI violations
 
 ### Step 6: Synthesize findings into a punch list
 
@@ -96,8 +101,8 @@ Aggregate all reviewer outputs into a single report:
 ```
 
 **Classification rule**:
-- **Blocking** = correctness bug, security vulnerability, breaks existing tests/contracts
-- **Non-blocking** = maintainability / style / minor perf
+- **Blocking** = correctness bug, security vulnerability, breaks existing tests/contracts, **unsatisfied spec acceptance criterion**, unjustified scope creep
+- **Non-blocking** = maintainability / style / minor perf / documented spec ambiguity
 - **Architectural** = decay worth tracking as a separate issue (don't bundle risky, out-of-scope changes into a review-cycle PR)
 
 ## Output Format (for each dispatched reviewer)
@@ -108,7 +113,7 @@ Default prompt contract for each reviewer:
 
 > Return a summary of **at most 300 words** followed by a bullet list of findings. Each finding: `<file>:<line> — <one-line description> — [severity: blocking | non-blocking]`. Do not include code excerpts longer than 5 lines. Do not restate the diff. If no issues found, return exactly: `"No findings."`
 
-Adjust the word budget or format per reviewer as needed (e.g., Security may justify a longer explanation for a single high-severity finding).
+Reviewers that merge two lenses (Robustness, Code Quality) should group findings under a sub-heading per lens so the synthesis step can classify them independently. Adjust the word budget per reviewer as needed (e.g., split-out Security may justify a longer explanation for a single high-severity finding).
 
 ## Runtime: subagent vs independent Agent
 
@@ -117,6 +122,7 @@ Adjust the word budget or format per reviewer as needed (e.g., Security may just
   - UX review benefits from zero-context fresh eyes
   - Cross-model blind spot coverage is valuable (dispatch a different-family reviewer — e.g., Codex reviewing Claude-written code, or Claude reviewing Codex-written code — so the reviewer doesn't share the writer's blind spots)
   - Architectural trade-offs require the strongest reasoning model the runtime offers at `xhigh` effort
+  - **Spec Conformance** — when the writer and reviewer share a session, an independent Agent avoids carrying the writer's interpretation of ambiguous spec lines into the review
 - **Never required**: committing `.claude/agents/` files. Subagent configuration is runtime, per-dispatch.
 
 ## Follow-up
@@ -134,6 +140,8 @@ After synthesis:
 - ❌ Parallel subagents editing the same file → use `isolation: "worktree"` or assign to one reviewer
 - ❌ Asking subagents to coordinate with each other mid-review → no current CLI runtime (Claude Code, Codex CLI, etc.) has an agent-to-agent channel. If one reviewer's finding affects another's scope, serialize (A → main Agent → B) instead
 - ❌ Reviewing Draft PRs formally — draft is for informal early feedback; wait for Ready
+- ❌ Feeding the Spec Conformance reviewer the Agent's own commit messages, PR body rationale, or "autonomous decisions" sections — those bias it toward confirming the writer's reading. Spec + diff only
+- ❌ Splitting already-merged dimensions (running separate Consistency and Maintainability, or separate Security and Edge-cases) unless the `auth-sensitive` sub-tag fires — the merge is a deliberate token-cost optimization that preserves every original checklist item
 
 ## Example invocation
 
@@ -143,11 +151,13 @@ Assistant:
   1. gh pr view + gh pr diff
   2. Tags: logic, structure
   3. Dispatches 6 reviewers in parallel:
-     - Required: correctness, consistency, docs-sync
-     - Conditional (logic): security, edge-cases
+     - Required: spec-conformance, correctness, docs-sync
+     - Conditional (logic): robustness
      - Conditional (structure): engineering-structure
-     - Non-trivial: maintainability
+     - Non-trivial: code-quality
   4. Each reviewer returns ≤300-word summary + findings
   5. Synthesizes punch list, categorizes blocking vs non-blocking
   6. Reports to user
 ```
+
+Same PR but `logic` + `auth-sensitive` (e.g., diff touches JWT handling or the secret store): dispatch becomes 7 reviewers — Robustness narrows to Edge-cases lens only, and a dedicated Security reviewer joins with a larger reasoning budget.
