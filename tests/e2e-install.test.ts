@@ -201,51 +201,59 @@ describe(
     });
 
     function cleanupPluginRegistryOrphans(): void {
-      const registryPath = path.join(os.homedir(), ".claude", "plugins", "installed_plugins.json");
-      if (!fs.existsSync(registryPath)) return;
-      let data: unknown;
+      // Whole-body try/catch — this helper is best-effort; nothing it
+      // does should ever fail the test run. Covers any unexpected
+      // throw (EACCES on homedir, realpathSync on a missing tmpdir,
+      // JSON stringify overflow, etc.).
       try {
-        data = JSON.parse(fs.readFileSync(registryPath, "utf-8"));
+        const registryPath = path.join(os.homedir(), ".claude", "plugins", "installed_plugins.json");
+        if (!fs.existsSync(registryPath)) return;
+        let data: unknown;
+        try {
+          data = JSON.parse(fs.readFileSync(registryPath, "utf-8"));
+        } catch {
+          // Corrupt registry — not ours to fix, leave alone.
+          return;
+        }
+        if (!data || typeof data !== "object" || !("plugins" in data)) return;
+        const plugins = (data as { plugins: unknown }).plugins;
+        if (!plugins || typeof plugins !== "object") return;
+        // Canonicalize tmp root — on macOS `os.tmpdir()` returns
+        // `/var/folders/...` but projectPath shows up as
+        // `/private/var/folders/...`. realpath normalizes to the
+        // `/private`-prefixed form.
+        const tmpRoot = fs.realpathSync(os.tmpdir()) + path.sep;
+        const SCRATCH_MARKER = path.sep + "auriga-e2e-proj-";
+        let removed = 0;
+        for (const [pluginId, entries] of Object.entries(plugins as Record<string, unknown>)) {
+          if (!Array.isArray(entries)) continue;
+          const filtered = entries.filter((e: unknown) => {
+            if (!e || typeof e !== "object") return true;
+            const entry = e as Record<string, unknown>;
+            if (entry.scope !== "project") return true;
+            const pp = entry.projectPath;
+            if (typeof pp !== "string") return true;
+            // Only remove entries whose projectPath is clearly ours:
+            // under the canonicalized tmp root AND containing our
+            // scratch-dir prefix. Defensive against any real path that
+            // coincidentally contains the marker.
+            return !(pp.startsWith(tmpRoot) && pp.includes(SCRATCH_MARKER));
+          });
+          removed += entries.length - filtered.length;
+          (plugins as Record<string, unknown>)[pluginId] = filtered;
+        }
+        if (removed === 0) return;
+        // Atomic write via tmp + rename.
+        const tmp = registryPath + "." + crypto.randomBytes(6).toString("hex") + ".tmp";
+        try {
+          fs.writeFileSync(tmp, JSON.stringify(data, null, 2) + "\n");
+          fs.renameSync(tmp, registryPath);
+        } catch {
+          // Best-effort: don't fail the test run on cleanup failure.
+          try { fs.unlinkSync(tmp); } catch {}
+        }
       } catch {
-        // Corrupt registry — not ours to fix, leave alone.
-        return;
-      }
-      if (!data || typeof data !== "object" || !("plugins" in data)) return;
-      const plugins = (data as { plugins: unknown }).plugins;
-      if (!plugins || typeof plugins !== "object") return;
-      // Canonicalize tmp root — on macOS `os.tmpdir()` returns
-      // `/var/folders/...` but projectPath shows up as
-      // `/private/var/folders/...`. realpath normalizes to the
-      // `/private`-prefixed form.
-      const tmpRoot = fs.realpathSync(os.tmpdir()) + path.sep;
-      const SCRATCH_MARKER = path.sep + "auriga-e2e-proj-";
-      let removed = 0;
-      for (const [pluginId, entries] of Object.entries(plugins as Record<string, unknown>)) {
-        if (!Array.isArray(entries)) continue;
-        const filtered = entries.filter((e: unknown) => {
-          if (!e || typeof e !== "object") return true;
-          const entry = e as Record<string, unknown>;
-          if (entry.scope !== "project") return true;
-          const pp = entry.projectPath;
-          if (typeof pp !== "string") return true;
-          // Only remove entries whose projectPath is clearly ours:
-          // under the canonicalized tmp root AND containing our
-          // scratch-dir prefix. Defensive against any real path that
-          // coincidentally contains the marker.
-          return !(pp.startsWith(tmpRoot) && pp.includes(SCRATCH_MARKER));
-        });
-        removed += entries.length - filtered.length;
-        (plugins as Record<string, unknown>)[pluginId] = filtered;
-      }
-      if (removed === 0) return;
-      // Atomic write via tmp + rename.
-      const tmp = registryPath + "." + crypto.randomBytes(6).toString("hex") + ".tmp";
-      try {
-        fs.writeFileSync(tmp, JSON.stringify(data, null, 2) + "\n");
-        fs.renameSync(tmp, registryPath);
-      } catch {
-        // Best-effort: don't fail the test run on cleanup failure.
-        try { fs.unlinkSync(tmp); } catch {}
+        // Swallow — see top-of-function rationale.
       }
     }
 

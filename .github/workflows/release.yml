@@ -16,7 +16,7 @@ on:
 
 permissions:
   contents: read
-  id-token: write  # required for npm --provenance
+  id-token: write  # required for OIDC auth to npm (auto-attaches provenance)
 
 jobs:
   release:
@@ -36,6 +36,14 @@ jobs:
           node-version: '22'
           registry-url: 'https://registry.npmjs.org'
 
+      - name: Upgrade npm to >=11.5.1
+        # Node 22 LTS bundles npm 10.x, but npm Trusted Publishing (OIDC)
+        # requires npm >=11.5.1 (per the 2025-07-31 GA announcement).
+        # Without this step the final `npm publish` fails with 401 /
+        # "OIDC not supported" regardless of Trusted Publisher config.
+        # Explicit pinning also self-documents the floor.
+        run: npm install -g npm@latest
+
       - name: Install dependencies
         run: npm ci
 
@@ -50,16 +58,17 @@ jobs:
           fi
           echo "Tag and package.json version agree: $PKG_VERSION"
 
-      - name: Build
-        run: npm run build
-
       - name: Unit tests
+        # `pretest: npm run build` hook (see package.json) rebuilds
+        # dist/ before tests run, so no separate Build step is needed.
         run: npm test
 
       - name: Ship-loop tests
         run: bash tests/ship-loop.test.sh
 
       - name: E2E install tests
+        # `pretest:e2e: npm run build` hook rebuilds dist/ before
+        # packing the tarball, so the e2e run validates current source.
         # `install plugins` and `install --all` skip gracefully when
         # `claude` CLI isn't on PATH (ubuntu-latest doesn't have it).
         # `install hooks --hook notify` skips on non-darwin. The five
@@ -68,9 +77,12 @@ jobs:
         run: npm run test:e2e
 
       - name: Publish to npm
-        # Skip publish on dry-run workflow_dispatch. Tag-push always
-        # publishes (there's no reason to push a tag without intent to
-        # release).
+        # Publish only on tag push, OR on workflow_dispatch explicitly
+        # invoked against a tag ref with dry_run=false. The tag-ref
+        # gate is belt-and-suspenders: the tag/version guard above
+        # skips on non-tag refs, so without this AND-clause a manual
+        # `workflow_dispatch` with dry_run unchecked on main would
+        # publish the current package.json version unverified.
         #
         # Auth: npm Trusted Publishing (OIDC) — GA since 2025-07-31.
         # No NPM_TOKEN secret. Requires a Trusted Publisher config on
@@ -80,6 +92,8 @@ jobs:
         # needed — npm CLI attaches provenance automatically when it
         # detects OIDC credentials.
         if: |
-          github.event_name == 'push' ||
-          (github.event_name == 'workflow_dispatch' && inputs.dry_run == false)
+          startsWith(github.ref, 'refs/tags/v') && (
+            github.event_name == 'push' ||
+            (github.event_name == 'workflow_dispatch' && inputs.dry_run == false)
+          )
         run: npm publish --access public
