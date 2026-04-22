@@ -37,6 +37,44 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          # Keep submodules available so future PRs that bump the
+          # g-claude-code-plugins pointer can be reviewed with their
+          # referenced content actually present on the runner.
+          submodules: recursive
+
+      - name: Ensure deep-review skill is available
+        # This workflow may ship to repos that don't have the
+        # deep-review skill installed yet. Auto-install from the
+        # upstream marketplace if missing so the review prompt below
+        # can always Read the skill file.
+        #
+        # Path choice: `.claude/skills/deep-review/SKILL.md` works
+        # uniformly in both cases:
+        #   - Repos with the full auriga harness ship this path as a
+        #     tracked symlink → `../../.agents/skills/deep-review`,
+        #     which `[ -f ... ]` resolves (dereferences by default).
+        #   - Fresh `npx skills add --agent claude-code` in a clean
+        #     repo writes `.claude/skills/deep-review/SKILL.md` as a
+        #     regular file directly — no `.agents/` intermediary.
+        run: |
+          SKILL=.claude/skills/deep-review/SKILL.md
+          # Validate: existence AND well-formed frontmatter. Partial
+          # writes or stale truncations would pass a bare `[ -f ]`.
+          if [ -f "$SKILL" ] && grep -q '^name: deep-review$' "$SKILL"; then
+            echo "deep-review skill present and well-formed"
+          else
+            echo "deep-review skill missing or malformed — installing from Ben2pc/g-claude-code-plugins"
+            npx -y skills add Ben2pc/g-claude-code-plugins \
+              --skill deep-review \
+              --agent claude-code \
+              --yes
+            # Post-install validation — fail loud so the review step
+            # doesn't run against a broken contract.
+            if ! grep -q '^name: deep-review$' "$SKILL"; then
+              echo "ERROR: skills install did not produce a well-formed SKILL.md at $SKILL"
+              exit 1
+            fi
+          fi
 
       - name: Run Claude Code Review
         id: claude-review
@@ -58,10 +96,15 @@ jobs:
           # you can't tell why a review went shallow.
           show_full_output: 'true'
 
-          # 7-dimension deep-review skeleton — required sections +
-          # explicit finding format prevent the model from bailing early
-          # after one "safe" observation. Mirrors the contract our local
-          # /deep-review skill enforces for orchestration reviews.
+          # Review taxonomy (dimensions, severity rules, output format) lives
+          # in the deep-review SKILL.md — the single source of truth. The
+          # bootstrap step above guarantees .claude/skills/deep-review/SKILL.md
+          # exists (either as a tracked symlink shipped with the auriga
+          # harness, or as a regular file installed by `npx skills add`).
+          # This prompt defers to the skill and only encodes CI-specific
+          # adaptations: serial (not parallel-dispatch) execution, and
+          # two-channel posting into GitHub's review threads vs. top-level
+          # comments.
           #
           # Two-channel posting: the repo has "Require conversation
           # resolution before merging" enabled, which gates on review
@@ -71,23 +114,29 @@ jobs:
           # comment (doesn't block, stays visible for triage).
           prompt: |
             You are reviewing PR #${{ github.event.pull_request.number }} on ${{ github.repository }}.
-            Run `gh pr view ${{ github.event.pull_request.number }}` and `gh pr diff ${{ github.event.pull_request.number }}` first for full context. Read related source files as needed.
 
-            Assess along SEVEN dimensions — use these exact headings:
+            ## Step 1 — gather context
 
-            1. **Correctness** — logic errors, broken fail-fast paths, off-by-one, contract mismatches
-            2. **Security** — injection, secret leakage, unsafe deserialization, auth bypass, shell quoting
-            3. **Edge cases** — exception inputs, concurrency, resource cleanup, error paths
-            4. **Consistency** — naming, style, existing project patterns, stale comments, leftover refactoring debt
-            5. **Documentation sync** — README / CLAUDE.md / spec drift caused by the diff
-            6. **Engineering structure** — file layout, import direction, layering, circular deps, blast radius
-            7. **Maintainability** — naming clarity, comment quality, duplicated logic, premature abstraction
+            Run `gh pr view ${{ github.event.pull_request.number }}` and `gh pr diff ${{ github.event.pull_request.number }}` for full context. Read related source files as needed.
 
-            For each finding, assign severity:
-            - **blocking** — correctness bug, security vulnerability, breaks existing tests/contracts
-            - **non-blocking** — nit, style, maintainability suggestion, minor perf
+            ## Step 2 — load the review contract
 
-            TWO-CHANNEL POSTING (critical — do not deviate):
+            The dimension taxonomy, per-dimension focus lists, severity rules, and "No findings." output format come from the `deep-review` skill — it is the authoritative contract. Read it from the skill's native location (the bootstrap step above guarantees the file exists):
+
+            `.claude/skills/deep-review/SKILL.md`
+
+            Apply the skill's dispatch matrix against this PR's diff.
+
+            **Bootstrap fail-safe**: if the `Read` of the skill file fails or returns empty/truncated content, STOP. Post a single top-level comment via `gh pr comment ${{ github.event.pull_request.number }} --body "bootstrap-failed: deep-review skill unavailable at .claude/skills/deep-review/SKILL.md"` and exit without producing a review. Do NOT improvise a review without the skill contract — the review's value depends on the skill being authoritative.
+
+            **CI-specific adaptations** (unavoidable deviations from the skill's defaults because you run serially inside GitHub Actions, not as parallel subagents):
+
+            - Do NOT dispatch subagents. You are a single Agent — walk the skill's matrix serially and produce one consolidated report.
+            - Assign severity per the skill's **Classification rule** section — do not invent your own thresholds.
+            - Use each applicable dimension name (as defined in the skill's required / conditional / non-trivial-general reviewer sections) as a section heading in your final top-level comment. Sections that don't apply (e.g., a CLI-only PR has no UX section) are omitted; required sections with nothing to report get exactly `No findings.`.
+            - For any merged-lens reviewers the skill defines, group your findings under each lens as sub-headings so readers can locate specific categories of issue.
+
+            ## Step 3 — post findings via two-channel posting (critical — do not deviate)
 
             **Channel A — inline review threads for BLOCKING findings** (gated by "Require conversation resolution"; author must resolve each before merge).
 
@@ -106,9 +155,11 @@ jobs:
             **Channel B — top-level summary comment for ALL findings** (not gated; visible for triage).
 
             Always post via `gh pr comment ${{ github.event.pull_request.number }} --body-file <path>` containing:
-            - The seven sections in order; each section = ≤200 words summary + bullet list of findings
+            - One section per applicable dimension from the skill's matrix (required first, then conditional-by-tag, then non-trivial general). Skill section order is authoritative — do not reorder.
+            - Each section = ≤200 words summary + bullet list of findings
             - Each finding line: `` `<file>:<line>` — <one-line description> — [severity: blocking | non-blocking] ``
-            - Sections with nothing to report: write exactly `No findings.`
+            - Required sections with nothing to report: write exactly `No findings.`
+            - Sections that don't apply (no matching tag, trivial change, etc.): omit entirely
             - End with: `OVERALL: <N blocking> / <M non-blocking>`
 
             Format rules:
