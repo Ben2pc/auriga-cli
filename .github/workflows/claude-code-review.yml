@@ -43,18 +43,21 @@ jobs:
           submodules: recursive
 
       - name: Ensure deep-review skill is available
-        # This workflow is meant to be portable — it may ship to repos
-        # that don't already have the deep-review skill installed.
-        # Auto-install from the upstream marketplace if missing so the
-        # review prompt below can always Read the skill file.
-        # In repos that install the full auriga harness (skill is in
-        # WORKFLOW_SKILLS), this is a no-op — the file is already tracked.
-        # The file lives at .agents/skills/... (not .claude/skills/...)
-        # because that's the deterministic output path of `skills add`;
-        # the `.claude/skills/` symlink is an overlay for native skill
-        # discovery, which is orthogonal since we Read the file explicitly.
+        # This workflow may ship to repos that don't have the
+        # deep-review skill installed yet. Auto-install from the
+        # upstream marketplace if missing so the review prompt below
+        # can always Read the skill file.
+        #
+        # Path choice: `.claude/skills/deep-review/SKILL.md` works
+        # uniformly in both cases:
+        #   - Repos with the full auriga harness ship this path as a
+        #     tracked symlink → `../../.agents/skills/deep-review`,
+        #     which `[ -f ... ]` resolves (dereferences by default).
+        #   - Fresh `npx skills add --agent claude-code` in a clean
+        #     repo writes `.claude/skills/deep-review/SKILL.md` as a
+        #     regular file directly — no `.agents/` intermediary.
         run: |
-          if [ -f .agents/skills/deep-review/SKILL.md ]; then
+          if [ -f .claude/skills/deep-review/SKILL.md ]; then
             echo "deep-review skill already present"
           else
             echo "deep-review skill missing — installing from Ben2pc/g-claude-code-plugins"
@@ -86,12 +89,13 @@ jobs:
 
           # Review taxonomy (dimensions, severity rules, output format) lives
           # in the deep-review SKILL.md — the single source of truth. The
-          # bootstrap step above guarantees .agents/skills/deep-review/SKILL.md
-          # exists (either already committed by the auriga harness, or just
-          # installed via `npx skills add`). This prompt defers to the skill
-          # and only encodes CI-specific adaptations: serial (not
-          # parallel-dispatch) execution, and two-channel posting into
-          # GitHub's review threads vs. top-level comments.
+          # bootstrap step above guarantees .claude/skills/deep-review/SKILL.md
+          # exists (either as a tracked symlink shipped with the auriga
+          # harness, or as a regular file installed by `npx skills add`).
+          # This prompt defers to the skill and only encodes CI-specific
+          # adaptations: serial (not parallel-dispatch) execution, and
+          # two-channel posting into GitHub's review threads vs. top-level
+          # comments.
           #
           # Two-channel posting: the repo has "Require conversation
           # resolution before merging" enabled, which gates on review
@@ -110,7 +114,7 @@ jobs:
 
             The dimension taxonomy, per-dimension focus lists, severity rules, and "No findings." output format come from the `deep-review` skill — it is the authoritative contract. Read it from the skill's native location (the bootstrap step above guarantees the file exists):
 
-            `.agents/skills/deep-review/SKILL.md`
+            `.claude/skills/deep-review/SKILL.md`
 
             Apply the skill's dispatch matrix against this PR's diff.
 
