@@ -57,14 +57,23 @@ jobs:
         #     repo writes `.claude/skills/deep-review/SKILL.md` as a
         #     regular file directly — no `.agents/` intermediary.
         run: |
-          if [ -f .claude/skills/deep-review/SKILL.md ]; then
-            echo "deep-review skill already present"
+          SKILL=.claude/skills/deep-review/SKILL.md
+          # Validate: existence AND well-formed frontmatter. Partial
+          # writes or stale truncations would pass a bare `[ -f ]`.
+          if [ -f "$SKILL" ] && grep -q '^name: deep-review$' "$SKILL"; then
+            echo "deep-review skill present and well-formed"
           else
-            echo "deep-review skill missing — installing from Ben2pc/g-claude-code-plugins"
+            echo "deep-review skill missing or malformed — installing from Ben2pc/g-claude-code-plugins"
             npx -y skills add Ben2pc/g-claude-code-plugins \
               --skill deep-review \
               --agent claude-code \
               --yes
+            # Post-install validation — fail loud so the review step
+            # doesn't run against a broken contract.
+            if ! grep -q '^name: deep-review$' "$SKILL"; then
+              echo "ERROR: skills install did not produce a well-formed SKILL.md at $SKILL"
+              exit 1
+            fi
           fi
 
       - name: Run Claude Code Review
@@ -118,12 +127,14 @@ jobs:
 
             Apply the skill's dispatch matrix against this PR's diff.
 
+            **Bootstrap fail-safe**: if the `Read` of the skill file fails or returns empty/truncated content, STOP. Post a single top-level comment via `gh pr comment ${{ github.event.pull_request.number }} --body "bootstrap-failed: deep-review skill unavailable at .claude/skills/deep-review/SKILL.md"` and exit without producing a review. Do NOT improvise a review without the skill contract — the review's value depends on the skill being authoritative.
+
             **CI-specific adaptations** (unavoidable deviations from the skill's defaults because you run serially inside GitHub Actions, not as parallel subagents):
 
             - Do NOT dispatch subagents. You are a single Agent — walk the skill's matrix serially and produce one consolidated report.
-            - Use the skill's **Classification rule** (Step 6) to assign severity. In particular: **blocking** = correctness bug, security vulnerability, breaks existing tests/contracts, unsatisfied spec acceptance criterion, or unjustified scope creep.
-            - Use each applicable dimension name (as defined in the skill's Step 3/4/5) as a section heading in your final top-level comment. Sections that don't apply (e.g., a CLI-only PR has no UX section) are omitted; required sections with nothing to report get exactly `No findings.`.
-            - For merged-lens reviewers (Robustness = Security + Edge cases; Code Quality = Consistency + Maintainability), group your findings under the two lenses as sub-headings so readers can locate specific categories of issue.
+            - Assign severity per the skill's **Classification rule** section — do not invent your own thresholds.
+            - Use each applicable dimension name (as defined in the skill's required / conditional / non-trivial-general reviewer sections) as a section heading in your final top-level comment. Sections that don't apply (e.g., a CLI-only PR has no UX section) are omitted; required sections with nothing to report get exactly `No findings.`.
+            - For any merged-lens reviewers the skill defines, group your findings under each lens as sub-headings so readers can locate specific categories of issue.
 
             ## Step 3 — post findings via two-channel posting (critical — do not deviate)
 
