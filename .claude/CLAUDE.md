@@ -132,12 +132,13 @@ npx skills update --project
   - **Bump triggers** (any of these touched):
     - `src/` — rebuilt into `dist/`, ships in tarball
     - `skills-lock.json`, `.claude/plugins.json`, `.claude/hooks/hooks.json` — CONTENT_FILES fetched at runtime AND inputs to `dist/catalog.json`
-    - `.claude/hooks/<name>/*` (hook payloads) — lazy-fetched at runtime
-    - `.agents/skills/<name>/*` (vendored skill content) — lazy-fetched at runtime
+    - `.claude/hooks/<name>/*` (hook payloads) — lazy-fetched at runtime by `ensureHookFilesFetched`
+    - `.agents/skills/<name>/*` (vendored skill content) — build-time input to `src/build/generate-catalog.ts`, baked into `dist/catalog.json` (NOT runtime-fetched; users install via `npx skills add` against the skill's own upstream repo, not against auriga-cli)
     - `CLAUDE.md` / `CLAUDE.zh-CN.md` — workflow template, fetched at runtime
     - `README.md` / `README.zh-CN.md` — ship in tarball (always-included by npm); README.md drives the npmjs.com landing page
   - **Exempt** (no bump needed):
     - `.claude/CLAUDE.md` (this dev guide — not shipped, not fetched)
+    - `.claude/skills/<name>` symlinks (dev-only, used by Agents in this repo; never shipped, never fetched)
     - `tests/`, `tsconfig*.json`, CI configs (`.github/`)
     - `docs/`
     - `plugins/<name>/*` and `.claude-plugin/marketplace.json` — fetched by Claude Code's plugin marketplace directly, not via auriga-cli's tag pin, so changes propagate without a CLI bump
