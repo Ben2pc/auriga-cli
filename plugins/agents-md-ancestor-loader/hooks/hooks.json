@@ -1,0 +1,16 @@
+{
+  "description": "SessionStart hook that injects ancestor AGENTS.md files not covered by Codex's built-in project-root-scoped discovery.",
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/session-start.mjs\""
+          }
+        ]
+      }
+    ]
+  }
+}

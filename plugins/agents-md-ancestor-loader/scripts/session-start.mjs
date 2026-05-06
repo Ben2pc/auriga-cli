@@ -1,0 +1,149 @@
+#!/usr/bin/env node
+
+import fs from "node:fs";
+import path from "node:path";
+
+const MAX_TOTAL_BYTES = 64 * 1024;
+const AGENTS_FILENAME = "AGENTS.md";
+
+function readStdin() {
+  return fs.readFileSync(0, "utf8");
+}
+
+function parsePayload(input) {
+  try {
+    return JSON.parse(input);
+  } catch {
+    return null;
+  }
+}
+
+function existingDirectory(candidate) {
+  if (typeof candidate !== "string" || candidate.trim() === "") return null;
+  try {
+    const resolved = fs.realpathSync(candidate);
+    const stat = fs.statSync(resolved);
+    return stat.isDirectory() ? resolved : null;
+  } catch {
+    return null;
+  }
+}
+
+function parentOf(dir) {
+  const parent = path.dirname(dir);
+  return parent === dir ? null : parent;
+}
+
+function markerExists(dir, markerName) {
+  try {
+    fs.statSync(path.join(dir, markerName));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function findGitRoot(cwd) {
+  for (let dir = cwd; dir; dir = parentOf(dir)) {
+    if (markerExists(dir, ".git")) return dir;
+  }
+  return null;
+}
+
+function ancestorDirsFrom(startDir) {
+  const dirs = [];
+  for (let dir = startDir; dir; dir = parentOf(dir)) {
+    dirs.push(dir);
+  }
+  return dirs.reverse();
+}
+
+function readableAgentsFiles(cwd) {
+  const gitRoot = findGitRoot(cwd);
+  const firstAncestor = gitRoot ? parentOf(gitRoot) : parentOf(cwd);
+  if (!firstAncestor) return [];
+
+  const files = [];
+  for (const dir of ancestorDirsFrom(firstAncestor)) {
+    const candidate = path.join(dir, AGENTS_FILENAME);
+    try {
+      const stat = fs.statSync(candidate);
+      if (stat.isFile()) files.push(candidate);
+    } catch {
+      // Missing or unreadable files are not fatal for a context hook.
+    }
+  }
+  return files;
+}
+
+function readFilesWithinBudget(files) {
+  let remaining = MAX_TOTAL_BYTES;
+  const loaded = [];
+
+  for (const file of files) {
+    if (remaining <= 0) break;
+
+    let data;
+    try {
+      data = fs.readFileSync(file);
+    } catch {
+      continue;
+    }
+
+    let truncated = false;
+    if (data.byteLength > remaining) {
+      data = data.subarray(0, remaining);
+      truncated = true;
+    }
+
+    const text = data.toString("utf8").trim();
+    if (text !== "") {
+      loaded.push({ file, text, truncated });
+      remaining -= data.byteLength;
+    }
+  }
+
+  return loaded;
+}
+
+function buildAdditionalContext(loaded) {
+  if (loaded.length === 0) return "";
+
+  const parts = [
+    "# Additional ancestor AGENTS.md instructions",
+    "",
+    "The following AGENTS.md files are above Codex's detected project root and may not have been included by built-in discovery.",
+  ];
+
+  for (const item of loaded) {
+    parts.push(
+      "",
+      `## ${item.file}`,
+      "",
+      "<INSTRUCTIONS>",
+      item.text,
+      item.truncated ? "\n[truncated by agents-md-ancestor-loader]" : "",
+      "</INSTRUCTIONS>",
+    );
+  }
+
+  return parts.join("\n").trim();
+}
+
+function outputAdditionalContext(additionalContext) {
+  if (additionalContext === "") return;
+  process.stdout.write(
+    JSON.stringify({
+      hookSpecificOutput: {
+        hookEventName: "SessionStart",
+        additionalContext,
+      },
+    }),
+  );
+}
+
+const payload = parsePayload(readStdin());
+const cwd = existingDirectory(payload?.cwd);
+if (cwd) {
+  outputAdditionalContext(buildAdditionalContext(readFilesWithinBudget(readableAgentsFiles(cwd))));
+}
