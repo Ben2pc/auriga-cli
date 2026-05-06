@@ -128,9 +128,23 @@ npx skills update --project
 ## Versioning & Release
 
 - Version in `package.json` follows semver: patch for bugfixes, minor for new features, major for breaking changes.
-- Bump CLI version (`package.json`) before merging PRs that touch `src/`. Workflow-only PRs do **not** bump the CLI version (see two-versions rule below).
+- **Bump rule**: bump CLI version (`package.json`) before merging any PR that changes **user-visible state**.
+  - **Bump triggers** (any of these touched):
+    - `src/` — rebuilt into `dist/`, ships in tarball
+    - `skills-lock.json`, `.claude/plugins.json`, `.claude/hooks/hooks.json` — CONTENT_FILES fetched at runtime AND inputs to `dist/catalog.json`
+    - `.claude/hooks/<name>/*` (hook payloads) — lazy-fetched at runtime by `ensureHookFilesFetched`
+    - `.agents/skills/<name>/*` (vendored skill content) — build-time input to `src/build/generate-catalog.ts`, baked into `dist/catalog.json` (NOT runtime-fetched; users install via `npx skills add` against the skill's own upstream repo, not against auriga-cli)
+    - `CLAUDE.md` / `CLAUDE.zh-CN.md` — workflow template, fetched at runtime
+    - `README.md` / `README.zh-CN.md` — ship in tarball (always-included by npm); README.md drives the npmjs.com landing page
+  - **Exempt** (no bump needed):
+    - `.claude/CLAUDE.md` (this dev guide — not shipped, not fetched)
+    - `.claude/skills/<name>` symlinks (dev-only, used by Agents in this repo; never shipped, never fetched)
+    - `tests/`, `tsconfig*.json`, CI configs (`.github/`)
+    - `docs/`
+    - `plugins/<name>/*` and `.claude-plugin/marketplace.json` — fetched by Claude Code's plugin marketplace directly, not via auriga-cli's tag pin, so changes propagate without a CLI bump
+  - **Why**: the runtime pins content fetch to `v<package.version>` AND `dist/catalog.json` is frozen in the tarball. Without a version bump + tag, merged content changes are invisible to `npx auriga-cli` users (PR #57 was the breaking case). Releases are cheap (CI auto-publishes on tag push); spend the version number rather than the user confusion.
 - **Release flow (tag push triggers CI publish)**: `fetchContentRoot` in `src/utils.ts` pins to the git tag `v<package.version>`, so the tag must exist on GitHub BEFORE users can `npx auriga-cli@<version>`. `.github/workflows/release.yml` enforces this: triggered on `push: tags: ['v*']`, it checks out the tag, verifies `tag == package.json version` (fail-loud if mismatched), runs unit → ship-loop → e2e tests (each step's `pretest*` hook rebuilds `dist/`), `npm publish --provenance` (OIDC + explicit provenance attestation; Node 24 required — Node ≤ 22 bundles npm 10.x which doesn't support OIDC handshake), then `gh release create --generate-notes` to publish a GitHub Release alongside the npm artifact (auto-categorizes commits by Conventional Commits prefix; tags like `v1.2.3-rc.1` are auto-flagged as prerelease). Publish + Release only run if all gates pass. Canonical sequence: bump version in a PR → merge → `git tag v<version> && git push origin v<version>` → CI takes over. Manual `npm publish` / release creation is no longer part of the flow. Auth: **npm Trusted Publishing (OIDC)** — zero secrets to rotate; the workflow uses a short-lived GitHub-issued OIDC token. One-time setup on npmjs.com → package page → Settings → Publishing → Add trusted publisher, bound to this repo + exact workflow filename `release.yml`. Renaming the workflow file breaks publish until the npm config is updated. Set `AURIGA_CONTENT_REF=main` to bypass the tag pin in development. Manual `workflow_dispatch` with `dry_run=true` exercises the pipeline without publishing — useful when iterating on the workflow itself.
-- **Two versions track independently**: `package.json` is the **CLI tool** version — bumps **only** when CLI source under `src/` changes. The `CLAUDE.md` workflow header (e.g. `# auriga Workflow (v1.5.0)`) is the **workflow content** version — bumps independently when the workflow template changes. A workflow-only edit does **not** bump the CLI version; new workflow content reaches end users only when the next legitimate CLI release tag is cut (the runtime pins content fetch to the tag matching `package.json`). The two are deliberately decoupled — divergence is expected, not a bug.
+- **Two versions track independently**: `package.json` is the **CLI tool** version (bumps per the rule above whenever shipped state changes). The `CLAUDE.md` workflow header (e.g. `# auriga Workflow (v1.5.0)`) is the **workflow content** version — bumps independently when the workflow template's contract changes (steps reorganized, principles renamed). A typo fix or wording polish in the workflow template still bumps the CLI version (it's user-visible) but does not bump the workflow header. The two version numbers exist for different audiences: CLI version answers "what tarball am I running?"; workflow header answers "what workflow contract am I following?".
 
 ## Principles
 
