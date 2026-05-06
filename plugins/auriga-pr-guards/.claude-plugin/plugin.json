@@ -1,8 +1,12 @@
 {
   "name": "auriga-pr-guards",
+  "version": "1.0.0",
   "description": "Workflow guardrails for `gh pr create` (PostToolUse: inject body snapshot) and `gh pr ready` (PreToolUse: block on stray planning docs / unfinalized specs / unpushed commits, otherwise inject body snapshot).",
   "author": {
     "name": "Ben2pc",
     "email": "pangcheng33@gmail.com"
-  }
+  },
+  "homepage": "https://github.com/Ben2pc/auriga-cli/tree/main/plugins/auriga-pr-guards",
+  "repository": "https://github.com/Ben2pc/auriga-cli",
+  "license": "MIT"
 }

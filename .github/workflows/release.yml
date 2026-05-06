@@ -71,6 +71,14 @@ jobs:
       - name: Ship-loop tests
         run: bash tests/ship-loop.test.sh
 
+      - name: PR-guards plugin smoke tests
+        # Plain Node smoke tests for plugins/auriga-pr-guards/scripts/*.mjs.
+        # Not part of `npm test` (different runner — hand-rolled assertion
+        # loops, not node:test). Ship-loop is the precedent: plugin script
+        # tests get their own Release-CI step so future regressions in
+        # plugin scripts can't pass tag-push CI.
+        run: npm run test:pr-guards
+
       - name: E2E install tests
         # `pretest:e2e: npm run build` hook rebuilds dist/ before
         # packing the tarball, so the e2e run validates current source.
