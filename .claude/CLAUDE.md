@@ -61,15 +61,10 @@ plugins/
 
 .claude-plugin/
   marketplace.json — Marketplace manifest for this repo; lists auriga-go +
-                     auriga-pr-guards. Consumed by both
+                     auriga-pr-guards + agents-md-ancestor-loader. Consumed by both
                      `claude plugins marketplace add Ben2pc/auriga-cli` AND
                      `codex plugin marketplace add Ben2pc/auriga-cli`
                      (Codex documents reading Claude-style marketplace files).
-.agents/plugins/
-  marketplace.json — Codex-native marketplace manifest for this repo. Keep in
-                     sync with Codex-compatible repo-owned plugins so Codex's
-                     preferred marketplace path does not hide older entries
-                     from the legacy `.claude-plugin/marketplace.json`.
 
 tests/
   hooks.test.ts         — hook installer unit + integration
@@ -159,9 +154,8 @@ npx skills update --project
 | File | Maintained by | Purpose |
 |------|--------------|---------|
 | `skills-lock.json` | `npx skills` CLI | Skill registry (do NOT edit structure manually). The synced copies under `.agents/skills/<name>/SKILL.md` are generated — do **not** edit them directly. Bulk-refresh with `npx skills update --project` after upstream PR-merges |
-| `plugins/<name>/` | Manual | auriga-cli-owned plugin source (e.g. `plugins/auriga-go/`). Distributed via repo marketplace manifests (`.claude-plugin/marketplace.json` for Claude / legacy Codex, `.agents/plugins/marketplace.json` for Codex-native discovery). Everything inside the dir ships to users — keep dev-only assets (tests) at repo-root `tests/` |
+| `plugins/<name>/` | Manual | auriga-cli-owned plugin source (e.g. `plugins/auriga-go/`). Distributed via the repo-root `.claude-plugin/marketplace.json`. Everything inside the dir ships to users — keep dev-only assets (tests) at repo-root `tests/` |
 | `.claude-plugin/marketplace.json` | Manual | Marketplace manifest: lists every plugin shipped from this repo |
-| `.agents/plugins/marketplace.json` | Manual | Codex-native marketplace manifest: lists every Codex-compatible plugin shipped from this repo |
 | `.claude/plugins.json` | Manual | Plugin definitions surfaced by the CLI Plugins picker |
 | `.claude/hooks/hooks.json` | Manual | Hook definitions (one entry per hook directory) |
 | `dist/catalog.json` | `npm run build` (via `src/build/generate-catalog.ts`) | Build-time catalog of workflow skills / recommended skills / plugins / hooks — name + description. Source of truth for `--help` output and the non-interactive filter-name validator. Ships inside the npm tarball. Regenerate after changing any `SKILL.md` frontmatter, `.claude/plugins.json`, or `.claude/hooks/hooks.json`. |
@@ -184,7 +178,7 @@ npx skills update --project
     - `.claude/skills/<name>` symlinks (dev-only, used by Agents in this repo; never shipped, never fetched)
     - `tests/`, `tsconfig*.json`, CI configs (`.github/`)
     - `docs/`
-    - `plugins/<name>/*`, `.claude-plugin/marketplace.json`, and `.agents/plugins/marketplace.json` — fetched by the Agent plugin marketplace directly, not via auriga-cli's tag pin, so changes propagate without a CLI bump
+    - `plugins/<name>/*` and `.claude-plugin/marketplace.json` — fetched by the Agent plugin marketplace directly, not via auriga-cli's tag pin, so changes propagate without a CLI bump
   - **Why**: the runtime pins content fetch to `v<package.version>` AND `dist/catalog.json` is frozen in the tarball. Without a version bump + tag, merged content changes are invisible to `npx auriga-cli` users (PR #57 was the breaking case). Releases are cheap (CI auto-publishes on tag push); spend the version number rather than the user confusion.
 - **Release flow (tag push triggers CI publish)**: `fetchContentRoot` in `src/utils.ts` pins to the git tag `v<package.version>`, so the tag must exist on GitHub BEFORE users can `npx auriga-cli@<version>`. `.github/workflows/release.yml` enforces this: triggered on `push: tags: ['v*']`, it checks out the tag, verifies `tag == package.json version` (fail-loud if mismatched), runs unit → ship-loop → e2e tests (each step's `pretest*` hook rebuilds `dist/`), `npm publish --provenance` (OIDC + explicit provenance attestation; Node 24 required — Node ≤ 22 bundles npm 10.x which doesn't support OIDC handshake), then `gh release create --generate-notes` to publish a GitHub Release alongside the npm artifact (auto-categorizes commits by Conventional Commits prefix; tags like `v1.2.3-rc.1` are auto-flagged as prerelease). Publish + Release only run if all gates pass. Canonical sequence: bump version in a PR → merge → `git tag v<version> && git push origin v<version>` → CI takes over. Manual `npm publish` / release creation is no longer part of the flow. Auth: **npm Trusted Publishing (OIDC)** — zero secrets to rotate; the workflow uses a short-lived GitHub-issued OIDC token. One-time setup on npmjs.com → package page → Settings → Publishing → Add trusted publisher, bound to this repo + exact workflow filename `release.yml`. Renaming the workflow file breaks publish until the npm config is updated. Set `AURIGA_CONTENT_REF=main` to bypass the tag pin in development. Manual `workflow_dispatch` with `dry_run=true` exercises the pipeline without publishing — useful when iterating on the workflow itself.
 - **Two versions track independently**: `package.json` is the **CLI tool** version (bumps per the rule above whenever shipped state changes). The `CLAUDE.md` workflow header (e.g. `# auriga Workflow (v1.5.0)`) is the **workflow content** version — bumps independently when the workflow template's contract changes (steps reorganized, principles renamed). A typo fix or wording polish in the workflow template still bumps the CLI version (it's user-visible) but does not bump the workflow header. The two version numbers exist for different audiences: CLI version answers "what tarball am I running?"; workflow header answers "what workflow contract am I following?".
