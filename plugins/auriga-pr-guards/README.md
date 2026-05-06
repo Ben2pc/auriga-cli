@@ -1,0 +1,72 @@
+# auriga-pr-guards
+
+Two hooks that guard the auriga workflow's PR-create / PR-ready boundary.
+
+| Hook | Event | Fires on | Action |
+|---|---|---|---|
+| `pr-create-guard` | `PostToolUse` | `gh pr create` | Fetches the new PR's body via `gh pr view`, injects a snapshot (headings + TODO counts) so the agent can self-verify against the PR-description contract. Never blocks. |
+| `pr-ready-guard` | `PreToolUse` | `gh pr ready` | Hard-blocks (exit 2) on **structural** issues: stray `findings.md` / `progress.md` / `task_plan.md` at repo root, unarchived specs under `docs/superpowers/specs/`, unfinalized active specs under `docs/specs/`, or unpushed commits. Otherwise injects a body snapshot. |
+
+Designed for the auriga workflow in [auriga-cli](https://github.com/Ben2pc/auriga-cli).
+
+## Install
+
+### Claude Code
+
+```bash
+/plugin marketplace add Ben2pc/auriga-cli
+/plugin install auriga-pr-guards@auriga-cli
+```
+
+The plugin's hooks are activated automatically after install.
+
+### Codex
+
+```bash
+codex plugin marketplace add Ben2pc/auriga-cli
+```
+
+Then enable `auriga-pr-guards` from the Codex plugin directory.
+
+Codex requires the hook system feature flag in `~/.codex/config.toml`:
+
+```toml
+[features]
+codex_hooks = true
+```
+
+## Behaviour parity between Claude Code and Codex
+
+Both Agents share the same plugin payload and the same `${CLAUDE_PLUGIN_ROOT}` substitution (Codex deliberately mirrors that name for OOTB compat with Claude-Code-style plugins). The two scripts produce identical outputs given identical stdin payloads.
+
+| Behaviour | Claude Code | Codex |
+|---|---|---|
+| `gh pr create` → inject body snapshot (PostToolUse `additionalContext`) | ✅ | ✅ |
+| `gh pr ready` → block on structural issues (exit 2 + stderr) | ✅ | ✅ |
+| `gh pr ready` → inject body snapshot when passing (PreToolUse `additionalContext`) | ✅ | ⚠️ Currently fail-open: Codex parses the field but does not surface it to the model yet. The block path is unaffected. |
+
+The known fail-open differs only in the **passing path**: structural blocks fire identically.
+
+## Block signals (pr-ready-guard)
+
+The block list is conservative and based on filesystem / git state only — no body-text regex.
+
+1. **Stray planning docs at repo root**: `findings.md`, `progress.md`, `task_plan.md`. These are session-ephemeral artifacts (e.g., from `planning-with-files` or `brainstorming`) and must be archived to `docs/worklog/worklog-<YYYY-MM-DD>-<branch-name>/` (or deleted) before marking ready.
+2. **Stray spec docs under `docs/superpowers/specs/`**: same lifecycle as above.
+3. **Unfinalized active specs under `docs/specs/`**: that directory is the dev-only temp workspace for `brainstorming` outputs; by PR Ready every spec must be either promoted to `docs/architecture/`, archived to `docs/worklog/`, or deleted.
+4. **Unpushed commits on the current branch** (only when no PR ref is passed): the remote-side PR can't reflect what isn't pushed yet.
+
+## Test
+
+```bash
+node tests/pr-create-guard.test.mjs    # smoke tests
+node tests/pr-ready-guard.test.mjs     # smoke tests
+```
+
+Tests live at the repo root `tests/` directory (shared with the rest of auriga-cli) rather than inside the plugin folder, matching the convention used by `tests/ship-loop.test.sh` for the `auriga-go` plugin.
+
+## Limits
+
+- **Platform**: tested on macOS / Linux. Windows untested.
+- **gh CLI required**: body snapshots use `gh pr view`. If `gh` is missing or unauthenticated, the hooks degrade gracefully (passive nudge or silent pass), never crash.
+- **PR URL detection**: `pr-create-guard` extracts `github.com/.../pull/N` from the tool's response. Configurations that suppress URL output fall back to a passive nudge.

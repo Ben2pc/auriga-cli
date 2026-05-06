@@ -1,0 +1,8 @@
+{
+  "name": "auriga-pr-guards",
+  "description": "Workflow guardrails for `gh pr create` (PostToolUse: inject body snapshot) and `gh pr ready` (PreToolUse: block on stray planning docs / unfinalized specs / unpushed commits, otherwise inject body snapshot).",
+  "author": {
+    "name": "Ben2pc",
+    "email": "pangcheng33@gmail.com"
+  }
+}

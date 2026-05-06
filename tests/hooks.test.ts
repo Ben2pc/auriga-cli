@@ -302,27 +302,6 @@ describe("loadHooksConfig", () => {
     );
   });
 
-  test("accepts the real pr-create-guard and pr-ready-guard hooks", () => {
-    const config = loadHooksConfig(REPO_ROOT);
-    // pr-create-guard runs PostToolUse (queries the real PR after
-    // creation succeeds), pr-ready-guard runs PreToolUse (blocks
-    // structural problems before the Draft → Ready state flip).
-    // Both should declare an `if` so Claude Code ≥ 2026-04 can skip
-    // the spawn entirely on non-matching Bash calls.
-    const expected: Record<string, { event: string; ifRule: string }> = {
-      "pr-create-guard": { event: "PostToolUse", ifRule: "Bash(gh pr create)" },
-      "pr-ready-guard": { event: "PreToolUse", ifRule: "Bash(gh pr ready)" },
-    };
-    for (const name of Object.keys(expected)) {
-      const h = config.hooks.find((x) => x.name === name);
-      assert.ok(h, `${name} hook present in registry`);
-      assert.equal(h?.marker, `auriga:${name}`);
-      assert.equal(h?.settingsEvents[0]?.event, expected[name].event);
-      assert.equal(h?.settingsEvents[0]?.matcher, "Bash");
-      assert.equal(h?.settingsEvents[0]?.if, expected[name].ifRule);
-    }
-  });
-
   test("rejects malformed if-rule — trailing content after closing paren", () => {
     // The tail `; rm -rf /` is outside the parens and defeats the $
     // anchor. Exercises the outer-shape constraint of IF_RE.

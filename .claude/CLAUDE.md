@@ -39,11 +39,25 @@ plugins/
                   lives at plugin level so its `${CLAUDE_PLUGIN_ROOT}`
                   substitution resolves reliably (see the bug note in
                   "Key Conventions" below).
+  auriga-pr-guards/  — Repo-owned dual-Agent plugin (Claude Code + Codex).
+                    .claude-plugin/plugin.json  (Claude Code manifest)
+                    .codex-plugin/plugin.json   (Codex manifest)
+                    hooks/hooks.json            (PreToolUse + PostToolUse,
+                                                 shared shape; uses
+                                                 ${CLAUDE_PLUGIN_ROOT} which
+                                                 Codex deliberately mirrors
+                                                 for OOTB compat)
+                    scripts/pr-create-guard.mjs (PostToolUse: gh pr create)
+                    scripts/pr-ready-guard.mjs  (PreToolUse:  gh pr ready)
+                  Codex currently fail-opens on PreToolUse `additionalContext`
+                  (parses but does not surface yet); block path is identical.
 
 .claude-plugin/
-  marketplace.json — Marketplace manifest for this repo; lists auriga-go →
-                     ./plugins/auriga-go. Consumed by
-                     `claude plugins marketplace add Ben2pc/auriga-cli`.
+  marketplace.json — Marketplace manifest for this repo; lists auriga-go +
+                     auriga-pr-guards. Consumed by both
+                     `claude plugins marketplace add Ben2pc/auriga-cli` AND
+                     `codex plugin marketplace add Ben2pc/auriga-cli`
+                     (Codex documents reading Claude-style marketplace files).
 
 tests/
   hooks.test.ts         — hook installer unit + integration
@@ -56,6 +70,8 @@ tests/
   entrypoint.test.ts    — dist/cli.js symlinked-bin guard regression
   e2e-install.test.ts   — tarball → npm install → auriga-cli install (network + local, runs via npm run test:e2e, not `npm test`)
   ship-loop.test.sh     — bash unit tests for plugins/auriga-go/scripts/ship-loop.sh
+  pr-create-guard.test.mjs — smoke tests for plugins/auriga-pr-guards/scripts/pr-create-guard.mjs
+  pr-ready-guard.test.mjs  — smoke tests for plugins/auriga-pr-guards/scripts/pr-ready-guard.mjs
 ```
 
 - No CLI framework — hand-rolled `parseArgs` in `cli.ts` for the non-interactive path; `@inquirer/prompts` (lazy-loaded) for the TTY menu
@@ -105,6 +121,14 @@ bash tests/ship-loop.test.sh
                  # (ship-mode Stop hook). Not wired into `npm test` because it's
                  # bash + jq + perl, not Node. Run before any PR that touches
                  # plugins/auriga-go/scripts/ or the plugin's hooks/hooks.json.
+
+npm run test:pr-guards
+                 # Smoke tests for plugins/auriga-pr-guards/scripts/*.mjs.
+                 # Plain Node, not the node:test framework, so they run as a
+                 # separate npm script rather than being wired into `npm test`
+                 # alongside the TS suite. Run before any PR that touches
+                 # plugins/auriga-pr-guards/scripts/ or the plugin's
+                 # hooks/hooks.json.
 
 npx skills update --project
                  # Refresh every vendored skill from its upstream source
