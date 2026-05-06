@@ -6,14 +6,21 @@
 // happy-path body snapshot is exercised by worktree-isolated subagent
 // verification against a real gh session.
 //
-//     node .claude/hooks/pr-create-guard/test.mjs
+//     node tests/pr-create-guard.test.mjs
 
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const ENTRY = path.join(HERE, "index.mjs");
+const ENTRY = path.resolve(
+  HERE,
+  "..",
+  "plugins",
+  "auriga-pr-guards",
+  "scripts",
+  "pr-create-guard.mjs",
+);
 
 function run(payload) {
   const r = spawnSync("node", [ENTRY], {

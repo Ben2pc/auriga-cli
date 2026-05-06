@@ -64,11 +64,12 @@ describe("generateCatalog (build-time)", () => {
     assertEntriesShape(catalog.recommendedSkills, "recommendedSkills");
   });
 
-  test("plugins: 4 entries with manually-authored descriptions", () => {
-    assert.equal(catalog.plugins.length, 4);
+  test("plugins: 5 entries with manually-authored descriptions", () => {
+    assert.equal(catalog.plugins.length, 5);
     const names = catalog.plugins.map((e) => e.name).sort();
     assert.deepEqual(names, [
       "auriga-go",
+      "auriga-pr-guards",
       "claude-md-management",
       "codex",
       "skill-creator",
@@ -76,10 +77,10 @@ describe("generateCatalog (build-time)", () => {
     assertEntriesShape(catalog.plugins, "plugins");
   });
 
-  test("hooks: 3 entries", () => {
-    assert.equal(catalog.hooks.length, 3);
+  test("hooks: 1 entry", () => {
+    assert.equal(catalog.hooks.length, 1);
     const names = catalog.hooks.map((e) => e.name).sort();
-    assert.deepEqual(names, ["notify", "pr-create-guard", "pr-ready-guard"]);
+    assert.deepEqual(names, ["notify"]);
     assertEntriesShape(catalog.hooks, "hooks");
   });
 

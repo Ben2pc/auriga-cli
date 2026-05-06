@@ -1,0 +1,29 @@
+{
+  "description": "auriga PR guards: PostToolUse for `gh pr create` (snapshot inject) + PreToolUse for `gh pr ready` (structural block / snapshot inject).",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "if": "Bash(gh pr ready)",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/pr-ready-guard.mjs\""
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "if": "Bash(gh pr create)",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/pr-create-guard.mjs\""
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -27,6 +27,15 @@
         "name": "auriga-cli",
         "source": "Ben2pc/auriga-cli"
       }
+    },
+    {
+      "name": "auriga-pr-guards",
+      "package": "auriga-pr-guards@auriga-cli",
+      "description": "PR-create snapshot inject + PR-ready structural block guardrails (Claude Code + Codex)",
+      "marketplace": {
+        "name": "auriga-cli",
+        "source": "Ben2pc/auriga-cli"
+      }
     }
   ]
 }

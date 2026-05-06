@@ -13,8 +13,8 @@
 | **Workflow** | `CLAUDE.md` 里的 auriga 工作流：需求澄清 → TDD → Review，Harness 原则，Subagent 使用指南 |
 | **Skills** | 开发流程 + 编排类 skills —— brainstorming、systematic-debugging、TDD、verification、planning、playwright、deep-review、test-designer、parallel-implementation |
 | **Recommended Skills** | 可选的工具类 skills（如 `codex-agent`、`claude-code-agent`），在 workflow skills 之外按需追加 |
-| **Plugins** | 推荐的 Claude Code 插件 —— skill-creator、claude-md-management、codex、auriga-go |
-| **Hooks** | Claude Code hooks：`notify`（macOS 通知，终端在焦点时仅放声不弹横幅 —— **opt-in**：`install --all` 不装，需要 `install hooks --hook notify`）、`pr-create-guard`（`gh pr create` 后注入 PR body 快照的 PostToolUse）、`pr-ready-guard`（`gh pr ready` 前按游离 planning 文档 / `docs/specs/` 内未清理的 spec / 未 push commits 拦截的 PreToolUse） |
+| **Plugins** | 推荐的 Claude Code 插件 —— skill-creator、claude-md-management、codex、auriga-go、auriga-pr-guards |
+| **Hooks** | Claude Code hooks：`notify`（macOS 通知，终端在焦点时仅放声不弹横幅 —— **opt-in**：`install --all` 不装，需要 `install hooks --hook notify`） |
 
 ## 快速开始
 
@@ -107,6 +107,7 @@ npx auriga-cli
 | claude-md-management | 审计和改进 CLAUDE.md |
 | codex | Codex 跨模型协作 |
 | auriga-go | auriga 工作流的自动驾驶：按 `CLAUDE.md` 的 phase 做 reminder-based 导航；包含 Experimental 的 hook-backed `ship` 模式。内置一个 skill（按 description 的自然语言触发 + `/auriga-go` slash command）和一个 plugin 层面的 Stop hook。 |
+| auriga-pr-guards | 把两个 PR-workflow guardrail 打成同时兼容 Claude Code 与 Codex 的 dual-Agent 插件：`pr-create-guard`（`gh pr create` 的 PostToolUse —— 通过 `gh pr view` 拉真实 PR body，扫 `^##` / `^###` headings 并统计 `- [ ]` / `- [x]` 注入 `additionalContext`，让 Agent 对照范围 / 验收 / 风险 / 剩余 TODO 四要素）+ `pr-ready-guard`（`gh pr ready` 的 PreToolUse —— 仅按结构信号拦截：游离 `findings.md` / `progress.md` / `task_plan.md` / `docs/superpowers/specs/*.md`、`docs/specs/*.md` 内未结案的活跃 spec、未 push commits；放行时注入 body 快照）。Codex 当前对 PreToolUse 的 `additionalContext` 字段 fail-open（解析但不生效），block 路径两边一致。 |
 
 ### Hooks
 
@@ -115,8 +116,6 @@ npx auriga-cli
 | Hook | 说明 |
 |---|---|
 | notify *(opt-in)* | 当 Claude 需要你关注时弹一条原生 macOS 通知。在通知小图标位显示品牌图，点击通知可把发起 Claude 的终端拉回前台。**焦点感知**：发起 Claude 的终端正处于前台时，仅放提示音不弹横幅（通过 `config.json` 的 `soundOnlyWhenFocused` 切换）。**按项目分组**：新通知会干净地替换通知中心里的旧条目，不会进程堆积，也不会跨项目互相覆盖。会自动通过 Homebrew 安装 `alerter`（`vjeantet/tap/alerter`）。改 `.claude/hooks/notify/config.json` 即可换提示音、替换 `.claude/hooks/notify/icon.png` 即可换图标。仅 macOS 运行时生效，其它平台静默 no-op。 |
-| pr-create-guard | `gh pr create` 的 PostToolUse hook。创建成功后通过 `gh pr view` 拉真实 PR body，扫 `^##` / `^###` headings 并统计 `- [ ]` / `- [x]`，通过 `additionalContext` 注入快照让 Agent 对照 PR-readiness 阶段的"范围 / 验收标准 / 风险 / 剩余 TODO"四要素。不 block——PostToolUse 发生在动作之后。gh 不可用时静默降级。 |
-| pr-ready-guard | `gh pr ready` 的 PreToolUse hook。**只按结构信号**拦截：(1) 仓库根存在游离 planning 文档（`findings.md` / `progress.md` / `task_plan.md`）或 `docs/superpowers/specs/*.md` 未归档——按 CLAUDE.md 的"文档规范"迁到 `docs/worklog/worklog-<date>-<branch>/` 或删除；(2) `docs/specs/*.md` 内有未结案的活跃 spec——晋升到 `docs/architecture/`、归档或删除；(3) 本地有未 push commits。**不做 PR 正文文本 regex 匹配**。放行时注入 PR body 快照。 |
 
 作用域选择：
 

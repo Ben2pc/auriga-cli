@@ -76,12 +76,12 @@ describe("parseArgs", () => {
         filter: ["auriga-go"],
       },
     });
-    assert.deepEqual(installArgs(["hooks", "--hook", "notify", "pr-ready-guard"]), {
+    assert.deepEqual(installArgs(["hooks", "--hook", "notify"]), {
       command: "install",
       install: {
         all: false,
         type: "hooks",
-        filter: ["notify", "pr-ready-guard"],
+        filter: ["notify"],
       },
     });
   });

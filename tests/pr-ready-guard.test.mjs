@@ -1,13 +1,13 @@
 #!/usr/bin/env node
 // Smoke + assertion tests for pr-ready-guard.
 //
-// Each case spawns index.mjs with a fake PreToolUse payload and controls
-// the hook's cwd (so we can put stray planning docs into scratch dirs
-// without polluting the real repo). Git/gh integration paths that need
-// a live remote are exercised manually per README; the smoke cases
+// Each case spawns the plugin script with a fake PreToolUse payload and
+// controls the hook's cwd (so we can put stray planning docs into scratch
+// dirs without polluting the real repo). Git/gh integration paths that
+// need a live remote are exercised manually per README; the smoke cases
 // cover the locally-observable branches.
 //
-//     node .claude/hooks/pr-ready-guard/test.mjs
+//     node tests/pr-ready-guard.test.mjs
 //
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
@@ -16,7 +16,14 @@ import fs from "node:fs";
 import os from "node:os";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const ENTRY = path.join(HERE, "index.mjs");
+const ENTRY = path.resolve(
+  HERE,
+  "..",
+  "plugins",
+  "auriga-pr-guards",
+  "scripts",
+  "pr-ready-guard.mjs",
+);
 
 function run(command, cwd) {
   const payload = JSON.stringify({
@@ -29,7 +36,6 @@ function run(command, cwd) {
     input: payload,
     encoding: "utf8",
     cwd,
-    env: { ...process.env, PR_READY_GUARD_TEST: "1" },
   });
   return { status: r.status, stdout: r.stdout ?? "", stderr: r.stderr ?? "" };
 }
