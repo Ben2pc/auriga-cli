@@ -36,7 +36,6 @@ function run(command, cwd) {
     input: payload,
     encoding: "utf8",
     cwd,
-    env: { ...process.env, PR_READY_GUARD_TEST: "1" },
   });
   return { status: r.status, stdout: r.stdout ?? "", stderr: r.stderr ?? "" };
 }
