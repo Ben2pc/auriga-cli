@@ -13,7 +13,7 @@ import {
   type CodexMarketplace,
   type CodexMarketplacePlugin,
 } from "./codex-plugin-config.js";
-import { atomicWriteFile, exec, fetchExtraContent, log, readPackageVersion, withEsc } from "./utils.js";
+import { atomicWriteFile, exec, fetchExtraContent, log, withEsc } from "./utils.js";
 import type { InstallOpts, PluginAgent, PluginsConfig, PluginDef } from "./utils.js";
 
 // Plugin names, marketplace names/sources, and plugin-package names all
@@ -174,8 +174,34 @@ function codexMarketplaceAddCommand(packageRoot: string): string {
   if (process.env.DEV === "1") {
     return `codex plugin marketplace add ${shellQuote(packageRoot)}`;
   }
-  const ref = process.env.AURIGA_CONTENT_REF || `v${readPackageVersion()}`;
-  return `codex plugin marketplace add Ben2pc/auriga-cli --ref ${shellQuote(ref)}`;
+  return "codex plugin marketplace add https://github.com/Ben2pc/auriga-cli.git";
+}
+
+function codexMarketplaceUpgradeCommand(marketplaceName: string): string {
+  return `codex plugin marketplace upgrade ${shellQuote(marketplaceName)}`;
+}
+
+function commandErrorText(error: unknown): string {
+  if (!(error instanceof Error)) return String(error);
+  const parts = [error.message];
+  const withOutput = error as Error & { stdout?: unknown; stderr?: unknown };
+  if (withOutput.stdout) parts.push(String(withOutput.stdout));
+  if (withOutput.stderr) parts.push(String(withOutput.stderr));
+  return parts.join("\n");
+}
+
+function escapeRegex(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function isCodexMarketplaceAlreadyAdded(error: unknown, marketplaceName: string): boolean {
+  const text = commandErrorText(error);
+  const marketplacePattern = new RegExp(
+    `marketplace ['"]?${escapeRegex(marketplaceName)}['"]? is already added`,
+    "i",
+  );
+  return marketplacePattern.test(text)
+    || /already added from a different source/i.test(text);
 }
 
 function pluginHasHooks(packageRoot: string, plugin: CodexMarketplacePlugin): boolean {
@@ -366,12 +392,23 @@ async function installCodexPlugins(
   }
 
   const failures: string[] = [];
+  const marketplaceExecOpts = opts.interactive ? { inherit: true } : undefined;
   try {
-    exec(codexMarketplaceAddCommand(packageRoot), { inherit: true });
+    exec(codexMarketplaceAddCommand(packageRoot), marketplaceExecOpts);
     log.ok(`Codex marketplace ${marketplace.name} added`);
-  } catch {
-    log.error(`Failed to add Codex marketplace: ${marketplace.name}`);
-    failures.push(`codex marketplace ${marketplace.name}`);
+  } catch (e) {
+    if (opts.interactive || isCodexMarketplaceAlreadyAdded(e, marketplace.name)) {
+      try {
+        exec(codexMarketplaceUpgradeCommand(marketplace.name), marketplaceExecOpts);
+        log.ok(`Codex marketplace ${marketplace.name} upgraded`);
+      } catch {
+        log.error(`Failed to upgrade Codex marketplace: ${marketplace.name}`);
+        failures.push(`codex marketplace ${marketplace.name}`);
+      }
+    } else {
+      log.error(`Failed to add Codex marketplace: ${marketplace.name}`);
+      failures.push(`codex marketplace ${marketplace.name}`);
+    }
   }
 
   if (failures.length === 0) {
