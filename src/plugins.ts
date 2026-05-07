@@ -190,9 +190,17 @@ function commandErrorText(error: unknown): string {
   return parts.join("\n");
 }
 
-function isCodexMarketplaceAlreadyAdded(error: unknown): boolean {
+function escapeRegex(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function isCodexMarketplaceAlreadyAdded(error: unknown, marketplaceName: string): boolean {
   const text = commandErrorText(error);
-  return /marketplace ['"]?auriga-cli['"]? is already added/i.test(text)
+  const marketplacePattern = new RegExp(
+    `marketplace ['"]?${escapeRegex(marketplaceName)}['"]? is already added`,
+    "i",
+  );
+  return marketplacePattern.test(text)
     || /already added from a different source/i.test(text);
 }
 
@@ -384,13 +392,14 @@ async function installCodexPlugins(
   }
 
   const failures: string[] = [];
+  const marketplaceExecOpts = opts.interactive ? { inherit: true } : undefined;
   try {
-    exec(codexMarketplaceAddCommand(packageRoot));
+    exec(codexMarketplaceAddCommand(packageRoot), marketplaceExecOpts);
     log.ok(`Codex marketplace ${marketplace.name} added`);
   } catch (e) {
-    if (isCodexMarketplaceAlreadyAdded(e)) {
+    if (opts.interactive || isCodexMarketplaceAlreadyAdded(e, marketplace.name)) {
       try {
-        exec(codexMarketplaceUpgradeCommand(marketplace.name));
+        exec(codexMarketplaceUpgradeCommand(marketplace.name), marketplaceExecOpts);
         log.ok(`Codex marketplace ${marketplace.name} upgraded`);
       } catch {
         log.error(`Failed to upgrade Codex marketplace: ${marketplace.name}`);
