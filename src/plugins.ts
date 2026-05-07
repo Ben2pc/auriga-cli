@@ -4,6 +4,15 @@ import path from "node:path";
 import { checkbox, select } from "@inquirer/prompts";
 import { parse as parseToml, stringify as stringifyToml } from "smol-toml";
 import type { TomlTable } from "smol-toml";
+import {
+  codexManifestPath,
+  validateCodexInstallConfig,
+  validateCodexMarketplace,
+  type CodexInstallConfig,
+  type CodexInstallPlugin,
+  type CodexMarketplace,
+  type CodexMarketplacePlugin,
+} from "./codex-plugin-config.js";
 import { exec, log, readPackageVersion, withEsc } from "./utils.js";
 import type { InstallOpts, PluginAgent, PluginsConfig, PluginDef } from "./utils.js";
 
@@ -66,19 +75,6 @@ interface PluginInfo {
   projectPath?: string;
 }
 
-interface CodexMarketplacePlugin {
-  name: string;
-  source?: {
-    source?: string;
-    path?: string;
-  } | string;
-}
-
-interface CodexMarketplace {
-  name: string;
-  plugins: CodexMarketplacePlugin[];
-}
-
 function getInstalledPlugins(): Map<string, string[]> {
   try {
     const output = exec("claude plugins list --json");
@@ -137,31 +133,25 @@ function getInstalledMarketplaces(): Set<string> {
 function loadCodexMarketplace(packageRoot: string): CodexMarketplace | null {
   const marketplacePath = path.join(packageRoot, ".agents", "plugins", "marketplace.json");
   if (!fs.existsSync(marketplacePath)) return null;
-  const raw = JSON.parse(fs.readFileSync(marketplacePath, "utf-8")) as CodexMarketplace;
-  if (!raw || typeof raw !== "object" || typeof raw.name !== "string" || !MARKETPLACE_NAME_RE.test(raw.name)) {
-    throw new Error("Codex marketplace.json: root must include a safe name");
-  }
-  if (!Array.isArray(raw.plugins)) {
-    throw new Error("Codex marketplace.json: .plugins must be an array");
-  }
-  for (const [i, plugin] of raw.plugins.entries()) {
-    if (!plugin || typeof plugin !== "object") {
-      throw new Error(`Codex marketplace.json: plugins[${i}] must be an object`);
-    }
-    if (typeof plugin.name !== "string" || !PLUGIN_NAME_RE.test(plugin.name)) {
-      throw new Error(
-        `Codex marketplace.json: plugins[${i}].name ${JSON.stringify(plugin.name)} does not match ${PLUGIN_NAME_RE}`,
-      );
-    }
-  }
+  const raw: unknown = JSON.parse(fs.readFileSync(marketplacePath, "utf-8"));
+  validateCodexMarketplace(raw);
+  return raw;
+}
+
+function loadCodexInstallConfig(packageRoot: string): CodexInstallConfig | null {
+  const installPath = path.join(packageRoot, ".agents", "plugins", "install.json");
+  if (!fs.existsSync(installPath)) return null;
+  const raw: unknown = JSON.parse(fs.readFileSync(installPath, "utf-8"));
+  validateCodexInstallConfig(raw);
   return raw;
 }
 
 function resolveCodexPluginSelection(
-  all: CodexMarketplacePlugin[],
+  all: CodexInstallPlugin[],
   selected: string[] | undefined,
-): CodexMarketplacePlugin[] {
-  if (!selected || (selected.length === 1 && selected[0] === "*")) return all;
+): CodexInstallPlugin[] {
+  if (!selected) return all.filter((p) => p.defaultOn !== false);
+  if (selected.length === 1 && selected[0] === "*") return all;
   const byName = new Map(all.map((p) => [p.name, p]));
   const missing = selected.filter((name) => !byName.has(name));
   if (missing.length > 0) {
@@ -189,11 +179,9 @@ function codexMarketplaceAddCommand(packageRoot: string): string {
 }
 
 function pluginHasHooks(packageRoot: string, plugin: CodexMarketplacePlugin): boolean {
-  const sourcePath = typeof plugin.source === "object" && plugin.source?.source === "local"
-    ? plugin.source.path
-    : undefined;
-  if (!sourcePath) return false;
-  const manifestPath = path.join(packageRoot, sourcePath, ".codex-plugin", "plugin.json");
+  const relativeManifestPath = codexManifestPath(plugin);
+  if (!relativeManifestPath) return false;
+  const manifestPath = path.join(packageRoot, relativeManifestPath);
   if (!fs.existsSync(manifestPath)) return false;
   const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf-8")) as { hooks?: unknown };
   return typeof manifest.hooks === "string" || Array.isArray(manifest.hooks);
@@ -333,20 +321,30 @@ async function installCodexPlugins(
 ): Promise<void> {
   const marketplace = loadCodexMarketplace(packageRoot);
   if (!marketplace) {
-    log.warn("No .agents/plugins/marketplace.json found");
+    const msg = "No .agents/plugins/marketplace.json found";
+    if (!opts.interactive) throw new Error(msg);
+    log.warn(msg);
     return;
   }
+  const installConfig = loadCodexInstallConfig(packageRoot);
+  if (!installConfig) {
+    const msg = "No .agents/plugins/install.json found";
+    if (!opts.interactive) throw new Error(msg);
+    log.warn(msg);
+    return;
+  }
+  const marketplaceByName = new Map(marketplace.plugins.map((p) => [p.name, p]));
 
   const selected = opts.interactive
     ? await withEsc(checkbox({
       message: "Select Codex plugins to install:",
-      choices: marketplace.plugins.map((p) => ({
-        name: p.name,
+      choices: installConfig.plugins.map((p) => ({
+        name: p.description ? `${p.name} — ${p.description}` : p.name,
         value: p,
-        checked: true,
+        checked: p.defaultOn !== false,
       })),
     }))
-    : resolveCodexPluginSelection(marketplace.plugins, opts.selected);
+    : resolveCodexPluginSelection(installConfig.plugins, opts.selected);
 
   if (selected.length === 0) {
     log.skip("No Codex plugins selected");
@@ -363,8 +361,15 @@ async function installCodexPlugins(
   }
 
   if (failures.length === 0) {
-    const pluginKeys = selected.map((p) => `${p.name}@${marketplace.name}`);
-    const needsPluginHooks = selected.some((p) => pluginHasHooks(packageRoot, p));
+    const selectedMarketplacePlugins = selected.map((p) => {
+      const plugin = marketplaceByName.get(p.name);
+      if (!plugin) {
+        throw new Error(`Codex install.json: plugin ${p.name} is not present in marketplace.json`);
+      }
+      return plugin;
+    });
+    const pluginKeys = selectedMarketplacePlugins.map((p) => `${p.name}@${marketplace.name}`);
+    const needsPluginHooks = selectedMarketplacePlugins.some((p) => pluginHasHooks(packageRoot, p));
     enableCodexPluginConfig(
       path.join(codexHome(), "config.toml"),
       pluginKeys,
@@ -512,13 +517,22 @@ export async function installPlugins(
     }
   }
 
-  if (failures.length > 0 && !opts.interactive) {
+  if (failures.length > 0 && !opts.interactive && agent !== "both") {
     throw new Error(
       `${failures.length} plugin operation(s) failed: ${failures.join(", ")}`,
     );
   }
 
   if (agent === "both") {
-    await installCodexPlugins(packageRoot, opts);
+    try {
+      await installCodexPlugins(packageRoot, opts);
+    } catch (e) {
+      failures.push(`codex: ${(e as Error).message}`);
+    }
+    if (failures.length > 0 && !opts.interactive) {
+      throw new Error(
+        `${failures.length} plugin operation(s) failed: ${failures.join(", ")}`,
+      );
+    }
   }
 }

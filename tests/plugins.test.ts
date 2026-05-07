@@ -27,6 +27,23 @@ function makeCodexMarketplace(): string {
         source: { source: "local", path: "./plugins/session-instructions-loader" },
         policy: { installation: "AVAILABLE", authentication: "ON_INSTALL" },
       },
+      {
+        name: "marketplace-only",
+        source: { source: "local", path: "./plugins/marketplace-only" },
+        policy: { installation: "AVAILABLE", authentication: "ON_INSTALL" },
+      },
+    ],
+  });
+  writeJson(path.join(root, ".agents/plugins/install.json"), {
+    plugins: [
+      {
+        name: "auriga-go",
+        description: "Workflow autopilot",
+      },
+      {
+        name: "session-instructions-loader",
+        description: "Session instructions",
+      },
     ],
   });
   writeJson(path.join(root, "plugins/auriga-go/.codex-plugin/plugin.json"), {
@@ -36,6 +53,11 @@ function makeCodexMarketplace(): string {
   });
   writeJson(path.join(root, "plugins/session-instructions-loader/.codex-plugin/plugin.json"), {
     name: "session-instructions-loader",
+    version: "1.0.0",
+    hooks: "./hooks/hooks.json",
+  });
+  writeJson(path.join(root, "plugins/marketplace-only/.codex-plugin/plugin.json"), {
+    name: "marketplace-only",
     version: "1.0.0",
     hooks: "./hooks/hooks.json",
   });
@@ -103,6 +125,23 @@ describe("installPlugins — Codex target", () => {
     assert.doesNotMatch(config, /auriga-go@auriga-cli/);
   });
 
+  test("uses the auriga Codex install list instead of installing every marketplace plugin by default", async () => {
+    const packageRoot = makeCodexMarketplace();
+    const codexHome = fs.mkdtempSync(path.join(os.tmpdir(), "auriga-codex-home-"));
+    process.env.CODEX_HOME = codexHome;
+    const { installPlugins } = await importPlugins(() => "");
+
+    await installPlugins(packageRoot, {
+      interactive: false,
+      agent: "codex",
+    });
+
+    const config = fs.readFileSync(path.join(codexHome, "config.toml"), "utf-8");
+    assert.match(config, /auriga-go@auriga-cli/);
+    assert.match(config, /session-instructions-loader@auriga-cli/);
+    assert.doesNotMatch(config, /marketplace-only@auriga-cli/);
+  });
+
   test("keeps Codex config valid when existing TOML uses inline tables", async () => {
     const packageRoot = makeCodexMarketplace();
     const codexHome = fs.mkdtempSync(path.join(os.tmpdir(), "auriga-codex-home-"));
@@ -143,6 +182,58 @@ describe("installPlugins — Codex target", () => {
       }),
       /not available for Codex/i,
     );
+  });
+
+  test("fails non-interactive Codex install when the marketplace file is missing", async () => {
+    const packageRoot = fs.mkdtempSync(path.join(os.tmpdir(), "auriga-no-codex-marketplace-"));
+    const { installPlugins } = await importPlugins();
+
+    await assert.rejects(
+      () => installPlugins(packageRoot, {
+        interactive: false,
+        agent: "codex",
+      }),
+      /No \.agents\/plugins\/marketplace\.json found/i,
+    );
+  });
+
+  test("agent both attempts Codex install even when the Claude side fails", async () => {
+    const packageRoot = makeCodexMarketplace();
+    writeJson(path.join(packageRoot, ".claude/plugins.json"), {
+      plugins: [
+        {
+          name: "auriga-go",
+          package: "auriga-go@auriga-cli",
+          description: "Workflow autopilot",
+        },
+      ],
+    });
+    const codexHome = fs.mkdtempSync(path.join(os.tmpdir(), "auriga-codex-home-"));
+    process.env.CODEX_HOME = codexHome;
+    const commands: string[] = [];
+    const { installPlugins } = await importPlugins((cmd) => {
+      commands.push(cmd);
+      if (cmd === "claude plugins list --json") return "[]";
+      if (cmd === "claude plugins marketplace list") return "";
+      if (cmd.startsWith("claude plugins install")) throw new Error("claude install failed");
+      return "";
+    });
+
+    await assert.rejects(
+      () => installPlugins(packageRoot, {
+        interactive: false,
+        agent: "both",
+        selected: ["auriga-go"],
+      }),
+      /plugin operation/i,
+    );
+
+    assert.ok(
+      commands.some((cmd) => cmd.startsWith("codex plugin marketplace add")),
+      "Codex installer should still run after a Claude-side failure",
+    );
+    const config = fs.readFileSync(path.join(codexHome, "config.toml"), "utf-8");
+    assert.match(config, /auriga-go@auriga-cli/);
   });
 });
 

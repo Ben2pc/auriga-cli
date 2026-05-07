@@ -284,6 +284,21 @@ describe("main non-interactive install flow", () => {
     assert.equal(result, 2);
     assert.match(stderr, /Retry:\s+npx -y auriga-cli install plugins --scope user/i);
   });
+  test("retry hint preserves --agent when runAll was invoked with a Codex plugin target", async () => {
+    const main = await importMain({
+      installWorkflow: async () => {},
+      installSkills: async () => {},
+      installPlugins: async () => {
+        throw new Error("boom");
+      },
+      installHooks: async () => {},
+    });
+    const { result, stderr } = await captureStderr(() =>
+      main(["install", "--all", "--agent", "codex"]),
+    );
+    assert.equal(result, 2);
+    assert.match(stderr, /Retry:\s+npx -y auriga-cli install plugins --agent codex/i);
+  });
   // Covers spec §7 success-tail reload reminder and §11 full-install success acceptance.
   test("prints the reload reminder as the final stderr line on success", async () => {
     const main = await importMain({

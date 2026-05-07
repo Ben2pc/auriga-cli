@@ -110,14 +110,14 @@ npx -y auriga-cli install plugins --agent codex --plugin session-instructions-lo
 npx -y auriga-cli install plugins --agent both --plugin auriga-pr-guards
 ```
 
-| 插件 | 说明 |
-|---|---|
-| skill-creator | 创建和管理自定义 skills |
-| claude-md-management | 审计和改进 CLAUDE.md |
-| codex | Codex 跨模型协作 |
-| auriga-go | auriga 工作流的自动驾驶：按 `CLAUDE.md` 的 phase 做 reminder-based 导航；包含 Experimental 的 hook-backed `ship` 模式。内置一个 skill（按 description 的自然语言触发 + `/auriga-go` slash command）和一个 plugin 层面的 Stop hook。 |
-| auriga-pr-guards | 把两个 PR-workflow guardrail 打成同时兼容 Claude Code 与 Codex 的 dual-Agent 插件：`pr-create-guard`（`gh pr create` 的 PostToolUse —— 通过 `gh pr view` 拉真实 PR body，扫 `^##` / `^###` headings 并统计 `- [ ]` / `- [x]` 注入 `additionalContext`，让 Agent 对照范围 / 验收 / 风险 / 剩余 TODO 四要素）+ `pr-ready-guard`（`gh pr ready` 的 PreToolUse —— 仅按结构信号拦截：游离 `findings.md` / `progress.md` / `task_plan.md` / `docs/superpowers/specs/*.md`、`docs/specs/*.md` 内未结案的活跃 spec、未 push commits；放行时注入 body 快照）。Codex 当前对 PreToolUse 的 `additionalContext` 字段 fail-open（解析但不生效），block 路径两边一致。 |
-| session-instructions-loader | Codex-only SessionStart 插件，注入上层目录的 `AGENTS.md` 和仓库配置的额外 instruction 文件。 |
+| 插件 | 运行时 | 说明 |
+|---|---|---|
+| skill-creator | Claude Code | 创建和管理自定义 skills |
+| claude-md-management | Claude Code | 审计和改进 CLAUDE.md |
+| codex | Claude Code | Codex 跨模型协作 |
+| auriga-go | Claude Code / Codex | auriga 工作流的自动驾驶：按 `CLAUDE.md` 的 phase 做 reminder-based 导航；包含 Experimental 的 hook-backed `ship` 模式。内置一个 skill（按 description 的自然语言触发 + `/auriga-go` slash command）和一个 plugin 层面的 Stop hook。 |
+| auriga-pr-guards | Claude Code / Codex | 两个 PR-workflow guardrail：`pr-create-guard`（`gh pr create` 的 PostToolUse —— 通过 `gh pr view` 拉真实 PR body，扫 `^##` / `^###` headings 并统计 `- [ ]` / `- [x]` 注入 `additionalContext`，让 Agent 对照范围 / 验收 / 风险 / 剩余 TODO 四要素）+ `pr-ready-guard`（`gh pr ready` 的 PreToolUse —— 仅按结构信号拦截：游离 `findings.md` / `progress.md` / `task_plan.md` / `docs/superpowers/specs/*.md`、`docs/specs/*.md` 内未结案的活跃 spec、未 push commits；放行时注入 body 快照）。Codex 当前对 PreToolUse 的 `additionalContext` 字段 fail-open（解析但不生效），block 路径两边一致。 |
+| session-instructions-loader | Codex | Codex-only SessionStart 插件，注入上层目录的 `AGENTS.md` 和仓库配置的额外 instruction 文件。 |
 
 ### Hooks
 

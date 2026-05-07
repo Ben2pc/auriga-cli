@@ -65,6 +65,7 @@ describe("renderGuide", () => {
     assert.match(out, /AGENTS\.md -> CLAUDE\.md/);
     assert.match(out, /\.agents\/skills\/<name>\//);
     assert.match(out, /\.claude\/plugins\.json/);
+    assert.match(out, /~\/\.codex\/config\.toml/);
     assert.match(out, /\.claude\/settings\.json/);
   });
 

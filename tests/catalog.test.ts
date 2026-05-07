@@ -76,6 +76,14 @@ describe("generateCatalog (build-time)", () => {
       "skill-creator",
     ]);
     assertEntriesShape(catalog.plugins, "plugins");
+    assert.match(
+      catalog.plugins.find((e) => e.name === "auriga-go")?.description ?? "",
+      /^\(Claude\/Codex\)/,
+    );
+    assert.match(
+      catalog.plugins.find((e) => e.name === "session-instructions-loader")?.description ?? "",
+      /^\(Codex\)/,
+    );
   });
 
   test("hooks: 1 entry", () => {

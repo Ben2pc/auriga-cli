@@ -110,14 +110,14 @@ npx -y auriga-cli install plugins --agent codex --plugin session-instructions-lo
 npx -y auriga-cli install plugins --agent both --plugin auriga-pr-guards
 ```
 
-| Plugin | Description |
-|---|---|
-| skill-creator | Create and manage custom skills |
-| claude-md-management | Audit and improve CLAUDE.md |
-| codex | Codex cross-model collaboration |
-| auriga-go | Workflow autopilot for the auriga workflow. Reminder-based navigation across the `CLAUDE.md` phases with an Experimental hook-backed `ship` mode. Bundles a skill (description-based NL trigger + `/auriga-go`) plus a plugin-level Stop hook for ship mode. |
-| auriga-pr-guards | Two PR-workflow guardrails packaged as a dual-Agent plugin (Claude Code + Codex): `pr-create-guard` (PostToolUse for `gh pr create` → fetch the new PR's body via `gh pr view` and inject headings + TODO counts as `additionalContext` so the Agent can self-verify scope / acceptance / risks / TODO) and `pr-ready-guard` (PreToolUse for `gh pr ready` → block on stray planning docs at `findings.md` / `progress.md` / `task_plan.md` / `docs/superpowers/specs/*.md`, unfinalized active specs in `docs/specs/*.md`, or unpushed commits; otherwise inject the body snapshot). Codex currently fails open on the `additionalContext` field for PreToolUse but enforces blocks identically. |
-| session-instructions-loader | Codex-only SessionStart plugin that injects ancestor `AGENTS.md` files plus repo-configured extra instruction files. |
+| Plugin | Runtime | Description |
+|---|---|---|
+| skill-creator | Claude Code | Create and manage custom skills |
+| claude-md-management | Claude Code | Audit and improve CLAUDE.md |
+| codex | Claude Code | Codex cross-model collaboration |
+| auriga-go | Claude Code / Codex | Workflow autopilot for the auriga workflow. Reminder-based navigation across the `CLAUDE.md` phases with an Experimental hook-backed `ship` mode. Bundles a skill (description-based NL trigger + `/auriga-go`) plus a plugin-level Stop hook for ship mode. |
+| auriga-pr-guards | Claude Code / Codex | Two PR-workflow guardrails packaged as a dual-Agent plugin: `pr-create-guard` (PostToolUse for `gh pr create` → fetch the new PR's body via `gh pr view` and inject headings + TODO counts as `additionalContext` so the Agent can self-verify scope / acceptance / risks / TODO) and `pr-ready-guard` (PreToolUse for `gh pr ready` → block on stray planning docs at `findings.md` / `progress.md` / `task_plan.md` / `docs/superpowers/specs/*.md`, unfinalized active specs in `docs/specs/*.md`, or unpushed commits; otherwise inject the body snapshot). Codex currently fails open on the `additionalContext` field for PreToolUse but enforces blocks identically. |
+| session-instructions-loader | Codex | Codex-only SessionStart plugin that injects ancestor `AGENTS.md` files plus repo-configured extra instruction files. |
 
 ### Hooks
 

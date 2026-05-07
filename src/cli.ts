@@ -509,9 +509,13 @@ async function runAll(p: InstallParsed): Promise<number> {
   // the default project scope and leaves the intended user-scope
   // install incomplete.
   const scopeSuffix = p.scope ? ` --scope ${p.scope}` : "";
+  const agentSuffix = p.agent ? ` --agent ${p.agent}` : "";
   process.stderr.write("\nRetry:\n");
   for (const s of failed) {
-    const suffix = scopeCategory(s.category) ? scopeSuffix : "";
+    const suffix = [
+      scopeCategory(s.category) ? scopeSuffix : "",
+      s.category === "plugins" ? agentSuffix : "",
+    ].join("");
     process.stderr.write(`  npx -y auriga-cli install ${s.category}${suffix}\n`);
   }
   // Partial success still installed assets that need a session reload
@@ -597,7 +601,7 @@ async function runLegacyMenu(): Promise<number> {
       { name: "Workflow — CLAUDE.md + AGENTS.md", value: "workflow" as const, checked: true },
       { name: "Skills — Development process skills (brainstorming, TDD, debugging...)", value: "skills" as const, checked: true },
       { name: "Recommended Skills — Extra utility skills (claude-code-agent, codex-agent...)", value: "recommended" as const, checked: true },
-      { name: "Plugins — Claude Code plugins (skill-creator, claude-md-management, codex...)", value: "plugins" as const, checked: true },
+      { name: "Plugins — Claude Code / Codex plugins (skill-creator, codex, auriga-go...)", value: "plugins" as const, checked: true },
       { name: "Hooks — Claude Code hooks (notifications, etc.)", value: "hooks" as const, checked: true },
     ],
   }));

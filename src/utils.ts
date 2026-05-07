@@ -3,6 +3,13 @@ import { fileURLToPath } from "node:url";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import {
+  codexManifestPath,
+  validateCodexInstallConfig,
+  validateCodexMarketplace,
+  type CodexInstallConfig,
+  type CodexMarketplace,
+} from "./codex-plugin-config.js";
 
 // --- Types ---
 
@@ -172,9 +179,7 @@ const CONTENT_FILES = [
   "skills-lock.json",
   ".claude/plugins.json",
   ".agents/plugins/marketplace.json",
-  "plugins/auriga-go/.codex-plugin/plugin.json",
-  "plugins/auriga-pr-guards/.codex-plugin/plugin.json",
-  "plugins/session-instructions-loader/.codex-plugin/plugin.json",
+  ".agents/plugins/install.json",
   ".claude/hooks/hooks.json",
 ];
 
@@ -208,7 +213,36 @@ export async function fetchContentRoot(): Promise<string> {
     fs.writeFileSync(dest, content);
   }
 
+  await fetchCodexPluginManifests(tmpDir);
+
   return tmpDir;
+}
+
+async function fetchCodexPluginManifests(tmpDir: string): Promise<void> {
+  const marketplacePath = path.join(tmpDir, ".agents", "plugins", "marketplace.json");
+  const installPath = path.join(tmpDir, ".agents", "plugins", "install.json");
+  const marketplaceRaw: unknown = JSON.parse(fs.readFileSync(marketplacePath, "utf-8"));
+  const installRaw: unknown = JSON.parse(fs.readFileSync(installPath, "utf-8"));
+  validateCodexMarketplace(marketplaceRaw);
+  validateCodexInstallConfig(installRaw);
+  const marketplace = marketplaceRaw as CodexMarketplace;
+  const install = installRaw as CodexInstallConfig;
+  const marketplaceByName = new Map(marketplace.plugins.map((p) => [p.name, p]));
+
+  for (const plugin of install.plugins) {
+    const marketplacePlugin = marketplaceByName.get(plugin.name);
+    if (!marketplacePlugin) {
+      throw new Error(`Codex install.json: plugin ${plugin.name} is not present in marketplace.json`);
+    }
+    const manifestPath = codexManifestPath(marketplacePlugin);
+    if (!manifestPath) {
+      throw new Error(`Codex marketplace.json: plugin ${plugin.name} must use a local source.path`);
+    }
+    const content = await fetchFile(manifestPath);
+    const dest = path.join(tmpDir, manifestPath);
+    fs.mkdirSync(path.dirname(dest), { recursive: true });
+    fs.writeFileSync(dest, content);
+  }
 }
 
 export async function fetchExtraContent(

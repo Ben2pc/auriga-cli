@@ -120,6 +120,7 @@ Expected artifacts:
   - AGENTS.md -> CLAUDE.md    (symlink)
   - .agents/skills/<name>/    (one per installed skill)
   - .claude/plugins.json
+  - ~/.codex/config.toml      (Codex plugin enablement, if Codex plugins selected)
   - .claude/settings.json     (updated hook registrations, if hooks selected)
 
 ${h("## Troubleshooting")}
