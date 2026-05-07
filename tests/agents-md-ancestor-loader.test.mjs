@@ -10,14 +10,15 @@ import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const ENTRY = path.resolve(
+const PLUGIN_ROOT = path.resolve(
   HERE,
   "..",
   "plugins",
   "agents-md-ancestor-loader",
-  "scripts",
-  "session-start.mjs",
 );
+const HOOKS_CONFIG = JSON.parse(fs.readFileSync(path.join(PLUGIN_ROOT, "hooks", "hooks.json"), "utf8"));
+const SESSION_START_HOOK = HOOKS_CONFIG.hooks?.SessionStart?.[0];
+const SESSION_START_COMMAND = SESSION_START_HOOK?.hooks?.[0]?.command;
 
 function run(cwd) {
   const payload = {
@@ -29,9 +30,14 @@ function run(cwd) {
     permission_mode: "default",
     source: "startup",
   };
-  const r = spawnSync("node", [ENTRY], {
+  const r = spawnSync(SESSION_START_COMMAND, {
     input: JSON.stringify(payload),
     encoding: "utf8",
+    env: {
+      ...process.env,
+      CLAUDE_PLUGIN_ROOT: PLUGIN_ROOT,
+    },
+    shell: true,
   });
   return { status: r.status, stdout: r.stdout ?? "", stderr: r.stderr ?? "" };
 }
@@ -47,6 +53,17 @@ function makeTempDir() {
 }
 
 const cleanupDirs = [];
+
+const configChecks = [
+  {
+    ok: SESSION_START_HOOK?.matcher === "startup|resume",
+    msg: `SessionStart matcher is ${JSON.stringify(SESSION_START_HOOK?.matcher)}`,
+  },
+  {
+    ok: SESSION_START_COMMAND === 'node "${CLAUDE_PLUGIN_ROOT}/scripts/session-start.mjs"',
+    msg: `SessionStart command is ${JSON.stringify(SESSION_START_COMMAND)}`,
+  },
+];
 
 const cases = [
   {
@@ -67,6 +84,51 @@ const cases = [
     expect: {
       includes: ["workspace parent instructions"],
       excludes: ["repo instructions already loaded"],
+    },
+  },
+  {
+    name: "inside a git repo, preserves multiple ancestor AGENTS.md order",
+    setup: () => {
+      const root = makeTempDir();
+      cleanupDirs.push(root);
+      fs.writeFileSync(path.join(root, "AGENTS.md"), "outer ancestor instructions");
+
+      const workspace = path.join(root, "workspace");
+      fs.mkdirSync(workspace, { recursive: true });
+      fs.writeFileSync(path.join(workspace, "AGENTS.md"), "inner ancestor instructions");
+
+      const repo = path.join(workspace, "repo");
+      fs.mkdirSync(path.join(repo, ".git"), { recursive: true });
+      fs.writeFileSync(path.join(repo, "AGENTS.md"), "repo instructions already loaded");
+
+      const cwd = path.join(repo, "pkg");
+      fs.mkdirSync(cwd, { recursive: true });
+      return cwd;
+    },
+    expect: {
+      includes: ["outer ancestor instructions", "inner ancestor instructions"],
+      excludes: ["repo instructions already loaded"],
+      ordered: ["outer ancestor instructions", "inner ancestor instructions"],
+    },
+  },
+  {
+    name: "truncates oversized ancestor AGENTS.md within the content budget",
+    setup: () => {
+      const root = makeTempDir();
+      cleanupDirs.push(root);
+      fs.writeFileSync(
+        path.join(root, "AGENTS.md"),
+        `budget head\n${"x".repeat(70 * 1024)}\ntail after budget`,
+      );
+
+      const cwd = path.join(root, "repo", "pkg");
+      fs.mkdirSync(path.join(root, "repo", ".git"), { recursive: true });
+      fs.mkdirSync(cwd, { recursive: true });
+      return cwd;
+    },
+    expect: {
+      includes: ["budget head", "[truncated by agents-md-ancestor-loader]"],
+      excludes: ["tail after budget"],
     },
   },
   {
@@ -103,55 +165,76 @@ const cases = [
 let failed = 0;
 let passed = 0;
 
-for (const c of cases) {
-  const cwd = c.setup();
-  const r = run(cwd);
-  const checks = [];
-  checks.push({ ok: r.status === 0, msg: `status=${r.status} stderr=${r.stderr}` });
-
-  if (c.expect.stdoutEq !== undefined) {
-    checks.push({
-      ok: r.stdout === c.expect.stdoutEq,
-      msg: `stdout exact match (got "${r.stdout.slice(0, 120)}")`,
-    });
-  } else {
-    let context = "";
-    try {
-      context = parseAdditionalContext(r.stdout);
-    } catch (err) {
-      checks.push({ ok: false, msg: `stdout is not valid hook JSON: ${err.message}` });
-    }
-    for (const expected of c.expect.includes ?? []) {
-      checks.push({
-        ok: context.includes(expected),
-        msg: `context includes "${expected}"`,
-      });
-    }
-    for (const unexpected of c.expect.excludes ?? []) {
-      checks.push({
-        ok: !context.includes(unexpected),
-        msg: `context excludes "${unexpected}"`,
-      });
+try {
+  for (const check of configChecks) {
+    if (check.ok) {
+      passed++;
+      console.log(`  ✓ ${check.msg}`);
+    } else {
+      failed++;
+      console.error(`  ✗ ${check.msg}`);
     }
   }
 
-  const allOk = checks.every((x) => x.ok);
-  if (allOk) {
-    passed++;
-    console.log(`  ✓ ${c.name}`);
-  } else {
-    failed++;
-    console.error(`  ✗ ${c.name}`);
-    for (const check of checks.filter((x) => !x.ok)) {
-      console.error(`    - ${check.msg}`);
-    }
-    console.error(`    stdout: ${r.stdout.slice(0, 240)}`);
-    console.error(`    stderr: ${r.stderr.slice(0, 240)}`);
-  }
-}
+  for (const c of cases) {
+    const cwd = c.setup();
+    const r = run(cwd);
+    const checks = [];
+    checks.push({ ok: r.status === 0, msg: `status=${r.status} stderr=${r.stderr}` });
 
-for (const dir of cleanupDirs) {
-  fs.rmSync(dir, { recursive: true, force: true });
+    if (c.expect.stdoutEq !== undefined) {
+      checks.push({
+        ok: r.stdout === c.expect.stdoutEq,
+        msg: `stdout exact match (got "${r.stdout.slice(0, 120)}")`,
+      });
+    } else {
+      let context = "";
+      try {
+        context = parseAdditionalContext(r.stdout);
+      } catch (err) {
+        checks.push({ ok: false, msg: `stdout is not valid hook JSON: ${err.message}` });
+      }
+      for (const expected of c.expect.includes ?? []) {
+        checks.push({
+          ok: context.includes(expected),
+          msg: `context includes "${expected}"`,
+        });
+      }
+      for (const unexpected of c.expect.excludes ?? []) {
+        checks.push({
+          ok: !context.includes(unexpected),
+          msg: `context excludes "${unexpected}"`,
+        });
+      }
+      let previousIndex = -1;
+      for (const expected of c.expect.ordered ?? []) {
+        const index = context.indexOf(expected);
+        checks.push({
+          ok: index > previousIndex,
+          msg: `context order includes "${expected}" after index ${previousIndex}`,
+        });
+        previousIndex = index;
+      }
+    }
+
+    const allOk = checks.every((x) => x.ok);
+    if (allOk) {
+      passed++;
+      console.log(`  ✓ ${c.name}`);
+    } else {
+      failed++;
+      console.error(`  ✗ ${c.name}`);
+      for (const check of checks.filter((x) => !x.ok)) {
+        console.error(`    - ${check.msg}`);
+      }
+      console.error(`    stdout: ${r.stdout.slice(0, 240)}`);
+      console.error(`    stderr: ${r.stderr.slice(0, 240)}`);
+    }
+  }
+} finally {
+  for (const dir of cleanupDirs) {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 }
 
 console.log(`agents-md-ancestor-loader: ${passed} passed, ${failed} failed`);
