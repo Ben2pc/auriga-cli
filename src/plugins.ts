@@ -1,8 +1,11 @@
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { checkbox, select } from "@inquirer/prompts";
-import { exec, log, withEsc } from "./utils.js";
-import type { InstallOpts, PluginsConfig, PluginDef } from "./utils.js";
+import { parse as parseToml, stringify as stringifyToml } from "smol-toml";
+import type { TomlTable } from "smol-toml";
+import { exec, log, readPackageVersion, withEsc } from "./utils.js";
+import type { InstallOpts, PluginAgent, PluginsConfig, PluginDef } from "./utils.js";
 
 // Plugin names, marketplace names/sources, and plugin-package names all
 // end up in `claude plugins ...` shell commands via string interpolation.
@@ -63,6 +66,19 @@ interface PluginInfo {
   projectPath?: string;
 }
 
+interface CodexMarketplacePlugin {
+  name: string;
+  source?: {
+    source?: string;
+    path?: string;
+  } | string;
+}
+
+interface CodexMarketplace {
+  name: string;
+  plugins: CodexMarketplacePlugin[];
+}
+
 function getInstalledPlugins(): Map<string, string[]> {
   try {
     const output = exec("claude plugins list --json");
@@ -95,8 +111,14 @@ function resolvePluginSelection(
   selected: string[] | undefined,
 ): PluginDef[] {
   if (!selected || (selected.length === 1 && selected[0] === "*")) return all;
-  const wanted = new Set(selected);
-  return all.filter((p) => wanted.has(p.name));
+  const byName = new Map(all.map((p) => [p.name, p]));
+  const missing = selected.filter((name) => !byName.has(name));
+  if (missing.length > 0) {
+    throw new Error(
+      `${missing.join(", ")} not available for Claude Code plugins; available: ${all.map((p) => p.name).join(", ")}`,
+    );
+  }
+  return selected.map((name) => byName.get(name)!);
 }
 
 function getInstalledMarketplaces(): Set<string> {
@@ -112,10 +134,269 @@ function getInstalledMarketplaces(): Set<string> {
   }
 }
 
+function loadCodexMarketplace(packageRoot: string): CodexMarketplace | null {
+  const marketplacePath = path.join(packageRoot, ".agents", "plugins", "marketplace.json");
+  if (!fs.existsSync(marketplacePath)) return null;
+  const raw = JSON.parse(fs.readFileSync(marketplacePath, "utf-8")) as CodexMarketplace;
+  if (!raw || typeof raw !== "object" || typeof raw.name !== "string" || !MARKETPLACE_NAME_RE.test(raw.name)) {
+    throw new Error("Codex marketplace.json: root must include a safe name");
+  }
+  if (!Array.isArray(raw.plugins)) {
+    throw new Error("Codex marketplace.json: .plugins must be an array");
+  }
+  for (const [i, plugin] of raw.plugins.entries()) {
+    if (!plugin || typeof plugin !== "object") {
+      throw new Error(`Codex marketplace.json: plugins[${i}] must be an object`);
+    }
+    if (typeof plugin.name !== "string" || !PLUGIN_NAME_RE.test(plugin.name)) {
+      throw new Error(
+        `Codex marketplace.json: plugins[${i}].name ${JSON.stringify(plugin.name)} does not match ${PLUGIN_NAME_RE}`,
+      );
+    }
+  }
+  return raw;
+}
+
+function resolveCodexPluginSelection(
+  all: CodexMarketplacePlugin[],
+  selected: string[] | undefined,
+): CodexMarketplacePlugin[] {
+  if (!selected || (selected.length === 1 && selected[0] === "*")) return all;
+  const byName = new Map(all.map((p) => [p.name, p]));
+  const missing = selected.filter((name) => !byName.has(name));
+  if (missing.length > 0) {
+    throw new Error(
+      `${missing.join(", ")} not available for Codex plugins; available: ${all.map((p) => p.name).join(", ")}`,
+    );
+  }
+  return selected.map((name) => byName.get(name)!);
+}
+
+function codexHome(): string {
+  return process.env.CODEX_HOME || path.join(os.homedir(), ".codex");
+}
+
+function shellQuote(value: string): string {
+  return `'${value.replace(/'/g, "'\\''")}'`;
+}
+
+function codexMarketplaceAddCommand(packageRoot: string): string {
+  if (process.env.DEV === "1") {
+    return `codex plugin marketplace add ${shellQuote(packageRoot)}`;
+  }
+  const ref = process.env.AURIGA_CONTENT_REF || `v${readPackageVersion()}`;
+  return `codex plugin marketplace add Ben2pc/auriga-cli --ref ${shellQuote(ref)}`;
+}
+
+function pluginHasHooks(packageRoot: string, plugin: CodexMarketplacePlugin): boolean {
+  const sourcePath = typeof plugin.source === "object" && plugin.source?.source === "local"
+    ? plugin.source.path
+    : undefined;
+  if (!sourcePath) return false;
+  const manifestPath = path.join(packageRoot, sourcePath, ".codex-plugin", "plugin.json");
+  if (!fs.existsSync(manifestPath)) return false;
+  const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf-8")) as { hooks?: unknown };
+  return typeof manifest.hooks === "string" || Array.isArray(manifest.hooks);
+}
+
+function ensureTomlBoolean(content: string, section: string, key: string, value: boolean): string {
+  const line = `${key} = ${value ? "true" : "false"}`;
+  const header = `[${section}]`;
+  const lines = content.length > 0 ? content.split(/\r?\n/) : [];
+  const start = lines.findIndex((l) => l.trim() === header);
+  if (start === -1) {
+    const prefix = content.trimEnd();
+    return `${prefix}${prefix ? "\n\n" : ""}${header}\n${line}\n`;
+  }
+  let end = lines.length;
+  for (let i = start + 1; i < lines.length; i += 1) {
+    if (/^\s*\[/.test(lines[i])) {
+      end = i;
+      break;
+    }
+  }
+  const keyRe = new RegExp(`^\\s*${key}\\s*=`);
+  for (let i = start + 1; i < end; i += 1) {
+    if (keyRe.test(lines[i])) {
+      lines[i] = line;
+      return lines.join("\n");
+    }
+  }
+  lines.splice(end, 0, line);
+  return lines.join("\n");
+}
+
+function parseCodexConfigToml(content: string, configPath: string): TomlTable {
+  if (content.trim().length === 0) return {};
+  try {
+    return parseToml(content) as TomlTable;
+  } catch (e) {
+    throw new Error(`Codex config.toml is invalid TOML at ${configPath}: ${(e as Error).message}`);
+  }
+}
+
+function isTomlTable(value: unknown): value is TomlTable {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function getOrCreateTomlTable(parent: TomlTable, key: string, pathLabel: string): TomlTable {
+  const existing = parent[key];
+  if (existing === undefined) {
+    const table: TomlTable = {};
+    parent[key] = table;
+    return table;
+  }
+  if (!isTomlTable(existing)) {
+    throw new Error(`Codex config.toml: ${pathLabel} must be a TOML table`);
+  }
+  return existing;
+}
+
+function buildCodexPluginConfigToml(
+  originalContent: string,
+  configPath: string,
+  pluginKeys: string[],
+  needsPluginHooks: boolean,
+): string {
+  const parsed = parseCodexConfigToml(originalContent, configPath);
+  const features = getOrCreateTomlTable(parsed, "features", "features");
+  features.plugins = true;
+  if (needsPluginHooks) {
+    features.plugin_hooks = true;
+  }
+
+  const plugins = getOrCreateTomlTable(parsed, "plugins", "plugins");
+  for (const pluginKey of pluginKeys) {
+    const plugin = getOrCreateTomlTable(
+      plugins,
+      pluginKey,
+      `plugins.${JSON.stringify(pluginKey)}`,
+    );
+    plugin.enabled = true;
+  }
+
+  return stringifyToml(parsed);
+}
+
+function tryMinimalCodexPluginConfigToml(
+  originalContent: string,
+  configPath: string,
+  pluginKeys: string[],
+  needsPluginHooks: boolean,
+): string | null {
+  let content = originalContent;
+  content = ensureTomlBoolean(content, "features", "plugins", true);
+  if (needsPluginHooks) {
+    content = ensureTomlBoolean(content, "features", "plugin_hooks", true);
+  }
+  for (const pluginKey of pluginKeys) {
+    content = ensureTomlBoolean(content, `plugins."${pluginKey}"`, "enabled", true);
+  }
+
+  try {
+    parseToml(content);
+    return content;
+  } catch {
+    // Existing configs may use legal TOML forms such as inline tables
+    // (`features = { plugins = false }`). In that case, a local section
+    // insertion would redefine the table, so fall back to structured output.
+    parseCodexConfigToml(originalContent, configPath);
+    return null;
+  }
+}
+
+function enableCodexPluginConfig(
+  configPath: string,
+  pluginKeys: string[],
+  needsPluginHooks: boolean,
+): void {
+  fs.mkdirSync(path.dirname(configPath), { recursive: true });
+  const originalContent = fs.existsSync(configPath) ? fs.readFileSync(configPath, "utf-8") : "";
+  const minimalContent = tryMinimalCodexPluginConfigToml(
+    originalContent,
+    configPath,
+    pluginKeys,
+    needsPluginHooks,
+  );
+  const content = minimalContent ?? buildCodexPluginConfigToml(
+    originalContent,
+    configPath,
+    pluginKeys,
+    needsPluginHooks,
+  );
+  fs.writeFileSync(configPath, content.endsWith("\n") ? content : `${content}\n`);
+}
+
+async function installCodexPlugins(
+  packageRoot: string,
+  opts: InstallOpts,
+): Promise<void> {
+  const marketplace = loadCodexMarketplace(packageRoot);
+  if (!marketplace) {
+    log.warn("No .agents/plugins/marketplace.json found");
+    return;
+  }
+
+  const selected = opts.interactive
+    ? await withEsc(checkbox({
+      message: "Select Codex plugins to install:",
+      choices: marketplace.plugins.map((p) => ({
+        name: p.name,
+        value: p,
+        checked: true,
+      })),
+    }))
+    : resolveCodexPluginSelection(marketplace.plugins, opts.selected);
+
+  if (selected.length === 0) {
+    log.skip("No Codex plugins selected");
+    return;
+  }
+
+  const failures: string[] = [];
+  try {
+    exec(codexMarketplaceAddCommand(packageRoot), { inherit: true });
+    log.ok(`Codex marketplace ${marketplace.name} added`);
+  } catch {
+    log.error(`Failed to add Codex marketplace: ${marketplace.name}`);
+    failures.push(`codex marketplace ${marketplace.name}`);
+  }
+
+  if (failures.length === 0) {
+    const pluginKeys = selected.map((p) => `${p.name}@${marketplace.name}`);
+    const needsPluginHooks = selected.some((p) => pluginHasHooks(packageRoot, p));
+    enableCodexPluginConfig(
+      path.join(codexHome(), "config.toml"),
+      pluginKeys,
+      needsPluginHooks,
+    );
+    for (const plugin of selected) {
+      log.ok(`${plugin.name} enabled for Codex`);
+    }
+  }
+
+  if (failures.length > 0 && !opts.interactive) {
+    throw new Error(
+      `${failures.length} Codex plugin operation(s) failed: ${failures.join(", ")}`,
+    );
+  }
+}
+
 export async function installPlugins(
   packageRoot: string,
   opts: InstallOpts,
 ): Promise<void> {
+  const agent: PluginAgent = opts.interactive
+    ? await withEsc(select<PluginAgent>({
+      message: "Plugins target runtime:",
+      choices: [
+        { name: "Claude Code", value: "claude" },
+        { name: "Codex", value: "codex" },
+        { name: "Both", value: "both" },
+      ],
+    }))
+    : opts.agent ?? "claude";
+
   // Non-interactive path already ran `precheckExternal(["plugins"])` in
   // cli.ts's runAll / runSingle before dispatching here, so rechecking
   // `which claude` would be a redundant subprocess on every install.
@@ -123,12 +404,27 @@ export async function installPlugins(
   // validate there — and fail soft (log-and-return) to match the menu's
   // continue-on-failure ergonomics.
   if (opts.interactive) {
-    try {
-      exec("which claude");
-    } catch {
-      log.error("'claude' CLI not found. Please install Claude Code first.");
-      return;
+    if (agent === "claude" || agent === "both") {
+      try {
+        exec("which claude");
+      } catch {
+        log.error("'claude' CLI not found. Please install Claude Code first.");
+        return;
+      }
     }
+    if (agent === "codex" || agent === "both") {
+      try {
+        exec("which codex");
+      } catch {
+        log.error("'codex' CLI not found. Please install Codex first.");
+        return;
+      }
+    }
+  }
+
+  if (agent === "codex") {
+    await installCodexPlugins(packageRoot, opts);
+    return;
   }
 
   const configPath = path.join(packageRoot, ".claude", "plugins.json");
@@ -220,5 +516,9 @@ export async function installPlugins(
     throw new Error(
       `${failures.length} plugin operation(s) failed: ${failures.join(", ")}`,
     );
+  }
+
+  if (agent === "both") {
+    await installCodexPlugins(packageRoot, opts);
   }
 }

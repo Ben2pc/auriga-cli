@@ -20,6 +20,18 @@ interface HooksConfig {
   hooks: HookEntry[];
 }
 
+interface CodexMarketplacePlugin {
+  name: string;
+  source?: {
+    source?: string;
+    path?: string;
+  } | string;
+}
+
+interface CodexMarketplace {
+  plugins: CodexMarketplacePlugin[];
+}
+
 /**
  * English `--help` summaries for skills whose authoritative upstream
  * SKILL.md is non-English. The SKILL.md still drives runtime behavior;
@@ -74,10 +86,37 @@ export function generateCatalog(repoRoot: string): Catalog {
   const pluginsRaw: unknown = JSON.parse(fs.readFileSync(pluginsPath, "utf-8"));
   validatePluginsConfig(pluginsRaw);
   const pluginsCfg = pluginsRaw as PluginsConfig;
-  const plugins: CatalogEntry[] = pluginsCfg.plugins.map((p) => ({
-    name: p.name,
-    description: p.description,
-  }));
+  const pluginByName = new Map<string, CatalogEntry>();
+  for (const p of pluginsCfg.plugins) {
+    pluginByName.set(p.name, { name: p.name, description: p.description });
+  }
+
+  const codexMarketplacePath = path.join(repoRoot, ".agents", "plugins", "marketplace.json");
+  if (fs.existsSync(codexMarketplacePath)) {
+    const codexMarketplace = JSON.parse(fs.readFileSync(codexMarketplacePath, "utf-8")) as CodexMarketplace;
+    for (const p of codexMarketplace.plugins) {
+      if (pluginByName.has(p.name)) continue;
+      const sourcePath = typeof p.source === "object" && p.source?.source === "local"
+        ? p.source.path
+        : undefined;
+      const manifestPath = sourcePath
+        ? path.join(repoRoot, sourcePath, ".codex-plugin", "plugin.json")
+        : undefined;
+      let description = "Codex plugin";
+      if (manifestPath && fs.existsSync(manifestPath)) {
+        const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf-8")) as {
+          description?: unknown;
+          interface?: { shortDescription?: unknown };
+        };
+        description = typeof manifest.interface?.shortDescription === "string"
+          ? manifest.interface.shortDescription
+          : typeof manifest.description === "string" ? manifest.description
+          : description;
+      }
+      pluginByName.set(p.name, { name: p.name, description: `(Codex) ${description}` });
+    }
+  }
+  const plugins: CatalogEntry[] = [...pluginByName.values()];
 
   const hooksPath = path.join(repoRoot, ".claude", "hooks", "hooks.json");
   const hooksCfg = JSON.parse(fs.readFileSync(hooksPath, "utf-8")) as HooksConfig;

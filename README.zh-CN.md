@@ -13,7 +13,7 @@
 | **Workflow** | `CLAUDE.md` 里的 auriga 工作流：需求澄清 → TDD → Review，Harness 原则，Subagent 使用指南 |
 | **Skills** | 开发流程 + 编排类 skills —— brainstorming、systematic-debugging、TDD、verification、planning、playwright、deep-review、test-designer、parallel-implementation |
 | **Recommended Skills** | 可选的工具类 skills（如 `codex-agent`、`claude-code-agent`），在 workflow skills 之外按需追加 |
-| **Plugins** | 推荐的 Claude Code 插件 —— skill-creator、claude-md-management、codex、auriga-go、auriga-pr-guards |
+| **Plugins** | 推荐的 Claude Code 和 Codex 插件 —— skill-creator、claude-md-management、codex、auriga-go、auriga-pr-guards、session-instructions-loader |
 | **Hooks** | Claude Code hooks：`notify`（macOS 通知，终端在焦点时仅放声不弹横幅 —— **opt-in**：`install --all` 不装，需要 `install hooks --hook notify`） |
 
 ## 快速开始
@@ -35,11 +35,12 @@ npx -y auriga-cli guide
 ```bash
 npx -y auriga-cli install --all              # workflow + skills + plugins + hooks（原子）
 npx -y auriga-cli install recommended        # 可选工具 skills（不在 --all 内）
+npx -y auriga-cli install plugins --agent codex --plugin session-instructions-loader
 npx -y auriga-cli install <type> [--flags]   # 单类：workflow | skills | recommended | plugins | hooks
 npx -y auriga-cli --help                     # 完整 catalog + flag 说明
 ```
 
-退出码：`0` 成功；`1` 致命错误（前置检查 / 解析 / 拉取失败）；`2` 部分成功——`stderr` 会列出逐类 `[OK]/[FAIL]` 和 `Retry:` 提示。装完后请重启 Claude Code session，让新的 `CLAUDE.md` / skills / plugins / hook 注册 生效。
+退出码：`0` 成功；`1` 致命错误（前置检查 / 解析 / 拉取失败）；`2` 部分成功——`stderr` 会列出逐类 `[OK]/[FAIL]` 和 `Retry:` 提示。装完后请重启 Claude Code 或 Codex 会话，让新的 `CLAUDE.md` / skills / plugins / hook 注册生效。
 
 ### 交互式菜单
 
@@ -54,11 +55,11 @@ npx auriga-cli
   ◉ Workflow — CLAUDE.md + AGENTS.md
   ◉ Skills — 开发流程 skills
   ◉ Recommended Skills — 额外的工具 skills
-  ◉ Plugins — Claude Code 插件
+  ◉ Plugins — Claude Code / Codex 插件
   ◉ Hooks — Claude Code hooks
 ```
 
-每个模块支持作用域选择（Skills: project/global，Plugins: user/project，Hooks: project local / project / user）。
+每个模块在适用时支持作用域选择（Skills: project/global，Claude Code Plugins: user/project，Hooks: project local / project / user）。安装插件时还会先选择目标运行时：Claude Code、Codex 或两者都装。
 
 ## 模块详情
 
@@ -99,7 +100,15 @@ npx auriga-cli
 
 ### Plugins
 
-通过 `claude plugins install` 安装选中的插件，自动添加所需的 marketplace。
+可以把选中的插件安装到 Claude Code、Codex 或两者都装。Claude Code 路径使用 `claude plugins install`，并遵守 `--scope project|user`；Codex 路径使用 `codex plugin marketplace add`，并在 `~/.codex/config.toml` 里启用选中的插件。
+
+示例：
+
+```bash
+npx -y auriga-cli install plugins --plugin auriga-go
+npx -y auriga-cli install plugins --agent codex --plugin session-instructions-loader
+npx -y auriga-cli install plugins --agent both --plugin auriga-pr-guards
+```
 
 | 插件 | 说明 |
 |---|---|
@@ -108,6 +117,7 @@ npx auriga-cli
 | codex | Codex 跨模型协作 |
 | auriga-go | auriga 工作流的自动驾驶：按 `CLAUDE.md` 的 phase 做 reminder-based 导航；包含 Experimental 的 hook-backed `ship` 模式。内置一个 skill（按 description 的自然语言触发 + `/auriga-go` slash command）和一个 plugin 层面的 Stop hook。 |
 | auriga-pr-guards | 把两个 PR-workflow guardrail 打成同时兼容 Claude Code 与 Codex 的 dual-Agent 插件：`pr-create-guard`（`gh pr create` 的 PostToolUse —— 通过 `gh pr view` 拉真实 PR body，扫 `^##` / `^###` headings 并统计 `- [ ]` / `- [x]` 注入 `additionalContext`，让 Agent 对照范围 / 验收 / 风险 / 剩余 TODO 四要素）+ `pr-ready-guard`（`gh pr ready` 的 PreToolUse —— 仅按结构信号拦截：游离 `findings.md` / `progress.md` / `task_plan.md` / `docs/superpowers/specs/*.md`、`docs/specs/*.md` 内未结案的活跃 spec、未 push commits；放行时注入 body 快照）。Codex 当前对 PreToolUse 的 `additionalContext` 字段 fail-open（解析但不生效），block 路径两边一致。 |
+| session-instructions-loader | Codex-only SessionStart 插件，注入上层目录的 `AGENTS.md` 和仓库配置的额外 instruction 文件。 |
 
 ### Hooks
 
@@ -128,7 +138,8 @@ npx auriga-cli
 ## 环境要求
 
 - Node.js >= 18
-- [Claude Code](https://docs.anthropic.com/en/docs/claude-code)（Plugins 和 Hooks 模块需要）
+- [Claude Code](https://docs.anthropic.com/en/docs/claude-code)（Claude Code Plugins 和 Hooks 模块需要）
+- Codex CLI（仅 `install plugins --agent codex|both` 需要）
 - [Homebrew](https://brew.sh)（`notify` hook 用来安装 `alerter`，可选）
 
 ## 开发

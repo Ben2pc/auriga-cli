@@ -11,6 +11,7 @@ import {
   LANGUAGES,
   log,
   readPackageVersion,
+  type PluginAgent,
   type InstallOpts,
 } from "./utils.js";
 import { installWorkflow } from "./workflow.js";
@@ -24,7 +25,7 @@ import { CATEGORY_NAMES, type CategoryName } from "./types.js";
 export type { CategoryName } from "./types.js";
 
 const RELOAD_REMINDER =
-  "\n⚠ Reload your Claude Code session to pick up the new harness (CLAUDE.md / skills / plugins are loaded at session startup).\n";
+  "\n⚠ Reload your Claude Code or Codex session to pick up the new harness (CLAUDE.md / skills / plugins are loaded at session startup).\n";
 
 // ---------------------------------------------------------------------------
 // parseArgs — pure argv parser (spec §3.5 / §5.2)
@@ -37,6 +38,7 @@ export interface InstallParsed {
   lang?: string;
   cwd?: string;
   scope?: "project" | "user";
+  agent?: PluginAgent;
 }
 
 export type ParsedArgs =
@@ -187,6 +189,12 @@ function parseInstall(argv: string[]): InstallParsed {
       i += advance;
       continue;
     }
+    if (t === "--agent" || t.startsWith("--agent=")) {
+      const [v, advance] = readSingleValue(argv, i, "--agent");
+      out.agent = v as PluginAgent;
+      i += advance;
+      continue;
+    }
 
     // Object.hasOwn (not `in`) so Object.prototype keys like `toString` /
     // `constructor` don't slip into the filter-flag branch and produce a
@@ -237,6 +245,7 @@ function validateInstall(out: InstallParsed, filterFlag: string | null): void {
     }
     // --all may combine with --scope.
     if (out.scope !== undefined) validateScopeValue(out.scope);
+    if (out.agent !== undefined) validateAgentValue(out.agent);
     return;
   }
 
@@ -260,6 +269,13 @@ function validateInstall(out: InstallParsed, filterFlag: string | null): void {
       parseErr("--scope does not apply to workflow.");
     }
     validateScopeValue(out.scope);
+  }
+
+  if (out.agent !== undefined) {
+    if (out.type !== "plugins") {
+      parseErr("--agent only applies to plugins or --all.");
+    }
+    validateAgentValue(out.agent);
   }
 
   // Value validation for workflow.
@@ -311,6 +327,12 @@ function categorySingular(type: CategoryName): string {
 function validateScopeValue(scope: string): void {
   if (scope !== "project" && scope !== "user") {
     parseErr(`unknown --scope value '${scope}'; expected 'project' or 'user'.`);
+  }
+}
+
+function validateAgentValue(agent: string): void {
+  if (agent !== "claude" && agent !== "codex" && agent !== "both") {
+    parseErr(`unknown --agent value '${agent}'; expected 'claude', 'codex', or 'both'.`);
   }
 }
 
@@ -397,10 +419,16 @@ async function runInstall(p: InstallParsed): Promise<number> {
  * Precheck external prerequisites before touching any files.
  * Returns null if OK, or an error message.
  */
-function precheckExternal(need: CategoryName[]): string | null {
+function precheckExternal(need: CategoryName[], agent: PluginAgent = "claude"): string | null {
   if (need.includes("plugins")) {
-    try { exec("which claude"); }
-    catch { return "'claude' CLI not in PATH. Install Claude Code first (https://docs.claude.com/claude-code), then re-run."; }
+    if (agent === "claude" || agent === "both") {
+      try { exec("which claude"); }
+      catch { return "'claude' CLI not in PATH. Install Claude Code first (https://docs.claude.com/claude-code), then re-run."; }
+    }
+    if (agent === "codex" || agent === "both") {
+      try { exec("which codex"); }
+      catch { return "'codex' CLI not in PATH. Install Codex first, then re-run."; }
+    }
   }
   return null;
 }
@@ -423,8 +451,9 @@ async function safeFetchContentRoot(): Promise<{ root?: string; err?: string }> 
  */
 async function prepareInstall(
   needs: CategoryName[],
+  agent?: PluginAgent,
 ): Promise<{ packageRoot: string } | { exit: number }> {
-  const pre = precheckExternal(needs);
+  const pre = precheckExternal(needs, agent ?? "claude");
   if (pre) {
     log.error(pre);
     return { exit: 1 };
@@ -438,7 +467,7 @@ async function prepareInstall(
 }
 
 async function runAll(p: InstallParsed): Promise<number> {
-  const prep = await prepareInstall(["plugins"]);
+  const prep = await prepareInstall(["plugins"], p.agent);
   if ("exit" in prep) return prep.exit;
   const { packageRoot } = prep;
 
@@ -451,6 +480,7 @@ async function runAll(p: InstallParsed): Promise<number> {
     const opts: InstallOpts = {
       interactive: false,
       scope: p.scope,
+      agent: p.agent,
     };
     try {
       await dispatchInstaller(category, packageRoot, opts);
@@ -501,7 +531,7 @@ function scopeCategory(c: CategoryName): boolean {
 
 async function runSingle(p: InstallParsed): Promise<number> {
   const category = p.type as CategoryName;
-  const prep = await prepareInstall(category === "plugins" ? ["plugins"] : []);
+  const prep = await prepareInstall(category === "plugins" ? ["plugins"] : [], p.agent);
   if ("exit" in prep) return prep.exit;
   const { packageRoot } = prep;
 
@@ -510,6 +540,7 @@ async function runSingle(p: InstallParsed): Promise<number> {
     lang: p.lang,
     cwd: p.cwd,
     scope: p.scope,
+    agent: p.agent,
     selected: p.filter,
   };
 

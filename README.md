@@ -13,7 +13,7 @@ This repo itself is a fully configured harness project. You can clone it to see 
 | **Workflow** | `CLAUDE.md` auriga workflow: requirement clarification -> TDD -> Review, Harness principles, Subagent usage guide |
 | **Skills** | Development process + orchestration skills — brainstorming, systematic-debugging, TDD, verification, planning, playwright, deep-review, test-designer, parallel-implementation |
 | **Recommended Skills** | Optional utility skills (e.g. `codex-agent`, `claude-code-agent`) you can add on top of the workflow skills |
-| **Plugins** | Recommended Claude Code plugins — skill-creator, claude-md-management, codex, auriga-go, auriga-pr-guards |
+| **Plugins** | Recommended Claude Code and Codex plugins — skill-creator, claude-md-management, codex, auriga-go, auriga-pr-guards, session-instructions-loader |
 | **Hooks** | Claude Code hooks: `notify` (macOS notification, focus-aware sound-only when terminal is frontmost — **opt-in**: not installed by `install --all`, requires `install hooks --hook notify`) |
 
 ## Quick Start
@@ -35,11 +35,12 @@ Non-interactive install commands:
 ```bash
 npx -y auriga-cli install --all              # workflow + skills + plugins + hooks (atomic)
 npx -y auriga-cli install recommended        # opt-in utility skills (not in --all)
+npx -y auriga-cli install plugins --agent codex --plugin session-instructions-loader
 npx -y auriga-cli install <type> [--flags]   # one of: workflow | skills | recommended | plugins | hooks
 npx -y auriga-cli --help                     # full catalog + flags
 ```
 
-Exit codes: `0` success, `1` fatal (precheck / parse / fetch), `2` partial success — `stderr` lists per-category `[OK]/[FAIL]` and a `Retry:` hint. After install, reload the Claude Code session so the new `CLAUDE.md` / skills / plugins / hook registrations are picked up.
+Exit codes: `0` success, `1` fatal (precheck / parse / fetch), `2` partial success — `stderr` lists per-category `[OK]/[FAIL]` and a `Retry:` hint. After install, reload the Claude Code or Codex session so the new `CLAUDE.md` / skills / plugins / hook registrations are picked up.
 
 ### Interactive menu
 
@@ -54,11 +55,11 @@ Interactive menu — select what to install:
   ◉ Workflow — CLAUDE.md + AGENTS.md
   ◉ Skills — Development process skills
   ◉ Recommended Skills — Extra utility skills
-  ◉ Plugins — Claude Code plugins
+  ◉ Plugins — Claude Code / Codex plugins
   ◉ Hooks — Claude Code hooks
 ```
 
-Each module supports scope selection (Skills: project/global, Plugins: user/project, Hooks: project local / project / user).
+Each module supports scope selection where applicable (Skills: project/global, Claude Code Plugins: user/project, Hooks: project local / project / user). Plugin installation also asks which runtime to target: Claude Code, Codex, or both.
 
 ## Module Details
 
@@ -99,7 +100,15 @@ Supports both project and global installation scopes.
 
 ### Plugins
 
-Installs selected plugins via `claude plugins install`, automatically adding required marketplaces.
+Installs selected plugins for Claude Code, Codex, or both. Claude Code uses `claude plugins install` and honors `--scope project|user`; Codex uses `codex plugin marketplace add` and enables selected plugins in `~/.codex/config.toml`.
+
+Examples:
+
+```bash
+npx -y auriga-cli install plugins --plugin auriga-go
+npx -y auriga-cli install plugins --agent codex --plugin session-instructions-loader
+npx -y auriga-cli install plugins --agent both --plugin auriga-pr-guards
+```
 
 | Plugin | Description |
 |---|---|
@@ -108,6 +117,7 @@ Installs selected plugins via `claude plugins install`, automatically adding req
 | codex | Codex cross-model collaboration |
 | auriga-go | Workflow autopilot for the auriga workflow. Reminder-based navigation across the `CLAUDE.md` phases with an Experimental hook-backed `ship` mode. Bundles a skill (description-based NL trigger + `/auriga-go`) plus a plugin-level Stop hook for ship mode. |
 | auriga-pr-guards | Two PR-workflow guardrails packaged as a dual-Agent plugin (Claude Code + Codex): `pr-create-guard` (PostToolUse for `gh pr create` → fetch the new PR's body via `gh pr view` and inject headings + TODO counts as `additionalContext` so the Agent can self-verify scope / acceptance / risks / TODO) and `pr-ready-guard` (PreToolUse for `gh pr ready` → block on stray planning docs at `findings.md` / `progress.md` / `task_plan.md` / `docs/superpowers/specs/*.md`, unfinalized active specs in `docs/specs/*.md`, or unpushed commits; otherwise inject the body snapshot). Codex currently fails open on the `additionalContext` field for PreToolUse but enforces blocks identically. |
+| session-instructions-loader | Codex-only SessionStart plugin that injects ancestor `AGENTS.md` files plus repo-configured extra instruction files. |
 
 ### Hooks
 
@@ -128,7 +138,8 @@ Re-running the installer preserves your customized `config.json` and `icon.png`,
 ## Requirements
 
 - Node.js >= 18
-- [Claude Code](https://docs.anthropic.com/en/docs/claude-code) (required for Plugins and Hooks modules)
+- [Claude Code](https://docs.anthropic.com/en/docs/claude-code) (required for Claude Code Plugins and Hooks modules)
+- Codex CLI (required only for `install plugins --agent codex|both`)
 - [Homebrew](https://brew.sh) (recommended for the `notify` hook to install `alerter`)
 
 ## Development

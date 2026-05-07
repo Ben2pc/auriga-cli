@@ -31,6 +31,8 @@ export interface PluginsConfig {
   plugins: PluginDef[];
 }
 
+export type PluginAgent = "claude" | "codex" | "both";
+
 // --- Install options (spec §5.3) ---
 
 /**
@@ -49,6 +51,8 @@ export interface InstallOpts {
   cwd?: string;
   /** skills / recommended / plugins / hooks — `"user"` means install globally. */
   scope?: "project" | "user";
+  /** plugins only — runtime to install plugins for. Defaults to Claude Code. */
+  agent?: PluginAgent;
   /**
    * sub-item filter. `undefined` = full set of this category.
    * Names are validated against the catalog by the CLI layer; installers
@@ -167,6 +171,10 @@ const CONTENT_FILES = [
   "CLAUDE.md",
   "skills-lock.json",
   ".claude/plugins.json",
+  ".agents/plugins/marketplace.json",
+  "plugins/auriga-go/.codex-plugin/plugin.json",
+  "plugins/auriga-pr-guards/.codex-plugin/plugin.json",
+  "plugins/session-instructions-loader/.codex-plugin/plugin.json",
   ".claude/hooks/hooks.json",
 ];
 

@@ -76,6 +76,24 @@ describe("parseArgs", () => {
         filter: ["auriga-go"],
       },
     });
+    assert.deepEqual(installArgs(["plugins", "--agent", "codex", "--plugin", "session-instructions-loader"]), {
+      command: "install",
+      install: {
+        all: false,
+        type: "plugins",
+        agent: "codex",
+        filter: ["session-instructions-loader"],
+      },
+    });
+    assert.deepEqual(installArgs(["plugins", "--agent=both", "--plugin", "auriga-go"]), {
+      command: "install",
+      install: {
+        all: false,
+        type: "plugins",
+        agent: "both",
+        filter: ["auriga-go"],
+      },
+    });
     assert.deepEqual(installArgs(["hooks", "--hook", "notify"]), {
       command: "install",
       install: {
@@ -114,8 +132,23 @@ describe("parseArgs", () => {
     expectParseError(["install", "workflow", "--hook", "notify"], /--hook requires 'install hooks'/i);
     expectParseError(["install", "skills", "--lang", "en"], /--lang\/--cwd only apply to workflow/i);
     expectParseError(["install", "workflow", "--scope", "user"], /--scope does not apply to workflow/i);
+    expectParseError(["install", "workflow", "--agent", "codex"], /--agent only applies to plugins or --all/i);
     expectParseError(["--all"], /--help/i);
     expectParseError(["foo"], /--help/i);
+  });
+
+  test("accepts --agent for plugins and --all only", () => {
+    assert.deepEqual(installArgs(["--all", "--agent", "codex"]), {
+      command: "install",
+      install: { all: true, agent: "codex" },
+    });
+    assert.deepEqual(installArgs(["--all", "--agent=both", "--scope", "user"]), {
+      command: "install",
+      install: { all: true, agent: "both", scope: "user" },
+    });
+    expectParseError(["install", "skills", "--agent", "codex"], /--agent only applies to plugins or --all/i);
+    expectParseError(["install", "plugins", "--agent", "unknown"], /unknown --agent value/i);
+    expectParseError(["install", "plugins", "--agent="], /--agent requires a value/i);
   });
 
   // Hooks now accept --scope in non-interactive mode (default: project).

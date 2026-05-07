@@ -4,7 +4,10 @@ const CATALOG = {
   generatedAt: "2026-04-21T00:00:00.000Z",
   workflowSkills: [{ name: "brainstorming", description: "x" }],
   recommendedSkills: [{ name: "codex-agent", description: "x" }],
-  plugins: [{ name: "auriga-go", description: "x" }],
+  plugins: [
+    { name: "auriga-go", description: "x" },
+    { name: "session-instructions-loader", description: "x" },
+  ],
   hooks: [{ name: "notify", description: "x" }],
 };
 let importSerial = 0;
@@ -27,7 +30,7 @@ async function importMain(overrides: {
   isNonInteractive?: () => boolean;
   installWorkflow?: (packageRoot: string, opts: { scope?: string }) => Promise<void>;
   installSkills?: (packageRoot: string, opts: { scope?: string }) => Promise<void>;
-  installPlugins?: (packageRoot: string, opts: { scope?: string }) => Promise<void>;
+  installPlugins?: (packageRoot: string, opts: { scope?: string; agent?: string }) => Promise<void>;
   installHooks?: (packageRoot: string, opts: { scope?: string }) => Promise<void>;
   loadCatalog?: () => unknown;
 } = {}) {
@@ -117,6 +120,51 @@ describe("main non-interactive install flow", () => {
     assert.equal(fetchCalls, 0);
     assert.deepEqual(calls, []);
     assert.match(stderr, /install Claude Code first|claude/i);
+  });
+  test("codex-only plugin install prechecks codex CLI instead of claude CLI", async () => {
+    const execCalls: string[] = [];
+    let fetchCalls = 0;
+    const seen: { agent?: string }[] = [];
+    const main = await importMain({
+      exec: (cmd) => {
+        execCalls.push(cmd);
+        if (cmd === "which claude") throw new Error("claude missing");
+        return "";
+      },
+      fetchContentRoot: async () => {
+        fetchCalls += 1;
+        return process.cwd();
+      },
+      installPlugins: async (_root, opts) => {
+        seen.push({ agent: opts.agent });
+      },
+    });
+    const { result } = await captureStderr(() =>
+      main(["install", "plugins", "--agent", "codex", "--plugin", "session-instructions-loader"]),
+    );
+    assert.equal(result, 0);
+    assert.equal(fetchCalls, 1);
+    assert.deepEqual(execCalls, ["which codex"]);
+    assert.deepEqual(seen, [{ agent: "codex" }]);
+  });
+  test("codex plugin install fails precheck before fetch when codex CLI is missing", async () => {
+    let fetchCalls = 0;
+    const main = await importMain({
+      exec: (cmd) => {
+        if (cmd === "which codex") throw new Error("missing");
+        return "";
+      },
+      fetchContentRoot: async () => {
+        fetchCalls += 1;
+        return process.cwd();
+      },
+    });
+    const { result, stderr } = await captureStderr(() =>
+      main(["install", "plugins", "--agent", "codex"]),
+    );
+    assert.equal(result, 1);
+    assert.equal(fetchCalls, 0);
+    assert.match(stderr, /codex.*CLI/i);
   });
   // Covers spec §5.3.1 graded exit 2, per-category stderr status, and retry hint generation.
   test("returns exit 2 with status lines and retry command when one category fails", async () => {
@@ -247,7 +295,7 @@ describe("main non-interactive install flow", () => {
     const { result, stderr } = await captureStderr(() => main(["install", "--all"]));
     const lastLine = stderr.trim().split(/\r?\n/).at(-1) ?? "";
     assert.equal(result, 0);
-    assert.match(lastLine, /Reload your Claude Code session .* loaded at session startup/i);
+    assert.match(lastLine, /Reload your Claude Code or Codex session .* loaded at session startup/i);
   });
   // Partial success (exit 2) must still print the reload reminder —
   // categories that succeeded installed assets that require a session
@@ -265,7 +313,7 @@ describe("main non-interactive install flow", () => {
     const { result, stderr } = await captureStderr(() => main(["install", "--all"]));
     assert.equal(result, 2);
     assert.match(stderr, /Retry:\s+npx -y auriga-cli install plugins/i);
-    assert.match(stderr, /Reload your Claude Code session/i);
+    assert.match(stderr, /Reload your Claude Code or Codex session/i);
   });
   // Conversely, a full failure (no category succeeded → nothing was
   // installed → nothing to reload) must NOT print the reload reminder.
@@ -278,6 +326,6 @@ describe("main non-interactive install flow", () => {
     });
     const { result, stderr } = await captureStderr(() => main(["install", "--all"]));
     assert.equal(result, 2);
-    assert.doesNotMatch(stderr, /Reload your Claude Code session/i);
+    assert.doesNotMatch(stderr, /Reload your Claude Code or Codex session/i);
   });
 });
