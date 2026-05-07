@@ -1,5 +1,6 @@
 import { execSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -31,6 +32,8 @@ export interface PluginsConfig {
   plugins: PluginDef[];
 }
 
+export type PluginAgent = "claude" | "codex" | "both";
+
 // --- Install options (spec §5.3) ---
 
 /**
@@ -49,6 +52,8 @@ export interface InstallOpts {
   cwd?: string;
   /** skills / recommended / plugins / hooks — `"user"` means install globally. */
   scope?: "project" | "user";
+  /** plugins only — runtime to install plugins for. Defaults to Claude Code. */
+  agent?: PluginAgent;
   /**
    * sub-item filter. `undefined` = full set of this category.
    * Names are validated against the catalog by the CLI layer; installers
@@ -167,6 +172,8 @@ const CONTENT_FILES = [
   "CLAUDE.md",
   "skills-lock.json",
   ".claude/plugins.json",
+  ".agents/plugins/marketplace.json",
+  ".agents/plugins/install.json",
   ".claude/hooks/hooks.json",
 ];
 
@@ -221,6 +228,33 @@ export async function fetchExtraContentBinary(
   const dest = path.join(tmpDir, file);
   fs.mkdirSync(path.dirname(dest), { recursive: true });
   fs.writeFileSync(dest, buf);
+}
+
+/**
+ * Write `content` to `filePath` atomically and TOCTOU-safely.
+ *
+ * A predictable tmp name like `settings.json.tmp` lets a local attacker
+ * pre-create that path as a symlink pointing at, say, ~/.ssh/authorized_keys.
+ * Defenses: random suffix so the tmp name can't be predicted, plus
+ * O_CREAT|O_EXCL so we refuse to open the path if anything already exists.
+ * Final rename(2) is the atomic step.
+ */
+export function atomicWriteFile(filePath: string, content: string): void {
+  const dir = path.dirname(filePath);
+  const base = path.basename(filePath);
+  const suffix = crypto.randomBytes(8).toString("hex");
+  const tmp = path.join(dir, `.${base}.${suffix}.tmp`);
+  const fd = fs.openSync(
+    tmp,
+    fs.constants.O_CREAT | fs.constants.O_EXCL | fs.constants.O_WRONLY,
+    0o600,
+  );
+  try {
+    fs.writeSync(fd, content);
+  } finally {
+    fs.closeSync(fd);
+  }
+  fs.renameSync(tmp, filePath);
 }
 
 // --- ESC support ---
@@ -368,8 +402,8 @@ export function printBanner(version: string): void {
     ? renderBannerPlain(pixels)
     : renderBannerWithShadow(pixels, SHADOW_DX, SHADOW_DY);
   const subtitle = noColor
-    ? `  Claude Code Harness Installer  v${version}`
-    : `${dim}  Claude Code Harness Installer  v${version}${reset}`;
+    ? `  Auriga Harness Installer  v${version}`
+    : `${dim}  Auriga Harness Installer  v${version}${reset}`;
   console.log("");
   console.log(art);
   console.log(subtitle);

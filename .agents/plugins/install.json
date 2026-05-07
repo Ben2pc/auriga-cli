@@ -1,0 +1,16 @@
+{
+  "plugins": [
+    {
+      "name": "auriga-go",
+      "description": "Workflow autopilot for the auriga workflow"
+    },
+    {
+      "name": "auriga-pr-guards",
+      "description": "PR-create / PR-ready workflow guardrails"
+    },
+    {
+      "name": "session-instructions-loader",
+      "description": "Injects extra instruction files on session start"
+    }
+  ]
+}

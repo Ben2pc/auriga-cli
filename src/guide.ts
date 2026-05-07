@@ -40,6 +40,7 @@ Ensure these CLIs are in PATH:
   - node   (>= 18)
   - git
   - claude (required for plugins; see https://docs.claude.com/claude-code)
+  - codex  (required only for plugins installed with --agent codex or --agent both)
 
 Optional (only if you'll push a PR): gh
 
@@ -47,6 +48,7 @@ Verify:
   ${cmd("node --version && git --version && claude --version")}
 
 If \`claude\` is missing: install Claude Code first, then re-run this guide.
+If you plan to install Codex plugins, also verify \`codex --version\`.
 
 ${h("## Step 2 — Read --help BEFORE installing (do not skip)")}
 
@@ -76,6 +78,7 @@ Targeted — single category, picking from the catalog surfaced in Step 2:
   ${cmd("npx -y auriga-cli install workflow --lang en")}
   ${cmd("npx -y auriga-cli install skills --skill brainstorming test-driven-development")}
   ${cmd("npx -y auriga-cli install plugins --plugin skill-creator codex --scope user")}
+  ${cmd("npx -y auriga-cli install plugins --agent codex --plugin session-instructions-loader")}
   ${cmd("npx -y auriga-cli install hooks --hook pr-ready-guard")}
 
 Opt-in hooks: some hooks (e.g. \`notify\`) are NOT in the default set
@@ -99,10 +102,10 @@ Exit codes:
 
 ${h("## Step 4 — Reload session (REQUIRED when installed non-interactively)")}
 
-${warn("⚠")} CLAUDE.md, .agents/skills/, .claude/plugins.json, and hook
-registrations are loaded at Claude Code session startup. If you ran
-\`npx -y auriga-cli install\` inside an existing Claude Code session
-(e.g., \`claude -p\` / \`claude -p --worktree\`), the current session
+${warn("⚠")} CLAUDE.md, .agents/skills/, .claude/plugins.json, Codex plugin
+config, and hook registrations are loaded at session startup. If you ran
+\`npx -y auriga-cli install\` inside an existing Claude Code or Codex session
+(e.g., \`claude -p\` / \`claude -p --worktree\` / \`codex exec\`), the current session
 will NOT see the new harness.
 
 Action:
@@ -117,6 +120,7 @@ Expected artifacts:
   - AGENTS.md -> CLAUDE.md    (symlink)
   - .agents/skills/<name>/    (one per installed skill)
   - .claude/plugins.json
+  - ~/.codex/config.toml      (Codex plugin enablement, if Codex plugins selected)
   - .claude/settings.json     (updated hook registrations, if hooks selected)
 
 ${h("## Troubleshooting")}

@@ -17,6 +17,7 @@ src/
   types.ts      — Shared leaf types (CategoryName, CATEGORY_NAMES); kept out of cli.ts so help.ts doesn't reverse-import the entrypoint
   build/
     generate-catalog.ts — Build-time: parses SKILL.md + plugin/hook configs → dist/catalog.json
+  codex-plugin-config.ts — Codex plugin manifest/config validators + safe local-path helpers
   utils.ts      — Constants, remote fetch, exec, logging, InstallOpts, getPackageRoot
   workflow.ts   — CLAUDE.md + AGENTS.md installation (throws on failure in non-interactive)
   skills.ts     — Workflow + recommended skills installation; exports WORKFLOW_SKILLS
@@ -69,6 +70,9 @@ plugins/
                      auriga-go + auriga-pr-guards + session-instructions-loader.
                      Codex prefers this repo-scoped file when present instead
                      of falling back to the Claude-style marketplace.
+  install.json     — auriga-cli's Codex plugin install list. Marketplace
+                     entries are discoverable, but only install-list entries
+                     are selected by default through `install plugins`.
 
 tests/
   hooks.test.ts         — hook installer unit + integration
@@ -161,6 +165,7 @@ npx skills update --project
 | `plugins/<name>/` | Manual | auriga-cli-owned plugin source (e.g. `plugins/auriga-go/`). Distributed via the repo-root `.claude-plugin/marketplace.json`. Everything inside the dir ships to users — keep dev-only assets (tests) at repo-root `tests/` |
 | `.claude-plugin/marketplace.json` | Manual | Claude Code marketplace manifest for plugins shipped from this repo |
 | `.agents/plugins/marketplace.json` | Manual | Codex marketplace manifest for plugins shipped from this repo |
+| `.agents/plugins/install.json` | Manual | auriga-cli's Codex plugin install list. Marketplace entries are discoverable; this file controls which Codex plugins the CLI offers/installs by default |
 | `.claude/plugins.json` | Manual | Plugin definitions surfaced by the CLI Plugins picker |
 | `.claude/hooks/hooks.json` | Manual | Hook definitions (one entry per hook directory) |
 | `dist/catalog.json` | `npm run build` (via `src/build/generate-catalog.ts`) | Build-time catalog of workflow skills / recommended skills / plugins / hooks — name + description. Source of truth for `--help` output and the non-interactive filter-name validator. Ships inside the npm tarball. Regenerate after changing any `SKILL.md` frontmatter, `.claude/plugins.json`, or `.claude/hooks/hooks.json`. |
@@ -173,7 +178,7 @@ npx skills update --project
 - **Bump rule**: bump CLI version (`package.json`) before merging any PR that changes **user-visible state**.
   - **Bump triggers** (any of these touched):
     - `src/` — rebuilt into `dist/`, ships in tarball
-    - `skills-lock.json`, `.claude/plugins.json`, `.claude/hooks/hooks.json` — CONTENT_FILES fetched at runtime AND inputs to `dist/catalog.json`
+    - `skills-lock.json`, `.claude/plugins.json`, `.claude/hooks/hooks.json`, `.agents/plugins/install.json` — CONTENT_FILES fetched at runtime AND inputs to `dist/catalog.json` / install behavior
     - `.claude/hooks/<name>/*` (hook payloads) — lazy-fetched at runtime by `ensureHookFilesFetched`
     - `.agents/skills/<name>/*` (vendored skill content) — build-time input to `src/build/generate-catalog.ts`, baked into `dist/catalog.json` (NOT runtime-fetched; users install via `npx skills add` against the skill's own upstream repo, not against auriga-cli)
     - `CLAUDE.md` / `CLAUDE.zh-CN.md` — workflow template, fetched at runtime

@@ -15,7 +15,8 @@ export function renderHelp(catalog: Catalog, version: string): string {
 USAGE
   npx auriga-cli guide                                   Agent bootstrap SOP (start here)
   npx auriga-cli install                                 (TTY only) checkbox menu
-  npx auriga-cli install --all [--scope <s>]             workflow + skills + plugins + hooks
+  npx auriga-cli install --all [--scope <s>] [--agent <a>]
+                                                         workflow + skills + plugins + hooks
                                                          (excludes recommended — install separately)
   npx auriga-cli install <type> [type-specific flags]    single category
   npx auriga-cli install <type> --help                   per-category help + catalog subset
@@ -29,7 +30,7 @@ TYPES (exactly one with <type> form)
   workflow       CLAUDE.md + AGENTS.md (workflow manifesto)
   skills         Default-on workflow skills (listed below)
   recommended    Opt-in utility skills (listed below)
-  plugins        Claude Code plugins (listed below)
+  plugins        Claude Code and Codex plugins (listed below)
   hooks          Project-level hooks for Claude Code (listed below)
 
 TYPE-SPECIFIC FLAGS
@@ -40,6 +41,7 @@ TYPE-SPECIFIC FLAGS
   recommended:    --recommended-skill <names...>
                   --scope <project|user>         default project
   plugins:        --plugin <names...>
+                  --agent <claude|codex|both>   default claude
                   --scope <project|user>         default project
   hooks:          --hook <names...>              non-interactive default installs every
                                                  hook with defaultOn != false
@@ -132,12 +134,15 @@ ${col(catalog.recommendedSkills)}
       return `${header}
 
 USAGE
-  npx auriga-cli install plugins [--plugin <names...>] [--scope <project|user>]
+  npx auriga-cli install plugins [--plugin <names...>] [--agent <claude|codex|both>] [--scope <project|user>]
 
 FLAGS
   --plugin <names...>      space-separated; '*' = all
-                           omit → install every plugin listed below
+                           omit → install every plugin available for the selected agent
+  --agent <...>            target runtime: claude, codex, or both
+                           default claude; codex enablement is user-level
   --scope <project|user>   default project
+                           applies to Claude Code; ignored for Codex
 
 CATALOG (plugins)
 ${col(catalog.plugins)}

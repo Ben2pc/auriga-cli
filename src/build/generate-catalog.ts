@@ -4,6 +4,13 @@ import { fileURLToPath } from "node:url";
 import matter from "gray-matter";
 
 import type { Catalog, CatalogEntry } from "../catalog.js";
+import {
+  codexManifestPath,
+  validateCodexInstallConfig,
+  validateCodexMarketplace,
+  type CodexInstallConfig,
+  type CodexMarketplace,
+} from "../codex-plugin-config.js";
 import type { PluginsConfig, SkillsLock } from "../utils.js";
 import { WORKFLOW_SKILLS as WORKFLOW_SKILL_LIST, validateSkillsLock } from "../skills.js";
 import { validatePluginsConfig } from "../plugins.js";
@@ -74,10 +81,55 @@ export function generateCatalog(repoRoot: string): Catalog {
   const pluginsRaw: unknown = JSON.parse(fs.readFileSync(pluginsPath, "utf-8"));
   validatePluginsConfig(pluginsRaw);
   const pluginsCfg = pluginsRaw as PluginsConfig;
-  const plugins: CatalogEntry[] = pluginsCfg.plugins.map((p) => ({
-    name: p.name,
-    description: p.description,
-  }));
+  const pluginByName = new Map<string, CatalogEntry>();
+  for (const p of pluginsCfg.plugins) {
+    pluginByName.set(p.name, { name: p.name, description: p.description });
+  }
+
+  const codexMarketplacePath = path.join(repoRoot, ".agents", "plugins", "marketplace.json");
+  const codexInstallPath = path.join(repoRoot, ".agents", "plugins", "install.json");
+  if (fs.existsSync(codexMarketplacePath) && fs.existsSync(codexInstallPath)) {
+    const codexMarketplaceRaw: unknown = JSON.parse(fs.readFileSync(codexMarketplacePath, "utf-8"));
+    const codexInstallRaw: unknown = JSON.parse(fs.readFileSync(codexInstallPath, "utf-8"));
+    validateCodexMarketplace(codexMarketplaceRaw);
+    validateCodexInstallConfig(codexInstallRaw);
+    const codexMarketplace = codexMarketplaceRaw as CodexMarketplace;
+    const codexInstall = codexInstallRaw as CodexInstallConfig;
+    const marketplaceByName = new Map(codexMarketplace.plugins.map((p) => [p.name, p]));
+    for (const p of codexInstall.plugins) {
+      const existing = pluginByName.get(p.name);
+      const marketplacePlugin = marketplaceByName.get(p.name);
+      if (!marketplacePlugin) {
+        throw new Error(`generate-catalog: Codex install plugin '${p.name}' missing from marketplace.json`);
+      }
+      const relativeManifestPath = codexManifestPath(marketplacePlugin);
+      const manifestPath = relativeManifestPath
+        ? path.join(repoRoot, relativeManifestPath)
+        : undefined;
+      let description = typeof p.description === "string" && p.description.length > 0
+        ? p.description
+        : "Codex plugin";
+      if (manifestPath && fs.existsSync(manifestPath)) {
+        const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf-8")) as {
+          description?: unknown;
+          interface?: { shortDescription?: unknown };
+        };
+        if (description === "Codex plugin") {
+          description = typeof manifest.interface?.shortDescription === "string"
+            ? manifest.interface.shortDescription
+            : typeof manifest.description === "string" ? manifest.description
+            : description;
+        }
+      }
+      pluginByName.set(p.name, {
+        name: p.name,
+        description: existing
+          ? `(Claude/Codex) ${existing.description}`
+          : `(Codex) ${description}`,
+      });
+    }
+  }
+  const plugins: CatalogEntry[] = [...pluginByName.values()];
 
   const hooksPath = path.join(repoRoot, ".claude", "hooks", "hooks.json");
   const hooksCfg = JSON.parse(fs.readFileSync(hooksPath, "utf-8")) as HooksConfig;
