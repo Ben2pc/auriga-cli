@@ -28,17 +28,6 @@
       "source": "./plugins/auriga-pr-guards",
       "category": "development",
       "homepage": "https://github.com/Ben2pc/auriga-cli/tree/main/plugins/auriga-pr-guards"
-    },
-    {
-      "name": "agents-md-ancestor-loader",
-      "description": "Codex SessionStart hook that injects AGENTS.md files from ancestor directories above Codex's built-in project-root boundary.",
-      "author": {
-        "name": "Ben2pc",
-        "email": "pangcheng33@gmail.com"
-      },
-      "source": "./plugins/agents-md-ancestor-loader",
-      "category": "development",
-      "homepage": "https://github.com/Ben2pc/auriga-cli/tree/main/plugins/agents-md-ancestor-loader"
     }
   ]
 }
