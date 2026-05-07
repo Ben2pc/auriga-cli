@@ -104,8 +104,8 @@ ${h("## Step 4 — Reload session (REQUIRED when installed non-interactively)")}
 
 ${warn("⚠")} CLAUDE.md, .agents/skills/, .claude/plugins.json, Codex plugin
 config, and hook registrations are loaded at session startup. If you ran
-\`npx -y auriga-cli install\` inside an existing Claude Code session
-(e.g., \`claude -p\` / \`claude -p --worktree\`), the current session
+\`npx -y auriga-cli install\` inside an existing Claude Code or Codex session
+(e.g., \`claude -p\` / \`claude -p --worktree\` / \`codex exec\`), the current session
 will NOT see the new harness.
 
 Action:

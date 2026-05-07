@@ -402,8 +402,8 @@ export function printBanner(version: string): void {
     ? renderBannerPlain(pixels)
     : renderBannerWithShadow(pixels, SHADOW_DX, SHADOW_DY);
   const subtitle = noColor
-    ? `  auriga-cli Installer  v${version}`
-    : `${dim}  auriga-cli Installer  v${version}${reset}`;
+    ? `  Auriga Harness Installer  v${version}`
+    : `${dim}  Auriga Harness Installer  v${version}${reset}`;
   console.log("");
   console.log(art);
   console.log(subtitle);

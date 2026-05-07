@@ -24,12 +24,12 @@ describe("printBanner", () => {
     else process.env.NO_COLOR = originalNoColor;
   });
 
-  test("uses an auriga-cli banner title instead of Claude Code-specific branding", async () => {
+  test("uses Auriga banner branding instead of Claude Code-specific branding", async () => {
     process.env.NO_COLOR = "1";
 
     const stdout = await captureStdout(() => printBanner("1.2.3"));
 
-    assert.match(stdout, /auriga-cli Installer\s+v1\.2\.3/);
+    assert.match(stdout, /Auriga Harness Installer\s+v1\.2\.3/);
     assert.doesNotMatch(stdout, /Claude Code Harness Installer/);
   });
 });

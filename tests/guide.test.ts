@@ -55,6 +55,8 @@ describe("renderGuide", () => {
     assert.match(out, /npx -y auriga-cli install recommended/);
     assert.match(out, /0\s+— all requested categories installed/);
     assert.match(out, /2\s+— partial success/);
+    assert.match(out, /Claude Code or Codex session/);
+    assert.match(out, /codex exec/);
     assert.match(out, /Exit this session and start a new one/i);
   });
 
