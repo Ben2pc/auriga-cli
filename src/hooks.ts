@@ -1,10 +1,10 @@
 import { spawnSync } from "node:child_process";
-import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { checkbox, confirm, input, select } from "@inquirer/prompts";
 import {
+  atomicWriteFile,
   exec,
   fetchExtraContentBinary,
   log,
@@ -687,35 +687,6 @@ function writeMergedSettings(
     atomicWriteFile(resolved.settingsPath, JSON.stringify(next, null, 2) + "\n");
   }
   return { mutated };
-}
-
-/**
- * Write `content` to `filePath` atomically and TOCTOU-safely.
- *
- * A predictable tmp name like `settings.json.tmp` lets a local attacker
- * pre-create that path as a symlink pointing at, say, ~/.ssh/authorized_keys
- * — the next install would then clobber the link target. Defenses: random
- * suffix so the tmp name can't be predicted, plus O_CREAT|O_EXCL so we
- * refuse to open the path at all if anything (file or symlink) exists
- * there. Restrictive 0o600 perms in case the parent directory is
- * world-writable. Final rename(2) is the atomic step.
- */
-function atomicWriteFile(filePath: string, content: string): void {
-  const dir = path.dirname(filePath);
-  const base = path.basename(filePath);
-  const suffix = crypto.randomBytes(8).toString("hex");
-  const tmp = path.join(dir, `.${base}.${suffix}.tmp`);
-  const fd = fs.openSync(
-    tmp,
-    fs.constants.O_CREAT | fs.constants.O_EXCL | fs.constants.O_WRONLY,
-    0o600,
-  );
-  try {
-    fs.writeSync(fd, content);
-  } finally {
-    fs.closeSync(fd);
-  }
-  fs.renameSync(tmp, filePath);
 }
 
 export function loadHooksConfig(packageRoot: string): HooksConfig {

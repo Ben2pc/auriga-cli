@@ -13,7 +13,7 @@ import {
   type CodexMarketplace,
   type CodexMarketplacePlugin,
 } from "./codex-plugin-config.js";
-import { exec, log, readPackageVersion, withEsc } from "./utils.js";
+import { atomicWriteFile, exec, fetchExtraContent, log, readPackageVersion, withEsc } from "./utils.js";
 import type { InstallOpts, PluginAgent, PluginsConfig, PluginDef } from "./utils.js";
 
 // Plugin names, marketplace names/sources, and plugin-package names all
@@ -187,6 +187,20 @@ function pluginHasHooks(packageRoot: string, plugin: CodexMarketplacePlugin): bo
   return typeof manifest.hooks === "string" || Array.isArray(manifest.hooks);
 }
 
+async function ensureCodexPluginManifests(
+  packageRoot: string,
+  plugins: CodexMarketplacePlugin[],
+): Promise<void> {
+  for (const plugin of plugins) {
+    const manifestPath = codexManifestPath(plugin);
+    if (!manifestPath) {
+      throw new Error(`Codex marketplace.json: plugin ${plugin.name} must use a local source.path`);
+    }
+    if (fs.existsSync(path.join(packageRoot, manifestPath))) continue;
+    await fetchExtraContent(packageRoot, manifestPath);
+  }
+}
+
 function ensureTomlBoolean(content: string, section: string, key: string, value: boolean): string {
   const line = `${key} = ${value ? "true" : "false"}`;
   const header = `[${section}]`;
@@ -312,7 +326,7 @@ function enableCodexPluginConfig(
     pluginKeys,
     needsPluginHooks,
   );
-  fs.writeFileSync(configPath, content.endsWith("\n") ? content : `${content}\n`);
+  atomicWriteFile(configPath, content.endsWith("\n") ? content : `${content}\n`);
 }
 
 async function installCodexPlugins(
@@ -368,6 +382,7 @@ async function installCodexPlugins(
       }
       return plugin;
     });
+    await ensureCodexPluginManifests(packageRoot, selectedMarketplacePlugins);
     const pluginKeys = selectedMarketplacePlugins.map((p) => `${p.name}@${marketplace.name}`);
     const needsPluginHooks = selectedMarketplacePlugins.some((p) => pluginHasHooks(packageRoot, p));
     enableCodexPluginConfig(
@@ -432,19 +447,24 @@ export async function installPlugins(
     return;
   }
 
+  const failures: string[] = [];
   const configPath = path.join(packageRoot, ".claude", "plugins.json");
+  let config: PluginsConfig | null = null;
   if (!fs.existsSync(configPath)) {
     log.warn("No .claude/plugins.json found");
-    return;
-  }
+    if (agent === "both") failures.push("Claude Code plugins config missing");
+    else return;
+  } else {
+    const raw: unknown = JSON.parse(fs.readFileSync(configPath, "utf-8"));
+    validatePluginsConfig(raw);
+    config = raw;
 
-  const raw: unknown = JSON.parse(fs.readFileSync(configPath, "utf-8"));
-  validatePluginsConfig(raw);
-  const config: PluginsConfig = raw;
-
-  if (config.plugins.length === 0) {
-    log.warn("No plugins defined in plugins.json");
-    return;
+    if (config.plugins.length === 0) {
+      log.warn("No plugins defined in plugins.json");
+      if (agent === "both") failures.push("Claude Code plugins config empty");
+      else return;
+      config = null;
+    }
   }
 
   type Scope = "project" | "user";
@@ -458,62 +478,68 @@ export async function installPlugins(
     }))
     : opts.scope ?? "project";
 
-  const installed = getInstalledPlugins();
+  if (config) {
+    const installed = getInstalledPlugins();
 
-  const selected = opts.interactive
-    ? await withEsc(checkbox({
-      message: "Select plugins to install:",
-      choices: config.plugins.map((p) => {
-        const scopes = installed.get(p.package);
-        const suffix = scopes ? ` (installed: ${scopes.join(", ")})` : "";
-        return {
-          name: `${p.name} — ${p.description}${suffix}`,
-          value: p,
-          checked: !scopes || !(scopes.includes("user") && scopes.includes("project")),
-        };
-      }),
-    }))
-    : resolvePluginSelection(config.plugins, opts.selected);
-
-  if (selected.length === 0) {
-    log.skip("No plugins selected");
-    return;
-  }
-
-  // Install required marketplaces
-  const existingMarketplaces = getInstalledMarketplaces();
-  const marketplacesToAdd = new Map<string, string>();
-
-  for (const plugin of selected) {
-    if (plugin.marketplace && !existingMarketplaces.has(plugin.marketplace.name)) {
-      marketplacesToAdd.set(plugin.marketplace.name, plugin.marketplace.source);
-    }
-  }
-
-  const failures: string[] = [];
-
-  for (const [name, source] of marketplacesToAdd) {
-    console.log(`\nAdding marketplace: ${name}...`);
+    let selected: PluginDef[];
     try {
-      exec(`claude plugins marketplace add ${source}`, { inherit: true });
-      log.ok(`Marketplace ${name} added`);
-    } catch {
-      log.error(`Failed to add marketplace: ${name}`);
-      failures.push(`marketplace ${name}`);
+      selected = opts.interactive
+        ? await withEsc(checkbox({
+          message: "Select plugins to install:",
+          choices: config.plugins.map((p) => {
+            const scopes = installed.get(p.package);
+            const suffix = scopes ? ` (installed: ${scopes.join(", ")})` : "";
+            return {
+              name: `${p.name} — ${p.description}${suffix}`,
+              value: p,
+              checked: !scopes || !(scopes.includes("user") && scopes.includes("project")),
+            };
+          }),
+        }))
+        : resolvePluginSelection(config.plugins, opts.selected);
+    } catch (e) {
+      if (agent !== "both") throw e;
+      selected = [];
+      failures.push(`Claude Code: ${(e as Error).message}`);
     }
-  }
 
-  // Install plugins
-  for (const plugin of selected) {
-    console.log(`\nInstalling ${plugin.name}...`);
-    try {
-      exec(`claude plugins install ${plugin.package} --scope ${scope}`, {
-        inherit: true,
-      });
-      log.ok(`${plugin.name} installed`);
-    } catch {
-      log.error(`Failed to install: ${plugin.name}`);
-      failures.push(plugin.name);
+    if (selected.length === 0) {
+      log.skip("No plugins selected");
+    } else {
+      // Install required marketplaces
+      const existingMarketplaces = getInstalledMarketplaces();
+      const marketplacesToAdd = new Map<string, string>();
+
+      for (const plugin of selected) {
+        if (plugin.marketplace && !existingMarketplaces.has(plugin.marketplace.name)) {
+          marketplacesToAdd.set(plugin.marketplace.name, plugin.marketplace.source);
+        }
+      }
+
+      for (const [name, source] of marketplacesToAdd) {
+        console.log(`\nAdding marketplace: ${name}...`);
+        try {
+          exec(`claude plugins marketplace add ${source}`, { inherit: true });
+          log.ok(`Marketplace ${name} added`);
+        } catch {
+          log.error(`Failed to add marketplace: ${name}`);
+          failures.push(`marketplace ${name}`);
+        }
+      }
+
+      // Install plugins
+      for (const plugin of selected) {
+        console.log(`\nInstalling ${plugin.name}...`);
+        try {
+          exec(`claude plugins install ${plugin.package} --scope ${scope}`, {
+            inherit: true,
+          });
+          log.ok(`${plugin.name} installed`);
+        } catch {
+          log.error(`Failed to install: ${plugin.name}`);
+          failures.push(plugin.name);
+        }
+      }
     }
   }
 

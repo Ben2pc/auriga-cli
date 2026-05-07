@@ -1,15 +1,9 @@
 import { execSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import {
-  codexManifestPath,
-  validateCodexInstallConfig,
-  validateCodexMarketplace,
-  type CodexInstallConfig,
-  type CodexMarketplace,
-} from "./codex-plugin-config.js";
 
 // --- Types ---
 
@@ -213,36 +207,7 @@ export async function fetchContentRoot(): Promise<string> {
     fs.writeFileSync(dest, content);
   }
 
-  await fetchCodexPluginManifests(tmpDir);
-
   return tmpDir;
-}
-
-async function fetchCodexPluginManifests(tmpDir: string): Promise<void> {
-  const marketplacePath = path.join(tmpDir, ".agents", "plugins", "marketplace.json");
-  const installPath = path.join(tmpDir, ".agents", "plugins", "install.json");
-  const marketplaceRaw: unknown = JSON.parse(fs.readFileSync(marketplacePath, "utf-8"));
-  const installRaw: unknown = JSON.parse(fs.readFileSync(installPath, "utf-8"));
-  validateCodexMarketplace(marketplaceRaw);
-  validateCodexInstallConfig(installRaw);
-  const marketplace = marketplaceRaw as CodexMarketplace;
-  const install = installRaw as CodexInstallConfig;
-  const marketplaceByName = new Map(marketplace.plugins.map((p) => [p.name, p]));
-
-  for (const plugin of install.plugins) {
-    const marketplacePlugin = marketplaceByName.get(plugin.name);
-    if (!marketplacePlugin) {
-      throw new Error(`Codex install.json: plugin ${plugin.name} is not present in marketplace.json`);
-    }
-    const manifestPath = codexManifestPath(marketplacePlugin);
-    if (!manifestPath) {
-      throw new Error(`Codex marketplace.json: plugin ${plugin.name} must use a local source.path`);
-    }
-    const content = await fetchFile(manifestPath);
-    const dest = path.join(tmpDir, manifestPath);
-    fs.mkdirSync(path.dirname(dest), { recursive: true });
-    fs.writeFileSync(dest, content);
-  }
 }
 
 export async function fetchExtraContent(
@@ -263,6 +228,33 @@ export async function fetchExtraContentBinary(
   const dest = path.join(tmpDir, file);
   fs.mkdirSync(path.dirname(dest), { recursive: true });
   fs.writeFileSync(dest, buf);
+}
+
+/**
+ * Write `content` to `filePath` atomically and TOCTOU-safely.
+ *
+ * A predictable tmp name like `settings.json.tmp` lets a local attacker
+ * pre-create that path as a symlink pointing at, say, ~/.ssh/authorized_keys.
+ * Defenses: random suffix so the tmp name can't be predicted, plus
+ * O_CREAT|O_EXCL so we refuse to open the path if anything already exists.
+ * Final rename(2) is the atomic step.
+ */
+export function atomicWriteFile(filePath: string, content: string): void {
+  const dir = path.dirname(filePath);
+  const base = path.basename(filePath);
+  const suffix = crypto.randomBytes(8).toString("hex");
+  const tmp = path.join(dir, `.${base}.${suffix}.tmp`);
+  const fd = fs.openSync(
+    tmp,
+    fs.constants.O_CREAT | fs.constants.O_EXCL | fs.constants.O_WRONLY,
+    0o600,
+  );
+  try {
+    fs.writeSync(fd, content);
+  } finally {
+    fs.closeSync(fd);
+  }
+  fs.renameSync(tmp, filePath);
 }
 
 // --- ESC support ---
