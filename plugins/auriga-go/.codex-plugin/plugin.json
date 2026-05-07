@@ -1,0 +1,36 @@
+{
+  "name": "auriga-go",
+  "version": "1.0.0",
+  "description": "Workflow autopilot for the auriga workflow. Reminder-based navigation across CLAUDE.md's phases, with an Experimental hook-backed ship mode that drives a small-scope spec to PR Ready.",
+  "author": {
+    "name": "Ben2pc",
+    "email": "pangcheng33@gmail.com",
+    "url": "https://github.com/Ben2pc"
+  },
+  "homepage": "https://github.com/Ben2pc/auriga-cli/tree/main/plugins/auriga-go",
+  "repository": "https://github.com/Ben2pc/auriga-cli",
+  "license": "MIT",
+  "keywords": [
+    "workflow",
+    "auriga",
+    "automation",
+    "codex"
+  ],
+  "skills": "./skills/",
+  "hooks": "./hooks/hooks.json",
+  "interface": {
+    "displayName": "auriga-go",
+    "shortDescription": "Workflow autopilot for the auriga workflow",
+    "longDescription": "Drives the auriga workflow forward by reading CLAUDE.md, identifying the next phase, and instructing the main Agent which skill or workflow step to run next. Includes an Experimental hook-backed ship mode for driving small scopes to PR Ready.",
+    "developerName": "Ben2pc",
+    "category": "Productivity",
+    "capabilities": [
+      "Read",
+      "Write"
+    ],
+    "websiteURL": "https://github.com/Ben2pc/auriga-cli",
+    "defaultPrompt": [
+      "Use auriga-go to continue the auriga workflow."
+    ]
+  }
+}
