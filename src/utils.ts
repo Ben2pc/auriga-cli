@@ -402,8 +402,8 @@ export function printBanner(version: string): void {
     ? renderBannerPlain(pixels)
     : renderBannerWithShadow(pixels, SHADOW_DX, SHADOW_DY);
   const subtitle = noColor
-    ? `  Claude Code Harness Installer  v${version}`
-    : `${dim}  Claude Code Harness Installer  v${version}${reset}`;
+    ? `  auriga-cli Installer  v${version}`
+    : `${dim}  auriga-cli Installer  v${version}${reset}`;
   console.log("");
   console.log(art);
   console.log(subtitle);
