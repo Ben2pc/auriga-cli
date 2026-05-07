@@ -118,9 +118,9 @@ function configuredExtraFiles(cwd) {
   return files;
 }
 
-function readFilesWithinBudget(files) {
+function readFilesWithinBudget(files, outputOrder = files) {
   let remaining = MAX_TOTAL_BYTES;
-  const loaded = [];
+  const loadedByFile = new Map();
 
   for (const file of files) {
     if (remaining <= 0) break;
@@ -140,12 +140,12 @@ function readFilesWithinBudget(files) {
 
     const text = data.toString("utf8").trim();
     if (text !== "") {
-      loaded.push({ file, text, truncated });
+      loadedByFile.set(file, { file, text, truncated });
       remaining -= data.byteLength;
     }
   }
 
-  return loaded;
+  return outputOrder.flatMap((file) => loadedByFile.get(file) ?? []);
 }
 
 function buildAdditionalContext(loaded) {
@@ -187,6 +187,9 @@ function outputAdditionalContext(additionalContext) {
 const payload = parsePayload(readStdin());
 const cwd = existingDirectory(payload?.cwd);
 if (cwd) {
-  const files = [...readableAgentsFiles(cwd), ...configuredExtraFiles(cwd)];
-  outputAdditionalContext(buildAdditionalContext(readFilesWithinBudget(files)));
+  const ancestorFiles = readableAgentsFiles(cwd);
+  const extraFiles = configuredExtraFiles(cwd);
+  const outputOrder = [...ancestorFiles, ...extraFiles];
+  const readPriority = [...ancestorFiles].reverse().concat(extraFiles);
+  outputAdditionalContext(buildAdditionalContext(readFilesWithinBudget(readPriority, outputOrder)));
 }

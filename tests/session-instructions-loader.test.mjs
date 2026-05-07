@@ -132,6 +132,30 @@ const cases = [
     },
   },
   {
+    name: "prioritizes nearer ancestor AGENTS.md when content budget is exhausted",
+    setup: () => {
+      const root = makeTempDir();
+      cleanupDirs.push(root);
+      fs.writeFileSync(
+        path.join(root, "AGENTS.md"),
+        `outer budget head\n${"x".repeat(70 * 1024)}\nouter budget tail`,
+      );
+
+      const workspace = path.join(root, "workspace");
+      fs.mkdirSync(workspace, { recursive: true });
+      fs.writeFileSync(path.join(workspace, "AGENTS.md"), "nearest ancestor instructions");
+
+      const cwd = path.join(workspace, "repo", "pkg");
+      fs.mkdirSync(path.join(workspace, "repo", ".git"), { recursive: true });
+      fs.mkdirSync(cwd, { recursive: true });
+      return cwd;
+    },
+    expect: {
+      includes: ["nearest ancestor instructions"],
+      excludes: ["outer budget tail"],
+    },
+  },
+  {
     name: "injects repo-local extra files from plugin config",
     setup: () => {
       const root = makeTempDir();
