@@ -18,6 +18,14 @@
 
 ## 快速开始
 
+### 让你的 Agent 负责安装
+
+最简单的方式是让当前 Agent 先读取安装指南，再按指南执行：
+
+> 运行 `npx -y auriga-cli guide`，阅读指南，然后按输出步骤把 Auriga harness 安装到当前仓库。
+
+`guide` 命令是非交互式的。它会把前置检查、catalog 查看命令、安装命令、重启会话步骤和验证清单一次性提供给 Agent。
+
 ### Agent Bootstrap（非交互）
 
 在 `claude -p`、`claude -p --worktree` 或任何非交互 Agent 会话里想装整套 harness？从这里开始：

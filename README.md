@@ -18,6 +18,14 @@ This repo itself is a fully configured harness project. You can clone it to see 
 
 ## Quick Start
 
+### Ask your Agent to install
+
+The easiest path is to let your current Agent read the install guide and follow it:
+
+> Run `npx -y auriga-cli guide`, read the guide, then install the Auriga harness into this repository by following the steps it prints.
+
+The guide command is intentionally non-interactive. It gives the Agent the prerequisite checks, catalog inspection commands, install commands, reload step, and verification checklist in one place.
+
 ### Agent Bootstrap (non-TTY)
 
 Running inside `claude -p`, `claude -p --worktree`, or any non-interactive Agent session? Start here:
