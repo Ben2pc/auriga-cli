@@ -29,10 +29,10 @@
       "category": "Productivity"
     },
     {
-      "name": "agents-md-ancestor-loader",
+      "name": "session-instructions-loader",
       "source": {
         "source": "local",
-        "path": "./plugins/agents-md-ancestor-loader"
+        "path": "./plugins/session-instructions-loader"
       },
       "policy": {
         "installation": "AVAILABLE",

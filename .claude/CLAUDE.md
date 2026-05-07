@@ -52,13 +52,13 @@ plugins/
                     scripts/pr-ready-guard.mjs  (PreToolUse:  gh pr ready)
                   Codex currently fail-opens on PreToolUse `additionalContext`
                   (parses but does not surface yet); block path is identical.
-  agents-md-ancestor-loader/
+  session-instructions-loader/
                   Codex-only plugin.
                     .codex-plugin/plugin.json   (Codex manifest)
                     hooks/hooks.json            (SessionStart)
                     scripts/session-start.mjs   (injects ancestor AGENTS.md
-                                                 files above Codex's built-in
-                                                 project-root boundary)
+                                                 files plus repo-configured
+                                                 extra instruction files)
 
 .claude-plugin/
   marketplace.json — Marketplace manifest for this repo; lists auriga-go +
@@ -66,7 +66,7 @@ plugins/
 
 .agents/plugins/
   marketplace.json — Codex-native marketplace manifest for this repo; lists
-                     auriga-go + auriga-pr-guards + agents-md-ancestor-loader.
+                     auriga-go + auriga-pr-guards + session-instructions-loader.
                      Codex prefers this repo-scoped file when present instead
                      of falling back to the Claude-style marketplace.
 
@@ -142,8 +142,8 @@ npm run test:pr-guards
                  # plugins/auriga-pr-guards/scripts/ or the plugin's
                  # hooks/hooks.json.
 
-npm run test:agents-md-ancestor-loader
-                 # Smoke tests for plugins/agents-md-ancestor-loader/scripts/session-start.mjs.
+npm run test:session-instructions-loader
+                 # Smoke tests for plugins/session-instructions-loader/scripts/session-start.mjs.
                  # Run before any PR that touches that plugin's SessionStart
                  # hook or Codex marketplace metadata.
 

@@ -1,5 +1,5 @@
 {
-  "description": "SessionStart hook that injects ancestor AGENTS.md files not covered by Codex's built-in project-root-scoped discovery.",
+  "description": "SessionStart hook that injects ancestor AGENTS.md files and repo-configured instruction files not covered by Codex's built-in discovery.",
   "hooks": {
     "SessionStart": [
       {

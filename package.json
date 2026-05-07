@@ -29,7 +29,7 @@
     "test:watch": "tsc -p tsconfig.test.json --watch & node --test --watch --experimental-test-module-mocks dist-test/tests/hooks.test.js dist-test/tests/skills.test.js dist-test/tests/catalog.test.js dist-test/tests/cli-parse.test.js dist-test/tests/install-nontty.test.js dist-test/tests/guide.test.js dist-test/tests/validators.test.js dist-test/tests/entrypoint.test.js",
     "pretest:e2e": "npm run build",
     "test:e2e": "tsc -p tsconfig.test.json && node --test dist-test/tests/e2e-install.test.js",
-    "test:agents-md-ancestor-loader": "node tests/agents-md-ancestor-loader.test.mjs",
+    "test:session-instructions-loader": "node tests/session-instructions-loader.test.mjs",
     "test:pr-guards": "node tests/pr-create-guard.test.mjs && node tests/pr-ready-guard.test.mjs"
   },
   "engines": {

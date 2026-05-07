@@ -1,7 +1,7 @@
 #!/usr/bin/env node
-// Smoke tests for agents-md-ancestor-loader (SessionStart).
+// Smoke tests for session-instructions-loader (SessionStart).
 //
-//     node tests/agents-md-ancestor-loader.test.mjs
+//     node tests/session-instructions-loader.test.mjs
 
 import fs from "node:fs";
 import os from "node:os";
@@ -14,7 +14,7 @@ const PLUGIN_ROOT = path.resolve(
   HERE,
   "..",
   "plugins",
-  "agents-md-ancestor-loader",
+  "session-instructions-loader",
 );
 const HOOKS_CONFIG = JSON.parse(fs.readFileSync(path.join(PLUGIN_ROOT, "hooks", "hooks.json"), "utf8"));
 const SESSION_START_HOOK = HOOKS_CONFIG.hooks?.SessionStart?.[0];
@@ -49,7 +49,7 @@ function parseAdditionalContext(stdout) {
 }
 
 function makeTempDir() {
-  return fs.mkdtempSync(path.join(os.tmpdir(), "agents-md-ancestor-loader-test-"));
+  return fs.mkdtempSync(path.join(os.tmpdir(), "session-instructions-loader-test-"));
 }
 
 const cleanupDirs = [];
@@ -127,8 +127,57 @@ const cases = [
       return cwd;
     },
     expect: {
-      includes: ["budget head", "[truncated by agents-md-ancestor-loader]"],
+      includes: ["budget head", "[truncated by session-instructions-loader]"],
       excludes: ["tail after budget"],
+    },
+  },
+  {
+    name: "injects repo-local extra files from plugin config",
+    setup: () => {
+      const root = makeTempDir();
+      cleanupDirs.push(root);
+      fs.writeFileSync(path.join(root, "AGENTS.md"), "workspace parent instructions");
+
+      const repo = path.join(root, "repo");
+      fs.mkdirSync(path.join(repo, ".git"), { recursive: true });
+      fs.mkdirSync(path.join(repo, ".agents", "plugins"), { recursive: true });
+      fs.mkdirSync(path.join(repo, ".claude"), { recursive: true });
+      fs.writeFileSync(path.join(repo, ".claude", "CLAUDE.md"), "repo claude instructions");
+      fs.writeFileSync(
+        path.join(repo, ".agents", "plugins", "session-instructions-loader.json"),
+        JSON.stringify({ extraFiles: [".claude/CLAUDE.md"] }),
+      );
+
+      const cwd = path.join(repo, "pkg");
+      fs.mkdirSync(cwd, { recursive: true });
+      return cwd;
+    },
+    expect: {
+      includes: ["workspace parent instructions", "repo claude instructions"],
+      ordered: ["workspace parent instructions", "repo claude instructions"],
+    },
+  },
+  {
+    name: "skips extra files outside the project root",
+    setup: () => {
+      const root = makeTempDir();
+      cleanupDirs.push(root);
+      fs.writeFileSync(path.join(root, "SECRET.md"), "outside root secret");
+
+      const repo = path.join(root, "repo");
+      fs.mkdirSync(path.join(repo, ".git"), { recursive: true });
+      fs.mkdirSync(path.join(repo, ".agents", "plugins"), { recursive: true });
+      fs.writeFileSync(
+        path.join(repo, ".agents", "plugins", "session-instructions-loader.json"),
+        JSON.stringify({ extraFiles: ["../SECRET.md", path.join(root, "SECRET.md")] }),
+      );
+
+      const cwd = path.join(repo, "pkg");
+      fs.mkdirSync(cwd, { recursive: true });
+      return cwd;
+    },
+    expect: {
+      excludes: ["outside root secret"],
     },
   },
   {
@@ -237,5 +286,5 @@ try {
   }
 }
 
-console.log(`agents-md-ancestor-loader: ${passed} passed, ${failed} failed`);
+console.log(`session-instructions-loader: ${passed} passed, ${failed} failed`);
 if (failed > 0) process.exit(1);

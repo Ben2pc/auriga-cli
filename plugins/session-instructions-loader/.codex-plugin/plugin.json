@@ -1,0 +1,34 @@
+{
+  "name": "session-instructions-loader",
+  "version": "1.0.0",
+  "description": "SessionStart hook that injects ancestor AGENTS.md files and repo-configured instruction files.",
+  "author": {
+    "name": "Ben2pc",
+    "email": "pangcheng33@gmail.com",
+    "url": "https://github.com/Ben2pc"
+  },
+  "homepage": "https://github.com/Ben2pc/auriga-cli/tree/main/plugins/session-instructions-loader",
+  "repository": "https://github.com/Ben2pc/auriga-cli",
+  "license": "MIT",
+  "keywords": [
+    "instructions",
+    "session-start",
+    "context",
+    "codex"
+  ],
+  "hooks": "./hooks/hooks.json",
+  "interface": {
+    "displayName": "Session Instructions Loader",
+    "shortDescription": "Injects extra instruction files on session start",
+    "longDescription": "Adds a Codex SessionStart hook that reads AGENTS.md files from parent directories above Codex's detected project root plus repo-configured extra instruction files, then injects them as additional context.",
+    "developerName": "Ben2pc",
+    "category": "Productivity",
+    "capabilities": [
+      "Read"
+    ],
+    "websiteURL": "https://github.com/Ben2pc/auriga-cli",
+    "defaultPrompt": [
+      "Load additional session instructions for this workspace."
+    ]
+  }
+}

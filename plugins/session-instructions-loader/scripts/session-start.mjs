@@ -5,6 +5,7 @@ import path from "node:path";
 
 const MAX_TOTAL_BYTES = 64 * 1024;
 const AGENTS_FILENAME = "AGENTS.md";
+const CONFIG_PATH = path.join(".agents", "plugins", "session-instructions-loader.json");
 
 function readStdin() {
   return fs.readFileSync(0, "utf8");
@@ -76,6 +77,47 @@ function readableAgentsFiles(cwd) {
   return files;
 }
 
+function projectRootFor(cwd) {
+  return findGitRoot(cwd) ?? cwd;
+}
+
+function readConfig(projectRoot) {
+  try {
+    return JSON.parse(fs.readFileSync(path.join(projectRoot, CONFIG_PATH), "utf8"));
+  } catch {
+    return null;
+  }
+}
+
+function resolveProjectFile(projectRoot, relativePath) {
+  if (typeof relativePath !== "string" || relativePath.trim() === "") return null;
+  if (path.isAbsolute(relativePath)) return null;
+
+  const resolved = path.resolve(projectRoot, relativePath);
+  const withinProject = resolved === projectRoot || resolved.startsWith(`${projectRoot}${path.sep}`);
+  if (!withinProject) return null;
+
+  try {
+    const stat = fs.statSync(resolved);
+    return stat.isFile() ? resolved : null;
+  } catch {
+    return null;
+  }
+}
+
+function configuredExtraFiles(cwd) {
+  const projectRoot = projectRootFor(cwd);
+  const config = readConfig(projectRoot);
+  if (!Array.isArray(config?.extraFiles)) return [];
+
+  const files = [];
+  for (const entry of config.extraFiles) {
+    const file = resolveProjectFile(projectRoot, entry);
+    if (file) files.push(file);
+  }
+  return files;
+}
+
 function readFilesWithinBudget(files) {
   let remaining = MAX_TOTAL_BYTES;
   const loaded = [];
@@ -110,9 +152,9 @@ function buildAdditionalContext(loaded) {
   if (loaded.length === 0) return "";
 
   const parts = [
-    "# Additional ancestor AGENTS.md instructions",
+    "# Additional session instructions",
     "",
-    "The following AGENTS.md files are above Codex's detected project root and may not have been included by built-in discovery.",
+    "The following instruction files may not have been included by Codex's built-in discovery.",
   ];
 
   for (const item of loaded) {
@@ -122,7 +164,7 @@ function buildAdditionalContext(loaded) {
       "",
       "<INSTRUCTIONS>",
       item.text,
-      item.truncated ? "\n[truncated by agents-md-ancestor-loader]" : "",
+      item.truncated ? "\n[truncated by session-instructions-loader]" : "",
       "</INSTRUCTIONS>",
     );
   }
@@ -145,5 +187,6 @@ function outputAdditionalContext(additionalContext) {
 const payload = parsePayload(readStdin());
 const cwd = existingDirectory(payload?.cwd);
 if (cwd) {
-  outputAdditionalContext(buildAdditionalContext(readFilesWithinBudget(readableAgentsFiles(cwd))));
+  const files = [...readableAgentsFiles(cwd), ...configuredExtraFiles(cwd)];
+  outputAdditionalContext(buildAdditionalContext(readFilesWithinBudget(files)));
 }
