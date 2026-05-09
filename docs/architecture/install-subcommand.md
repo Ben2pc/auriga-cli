@@ -316,15 +316,15 @@ Recommended skills (category: recommended)  ← NOT installed by --all
 
 Plugins (category: plugins)
   auriga-go                      Workflow autopilot — drives CLAUDE.md workflow forward
+  auriga-pr-guards               PR-create / PR-ready workflow guardrails (Claude Code + Codex)
+  session-instructions-loader    Inject ancestor AGENTS.md + extra files on Codex SessionStart
   skill-creator                  Create / modify / measure skills
   claude-md-management           Audit & improve CLAUDE.md files
   codex                          Codex CLI integration (rescue, review, delegation)
   deep-review                    Multi-dimensional PR review (parallel reviewers + punch list)
 
 Hooks (category: hooks)
-  notify                         macOS notification when Claude needs attention
-  pr-create-guard                Inject PR body snapshot after `gh pr create`
-  pr-ready-guard                 Block `gh pr ready` on unpushed commits / stray docs
+  notify                         macOS notification when Claude needs attention (opt-in)
 
 ──────────────────────────────────────────────────────
 EXAMPLES

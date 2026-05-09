@@ -171,4 +171,28 @@ describe("validateCodexInstallConfig — local + external marketplace shapes", (
       /marketplace\.name/,
     );
   });
+
+  test("source enforces GitHub owner/repo shape — rejects multi-slash, dot-dot, trailing slash", () => {
+    // After tightening MARKETPLACE_SOURCE_RE, sources that are not
+    // exactly `owner/repo` are rejected. These would have passed under
+    // the prior overly-permissive `[A-Za-z0-9._/-]{0,255}` regex.
+    const badSources = [
+      "owner/repo/extra",   // 3+ segments
+      "owner//repo",        // empty middle segment
+      "owner/../repo",      // path traversal lookalike
+      "owner/",             // trailing slash, missing repo
+      "/repo",              // leading slash, missing owner
+      "owner",              // no slash at all
+    ];
+    for (const bad of badSources) {
+      assert.throws(
+        () =>
+          validateCodexInstallConfig({
+            plugins: [{ name: "x", marketplace: { name: "ok", source: bad } }],
+          }),
+        /marketplace\.source/,
+        `source=${bad} must be rejected`,
+      );
+    }
+  });
 });

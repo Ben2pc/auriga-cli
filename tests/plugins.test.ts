@@ -538,6 +538,150 @@ describe("installPlugins — Codex target", () => {
     }
   });
 
+  test("dedupes external marketplace add when two plugins share one upstream", async () => {
+    const previousDev = process.env.DEV;
+    delete process.env.DEV;
+    try {
+      const packageRoot = makeCodexMarketplace();
+      // Two external plugins from the SAME upstream marketplace — only
+      // one `marketplace add` call should be emitted.
+      writeJson(path.join(packageRoot, ".agents/plugins/install.json"), {
+        plugins: [
+          {
+            name: "deep-review",
+            description: "Multi-dimensional PR review",
+            marketplace: { name: "g-claude-code-plugins", source: "Ben2pc/g-claude-code-plugins" },
+          },
+          {
+            name: "claude-remote",
+            description: "Remote-control sessions",
+            marketplace: { name: "g-claude-code-plugins", source: "Ben2pc/g-claude-code-plugins" },
+          },
+        ],
+      });
+      const codexHome = fs.mkdtempSync(path.join(os.tmpdir(), "auriga-codex-home-"));
+      process.env.CODEX_HOME = codexHome;
+      const commands: string[] = [];
+      const { installPlugins } = await importPlugins((cmd) => {
+        commands.push(cmd);
+        return "";
+      });
+
+      await installPlugins(packageRoot, {
+        interactive: false,
+        agent: "codex",
+        selected: ["deep-review", "claude-remote"],
+      });
+
+      const addCalls = commands.filter((c) => c.startsWith("codex plugin marketplace add"));
+      assert.equal(
+        addCalls.length,
+        1,
+        `expected one marketplace add for shared upstream; got ${addCalls.length}: ${addCalls.join(", ")}`,
+      );
+      const config = fs.readFileSync(path.join(codexHome, "config.toml"), "utf-8");
+      assert.match(config, /\[plugins\."deep-review@g-claude-code-plugins"\]\nenabled = true/);
+      assert.match(config, /\[plugins\."claude-remote@g-claude-code-plugins"\]\nenabled = true/);
+    } finally {
+      if (previousDev === undefined) delete process.env.DEV;
+      else process.env.DEV = previousDev;
+    }
+  });
+
+  test("retries upgrade for an external marketplace flagged as already-added", async () => {
+    const previousDev = process.env.DEV;
+    delete process.env.DEV;
+    try {
+      const packageRoot = makeCodexMarketplace();
+      writeJson(path.join(packageRoot, ".agents/plugins/install.json"), {
+        plugins: [
+          {
+            name: "deep-review",
+            description: "Multi-dimensional PR review",
+            marketplace: { name: "g-claude-code-plugins", source: "Ben2pc/g-claude-code-plugins" },
+          },
+        ],
+      });
+      const codexHome = fs.mkdtempSync(path.join(os.tmpdir(), "auriga-codex-home-"));
+      process.env.CODEX_HOME = codexHome;
+      const commands: string[] = [];
+      const { installPlugins } = await importPlugins((cmd) => {
+        commands.push(cmd);
+        if (cmd === "codex plugin marketplace add https://github.com/Ben2pc/g-claude-code-plugins.git") {
+          const error = new Error("Command failed: codex plugin marketplace add");
+          (error as Error & { stderr?: string }).stderr =
+            "Error: marketplace 'g-claude-code-plugins' is already added";
+          throw error;
+        }
+        return "";
+      });
+
+      await installPlugins(packageRoot, {
+        interactive: false,
+        agent: "codex",
+        selected: ["deep-review"],
+      });
+
+      assert.deepEqual(commands, [
+        "codex plugin marketplace add https://github.com/Ben2pc/g-claude-code-plugins.git",
+        "codex plugin marketplace upgrade 'g-claude-code-plugins'",
+      ]);
+      const config = fs.readFileSync(path.join(codexHome, "config.toml"), "utf-8");
+      assert.match(config, /\[plugins\."deep-review@g-claude-code-plugins"\]\nenabled = true/);
+    } finally {
+      if (previousDev === undefined) delete process.env.DEV;
+      else process.env.DEV = previousDev;
+    }
+  });
+
+  test("interactive: external-only plugin still installs when local marketplace.json is missing", async () => {
+    const previousDev = process.env.DEV;
+    delete process.env.DEV;
+    try {
+      // Empty packageRoot (no local marketplace.json) but install.json
+      // contains both a local entry AND an external entry. Interactive
+      // mode should skip the local plugin (warn) and proceed with the
+      // external one — partial install > zero install.
+      const packageRoot = fs.mkdtempSync(path.join(os.tmpdir(), "auriga-mixed-no-local-"));
+      writeJson(path.join(packageRoot, ".agents/plugins/install.json"), {
+        plugins: [
+          { name: "auriga-go", description: "Workflow autopilot" },
+          {
+            name: "deep-review",
+            description: "Multi-dimensional PR review",
+            marketplace: { name: "g-claude-code-plugins", source: "Ben2pc/g-claude-code-plugins" },
+          },
+        ],
+      });
+      const codexHome = fs.mkdtempSync(path.join(os.tmpdir(), "auriga-codex-home-"));
+      process.env.CODEX_HOME = codexHome;
+      const commands: string[] = [];
+      const { installPlugins } = await importPlugins((cmd) => {
+        commands.push(cmd);
+        return "";
+      });
+
+      await installPlugins(packageRoot, {
+        interactive: true,
+        agent: "codex",
+        selected: ["auriga-go", "deep-review"],
+      });
+
+      // No local marketplace add (packageRoot has no marketplace.json).
+      // Only the external one runs.
+      const addCalls = commands.filter((c) => c.startsWith("codex plugin marketplace add"));
+      assert.deepEqual(addCalls, [
+        "codex plugin marketplace add https://github.com/Ben2pc/g-claude-code-plugins.git",
+      ]);
+      const config = fs.readFileSync(path.join(codexHome, "config.toml"), "utf-8");
+      assert.match(config, /\[plugins\."deep-review@g-claude-code-plugins"\]\nenabled = true/);
+      assert.doesNotMatch(config, /auriga-go@auriga-cli/);
+    } finally {
+      if (previousDev === undefined) delete process.env.DEV;
+      else process.env.DEV = previousDev;
+    }
+  });
+
   test("agent both attempts Codex install even when the Claude side fails", async () => {
     const packageRoot = makeCodexMarketplace();
     writeJson(path.join(packageRoot, ".claude/plugins.json"), {

@@ -9,23 +9,22 @@ import {
   validateCodexInstallConfig,
   validateCodexMarketplace,
   type CodexInstallConfig,
-  type CodexInstallExternalMarketplace,
   type CodexInstallPlugin,
   type CodexMarketplace,
   type CodexMarketplacePlugin,
 } from "./codex-plugin-config.js";
+import { validateMarketplaceField, type MarketplaceRef } from "./marketplace.js";
 import { atomicWriteFile, exec, fetchExtraContent, log, withEsc } from "./utils.js";
 import type { InstallOpts, PluginAgent, PluginsConfig, PluginDef } from "./utils.js";
 
-// Plugin names, marketplace names/sources, and plugin-package names all
-// end up in `claude plugins ...` shell commands via string interpolation.
-// .claude/plugins.json is fetched from raw GitHub at runtime, so every
-// value must pass a conservative whitelist before composing the command.
-// Without this a compromised plugins.json would execute arbitrary
-// commands via shell metachar injection.
+// Plugin names and plugin-package names end up in `claude plugins ...`
+// shell commands via string interpolation. .claude/plugins.json is
+// fetched from raw GitHub at runtime, so every value must pass a
+// conservative whitelist before composing the command. Without this a
+// compromised plugins.json would execute arbitrary commands via shell
+// metachar injection. Marketplace shape (name + source) lives in
+// `./marketplace.js` so Claude and Codex sides share one validator.
 const PLUGIN_NAME_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
-const PLUGIN_SOURCE_RE = /^[A-Za-z0-9][A-Za-z0-9._/-]{0,255}$/;
-const MARKETPLACE_NAME_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
 const PLUGIN_PACKAGE_RE = /^[A-Za-z0-9][A-Za-z0-9._@/-]{0,255}$/;
 
 export function validatePluginsConfig(raw: unknown): asserts raw is PluginsConfig {
@@ -52,20 +51,7 @@ export function validatePluginsConfig(raw: unknown): asserts raw is PluginsConfi
       );
     }
     if (plugin.marketplace !== undefined) {
-      if (!plugin.marketplace || typeof plugin.marketplace !== "object") {
-        throw new Error(`plugins.json: plugins[${i}].marketplace must be an object`);
-      }
-      const mp = plugin.marketplace as Record<string, unknown>;
-      if (typeof mp.name !== "string" || !MARKETPLACE_NAME_RE.test(mp.name)) {
-        throw new Error(
-          `plugins.json: plugins[${i}].marketplace.name ${JSON.stringify(mp.name)} does not match ${MARKETPLACE_NAME_RE}`,
-        );
-      }
-      if (typeof mp.source !== "string" || !PLUGIN_SOURCE_RE.test(mp.source)) {
-        throw new Error(
-          `plugins.json: plugins[${i}].marketplace.source ${JSON.stringify(mp.source)} does not match ${PLUGIN_SOURCE_RE}`,
-        );
-      }
+      validateMarketplaceField(`plugins.json: plugins[${i}]`, plugin.marketplace);
     }
   });
 }
@@ -381,15 +367,67 @@ async function addCodexMarketplaceWithRetry(
         exec(codexMarketplaceUpgradeCommand(marketplaceName), marketplaceExecOpts);
         log.ok(`Codex marketplace ${marketplaceName} upgraded`);
         return;
-      } catch {
-        log.error(`Failed to upgrade Codex marketplace: ${marketplaceName}`);
+      } catch (upgradeErr) {
+        // Surface the underlying upgrade error so a 6-month-out reader
+        // can tell apart ENOENT / network / auth / git failures.
+        log.error(
+          `Failed to upgrade Codex marketplace: ${marketplaceName}\n${commandErrorText(upgradeErr)}`,
+        );
         failures.push(`codex marketplace ${marketplaceName}`);
         return;
       }
     }
-    log.error(`Failed to add Codex marketplace: ${marketplaceName}`);
+    // Same: surface the add error rather than masking ENOENT / network / auth.
+    log.error(
+      `Failed to add Codex marketplace: ${marketplaceName}\n${commandErrorText(e)}`,
+    );
     failures.push(`codex marketplace ${marketplaceName}`);
   }
+}
+
+type ExternalSelection = CodexInstallPlugin & { marketplace: MarketplaceRef };
+
+// Builds the `<name>@<marketplace>` config keys + decides whether
+// features.plugin_hooks needs to flip on. Local plugins resolve through
+// this repo's marketplace.json and require a manifest fetch + hooks
+// inspection; external plugins emit a key directly from install.json
+// (Codex CLI fetches the upstream manifest itself). External plugins do
+// NOT flip plugin_hooks today — we don't have access to the upstream
+// manifest at install time. Acceptable while no external plugin ships
+// hooks; once one does, prefer fetching the manifest or adding an
+// explicit `requiresPluginHooks: true` field on the install.json entry.
+async function composeCodexPluginKeys(
+  packageRoot: string,
+  localMarketplace: CodexMarketplace | null,
+  localSelected: CodexInstallPlugin[],
+  externalSelected: ExternalSelection[],
+): Promise<{ pluginKeys: string[]; needsPluginHooks: boolean }> {
+  const pluginKeys: string[] = [];
+  let needsPluginHooks = false;
+
+  if (localMarketplace) {
+    const localMpByName = new Map(
+      localMarketplace.plugins.map((p) => [p.name, p]),
+    );
+    const selectedMarketplacePlugins = localSelected.map((p) => {
+      const plugin = localMpByName.get(p.name);
+      if (!plugin) {
+        throw new Error(`Codex install.json: plugin ${p.name} is not present in marketplace.json`);
+      }
+      return plugin;
+    });
+    await ensureCodexPluginManifests(packageRoot, selectedMarketplacePlugins);
+    for (const plugin of selectedMarketplacePlugins) {
+      pluginKeys.push(`${plugin.name}@${localMarketplace.name}`);
+      if (pluginHasHooks(packageRoot, plugin)) needsPluginHooks = true;
+    }
+  }
+
+  for (const p of externalSelected) {
+    pluginKeys.push(`${p.name}@${p.marketplace.name}`);
+  }
+
+  return { pluginKeys, needsPluginHooks };
 }
 
 async function installCodexPlugins(
@@ -425,10 +463,9 @@ async function installCodexPlugins(
   // different GitHub-hosted Codex marketplace and are resolved by Codex CLI
   // itself when the marketplace is added — we only need to register the
   // marketplace and emit the right `<name>@<marketplace>` plugin key.
-  const localSelected = selected.filter((p) => p.marketplace === undefined);
-  const externalSelected = selected.filter(
-    (p): p is CodexInstallPlugin & { marketplace: CodexInstallExternalMarketplace } =>
-      p.marketplace !== undefined,
+  let localSelected = selected.filter((p) => p.marketplace === undefined);
+  const externalSelected: ExternalSelection[] = selected.filter(
+    (p): p is ExternalSelection => p.marketplace !== undefined,
   );
 
   let localMarketplace: CodexMarketplace | null = null;
@@ -436,9 +473,18 @@ async function installCodexPlugins(
     localMarketplace = loadCodexMarketplace(packageRoot);
     if (!localMarketplace) {
       const msg = "No .agents/plugins/marketplace.json found";
-      if (!opts.interactive) throw new Error(msg);
-      log.warn(msg);
-      return;
+      // External-only fallback: when the user also selected external
+      // plugins (which don't depend on local marketplace.json), drop the
+      // local set and proceed instead of bailing out — partial install is
+      // strictly better than zero install. Throw / log-and-skip the
+      // local-only case as before.
+      if (externalSelected.length === 0) {
+        if (!opts.interactive) throw new Error(msg);
+        log.warn(msg);
+        return;
+      }
+      log.warn(`${msg} — skipping ${localSelected.length} local plugin(s) but continuing with externals`);
+      localSelected = [];
     }
   }
 
@@ -459,7 +505,7 @@ async function installCodexPlugins(
 
   // Dedupe external marketplaces by name — multiple plugins from the same
   // upstream share a single `marketplace add` call.
-  const uniqueExternalMarketplaces = new Map<string, CodexInstallExternalMarketplace>();
+  const uniqueExternalMarketplaces = new Map<string, MarketplaceRef>();
   for (const p of externalSelected) {
     uniqueExternalMarketplaces.set(p.marketplace.name, p.marketplace);
   }
@@ -474,43 +520,19 @@ async function installCodexPlugins(
   }
 
   if (failures.length === 0) {
-    const pluginKeys: string[] = [];
-    let needsPluginHooks = false;
-
-    if (localMarketplace) {
-      const localMpByName = new Map(
-        localMarketplace.plugins.map((p) => [p.name, p]),
-      );
-      const selectedMarketplacePlugins = localSelected.map((p) => {
-        const plugin = localMpByName.get(p.name);
-        if (!plugin) {
-          throw new Error(`Codex install.json: plugin ${p.name} is not present in marketplace.json`);
-        }
-        return plugin;
-      });
-      await ensureCodexPluginManifests(packageRoot, selectedMarketplacePlugins);
-      for (const plugin of selectedMarketplacePlugins) {
-        pluginKeys.push(`${plugin.name}@${localMarketplace.name}`);
-        if (pluginHasHooks(packageRoot, plugin)) needsPluginHooks = true;
-      }
-    }
-
-    // External plugins: trust the upstream marketplace and skip manifest
-    // fetch. We don't toggle plugin_hooks here even if upstream ships a
-    // hooked plugin — `features.plugin_hooks` is a global Codex switch and
-    // a local hooked plugin (or a future explicit opt-in) is required to
-    // turn it on. False negative rate: zero across this repo's current
-    // install set (only deep-review is external, no hooks).
-    for (const p of externalSelected) {
-      pluginKeys.push(`${p.name}@${p.marketplace.name}`);
-    }
+    const { pluginKeys, needsPluginHooks } = await composeCodexPluginKeys(
+      packageRoot,
+      localMarketplace,
+      localSelected,
+      externalSelected,
+    );
 
     enableCodexPluginConfig(
       path.join(codexHome(), "config.toml"),
       pluginKeys,
       needsPluginHooks,
     );
-    for (const plugin of selected) {
+    for (const plugin of [...localSelected, ...externalSelected]) {
       log.ok(`${plugin.name} enabled for Codex`);
     }
   }
