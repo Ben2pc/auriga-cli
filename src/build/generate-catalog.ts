@@ -98,29 +98,38 @@ export function generateCatalog(repoRoot: string): Catalog {
     const marketplaceByName = new Map(codexMarketplace.plugins.map((p) => [p.name, p]));
     for (const p of codexInstall.plugins) {
       const existing = pluginByName.get(p.name);
-      const marketplacePlugin = marketplaceByName.get(p.name);
-      if (!marketplacePlugin) {
-        throw new Error(`generate-catalog: Codex install plugin '${p.name}' missing from marketplace.json`);
-      }
-      const relativeManifestPath = codexManifestPath(marketplacePlugin);
-      const manifestPath = relativeManifestPath
-        ? path.join(repoRoot, relativeManifestPath)
-        : undefined;
       let description = typeof p.description === "string" && p.description.length > 0
         ? p.description
         : "Codex plugin";
-      if (manifestPath && fs.existsSync(manifestPath)) {
-        const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf-8")) as {
-          description?: unknown;
-          interface?: { shortDescription?: unknown };
-        };
-        if (description === "Codex plugin") {
-          description = typeof manifest.interface?.shortDescription === "string"
-            ? manifest.interface.shortDescription
-            : typeof manifest.description === "string" ? manifest.description
-            : description;
+
+      // External-marketplace entries don't appear in our local marketplace.json;
+      // their manifest lives at the upstream's .codex-plugin/plugin.json which
+      // we deliberately don't fetch at build time. Description falls back to
+      // install.json's own value (or "(Claude/Codex)" reuse when also listed
+      // in .claude/plugins.json) — same shape humans / Agents see in --help.
+      if (p.marketplace === undefined) {
+        const marketplacePlugin = marketplaceByName.get(p.name);
+        if (!marketplacePlugin) {
+          throw new Error(`generate-catalog: Codex install plugin '${p.name}' missing from marketplace.json`);
+        }
+        const relativeManifestPath = codexManifestPath(marketplacePlugin);
+        const manifestPath = relativeManifestPath
+          ? path.join(repoRoot, relativeManifestPath)
+          : undefined;
+        if (manifestPath && fs.existsSync(manifestPath)) {
+          const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf-8")) as {
+            description?: unknown;
+            interface?: { shortDescription?: unknown };
+          };
+          if (description === "Codex plugin") {
+            description = typeof manifest.interface?.shortDescription === "string"
+              ? manifest.interface.shortDescription
+              : typeof manifest.description === "string" ? manifest.description
+              : description;
+          }
         }
       }
+
       pluginByName.set(p.name, {
         name: p.name,
         description: existing
