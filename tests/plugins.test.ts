@@ -403,7 +403,11 @@ describe("installPlugins — Codex target", () => {
     assert.match(config, /plugin_hooks = true/);
   });
 
-  test("fails non-interactive Codex install when the marketplace file is missing", async () => {
+  test("fails non-interactive Codex install when neither install.json nor marketplace.json exists", async () => {
+    // External-marketplace support changed the load order: install.json
+    // is now checked first because it's the source of truth for selection
+    // (and may carry external entries that don't need marketplace.json at
+    // all). When both files are absent, the install.json error trips.
     const packageRoot = fs.mkdtempSync(path.join(os.tmpdir(), "auriga-no-codex-marketplace-"));
     const { installPlugins } = await importPlugins();
 
@@ -412,8 +416,126 @@ describe("installPlugins — Codex target", () => {
         interactive: false,
         agent: "codex",
       }),
+      /No \.agents\/plugins\/install\.json found/i,
+    );
+  });
+
+  test("fails Codex install when a local plugin is selected but marketplace.json is missing", async () => {
+    const packageRoot = fs.mkdtempSync(path.join(os.tmpdir(), "auriga-codex-no-marketplace-"));
+    writeJson(path.join(packageRoot, ".agents/plugins/install.json"), {
+      plugins: [{ name: "auriga-go", description: "Workflow autopilot" }],
+    });
+    const { installPlugins } = await importPlugins();
+
+    await assert.rejects(
+      () => installPlugins(packageRoot, {
+        interactive: false,
+        agent: "codex",
+        selected: ["auriga-go"],
+      }),
       /No \.agents\/plugins\/marketplace\.json found/i,
     );
+  });
+
+  test("installs an external-marketplace Codex plugin without touching the local marketplace path", async () => {
+    const previousDev = process.env.DEV;
+    delete process.env.DEV;
+    try {
+      const packageRoot = makeCodexMarketplace();
+      // Add deep-review as an external entry pointing at upstream.
+      writeJson(path.join(packageRoot, ".agents/plugins/install.json"), {
+        plugins: [
+          { name: "auriga-go", description: "Workflow autopilot" },
+          {
+            name: "deep-review",
+            description: "Multi-dimensional PR review",
+            marketplace: {
+              name: "g-claude-code-plugins",
+              source: "Ben2pc/g-claude-code-plugins",
+            },
+          },
+        ],
+      });
+      const codexHome = fs.mkdtempSync(path.join(os.tmpdir(), "auriga-codex-home-"));
+      process.env.CODEX_HOME = codexHome;
+      const commands: string[] = [];
+      const { installPlugins } = await importPlugins((cmd) => {
+        commands.push(cmd);
+        return "";
+      });
+
+      await installPlugins(packageRoot, {
+        interactive: false,
+        agent: "codex",
+        selected: ["deep-review"],
+      });
+
+      // No local plugin selected → no local marketplace add. Only the
+      // external `g-claude-code-plugins` marketplace is registered.
+      assert.deepEqual(commands, [
+        "codex plugin marketplace add https://github.com/Ben2pc/g-claude-code-plugins.git",
+      ]);
+      const config = fs.readFileSync(path.join(codexHome, "config.toml"), "utf-8");
+      assert.match(
+        config,
+        /\[plugins\."deep-review@g-claude-code-plugins"\]\nenabled = true/,
+      );
+      // External plugins don't drive features.plugin_hooks.
+      assert.doesNotMatch(config, /plugin_hooks = true/);
+    } finally {
+      if (previousDev === undefined) delete process.env.DEV;
+      else process.env.DEV = previousDev;
+    }
+  });
+
+  test("installs local + external Codex plugins together with both marketplaces registered", async () => {
+    const previousDev = process.env.DEV;
+    delete process.env.DEV;
+    try {
+      const packageRoot = makeCodexMarketplace();
+      writeJson(path.join(packageRoot, ".agents/plugins/install.json"), {
+        plugins: [
+          { name: "auriga-go", description: "Workflow autopilot" },
+          {
+            name: "deep-review",
+            description: "Multi-dimensional PR review",
+            marketplace: {
+              name: "g-claude-code-plugins",
+              source: "Ben2pc/g-claude-code-plugins",
+            },
+          },
+        ],
+      });
+      const codexHome = fs.mkdtempSync(path.join(os.tmpdir(), "auriga-codex-home-"));
+      process.env.CODEX_HOME = codexHome;
+      const commands: string[] = [];
+      const { installPlugins } = await importPlugins((cmd) => {
+        commands.push(cmd);
+        return "";
+      });
+
+      await installPlugins(packageRoot, {
+        interactive: false,
+        agent: "codex",
+        selected: ["auriga-go", "deep-review"],
+      });
+
+      assert.deepEqual(commands, [
+        "codex plugin marketplace add https://github.com/Ben2pc/auriga-cli.git",
+        "codex plugin marketplace add https://github.com/Ben2pc/g-claude-code-plugins.git",
+      ]);
+      const config = fs.readFileSync(path.join(codexHome, "config.toml"), "utf-8");
+      assert.match(config, /\[plugins\."auriga-go@auriga-cli"\]\nenabled = true/);
+      assert.match(
+        config,
+        /\[plugins\."deep-review@g-claude-code-plugins"\]\nenabled = true/,
+      );
+      // auriga-go has hooks → plugin_hooks must flip on.
+      assert.match(config, /plugin_hooks = true/);
+    } finally {
+      if (previousDev === undefined) delete process.env.DEV;
+      else process.env.DEV = previousDev;
+    }
   });
 
   test("agent both attempts Codex install even when the Claude side fails", async () => {

@@ -2,6 +2,10 @@ import path from "node:path";
 
 const PLUGIN_NAME_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
 const MARKETPLACE_NAME_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
+// External marketplace source: GitHub-style `owner/repo` slug; reused
+// by the Codex install path to compose `https://github.com/<source>.git`.
+// Identical shape to PLUGIN_SOURCE_RE in src/plugins.ts.
+const MARKETPLACE_SOURCE_RE = /^[A-Za-z0-9][A-Za-z0-9._/-]{0,255}$/;
 
 export interface CodexMarketplacePlugin {
   name: string;
@@ -16,10 +20,21 @@ export interface CodexMarketplace {
   plugins: CodexMarketplacePlugin[];
 }
 
+export interface CodexInstallExternalMarketplace {
+  name: string;
+  source: string;
+}
+
 export interface CodexInstallPlugin {
   name: string;
   description?: string;
   defaultOn?: boolean;
+  // Set when the plugin lives in an external Codex marketplace (e.g.
+  // `Ben2pc/g-claude-code-plugins`). Local plugins from this repo's
+  // own `.agents/plugins/marketplace.json` omit this field. Mirrors the
+  // shape of `PluginDef.marketplace` in src/utils.ts (Claude side) so
+  // the two installers stay symmetric.
+  marketplace?: CodexInstallExternalMarketplace;
 }
 
 export interface CodexInstallConfig {
@@ -73,6 +88,22 @@ export function validateCodexInstallConfig(raw: unknown): asserts raw is CodexIn
     }
     if (p.defaultOn !== undefined && typeof p.defaultOn !== "boolean") {
       throw new Error(`Codex install.json: plugins[${i}].defaultOn must be a boolean`);
+    }
+    if (p.marketplace !== undefined) {
+      if (!p.marketplace || typeof p.marketplace !== "object") {
+        throw new Error(`Codex install.json: plugins[${i}].marketplace must be an object`);
+      }
+      const mp = p.marketplace as Record<string, unknown>;
+      if (typeof mp.name !== "string" || !MARKETPLACE_NAME_RE.test(mp.name)) {
+        throw new Error(
+          `Codex install.json: plugins[${i}].marketplace.name ${JSON.stringify(mp.name)} does not match ${MARKETPLACE_NAME_RE}`,
+        );
+      }
+      if (typeof mp.source !== "string" || !MARKETPLACE_SOURCE_RE.test(mp.source)) {
+        throw new Error(
+          `Codex install.json: plugins[${i}].marketplace.source ${JSON.stringify(mp.source)} does not match ${MARKETPLACE_SOURCE_RE}`,
+        );
+      }
     }
   }
 }
