@@ -314,7 +314,7 @@ Workflow skills (category: skills)  ← installed by --all
 
 Recommended skills (category: recommended)  ← NOT installed by --all
   claude-code-agent              Delegate tasks to another Claude Code CLI instance
-  codex-agent                    Delegate tasks to Codex CLI (GPT-5.4)
+  codex-agent                    Delegate tasks to Codex CLI
 
 Plugins (category: plugins)
   auriga-go                      Workflow autopilot — drives CLAUDE.md workflow forward
