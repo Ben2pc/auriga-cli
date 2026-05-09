@@ -155,7 +155,7 @@ Fix layout breaks, console errors, and missing keyboard or contrast affordances 
 </verification_loop>
 ```
 
-Counterintuitive tip from OpenAI's GPT-5.4 frontend playbook: start with **low or medium reasoning effort** for simple frontends — higher reasoning often produces overthought aesthetics. Provide a Playwright MCP server or skill so Codex can render and inspect viewports natively; this dramatically tightens the verification loop for layout, state, and navigation. If the user attaches a reference screenshot or mood board, prefer that as the primary `<design_thesis>` anchor over text descriptions.
+Counterintuitive tip from OpenAI's GPT frontend playbook: start with **low or medium reasoning effort** for simple frontends — higher reasoning often produces overthought aesthetics. Provide a Playwright MCP server or skill so Codex can render and inspect viewports natively; this dramatically tightens the verification loop for layout, state, and navigation. If the user attaches a reference screenshot or mood board, prefer that as the primary `<design_thesis>` anchor over text descriptions.
 
 ## Structured Output To Feed Another Tool
 

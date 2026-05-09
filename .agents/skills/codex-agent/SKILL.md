@@ -20,7 +20,7 @@ Codex CLI 的默认入口是 `codex`（交互式 REPL）。自动化调用走 `c
 ### 新建会话（默认）
 
 ```bash
-codex exec --json --sandbox workspace-write --skip-git-repo-check --model gpt-5.4 "你的任务描述"
+codex exec --json --sandbox workspace-write --skip-git-repo-check --model <flagship> "你的任务描述"
 ```
 
 上面这条只适合**短 prompt**。当 prompt 超过约 500 字符或包含多行/特殊字符时，不要继续用位置参数；改走 stdin 更稳。
@@ -45,7 +45,7 @@ codex exec --json --sandbox workspace-write --skip-git-repo-check --model gpt-5.
 当 prompt 超过约 500 字符或包含多行/特殊字符时，不要继续用位置参数。实测这类输入可能卡在 `Reading additional input from stdin...`，即使手动把 stdin 关掉也不稳定。推荐直接把 prompt 写进文件，再让 `codex exec` 用 `-` 从 stdin 读取：
 
 ```bash
-codex exec --json --sandbox workspace-write --full-auto --model gpt-5.4 \
+codex exec --json --sandbox workspace-write --full-auto --model <flagship> \
   --skip-git-repo-check - < /tmp/task-prompt.txt > /tmp/task-out.jsonl 2>&1
 ```
 
@@ -54,13 +54,13 @@ codex exec --json --sandbox workspace-write --full-auto --model gpt-5.4 \
 ### 继续指定会话
 
 ```bash
-codex exec resume --json --model gpt-5.4 "thread_id" "后续提问"
+codex exec resume --json --model <flagship> "thread_id" "后续提问"
 ```
 
 ### 继续最近会话（快捷方式）
 
 ```bash
-codex exec resume --json --model gpt-5.4 --last "后续提问"
+codex exec resume --json --model <flagship> --last "后续提问"
 ```
 
 - `--last` 默认只看当前目录最近一次记录的会话
@@ -165,31 +165,32 @@ codex exec review [OPTIONS] [PROMPT]
 
 ## 模型选择
 
-根据任务复杂度显式指定 `--model`：
+根据任务复杂度选模型档位：
 
 | 任务复杂度 | model | 适用场景 |
 |-----------|-------|---------|
-| 高 | `gpt-5.4` | 架构设计、复杂重构、多文件编码 |
-| 中 | `gpt-5.4-mini` | 单文件功能实现、bug 修复 |
-| 低 | `gpt-5.3-codex-spark` | 简单问答、代码解释 |
+| 高 | `<flagship>` | 架构设计、复杂重构、多文件编码 |
+| 中/低 | `<mini>` | 单文件功能实现、bug 修复、问答与代码解释 |
+
+> 文档里的 `<flagship>` / `<mini>` 是占位符，不是真实模型 ID。具体 ID 通过 `codex --help` 或 OpenAI 公告查询，并建议在 `~/.codex/config.toml` profile 里一次性锁定，避免命令里到处写死版本号。
 
 ## 推荐参数组合
 
 | 场景 | model | sandbox | 其他 flags |
 |------|-------|---------|-----------|
-| 复杂编码 | `gpt-5.4` | `workspace-write` | `--full-auto` |
-| 一般编码 | `gpt-5.4-mini` | `workspace-write` | `--full-auto` |
-| 只读问答 / 分析 | `gpt-5.4-mini` | `read-only` | `--skip-git-repo-check`（非 git 目录时） |
-| 浏览器调研 / Computer Use | `gpt-5.4` | `read-only` | `-C "$PWD" -o /tmp/result.txt`，需要事件流时再加 `--json` |
-| 代码审查 | `gpt-5.4-mini` | `read-only` | `codex exec --json ... "Review ..."` |
-| 仓库 review | `gpt-5.4-mini` | — | `codex exec review --base main` |
-| 快速问答 | `gpt-5.4-mini` | `read-only` | `--skip-git-repo-check --ephemeral`（⚠️ 不可恢复） |
-| 结构化输出 | `gpt-5.4-mini` | `read-only` | `--output-schema schema.json -o result.json` |
+| 复杂编码 | `<flagship>` | `workspace-write` | `--full-auto` |
+| 一般编码 | `<mini>` | `workspace-write` | `--full-auto` |
+| 只读问答 / 分析 | `<mini>` | `read-only` | `--skip-git-repo-check`（非 git 目录时） |
+| 浏览器调研 / Computer Use | `<flagship>` | `read-only` | `-C "$PWD" -o /tmp/result.txt`，需要事件流时再加 `--json` |
+| 代码审查 | `<mini>` | `read-only` | `codex exec --json ... "Review ..."` |
+| 仓库 review | `<mini>` | — | `codex exec review --base main` |
+| 快速问答 | `<mini>` | `read-only` | `--skip-git-repo-check --ephemeral`（⚠️ 不可恢复） |
+| 结构化输出 | `<mini>` | `read-only` | `--output-schema schema.json -o result.json` |
 
 ## 使用规则
 
 1. **自动化调用一律加 `--json`**：确保输出可解析，提取 `thread_id` 和回复内容
-2. **始终显式传 `--model`**：避免默认模型漂移
+2. **建议显式传 `--model`，或在 `~/.codex/config.toml` profile 里锁定**：避免不同命令间默认模型漂移；不要在每条命令里硬编码具体版本号
 3. **始终在目标项目目录运行**：优先 `cd /path/to/project` 或 `-C /path/to/project`
 4. **编码任务用 `workspace-write`**：通常直接用 `--sandbox workspace-write` 或 `--full-auto`
 5. **审查任务用 `read-only` 或 `codex exec review`**：防止意外修改
@@ -218,20 +219,20 @@ codex exec review [OPTIONS] [PROMPT]
 用户：用 Codex 在当前项目里实现一个 TODO API
 
 步骤 1 - 新建会话：
-cd /path/to/project && codex exec --json --full-auto --model gpt-5.4 "Implement a REST API for TODO items with CRUD endpoints. Use Express.js."
+cd /path/to/project && codex exec --json --full-auto --model <flagship> "Implement a REST API for TODO items with CRUD endpoints. Use Express.js."
 
 → 解析输出，获得 thread_id: "xxx"，回复: "Implemented server.js ..."
 
 用户：加上单元测试
 
 步骤 2 - 继续会话：
-cd /path/to/project && codex exec resume --json --model gpt-5.4-mini "xxx" "Add unit tests for all the TODO API endpoints using vitest."
+cd /path/to/project && codex exec resume --json --model <mini> "xxx" "Add unit tests for all the TODO API endpoints using vitest."
 ```
 
 ### 继续最近会话
 
 ```bash
-cd /path/to/project && codex exec resume --json --model gpt-5.4-mini --last "Continue the refactor and remove the dead helper functions."
+cd /path/to/project && codex exec resume --json --model <mini> --last "Continue the refactor and remove the dead helper functions."
 ```
 
 适合“刚才那个任务继续做”，不想手动保存 `thread_id` 的场景。
@@ -240,19 +241,19 @@ cd /path/to/project && codex exec resume --json --model gpt-5.4-mini --last "Con
 
 ```bash
 # 通用只读审查
-cd /path/to/project && codex exec --json --sandbox read-only --model gpt-5.4-mini "Review the changes in git diff HEAD~1. Focus on correctness, security, and missing tests."
+cd /path/to/project && codex exec --json --sandbox read-only --model <mini> "Review the changes in git diff HEAD~1. Focus on correctness, security, and missing tests."
 
 # 内置 review：对比 main
-cd /path/to/project && codex exec review --json --model gpt-5.4-mini --base main
+cd /path/to/project && codex exec review --json --model <mini> --base main
 
 # 审查未提交变更
-cd /path/to/project && codex exec review --json --model gpt-5.4-mini --uncommitted
+cd /path/to/project && codex exec review --json --model <mini> --uncommitted
 ```
 
 ### 结构化输出并写入文件
 
 ```bash
-cd /path/to/project && codex exec --json --sandbox read-only --model gpt-5.4-mini \
+cd /path/to/project && codex exec --json --sandbox read-only --model <mini> \
   --output-schema ./review-schema.json \
   -o /tmp/review-result.json \
   "Review src/todo.ts and output summary, risks, and suggested tests."
@@ -264,7 +265,7 @@ cd /path/to/project && codex exec --json --sandbox read-only --model gpt-5.4-min
 
 ```bash
 codex exec \
-  -m gpt-5.4 \
+  -m <flagship> \
   --sandbox read-only \
   --skip-git-repo-check \
   -C "$PWD" \
@@ -278,7 +279,7 @@ codex exec \
 
 ```bash
 codex exec \
-  -m gpt-5.4 \
+  -m <flagship> \
   --sandbox read-only \
   --skip-git-repo-check \
   -C "$PWD" \
@@ -292,7 +293,7 @@ codex exec \
 ### 图片输入
 
 ```bash
-cd /path/to/project && codex exec --json --sandbox read-only --model gpt-5.4-mini \
+cd /path/to/project && codex exec --json --sandbox read-only --model <mini> \
   -i ./screenshots/login-bug.png \
   "Describe the UI issue in this screenshot and propose a minimal fix plan."
 ```
@@ -311,7 +312,7 @@ cat > /tmp/task-prompt.txt <<'PROMPT_EOF'
 PROMPT_EOF
 
 # 2. 用 - 从 stdin 读取，避免长位置参数卡住
-codex exec --json --sandbox workspace-write --full-auto --model gpt-5.4 \
+codex exec --json --sandbox workspace-write --full-auto --model <flagship> \
   --skip-git-repo-check - < /tmp/task-prompt.txt > /tmp/task-out.jsonl 2>&1
 ```
 
@@ -320,7 +321,7 @@ codex exec --json --sandbox workspace-write --full-auto --model gpt-5.4 \
 ### 从 stdin 传长提示词
 
 ```bash
-cat ./prompt.md | codex exec --json --sandbox workspace-write --model gpt-5.4 -
+cat ./prompt.md | codex exec --json --sandbox workspace-write --model <flagship> -
 ```
 
 适合长 prompt、模板化 prompt，或脚本动态拼接指令后直接通过管道喂给 Codex。若是在 shell 脚本里长期复用，优先上一节的 `- < file.txt` 写法，可读性更好，也更容易排查问题。

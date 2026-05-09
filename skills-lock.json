@@ -17,7 +17,7 @@
       "source": "Ben2pc/g-claude-code-plugins",
       "sourceType": "github",
       "skillPath": "skills/codex-agent/SKILL.md",
-      "computedHash": "e3d62086018ca07c0ea6b0c3618b144b962dd97874f967f064c63c04d9392997"
+      "computedHash": "160315229913b882dd22202f942adf3a316692cc3376eb189da0dda2203a294b"
     },
     "deep-review": {
       "source": "Ben2pc/g-claude-code-plugins",
@@ -47,25 +47,25 @@
       "source": "Ben2pc/g-claude-code-plugins",
       "sourceType": "github",
       "skillPath": "skills/parallel-implementation/SKILL.md",
-      "computedHash": "f55186e8cc188159e9914349f5300120200315525cb234808515002a8ae1a80b"
+      "computedHash": "c1e5fcfaf26ca8f339a724a3abc0cdf1b7ad8edcd0a5035ebd9f1933101428ab"
     },
     "planning-with-files": {
       "source": "OthmanAdi/planning-with-files",
       "sourceType": "github",
       "skillPath": "skills/planning-with-files/SKILL.md",
-      "computedHash": "9e71d1927e2452d920ff5771df42cbe8ebbcf9149e08c2bf1b48fc63e1946e76"
+      "computedHash": "2a013f2cff21dbe6939a2336fcc6a98dab0cf1b3e97c88320258b98a76eeb850"
     },
     "playwright-cli": {
       "source": "microsoft/playwright-cli",
       "sourceType": "github",
       "skillPath": "skills/playwright-cli/SKILL.md",
-      "computedHash": "d2ea99c86b1c7c4a2800f7f1594c20b46da237a9f4fe199f6dd93d89b27faaf0"
+      "computedHash": "84495cfda62b6c012afc4cc34a0c35bfc7923ba35983b8c04ce4cace0f35a5d8"
     },
     "systematic-debugging": {
       "source": "obra/superpowers",
       "sourceType": "github",
       "skillPath": "skills/systematic-debugging/SKILL.md",
-      "computedHash": "72e9ab72627e4fd8ed26a582e82309a98ecdc4f6e1c99418430ac05682c9e91d"
+      "computedHash": "7246fdd3a795fc3daff0af72044ca99bf836e4e6a46844742858786fdfb86488"
     },
     "test-designer": {
       "source": "Ben2pc/g-claude-code-plugins",
