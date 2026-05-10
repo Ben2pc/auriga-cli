@@ -115,7 +115,7 @@ Annotate:
 - Which are **inline** (main Agent, no subagent)
 
 **Model column contract**:
-- Default value is **`inherit`** — subagent uses whatever model the main Agent is currently running (could be any Claude model, Codex / GPT-5.4, or a future main Agent runtime). Don't hardcode Anthropic-specific or OpenAI-specific model names as the default.
+- Default value is **`inherit`** — subagent uses whatever model the main Agent is currently running (could be any Claude model, Codex / GPT, or a future main Agent runtime). Don't hardcode Anthropic-specific or OpenAI-specific model names as the default.
 - Set an **explicit override** only when the caller has a reason:
   - User or main Agent asked for a specific model (e.g., "use opus high for the resolver slice")
   - Slice is architectural / high-stakes and benefits from a stronger reasoning model at higher effort than the main Agent's current setting

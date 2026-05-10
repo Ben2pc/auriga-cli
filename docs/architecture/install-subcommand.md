@@ -302,14 +302,12 @@ CATALOG (what each category contains)
 
 Workflow skills (category: skills)  ← installed by --all
   brainstorming                  Clarify requirements via dialogue before coding
-  deep-review                    Multi-dimensional PR review (correctness/consistency/...)
   parallel-implementation        Plan how to slice work across parallel subagents
   planning-with-files            Manus-style file-based planning for complex tasks
   playwright-cli                 Browser automation & testing verification
   systematic-debugging           Find root cause before fixing bugs
   test-designer                  Independent failing-test design for complex features
   test-driven-development        Red-green-refactor discipline
-  ui-ux-pro-max                  UI/UX design intelligence (styles / palettes / guidelines)
   verification-before-completion Require verification evidence before claiming done
 
 Recommended skills (category: recommended)  ← NOT installed by --all
@@ -318,14 +316,15 @@ Recommended skills (category: recommended)  ← NOT installed by --all
 
 Plugins (category: plugins)
   auriga-go                      Workflow autopilot — drives CLAUDE.md workflow forward
+  auriga-pr-guards               PR-create / PR-ready workflow guardrails (Claude Code + Codex)
+  session-instructions-loader    Inject ancestor AGENTS.md + extra files on Codex SessionStart
   skill-creator                  Create / modify / measure skills
   claude-md-management           Audit & improve CLAUDE.md files
   codex                          Codex CLI integration (rescue, review, delegation)
+  deep-review                    Multi-dimensional PR review (parallel reviewers + punch list)
 
 Hooks (category: hooks)
-  notify                         macOS notification when Claude needs attention
-  pr-create-guard                Inject PR body snapshot after `gh pr create`
-  pr-ready-guard                 Block `gh pr ready` on unpushed commits / stray docs
+  notify                         macOS notification when Claude needs attention (opt-in)
 
 ──────────────────────────────────────────────────────
 EXAMPLES

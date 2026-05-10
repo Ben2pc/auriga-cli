@@ -11,6 +11,14 @@
     {
       "name": "session-instructions-loader",
       "description": "Injects extra instruction files on session start"
+    },
+    {
+      "name": "deep-review",
+      "description": "Multi-dimensional PR review orchestrator (parallel reviewers + punch list)",
+      "marketplace": {
+        "name": "g-claude-code-plugins",
+        "source": "Ben2pc/g-claude-code-plugins"
+      }
     }
   ]
 }
