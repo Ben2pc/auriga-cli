@@ -1,4 +1,4 @@
-# auriga Workflow (v1.5.1)
+# auriga Workflow (v1.5.2)
 
 1. Requirement Clarification: Use `brainstorming` to clarify requirements for new features. **Requirements should focus on "what to do" and acceptance criteria, not specific technical paths.** For product features, prioritize "Why" and let the implementation-stage Agent decide how.
 
@@ -14,7 +14,7 @@
 
 7. Parallel Implementation: During the green phase, invoke `parallel-implementation` **only** when one of these fires: (a) **greenfield 0→1 across multiple independent modules** — plan a layered parallel split; (b) change touches **≥3 modules** — use `AskUserQuestion` to confirm with the user before dispatching; (c) change touches **≥5 files each with >50 lines of diff** — recommend parallel. The skill returns a slice plan (file assignments, dependencies, per-slice output-format contracts); dispatch with parallel `Agent` calls + `isolation: "worktree"` per plan. Below these thresholds, write it inline — multi-agent overhead outweighs the gain.
 
-8. Post-coding: Before any "done / fixed / ready to commit / ready for review" judgment, run and check full verification per `verification-before-completion`. For UI changes, use `playwright-cli` for frontend interaction verification; use `Computer Use` for mobile simulator interaction verification.
+8. Post-coding: Before any "done / fixed / ready to commit / ready for review" judgment, run and check full verification per `verification-before-completion`. Run the affected automated tests and any needed browser, UI, or mobile interaction checks; do not rely on implementation inspection alone.
 
 9. PR Readiness: Keep the PR in Draft until verification is complete, the base branch is confirmed, and the PR description is updated with scope, acceptance criteria, risks, and remaining TODOs. Then mark the PR Ready for Review. If `brainstorming` or `planning-with-files` produced design docs (specs), findings.md, progress.md, task_plan.md, etc., use `AskUserQuestion` to ask the user: delete or archive to `docs/worklog/worklog-<YYYY-MM-DD>-<branch-name>/` for traceability.
 
@@ -48,6 +48,7 @@ Repo documentation lives under `docs/`, directory-per-purpose, so Agents, the `p
 - **Enforce constraints via mechanisms, not prompts**: Core architectural rules should be enforced via linters / CI / type systems, not by relying on Agents to self-police.
 - **The repo is the single source of truth**: What Agents can't access doesn't exist. External docs must be brought into the repo to count.
 - **Independent Evaluation**: Test design for complex features and formal review must be done by independent agents; do not let an Agent evaluate its own work.
+- **Browser workflows are not only post-coding verification**: When a task needs opening or navigating pages, inspecting local web UI, reproducing browser bugs, checking interactions, capturing screenshots, or designing and running browser end-to-end scenarios, prefer `Browser Use`. Use `playwright-cli` when the value is a repeatable scripted browser regression suited for CI. Use `Computer Use` for mobile simulator or native app UI automation.
 - **Continuously fight entropy**: Pay down tech debt incrementally — don't let it accumulate into painful cleanups.
 - **Components are detachable**: Each workflow step encodes an assumption that "the model isn't good at this." Periodically reassess as model capabilities improve, changing one variable at a time.
 - **Instruction files are directories, not encyclopedias**: Keep CLAUDE.md / AGENTS.md lean (~100 lines), serving as entry points and navigation. Detailed specs go in `docs/` topic files. Subsystems can have their own local instruction files. When everything is important, nothing is — information overload causes Agents to pattern-match locally rather than understand globally. Always create an AGENTS.md symlink to CLAUDE.md (`ln -s CLAUDE.md AGENTS.md`) to ensure different Agent frameworks read the same instructions.
