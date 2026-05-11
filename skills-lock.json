@@ -55,6 +55,12 @@
       "skillPath": "skills/playwright-cli/SKILL.md",
       "computedHash": "84495cfda62b6c012afc4cc34a0c35bfc7923ba35983b8c04ce4cace0f35a5d8"
     },
+    "session-compound": {
+      "source": "Ben2pc/g-claude-code-plugins",
+      "sourceType": "github",
+      "skillPath": "skills/session-compound/SKILL.md",
+      "computedHash": "bac1a829498978da9da89f638cdb25619bb583eb8e08cc78a93ab17e16826517"
+    },
     "systematic-debugging": {
       "source": "obra/superpowers",
       "sourceType": "github",

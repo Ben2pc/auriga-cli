@@ -2,7 +2,10 @@
   "enabledPlugins": {
     "skill-creator@claude-plugins-official": true,
     "claude-md-management@claude-plugins-official": true,
-    "codex@openai-codex": true
+    "codex@openai-codex": true,
+    "auriga-go@auriga-cli": true,
+    "auriga-pr-guards@auriga-cli": true,
+    "deep-review@g-claude-code-plugins": true
   },
   "hooks": {
     "Notification": [

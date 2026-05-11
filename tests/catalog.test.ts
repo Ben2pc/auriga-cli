@@ -34,8 +34,8 @@ describe("generateCatalog (build-time)", () => {
     assert.ok(typeof catalog.generatedAt === "string" && catalog.generatedAt.length > 0);
   });
 
-  test("workflow skills: 8 entries matching WORKFLOW_SKILLS", () => {
-    assert.equal(catalog.workflowSkills.length, 8);
+  test("workflow skills: 9 entries matching WORKFLOW_SKILLS", () => {
+    assert.equal(catalog.workflowSkills.length, 9);
     const names = catalog.workflowSkills.map((e) => e.name).sort();
     // deep-review is no longer here — it ships as the `deep-review` plugin
     // (assertion lives in the plugins block below).
@@ -44,6 +44,7 @@ describe("generateCatalog (build-time)", () => {
       "parallel-implementation",
       "planning-with-files",
       "playwright-cli",
+      "session-compound",
       "systematic-debugging",
       "test-designer",
       "test-driven-development",

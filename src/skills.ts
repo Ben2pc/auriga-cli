@@ -12,6 +12,7 @@ export const WORKFLOW_SKILLS = [
   "parallel-implementation",
   "planning-with-files",
   "playwright-cli",
+  "session-compound",
   "systematic-debugging",
   "test-designer",
   "test-driven-development",

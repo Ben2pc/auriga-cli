@@ -1,4 +1,4 @@
-# auriga Workflow (v1.5.2)
+# auriga Workflow (v1.6.0)
 
 1. Requirement Clarification: Use `brainstorming` to clarify requirements for new features. **Requirements should focus on "what to do" and acceptance criteria, not specific technical paths.** For product features, prioritize "Why" and let the implementation-stage Agent decide how.
 
@@ -19,6 +19,8 @@
 9. PR Readiness: Keep the PR in Draft until verification is complete, the base branch is confirmed, and the PR description is updated with scope, acceptance criteria, risks, and remaining TODOs. Then mark the PR Ready for Review. If `brainstorming` or `planning-with-files` produced design docs (specs), findings.md, progress.md, task_plan.md, etc., use `AskUserQuestion` to ask the user: delete or archive to `docs/worklog/worklog-<YYYY-MM-DD>-<branch-name>/` for traceability.
 
 10. PR Review: Early feedback may happen on a Draft PR. After the PR is Ready for Review, formal review must use the `deep-review` plugin (which provides the `deep-review` skill). `/review` remains as a lightweight fallback. **Reviewer Agents must report every finding with severity + confidence, not pre-filter by importance** — Opus 4.7 follows "only report high-severity" type instructions literally, which lowers recall on real bugs; let the human do the filtering.
+
+11. Post-merge Compounding: Immediately after the PR is merged, use `AskUserQuestion` to proactively ask whether to run the `session-compound` skill. It compounds the current session into a self-contained HTML report (narrative timeline + token / cache / tool health + a playground panel with checkable candidate items for ecosystem-skill installs / AGENTS.md edits / new-skill gaps) so insights from this session land in the right place rather than evaporating. Ask once per merge; don't run silently, and don't re-prompt if the user declines.
 
 ## Quick Development Flow (bug fix / small refactor / small feature)
 

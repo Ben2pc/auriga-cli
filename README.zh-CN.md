@@ -92,6 +92,7 @@ npx auriga-cli
 | playwright-cli | [microsoft/playwright-cli](https://github.com/microsoft/playwright-cli) | 浏览器自动化与测试 |
 | test-designer | [Ben2pc/g-claude-code-plugins](https://github.com/Ben2pc/g-claude-code-plugins) | TDD 红灯阶段的 Independent Evaluation 测试设计器 |
 | parallel-implementation | [Ben2pc/g-claude-code-plugins](https://github.com/Ben2pc/g-claude-code-plugins) | 多 subagent 并行写代码时的切片计划器 |
+| session-compound | [Ben2pc/g-claude-code-plugins](https://github.com/Ben2pc/g-claude-code-plugins) | PR 合并后的会话复利 skill — 将本次会话沉淀为交互式 HTML 报告（时间线 + token / cache / 工具健康度 + playground：skill 安装 / AGENTS.md 修改 / 新建 skill 缺口） |
 
 **Recommended Skills（可选，不在 `--all` 内）：**
 

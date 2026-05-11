@@ -92,6 +92,7 @@ Installs selected skills via `npx skills add`, targeting both Claude Code and Co
 | playwright-cli | [microsoft/playwright-cli](https://github.com/microsoft/playwright-cli) | Browser automation and testing |
 | test-designer | [Ben2pc/g-claude-code-plugins](https://github.com/Ben2pc/g-claude-code-plugins) | Independent-Evaluation test designer for TDD red phase |
 | parallel-implementation | [Ben2pc/g-claude-code-plugins](https://github.com/Ben2pc/g-claude-code-plugins) | Slice planner for parallel multi-subagent code writing |
+| session-compound | [Ben2pc/g-claude-code-plugins](https://github.com/Ben2pc/g-claude-code-plugins) | Post-merge session compounder — distills the session into an interactive HTML report (timeline + token / cache / tool health + playground for skill installs / AGENTS.md edits / new-skill gaps) |
 
 **Recommended Skills (opt-in, not installed by `--all`):**
 
