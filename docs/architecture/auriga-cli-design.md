@@ -65,7 +65,7 @@ auriga-cli/
 - **内容**：`.claude/plugins.json` 中的推荐列表
 - **安装方式**：`claude plugins install <package> --scope <user|project>`
 - **Scope 选择**：user（默认）或 project
-- **Marketplace 处理**：如果 plugin 需要额外 marketplace，先自动执行 `claude plugins marketplace add`
+- **Marketplace 处理**：新 marketplace 自动执行 `claude plugins marketplace add`；已存在的自动执行 `claude plugins marketplace update` 以拾取上游更新（重命名、新增插件等）
 - **冲突处理**：通过 `claude plugins list` 检查，已安装的跳过
 - **交互**：展示 plugin 列表（名称 + 描述），用户 checkbox 多选
 

@@ -648,12 +648,21 @@ export async function installPlugins(
     if (selected.length === 0) {
       log.skip("No plugins selected");
     } else {
-      // Install required marketplaces
+      // Install or refresh required marketplaces. Already-present
+      // marketplaces keep whatever marketplace.json was cached at the last
+      // `add` — refresh them so upstream renames / additions become
+      // visible without users manually re-adding. Same add-or-update
+      // intent as the Codex path; simpler control flow here because
+      // `getInstalledMarketplaces` pre-classifies into two buckets.
       const existingMarketplaces = getInstalledMarketplaces();
       const marketplacesToAdd = new Map<string, string>();
+      const marketplacesToUpdate = new Set<string>();
 
       for (const plugin of selected) {
-        if (plugin.marketplace && !existingMarketplaces.has(plugin.marketplace.name)) {
+        if (!plugin.marketplace) continue;
+        if (existingMarketplaces.has(plugin.marketplace.name)) {
+          marketplacesToUpdate.add(plugin.marketplace.name);
+        } else {
           marketplacesToAdd.set(plugin.marketplace.name, plugin.marketplace.source);
         }
       }
@@ -665,6 +674,20 @@ export async function installPlugins(
           log.ok(`Marketplace ${name} added`);
         } catch {
           log.error(`Failed to add marketplace: ${name}`);
+          failures.push(`marketplace ${name}`);
+        }
+      }
+
+      for (const name of marketplacesToUpdate) {
+        console.log(`\nUpdating marketplace: ${name}...`);
+        try {
+          exec(`claude plugins marketplace update ${name}`, { inherit: true });
+          log.ok(`Marketplace ${name} updated`);
+        } catch (e) {
+          // Surface the underlying error so a 6-month-out reader can tell
+          // ENOENT / network / auth / git failures apart — mirrors the
+          // Codex side's commandErrorText usage in addCodexMarketplaceWithRetry.
+          log.error(`Failed to update marketplace: ${name}\n${commandErrorText(e)}`);
           failures.push(`marketplace ${name}`);
         }
       }
