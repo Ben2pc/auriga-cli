@@ -651,8 +651,9 @@ export async function installPlugins(
       // Install or refresh required marketplaces. Already-present
       // marketplaces keep whatever marketplace.json was cached at the last
       // `add` — refresh them so upstream renames / additions become
-      // visible without users manually re-adding. Mirrors the Codex
-      // path's add-or-upgrade shape (addCodexMarketplaceWithRetry).
+      // visible without users manually re-adding. Same add-or-update
+      // intent as the Codex path; simpler control flow here because
+      // `getInstalledMarketplaces` pre-classifies into two buckets.
       const existingMarketplaces = getInstalledMarketplaces();
       const marketplacesToAdd = new Map<string, string>();
       const marketplacesToUpdate = new Set<string>();
@@ -682,8 +683,11 @@ export async function installPlugins(
         try {
           exec(`claude plugins marketplace update ${name}`, { inherit: true });
           log.ok(`Marketplace ${name} updated`);
-        } catch {
-          log.error(`Failed to update marketplace: ${name}`);
+        } catch (e) {
+          // Surface the underlying error so a 6-month-out reader can tell
+          // ENOENT / network / auth / git failures apart — mirrors the
+          // Codex side's commandErrorText usage in addCodexMarketplaceWithRetry.
+          log.error(`Failed to update marketplace: ${name}\n${commandErrorText(e)}`);
           failures.push(`marketplace ${name}`);
         }
       }
