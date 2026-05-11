@@ -97,6 +97,8 @@ Mark checkpoint commits with a recognisable prefix (e.g. `wip:`) or use `git com
 
 When uncommitted diff vs `HEAD` exceeds 200 lines or 8 files **and** the last reminder was ≥ 60 s ago, the `commit-reminder` hook injects an informational reminder via `additionalContext`. Non-blocking. Acts as a safety net for runaway working trees — but the per-commit boundary decision still belongs to the agent.
 
+The hook fires on `PostToolUse` for `Edit` / `Write` / `MultiEdit` (Claude Code's file-edit `tool_name`s) and `apply_patch` (Codex's canonical file-edit `tool_name`), so it works the same way in both runtimes.
+
 ---
 
 ## Phase 3: Pre-PR self-check, optional history cleanup

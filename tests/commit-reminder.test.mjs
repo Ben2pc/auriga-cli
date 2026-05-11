@@ -225,5 +225,18 @@ function check(name, condition, info = "") {
   );
 }
 
+// Case 11: Codex reports file edits as tool_name "apply_patch"
+{
+  const dir = setupRepo();
+  writeFile(dir, "big.txt", 500);
+  spawnSync("git", ["add", "."], { cwd: dir });
+  const r = run(payload("apply_patch"), dir);
+  check(
+    "Codex apply_patch tool_name triggers reminder",
+    r.status === 0 && r.stdout.includes("commit-reminder"),
+    `stdout="${r.stdout}"`,
+  );
+}
+
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exit(failed === 0 ? 0 : 1);

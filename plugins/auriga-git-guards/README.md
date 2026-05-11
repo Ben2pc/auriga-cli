@@ -4,7 +4,7 @@ Three hooks plus a bundled skill that guard the auriga workflow across the git l
 
 | Hook | Event | Fires on | Action |
 |---|---|---|---|
-| `commit-reminder` | `PostToolUse` | `Edit` / `Write` / `MultiEdit` | When uncommitted diff vs `HEAD` exceeds 200 lines or 8 files **and** the last reminder was ≥ 60 s ago, injects `additionalContext` nudging the agent to commit at the next semantic boundary. Never blocks. Silent outside a git repo. |
+| `commit-reminder` | `PostToolUse` | `Edit` / `Write` / `MultiEdit` (Claude Code) · `apply_patch` (Codex's canonical file-edit tool) | When uncommitted diff vs `HEAD` exceeds 200 lines or 8 files **and** the last reminder was ≥ 60 s ago, injects `additionalContext` nudging the agent to commit at the next semantic boundary. Never blocks. Silent outside a git repo. |
 | `pr-create-guard` | `PostToolUse` | `gh pr create` | Fetches the new PR's body via `gh pr view`, injects a snapshot (headings + TODO counts) so the agent can self-verify against the five-element PR description contract (scope / acceptance criteria / design decisions / risks / TODOs). Never blocks. |
 | `pr-ready-guard` | `PreToolUse` | `gh pr ready` | Hard-blocks (exit 2) on **structural** issues: stray `findings.md` / `progress.md` / `task_plan.md` at repo root, unarchived specs under `docs/superpowers/specs/`, unfinalized active specs under `docs/specs/`, or unpushed commits. Otherwise injects a body snapshot. |
 
@@ -42,12 +42,12 @@ Both Agents share the same plugin payload and the same `${CLAUDE_PLUGIN_ROOT}` s
 
 | Behaviour | Claude Code | Codex |
 |---|---|---|
-| `commit-reminder` → inject reminder (PostToolUse `additionalContext`) | ✅ | ⚠️ Currently fail-open: Codex parses the field but does not surface it to the model yet. |
+| `commit-reminder` → inject reminder (PostToolUse `additionalContext`) | ✅ | ✅ Codex reports file edits as `tool_name: "apply_patch"`; the hook's allowlist accepts both naming schemes, and `PostToolUse` `additionalContext` is surfaced. |
 | `gh pr create` → inject body snapshot (PostToolUse `additionalContext`) | ✅ | ✅ |
 | `gh pr ready` → block on structural issues (exit 2 + stderr) | ✅ | ✅ |
 | `gh pr ready` → inject body snapshot when passing (PreToolUse `additionalContext`) | ✅ | ⚠️ Currently fail-open: Codex parses the field but does not surface it to the model yet. The block path is unaffected. |
 
-The known fail-open differs only in the **passing / informational paths**: structural blocks fire identically.
+The remaining fail-open differs only in the **PreToolUse `additionalContext` informational path** for `pr-ready-guard`: structural blocks fire identically, and the two PostToolUse hooks (`commit-reminder`, `pr-create-guard`) are at full parity.
 
 ## Block signals (pr-ready-guard)
 

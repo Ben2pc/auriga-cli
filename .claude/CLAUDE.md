@@ -49,15 +49,20 @@ plugins/
                                                  ${CLAUDE_PLUGIN_ROOT} which
                                                  Codex deliberately mirrors
                                                  for OOTB compat)
-                    scripts/commit-reminder.mjs (PostToolUse: Edit|Write|MultiEdit)
+                    scripts/commit-reminder.mjs (PostToolUse:
+                                                 Edit|Write|MultiEdit|apply_patch
+                                                 — covers Claude Code's tool
+                                                 names plus Codex's canonical
+                                                 file-edit name `apply_patch`)
                     scripts/pr-create-guard.mjs (PostToolUse: gh pr create)
                     scripts/pr-ready-guard.mjs  (PreToolUse:  gh pr ready)
                     skills/git-workflow/SKILL.md (bundled skill — the same
                                                  plugin-embedded pattern as
                                                  auriga-go)
                   Codex currently fail-opens on PreToolUse `additionalContext`
-                  and on `commit-reminder`'s PostToolUse `additionalContext`
                   (parses but does not surface yet); block path is identical.
+                  PostToolUse `additionalContext` is supported, so both
+                  `commit-reminder` and `pr-create-guard` work at full parity.
   session-instructions-loader/
                   Codex-only plugin.
                     .codex-plugin/plugin.json   (Codex manifest)

@@ -1,5 +1,10 @@
 #!/usr/bin/env node
-// commit-reminder — PostToolUse hook for Edit / Write / MultiEdit.
+// commit-reminder — PostToolUse hook for file-edit tools.
+//
+// Claude Code reports tool_name as "Edit" / "Write" / "MultiEdit".
+// Codex reports all file edits as tool_name "apply_patch" (its
+// canonical name; matcher aliases Edit / Write resolve to it).
+// We accept either side's naming so the hook works in both runtimes.
 //
 // When uncommitted diff vs HEAD crosses size thresholds (lines OR
 // files) AND the last reminder was at least 60s ago, injects an
@@ -15,7 +20,7 @@ const LINE_THRESHOLD = 200;
 const FILE_THRESHOLD = 8;
 const INTERVAL_SECONDS = 60;
 const STATE_FILENAME = "auriga-commit-reminder.last";
-const MATCH_TOOLS = new Set(["Edit", "Write", "MultiEdit"]);
+const MATCH_TOOLS = new Set(["Edit", "Write", "MultiEdit", "apply_patch"]);
 
 let input = "";
 process.stdin.setEncoding("utf8");
