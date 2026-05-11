@@ -11,9 +11,9 @@
 | 模块 | 说明 |
 |---|---|
 | **Workflow** | `CLAUDE.md` 里的 auriga 工作流：需求澄清 → TDD → Review，Harness 原则，Subagent 使用指南 |
-| **Skills** | 开发流程 + 编排类 skills —— brainstorming、systematic-debugging、TDD、verification、planning、playwright、deep-review、test-designer、parallel-implementation |
+| **Skills** | 开发流程 + 编排类 skills —— brainstorming、systematic-debugging、TDD、verification、planning、playwright、test-designer、parallel-implementation |
 | **Recommended Skills** | 可选的工具类 skills（如 `codex-agent`、`claude-code-agent`），在 workflow skills 之外按需追加 |
-| **Plugins** | 推荐的 Claude Code 和 Codex 插件 —— skill-creator、claude-md-management、codex、auriga-go、auriga-pr-guards、session-instructions-loader |
+| **Plugins** | 推荐的 Claude Code 和 Codex 插件 —— skill-creator、claude-md-management、codex、auriga-go、auriga-pr-guards、session-instructions-loader、deep-review |
 | **Hooks** | Claude Code hooks：`notify`（macOS 通知，终端在焦点时仅放声不弹横幅 —— **opt-in**：`install --all` 不装，需要 `install hooks --hook notify`） |
 
 ## 快速开始
@@ -90,7 +90,6 @@ npx auriga-cli
 | verification-before-completion | [obra/superpowers](https://github.com/obra/superpowers) | 完成前验证，用证据说话 |
 | planning-with-files | [OthmanAdi/planning-with-files](https://github.com/OthmanAdi/planning-with-files) | 文件化任务计划与进度跟踪 |
 | playwright-cli | [microsoft/playwright-cli](https://github.com/microsoft/playwright-cli) | 浏览器自动化与测试 |
-| deep-review | [Ben2pc/g-claude-code-plugins](https://github.com/Ben2pc/g-claude-code-plugins) | 多维度 PR review 编排器（必选 + 条件 + punch list 汇总） |
 | test-designer | [Ben2pc/g-claude-code-plugins](https://github.com/Ben2pc/g-claude-code-plugins) | TDD 红灯阶段的 Independent Evaluation 测试设计器 |
 | parallel-implementation | [Ben2pc/g-claude-code-plugins](https://github.com/Ben2pc/g-claude-code-plugins) | 多 subagent 并行写代码时的切片计划器 |
 | session-compound | [Ben2pc/g-claude-code-plugins](https://github.com/Ben2pc/g-claude-code-plugins) | PR 合并后的会话复利 skill — 将本次会话沉淀为交互式 HTML 报告（时间线 + token / cache / 工具健康度 + playground：skill 安装 / AGENTS.md 修改 / 新建 skill 缺口） |
@@ -127,6 +126,7 @@ npx -y auriga-cli install plugins --agent both --plugin auriga-pr-guards
 | auriga-go | Claude Code / Codex | auriga 工作流的自动驾驶：按 `CLAUDE.md` 的 phase 做 reminder-based 导航；包含 Experimental 的 hook-backed `ship` 模式。内置一个 skill（按 description 的自然语言触发 + `/auriga-go` slash command）和一个 plugin 层面的 Stop hook。 |
 | auriga-pr-guards | Claude Code / Codex | 两个 PR-workflow guardrail：`pr-create-guard`（`gh pr create` 的 PostToolUse —— 通过 `gh pr view` 拉真实 PR body，扫 `^##` / `^###` headings 并统计 `- [ ]` / `- [x]` 注入 `additionalContext`，让 Agent 对照范围 / 验收 / 风险 / 剩余 TODO 四要素）+ `pr-ready-guard`（`gh pr ready` 的 PreToolUse —— 仅按结构信号拦截：游离 `findings.md` / `progress.md` / `task_plan.md` / `docs/superpowers/specs/*.md`、`docs/specs/*.md` 内未结案的活跃 spec、未 push commits；放行时注入 body 快照）。Codex 当前对 PreToolUse 的 `additionalContext` 字段 fail-open（解析但不生效），block 路径两边一致。 |
 | session-instructions-loader | Codex | Codex-only SessionStart 插件，注入上层目录的 `AGENTS.md` 和仓库配置的额外 instruction 文件。 |
+| deep-review | Claude Code / Codex | 来自 [Ben2pc/g-claude-code-plugins](https://github.com/Ben2pc/g-claude-code-plugins) 的多维度 PR review 编排器 —— 并行派发各维度 reviewer（spec-conformance、correctness、test-quality、docs-sync，以及条件触发的 robustness/UX/performance/structure/code-quality/skill-plugin-quality），汇总成 punch list。同包内打包了 `reviewer-creator` skill，用于在 `docs/rules/review/` 下生成项目级自定义 reviewer。承担 `CLAUDE.md` 第 10 步的正式评审职责。 |
 
 ### Hooks
 

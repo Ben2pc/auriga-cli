@@ -11,9 +11,9 @@ This repo itself is a fully configured harness project. You can clone it to see 
 | Module | Description |
 |---|---|
 | **Workflow** | `CLAUDE.md` auriga workflow: requirement clarification -> TDD -> Review, Harness principles, Subagent usage guide |
-| **Skills** | Development process + orchestration skills — brainstorming, systematic-debugging, TDD, verification, planning, playwright, deep-review, test-designer, parallel-implementation |
+| **Skills** | Development process + orchestration skills — brainstorming, systematic-debugging, TDD, verification, planning, playwright, test-designer, parallel-implementation |
 | **Recommended Skills** | Optional utility skills (e.g. `codex-agent`, `claude-code-agent`) you can add on top of the workflow skills |
-| **Plugins** | Recommended Claude Code and Codex plugins — skill-creator, claude-md-management, codex, auriga-go, auriga-pr-guards, session-instructions-loader |
+| **Plugins** | Recommended Claude Code and Codex plugins — skill-creator, claude-md-management, codex, auriga-go, auriga-pr-guards, session-instructions-loader, deep-review |
 | **Hooks** | Claude Code hooks: `notify` (macOS notification, focus-aware sound-only when terminal is frontmost — **opt-in**: not installed by `install --all`, requires `install hooks --hook notify`) |
 
 ## Quick Start
@@ -90,7 +90,6 @@ Installs selected skills via `npx skills add`, targeting both Claude Code and Co
 | verification-before-completion | [obra/superpowers](https://github.com/obra/superpowers) | Pre-completion verification — evidence before assertions |
 | planning-with-files | [OthmanAdi/planning-with-files](https://github.com/OthmanAdi/planning-with-files) | File-based task planning and progress tracking |
 | playwright-cli | [microsoft/playwright-cli](https://github.com/microsoft/playwright-cli) | Browser automation and testing |
-| deep-review | [Ben2pc/g-claude-code-plugins](https://github.com/Ben2pc/g-claude-code-plugins) | Multi-dimensional PR review orchestrator (required + conditional reviewers + punch list) |
 | test-designer | [Ben2pc/g-claude-code-plugins](https://github.com/Ben2pc/g-claude-code-plugins) | Independent-Evaluation test designer for TDD red phase |
 | parallel-implementation | [Ben2pc/g-claude-code-plugins](https://github.com/Ben2pc/g-claude-code-plugins) | Slice planner for parallel multi-subagent code writing |
 | session-compound | [Ben2pc/g-claude-code-plugins](https://github.com/Ben2pc/g-claude-code-plugins) | Post-merge session compounder — distills the session into an interactive HTML report (timeline + token / cache / tool health + playground for skill installs / AGENTS.md edits / new-skill gaps) |
@@ -127,6 +126,7 @@ npx -y auriga-cli install plugins --agent both --plugin auriga-pr-guards
 | auriga-go | Claude Code / Codex | Workflow autopilot for the auriga workflow. Reminder-based navigation across the `CLAUDE.md` phases with an Experimental hook-backed `ship` mode. Bundles a skill (description-based NL trigger + `/auriga-go`) plus a plugin-level Stop hook for ship mode. |
 | auriga-pr-guards | Claude Code / Codex | Two PR-workflow guardrails packaged as a dual-Agent plugin: `pr-create-guard` (PostToolUse for `gh pr create` → fetch the new PR's body via `gh pr view` and inject headings + TODO counts as `additionalContext` so the Agent can self-verify scope / acceptance / risks / TODO) and `pr-ready-guard` (PreToolUse for `gh pr ready` → block on stray planning docs at `findings.md` / `progress.md` / `task_plan.md` / `docs/superpowers/specs/*.md`, unfinalized active specs in `docs/specs/*.md`, or unpushed commits; otherwise inject the body snapshot). Codex currently fails open on the `additionalContext` field for PreToolUse but enforces blocks identically. |
 | session-instructions-loader | Codex | Codex-only SessionStart plugin that injects ancestor `AGENTS.md` files plus repo-configured extra instruction files. |
+| deep-review | Claude Code / Codex | Multi-dimensional PR review orchestrator from [Ben2pc/g-claude-code-plugins](https://github.com/Ben2pc/g-claude-code-plugins) — dispatches parallel reviewers (spec-conformance, correctness, test-quality, docs-sync, plus conditional robustness/UX/performance/structure/code-quality/skill-plugin-quality) and synthesizes findings into an actionable punch list. Bundles a companion `reviewer-creator` skill for scaffolding project-level custom reviewers under `docs/rules/review/`. Drives the formal-review step in `CLAUDE.md` step 10. |
 
 ### Hooks
 

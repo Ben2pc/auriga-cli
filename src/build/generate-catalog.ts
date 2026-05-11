@@ -10,6 +10,7 @@ import {
   validateCodexMarketplace,
   type CodexInstallConfig,
   type CodexMarketplace,
+  type CodexMarketplacePlugin,
 } from "../codex-plugin-config.js";
 import type { PluginsConfig, SkillsLock } from "../utils.js";
 import { WORKFLOW_SKILLS as WORKFLOW_SKILL_LIST, validateSkillsLock } from "../skills.js";
@@ -40,6 +41,31 @@ const CATALOG_OVERRIDES: Record<string, string> = {
   "codex-agent":
     "Delegate coding, review, diagnosis, planning, and browser tasks to an independent Codex session via `codex exec` / resume / review.",
 };
+
+// Pulls a description from a local plugin's `.codex-plugin/plugin.json`
+// (interface.shortDescription preferred, falling back to top-level
+// description). Returns undefined when the manifest is absent or has
+// neither field — caller falls back to the install.json description.
+function readLocalCodexManifestDescription(
+  repoRoot: string,
+  plugin: CodexMarketplacePlugin,
+): string | undefined {
+  const relative = codexManifestPath(plugin);
+  if (!relative) return undefined;
+  const manifestPath = path.join(repoRoot, relative);
+  if (!fs.existsSync(manifestPath)) return undefined;
+  const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf-8")) as {
+    description?: unknown;
+    interface?: { shortDescription?: unknown };
+  };
+  if (typeof manifest.interface?.shortDescription === "string") {
+    return manifest.interface.shortDescription;
+  }
+  if (typeof manifest.description === "string") {
+    return manifest.description;
+  }
+  return undefined;
+}
 
 function readSkillDescription(repoRoot: string, name: string): string {
   const override = CATALOG_OVERRIDES[name];
@@ -98,29 +124,26 @@ export function generateCatalog(repoRoot: string): Catalog {
     const marketplaceByName = new Map(codexMarketplace.plugins.map((p) => [p.name, p]));
     for (const p of codexInstall.plugins) {
       const existing = pluginByName.get(p.name);
-      const marketplacePlugin = marketplaceByName.get(p.name);
-      if (!marketplacePlugin) {
-        throw new Error(`generate-catalog: Codex install plugin '${p.name}' missing from marketplace.json`);
-      }
-      const relativeManifestPath = codexManifestPath(marketplacePlugin);
-      const manifestPath = relativeManifestPath
-        ? path.join(repoRoot, relativeManifestPath)
-        : undefined;
       let description = typeof p.description === "string" && p.description.length > 0
         ? p.description
         : "Codex plugin";
-      if (manifestPath && fs.existsSync(manifestPath)) {
-        const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf-8")) as {
-          description?: unknown;
-          interface?: { shortDescription?: unknown };
-        };
+
+      // External-marketplace entries don't appear in our local marketplace.json;
+      // their manifest lives at the upstream's .codex-plugin/plugin.json which
+      // we deliberately don't fetch at build time. Description falls back to
+      // install.json's own value (or "(Claude/Codex)" reuse when also listed
+      // in .claude/plugins.json) — same shape humans / Agents see in --help.
+      if (p.marketplace === undefined) {
+        const marketplacePlugin = marketplaceByName.get(p.name);
+        if (!marketplacePlugin) {
+          throw new Error(`generate-catalog: Codex install plugin '${p.name}' missing from marketplace.json`);
+        }
         if (description === "Codex plugin") {
-          description = typeof manifest.interface?.shortDescription === "string"
-            ? manifest.interface.shortDescription
-            : typeof manifest.description === "string" ? manifest.description
-            : description;
+          const manifestDescription = readLocalCodexManifestDescription(repoRoot, marketplacePlugin);
+          if (manifestDescription) description = manifestDescription;
         }
       }
+
       pluginByName.set(p.name, {
         name: p.name,
         description: existing

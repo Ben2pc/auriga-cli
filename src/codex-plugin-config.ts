@@ -1,7 +1,12 @@
 import path from "node:path";
 
+import {
+  MARKETPLACE_NAME_RE,
+  validateMarketplaceField,
+  type MarketplaceRef,
+} from "./marketplace.js";
+
 const PLUGIN_NAME_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
-const MARKETPLACE_NAME_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
 
 export interface CodexMarketplacePlugin {
   name: string;
@@ -20,6 +25,12 @@ export interface CodexInstallPlugin {
   name: string;
   description?: string;
   defaultOn?: boolean;
+  // Set when the plugin lives in an external Codex marketplace (e.g.
+  // `Ben2pc/g-claude-code-plugins`). Local plugins from this repo's
+  // own `.agents/plugins/marketplace.json` omit this field. Same shape
+  // as `PluginDef.marketplace` (Claude side, src/utils.ts) so the two
+  // installers stay symmetric.
+  marketplace?: MarketplaceRef;
 }
 
 export interface CodexInstallConfig {
@@ -73,6 +84,9 @@ export function validateCodexInstallConfig(raw: unknown): asserts raw is CodexIn
     }
     if (p.defaultOn !== undefined && typeof p.defaultOn !== "boolean") {
       throw new Error(`Codex install.json: plugins[${i}].defaultOn must be a boolean`);
+    }
+    if (p.marketplace !== undefined) {
+      validateMarketplaceField(`Codex install.json: plugins[${i}]`, p.marketplace);
     }
   }
 }

@@ -34,12 +34,13 @@ describe("generateCatalog (build-time)", () => {
     assert.ok(typeof catalog.generatedAt === "string" && catalog.generatedAt.length > 0);
   });
 
-  test("workflow skills: 10 entries matching WORKFLOW_SKILLS", () => {
-    assert.equal(catalog.workflowSkills.length, 10);
+  test("workflow skills: 9 entries matching WORKFLOW_SKILLS", () => {
+    assert.equal(catalog.workflowSkills.length, 9);
     const names = catalog.workflowSkills.map((e) => e.name).sort();
+    // deep-review is no longer here — it ships as the `deep-review` plugin
+    // (assertion lives in the plugins block below).
     assert.deepEqual(names, [
       "brainstorming",
-      "deep-review",
       "parallel-implementation",
       "planning-with-files",
       "playwright-cli",
@@ -66,13 +67,14 @@ describe("generateCatalog (build-time)", () => {
   });
 
   test("plugins: Claude Code entries plus Codex-only entries", () => {
-    assert.equal(catalog.plugins.length, 6);
+    assert.equal(catalog.plugins.length, 7);
     const names = catalog.plugins.map((e) => e.name).sort();
     assert.deepEqual(names, [
       "auriga-go",
       "auriga-pr-guards",
       "claude-md-management",
       "codex",
+      "deep-review",
       "session-instructions-loader",
       "skill-creator",
     ]);
@@ -84,6 +86,12 @@ describe("generateCatalog (build-time)", () => {
     assert.match(
       catalog.plugins.find((e) => e.name === "session-instructions-loader")?.description ?? "",
       /^\(Codex\)/,
+    );
+    // deep-review is dual-Agent (registered in both .claude/plugins.json
+    // and .agents/plugins/install.json with an external marketplace ref).
+    assert.match(
+      catalog.plugins.find((e) => e.name === "deep-review")?.description ?? "",
+      /^\(Claude\/Codex\)/,
     );
   });
 

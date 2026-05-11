@@ -79,11 +79,10 @@ Targeted — single category, picking from the catalog surfaced in Step 2:
   ${cmd("npx -y auriga-cli install skills --skill brainstorming test-driven-development")}
   ${cmd("npx -y auriga-cli install plugins --plugin skill-creator codex --scope user")}
   ${cmd("npx -y auriga-cli install plugins --agent codex --plugin session-instructions-loader")}
-  ${cmd("npx -y auriga-cli install hooks --hook pr-ready-guard")}
 
-Opt-in hooks: some hooks (e.g. \`notify\`) are NOT in the default set
-because they have side effects (OS notifications, platform-gated deps).
-Name them explicitly to install:
+Opt-in hooks (\`defaultOn: false\`) are NOT in the default \`install --all\`
+set because they have side effects (OS notifications, platform-gated
+deps). Inspect \`install hooks --help\` for the catalog and install by name:
   ${cmd("npx -y auriga-cli install hooks --hook notify")}
 
 Opt-in recommended skills (cross-model delegation helpers —

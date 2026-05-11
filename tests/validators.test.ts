@@ -3,6 +3,7 @@ import { describe, test } from "node:test";
 
 import { validateSkillsLock } from "../src/skills.js";
 import { validatePluginsConfig } from "../src/plugins.js";
+import { validateCodexInstallConfig } from "../src/codex-plugin-config.js";
 
 // skills-lock.json + .claude/plugins.json are fetched from raw GitHub
 // at runtime and their values are interpolated into shell commands.
@@ -90,5 +91,108 @@ describe("validatePluginsConfig (codex deep-review #4)", () => {
       () => validatePluginsConfig({ plugins: ["oops"] }),
       /must be an object/,
     );
+  });
+});
+
+describe("validateCodexInstallConfig — local + external marketplace shapes", () => {
+  test("accepts the canonical local-only shape", () => {
+    assert.doesNotThrow(() =>
+      validateCodexInstallConfig({
+        plugins: [
+          { name: "auriga-go", description: "x" },
+          { name: "session-instructions-loader" },
+        ],
+      }),
+    );
+  });
+
+  test("accepts an external-marketplace entry with name + source", () => {
+    assert.doesNotThrow(() =>
+      validateCodexInstallConfig({
+        plugins: [
+          { name: "auriga-go" },
+          {
+            name: "deep-review",
+            description: "Multi-dimensional PR review",
+            marketplace: { name: "g-claude-code-plugins", source: "Ben2pc/g-claude-code-plugins" },
+          },
+        ],
+      }),
+    );
+  });
+
+  test("rejects marketplace name / source with shell injection payloads", () => {
+    const cases: [string, string][] = [
+      ["name", "a; rm -rf /"],
+      ["name", "ok`whoami`"],
+      ["source", "$(whoami)"],
+      ["source", "ok ok"],
+      ["source", "ok/ok'x'"],
+    ];
+    for (const [field, payload] of cases) {
+      const marketplace =
+        field === "name"
+          ? { name: payload, source: "ok/ok" }
+          : { name: "ok", source: payload };
+      assert.throws(
+        () =>
+          validateCodexInstallConfig({
+            plugins: [{ name: "deep-review", marketplace }],
+          }),
+        /does not match/,
+        `marketplace.${field}=${payload} must be rejected`,
+      );
+    }
+  });
+
+  test("rejects non-object marketplace field", () => {
+    assert.throws(
+      () =>
+        validateCodexInstallConfig({
+          plugins: [{ name: "deep-review", marketplace: "oops" }],
+        }),
+      /marketplace must be an object/,
+    );
+  });
+
+  test("rejects marketplace missing name or source", () => {
+    assert.throws(
+      () =>
+        validateCodexInstallConfig({
+          plugins: [{ name: "deep-review", marketplace: { name: "ok" } }],
+        }),
+      /marketplace\.source/,
+    );
+    assert.throws(
+      () =>
+        validateCodexInstallConfig({
+          plugins: [{ name: "deep-review", marketplace: { source: "ok/ok" } }],
+        }),
+      /marketplace\.name/,
+    );
+  });
+
+  test("source enforces GitHub owner/repo shape — rejects multi-slash, dot-dot, trailing slash", () => {
+    // After tightening MARKETPLACE_SOURCE_RE, sources that are not
+    // exactly `owner/repo` are rejected. These would have passed under
+    // the prior overly-permissive `[A-Za-z0-9._/-]{0,255}` regex.
+    const badSources = [
+      "owner/repo/extra",   // 3+ segments
+      "owner//repo",        // empty middle segment
+      "owner/../repo",      // path traversal lookalike
+      "owner/",             // trailing slash, missing repo
+      "/repo",              // leading slash, missing owner
+      "owner",              // no slash at all
+    ];
+    for (const bad of badSources) {
+      assert.throws(
+        () =>
+          validateCodexInstallConfig({
+            plugins: [{ name: "x", marketplace: { name: "ok", source: bad } }],
+          }),
+        /marketplace\.source/,
+        `source=${bad} must be rejected`,
+      );
+    }
   });
 });

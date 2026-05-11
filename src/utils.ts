@@ -5,6 +5,8 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
+import type { MarketplaceRef } from "./marketplace.js";
+
 // --- Types ---
 
 export interface SkillEntry {
@@ -22,10 +24,7 @@ export interface PluginDef {
   name: string;
   package: string;
   description: string;
-  marketplace?: {
-    name: string;
-    source: string;
-  };
+  marketplace?: MarketplaceRef;
 }
 
 export interface PluginsConfig {
