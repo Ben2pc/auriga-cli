@@ -93,7 +93,7 @@ Installs selected skills via `npx skills add`, targeting both Claude Code and Co
 | deep-review | [Ben2pc/g-claude-code-plugins](https://github.com/Ben2pc/g-claude-code-plugins) | Multi-dimensional PR review orchestrator (required + conditional reviewers + punch list) |
 | test-designer | [Ben2pc/g-claude-code-plugins](https://github.com/Ben2pc/g-claude-code-plugins) | Independent-Evaluation test designer for TDD red phase |
 | parallel-implementation | [Ben2pc/g-claude-code-plugins](https://github.com/Ben2pc/g-claude-code-plugins) | Slice planner for parallel multi-subagent code writing |
-| session-compound | [Ben2pc/g-claude-code-plugins](https://github.com/Ben2pc/g-claude-code-plugins) | Post-merge session compounder — distills the session into an interactive HTML report (timeline + token / cache / tool health + skill-install / AGENTS.md edit playground) |
+| session-compound | [Ben2pc/g-claude-code-plugins](https://github.com/Ben2pc/g-claude-code-plugins) | Post-merge session compounder — distills the session into an interactive HTML report (timeline + token / cache / tool health + playground for skill installs / AGENTS.md edits / new-skill gaps) |
 
 **Recommended Skills (opt-in, not installed by `--all`):**
 
