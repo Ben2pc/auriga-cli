@@ -7,7 +7,7 @@
 // We accept either side's naming so the hook works in both runtimes.
 //
 // When uncommitted diff vs HEAD crosses size thresholds (lines OR
-// files) AND the last reminder was at least 60s ago, injects an
+// files) AND the last reminder was at least 5 minutes ago, injects an
 // additionalContext nudging the agent to commit at the next semantic
 // boundary. Never blocks. Silent outside a git repo, on git errors,
 // or on malformed input.
@@ -20,7 +20,7 @@ import path from "node:path";
 
 const LINE_THRESHOLD = 200;
 const FILE_THRESHOLD = 8;
-const INTERVAL_SECONDS = 60;
+const INTERVAL_SECONDS = 300;
 const STATE_FILENAME = "auriga-commit-reminder.last";
 const MATCH_TOOLS = new Set(["Edit", "Write", "MultiEdit", "apply_patch"]);
 

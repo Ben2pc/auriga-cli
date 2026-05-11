@@ -2,7 +2,7 @@
 // Smoke tests for commit-reminder (PostToolUse).
 //
 // Verifies non-Edit/Write tools are skipped, threshold detection
-// (lines OR files), the 60s rate-limit window, and graceful no-op
+// (lines OR files), the 5-minute rate-limit window, and graceful no-op
 // outside a git repository.
 //
 //     node tests/commit-reminder.test.mjs
@@ -126,7 +126,7 @@ function check(name, condition, info = "") {
   );
 }
 
-// Case 4: over threshold + recent state (< 60s) -> silent
+// Case 4: over threshold + recent state (< 5min) -> silent
 {
   const dir = setupRepo();
   writeFile(dir, "big.txt", 500);
@@ -140,12 +140,12 @@ function check(name, condition, info = "") {
   );
 }
 
-// Case 5: over threshold + stale state (> 60s) -> inject + refresh state
+// Case 5: over threshold + stale state (> 5min) -> inject + refresh state
 {
   const dir = setupRepo();
   writeFile(dir, "big.txt", 500);
   spawnSync("git", ["add", "."], { cwd: dir });
-  const oldTs = Math.floor(Date.now() / 1000) - 120;
+  const oldTs = Math.floor(Date.now() / 1000) - 400;
   writeFileSync(statePath(dir), String(oldTs));
   const r = run(payload("Edit"), dir);
   check(
@@ -271,7 +271,7 @@ function check(name, condition, info = "") {
 }
 
 // Case 14: primary state path unwritable → hook falls back to tmpdir,
-// still injects reminder, still honors 60s rate limit via fallback.
+// still injects reminder, still honors the rate limit via fallback.
 // Simulates read-only .git/ (CI / restricted containers) by placing a
 // directory at the primary state path so writeFileSync hits EISDIR.
 {
@@ -292,7 +292,7 @@ function check(name, condition, info = "") {
 
   const r2 = run(payload("Edit"), dir);
   check(
-    "fallback state respects 60s rate limit",
+    "fallback state respects rate limit",
     r2.status === 0 && r2.stdout === "",
     `stdout2="${r2.stdout}"`,
   );

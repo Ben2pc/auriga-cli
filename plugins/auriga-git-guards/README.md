@@ -62,7 +62,7 @@ The block list is conservative and based on filesystem / git state only — no b
 
 - **Lines**: uncommitted insertions + deletions > 200
 - **Files**: uncommitted file count > 8
-- **Rate limit**: ≥ 60 seconds since the last reminder (state stored in `.git/auriga-commit-reminder.last`)
+- **Rate limit**: ≥ 5 minutes since the last reminder (state stored in `.git/auriga-commit-reminder.last`)
 
 Either threshold triggers the reminder. The hook reads `git diff --shortstat HEAD` so both staged and unstaged work counts. It is informational, never blocking — atomic-commit granularity is a design judgment best left to the agent.
 
