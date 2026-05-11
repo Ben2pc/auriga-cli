@@ -316,7 +316,7 @@ Recommended skills (category: recommended)  ← NOT installed by --all
 
 Plugins (category: plugins)
   auriga-go                      Workflow autopilot — drives CLAUDE.md workflow forward
-  auriga-pr-guards               PR-create / PR-ready workflow guardrails (Claude Code + Codex)
+  auriga-git-guards              Git lifecycle guardrails: commit-reminder + PR-create + PR-ready (Claude Code + Codex)
   session-instructions-loader    Inject ancestor AGENTS.md + extra files on Codex SessionStart
   skill-creator                  Create / modify / measure skills
   claude-md-management           Audit & improve CLAUDE.md files

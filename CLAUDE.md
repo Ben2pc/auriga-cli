@@ -16,7 +16,7 @@
 
 8. Post-coding: Before any "done / fixed / ready to commit / ready for review" judgment, run and check full verification per `verification-before-completion`. Run the affected automated tests and any needed browser, UI, or mobile interaction checks; do not rely on implementation inspection alone.
 
-9. PR Readiness: Keep the PR in Draft until verification is complete, the base branch is confirmed, and the PR description is updated with scope, acceptance criteria, risks, and remaining TODOs. Then mark the PR Ready for Review. If `brainstorming` or `planning-with-files` produced design docs (specs), findings.md, progress.md, task_plan.md, etc., use `AskUserQuestion` to ask the user: delete or archive to `docs/worklog/worklog-<YYYY-MM-DD>-<branch-name>/` for traceability.
+9. PR Readiness: Keep the PR in Draft until verification is complete, the base branch is confirmed, and the PR description is updated with the five elements — scope, acceptance criteria, design decisions, risks, and remaining TODOs. Then mark the PR Ready for Review. If `brainstorming` or `planning-with-files` produced design docs (specs), findings.md, progress.md, task_plan.md, etc., use `AskUserQuestion` to ask the user: delete or archive to `docs/worklog/worklog-<YYYY-MM-DD>-<branch-name>/` for traceability.
 
 10. PR Review: Early feedback may happen on a Draft PR. After the PR is Ready for Review, formal review must use the `deep-review` plugin (which provides the `deep-review` skill). `/review` remains as a lightweight fallback. **Reviewer Agents must report every finding with severity + confidence, not pre-filter by importance** — Opus 4.7 follows "only report high-severity" type instructions literally, which lowers recall on real bugs; let the human do the filtering.
 

@@ -39,7 +39,7 @@ process.stdin.on("end", () => {
       // Can't identify which PR was created (unusual — gh pr create
       // normally prints the URL). Fall back to a passive nudge.
       return inject(
-        "[pr-create-guard] PR created, but could not identify it from gh output. Verify the body covers scope / acceptance criteria / risks / remaining TODO.",
+        "[pr-create-guard] PR created, but could not identify it from gh output. Verify the body covers the five elements (scope / acceptance criteria / design decisions / risks / remaining TODOs). Check the PR description language matches the team's convention.",
       );
     }
 
@@ -48,7 +48,7 @@ process.stdin.on("end", () => {
       // gh unavailable or not authenticated. Don't pretend to know
       // anything; remind the Agent to self-verify.
       return inject(
-        `[pr-create-guard] PR ${prRef} created (body could not be fetched via gh). Verify scope / acceptance criteria / risks / remaining TODO.`,
+        `[pr-create-guard] PR ${prRef} created (body could not be fetched via gh). Verify the five elements (scope / acceptance criteria / design decisions / risks / remaining TODOs) and check the language matches the team's convention.`,
       );
     }
 
@@ -160,8 +160,10 @@ function summarize(prRef, body) {
       ? "  Headings: (none found)"
       : "  Headings:\n" + headings.map((h) => `    - ${h}`).join("\n");
   const todoLine = `  TODO checkboxes: ${unchecked} unchecked, ${checked} checked`;
-  const tail =
-    "Verify scope / acceptance criteria / risks / remaining TODO are covered, and edit via `gh pr edit` if anything is missing.";
+  const tail = [
+    "Verify the five PR-body elements are covered: scope / acceptance criteria / design decisions / risks / remaining TODOs.",
+    "If the PR description language is inconsistent with the team's convention, fix it via `gh pr edit`.",
+  ].join(" ");
 
   return [head, headingLine, todoLine, tail].join("\n");
 }

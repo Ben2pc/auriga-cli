@@ -41,7 +41,7 @@ plugins/
                   lives at plugin level so its `${CLAUDE_PLUGIN_ROOT}`
                   substitution resolves reliably (see the bug note in
                   "Key Conventions" below).
-  auriga-pr-guards/  — Repo-owned dual-Agent plugin (Claude Code + Codex).
+  auriga-git-guards/ — Repo-owned dual-Agent plugin (Claude Code + Codex).
                     .claude-plugin/plugin.json  (Claude Code manifest)
                     .codex-plugin/plugin.json   (Codex manifest)
                     hooks/hooks.json            (PreToolUse + PostToolUse,
@@ -49,10 +49,20 @@ plugins/
                                                  ${CLAUDE_PLUGIN_ROOT} which
                                                  Codex deliberately mirrors
                                                  for OOTB compat)
+                    scripts/commit-reminder.mjs (PostToolUse:
+                                                 Edit|Write|MultiEdit|apply_patch
+                                                 — covers Claude Code's tool
+                                                 names plus Codex's canonical
+                                                 file-edit name `apply_patch`)
                     scripts/pr-create-guard.mjs (PostToolUse: gh pr create)
                     scripts/pr-ready-guard.mjs  (PreToolUse:  gh pr ready)
+                    skills/git-workflow/SKILL.md (bundled skill — the same
+                                                 plugin-embedded pattern as
+                                                 auriga-go)
                   Codex currently fail-opens on PreToolUse `additionalContext`
                   (parses but does not surface yet); block path is identical.
+                  PostToolUse `additionalContext` is supported, so both
+                  `commit-reminder` and `pr-create-guard` work at full parity.
   session-instructions-loader/
                   Codex-only plugin.
                     .codex-plugin/plugin.json   (Codex manifest)
@@ -63,11 +73,11 @@ plugins/
 
 .claude-plugin/
   marketplace.json — Marketplace manifest for this repo; lists auriga-go +
-                     auriga-pr-guards for Claude Code.
+                     auriga-git-guards for Claude Code.
 
 .agents/plugins/
   marketplace.json — Codex-native marketplace manifest for this repo; lists
-                     auriga-go + auriga-pr-guards + session-instructions-loader.
+                     auriga-go + auriga-git-guards + session-instructions-loader.
                      Codex prefers this repo-scoped file when present instead
                      of falling back to the Claude-style marketplace.
   install.json     — auriga-cli's Codex plugin install list. Marketplace
@@ -85,8 +95,9 @@ tests/
   entrypoint.test.ts    — dist/cli.js symlinked-bin guard regression
   e2e-install.test.ts   — tarball → npm install → auriga-cli install (network + local, runs via npm run test:e2e, not `npm test`)
   ship-loop.test.sh     — bash unit tests for plugins/auriga-go/scripts/ship-loop.sh
-  pr-create-guard.test.mjs — smoke tests for plugins/auriga-pr-guards/scripts/pr-create-guard.mjs
-  pr-ready-guard.test.mjs  — smoke tests for plugins/auriga-pr-guards/scripts/pr-ready-guard.mjs
+  commit-reminder.test.mjs — smoke tests for plugins/auriga-git-guards/scripts/commit-reminder.mjs
+  pr-create-guard.test.mjs — smoke tests for plugins/auriga-git-guards/scripts/pr-create-guard.mjs
+  pr-ready-guard.test.mjs  — smoke tests for plugins/auriga-git-guards/scripts/pr-ready-guard.mjs
 ```
 
 - No CLI framework — hand-rolled `parseArgs` in `cli.ts` for the non-interactive path; `@inquirer/prompts` (lazy-loaded) for the TTY menu
@@ -103,7 +114,7 @@ tests/
     - **Adding a new owned workflow skill** (vs. editing one): create `skills/<new-name>/SKILL.md` (+ optional sibling files) → add `skills-lock.json` entry with `source: "Ben2pc/auriga-cli"`, `skillPath: "skills/<new-name>/SKILL.md"`, and the computed hash → `ln -s ../../skills/<new-name> .claude/skills/<new-name>` AND `ln -s ../../skills/<new-name> .agents/skills/<new-name>` → add to `WORKFLOW_SKILLS` in `src/skills.ts` → README rows in both languages → reference from root `CLAUDE.md` if the skill replaces prose there.
   - **Adding a recommended skill**: `npx skills add <repo> --skill <name>` is enough — the skill's `SKILL.md` frontmatter description is picked up at build time by `src/build/generate-catalog.ts` and embedded into `dist/catalog.json`, which drives both `--help` output and the interactive menu. **Do not** hand-maintain a description list anywhere in code.
 - **Adding an auriga-cli-owned plugin** (e.g. `auriga-go`): author at repo root `plugins/<name>/` — this repo *is* the source of truth. Required layout: `.claude-plugin/plugin.json` (metadata), optional `hooks/hooks.json` + hook scripts, optional `skills/<skill-name>/SKILL.md` (+ `references/`). **Everything under `plugins/<name>/` ships to users** — keep dev-only assets (tests, generators) at repo-root `tests/`. Then: register in `.claude-plugin/marketplace.json` (listing `"source": "./plugins/<name>"`) + add an entry to `.claude/plugins.json` with `marketplace: { name: "auriga-cli", source: "Ben2pc/auriga-cli" }`. Users install via `npx auriga-cli` → Plugins.
-  - **Dual-Agent variant (Claude Code + Codex)**: Codex's hook system is schema-compatible with Claude Code (nested `hooks.<Event>[].matcher + hooks[]` shape, `${CLAUDE_PLUGIN_ROOT}` deliberately mirrored by Codex for OOTB compat, stdin/stdout contract identical). Register the plugin in both marketplaces: `.claude-plugin/marketplace.json` for Claude Code, and `.agents/plugins/marketplace.json` for Codex. Add a second manifest at `.codex-plugin/plugin.json` with the Codex-specific richer schema (`version`, `homepage`, `repository`, `license`, `keywords`, `interface` block with `displayName` / `category` / etc.); keep `.claude-plugin/plugin.json` minimal but mirror `version` for upgrade comparators. Same `hooks/hooks.json` payload, same `scripts/`, same README — see `plugins/auriga-pr-guards/` as the canonical example. Caveat: Codex currently fail-opens on `hookSpecificOutput.additionalContext` for `PreToolUse` (parsed but not surfaced to the model); the block path (`exit 2 + stderr`, or `permissionDecision: "deny"`) works identically. Document this asymmetry in the plugin's README. Claude-Code-specific `if: "Bash(...)"` filtering inside `hooks/hooks.json` is kept (Codex docs don't reject unknown fields per general JSON registry behavior); if a future Codex version strictly validates and rejects `if`, drop it and rely on script-internal substring checks (no behavioral regression — scripts already validate their own command match).
+  - **Dual-Agent variant (Claude Code + Codex)**: Codex's hook system is schema-compatible with Claude Code (nested `hooks.<Event>[].matcher + hooks[]` shape, `${CLAUDE_PLUGIN_ROOT}` deliberately mirrored by Codex for OOTB compat, stdin/stdout contract identical). Register the plugin in both marketplaces: `.claude-plugin/marketplace.json` for Claude Code, and `.agents/plugins/marketplace.json` for Codex. Add a second manifest at `.codex-plugin/plugin.json` with the Codex-specific richer schema (`version`, `homepage`, `repository`, `license`, `keywords`, `interface` block with `displayName` / `category` / etc.); keep `.claude-plugin/plugin.json` minimal but mirror `version` for upgrade comparators. Same `hooks/hooks.json` payload, same `scripts/`, same README — see `plugins/auriga-git-guards/` as the canonical example. Caveat: Codex currently fail-opens on `hookSpecificOutput.additionalContext` for `PreToolUse` (parsed but not surfaced to the model); the block path (`exit 2 + stderr`, or `permissionDecision: "deny"`) works identically. Document this asymmetry in the plugin's README. Claude-Code-specific `if: "Bash(...)"` filtering inside `hooks/hooks.json` is kept (Codex docs don't reject unknown fields per general JSON registry behavior); if a future Codex version strictly validates and rejects `if`, drop it and rely on script-internal substring checks (no behavioral regression — scripts already validate their own command match).
 - **Adding an external-marketplace plugin** (e.g. `deep-review` from `Ben2pc/g-claude-code-plugins`): no plugin source authored in this repo — the plugin lives upstream and we just register it. Required edits: (1) add an entry to `.claude/plugins.json` with `package: "<plugin>@<marketplace>"` and `marketplace: { name: "<marketplace>", source: "<owner>/<repo>" }` (Claude Code resolves via the upstream `.claude-plugin/marketplace.json`); (2) add an entry to `.agents/plugins/install.json` with the same `marketplace: { name, source }` field — Codex calls `codex plugin marketplace add https://github.com/<source>.git`, which falls back to the upstream's Claude-style marketplace.json when no `.agents/plugins/marketplace.json` is present upstream. The `marketplace.{name, source}` shape is shared between Claude and Codex sides via `validateMarketplaceField` in `src/marketplace.ts`. **Skip `.codex-plugin/plugin.json` fetch at build time** — `src/build/generate-catalog.ts` deliberately reads description from install.json for external entries (the upstream manifest may not even exist; Codex CLI fetches it at install time). Test gotcha: `tests/plugins.test.ts` exercises this path with a stubbed `exec` and a fixture `install.json`; do not add `.agents/plugins/marketplace.json` entries for externals — they're install.json-only.
 - **Plugin-bundled hooks (preferred over skill-bundled hooks)**: register via `hooks/hooks.json` at the plugin root with `command: "${CLAUDE_PLUGIN_ROOT}/..."`. This substitution expands reliably in both `claude -p` and interactive mode (empirically verified). Skill-bundled hooks via `SKILL.md` frontmatter `hooks:` field can *also* register hooks, but `${CLAUDE_SKILL_DIR}` does NOT currently expand in the hook command string (Claude Code bug), and the hook's cwd is the project root rather than the skill dir, so the `./scripts/...` doc example also fails. Workaround when a skill needs a hook: bundle the skill inside a plugin (as `auriga-go` does). Gate plugin hooks with a state-file check so they no-op outside the intended mode (see `plugins/auriga-go/scripts/ship-loop.sh` for the ralph-loop-inspired `Stop`-hook pattern that only fires inside `ship` mode). Orthogonal to `.claude/hooks/` — that registry is for auriga-cli-installed hooks in user projects; plugin hooks travel with the plugin itself.
 - **Plugin config**: `.claude/plugins.json` defines available plugins. Marketplace sources auto-install.
@@ -142,12 +153,13 @@ bash tests/ship-loop.test.sh
                  # bash + jq + perl, not Node. Run before any PR that touches
                  # plugins/auriga-go/scripts/ or the plugin's hooks/hooks.json.
 
-npm run test:pr-guards
-                 # Smoke tests for plugins/auriga-pr-guards/scripts/*.mjs.
+npm run test:git-guards
+                 # Smoke tests for plugins/auriga-git-guards/scripts/*.mjs
+                 # (commit-reminder + pr-create-guard + pr-ready-guard).
                  # Plain Node, not the node:test framework, so they run as a
                  # separate npm script rather than being wired into `npm test`
                  # alongside the TS suite. Run before any PR that touches
-                 # plugins/auriga-pr-guards/scripts/ or the plugin's
+                 # plugins/auriga-git-guards/scripts/ or the plugin's
                  # hooks/hooks.json.
 
 npm run test:session-instructions-loader

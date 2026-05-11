@@ -17,7 +17,7 @@ const ENTRY = path.resolve(
   HERE,
   "..",
   "plugins",
-  "auriga-pr-guards",
+  "auriga-git-guards",
   "scripts",
   "pr-create-guard.mjs",
 );
@@ -92,17 +92,25 @@ const cases = [
     expect: { status: 0, stdoutEq: "" },
   },
   {
-    name: "gh pr create success without URL falls back to passive nudge",
+    name: "gh pr create success without URL: passive nudge lists five elements + language hint",
     payload: {
       hook_event_name: "PostToolUse",
       tool_name: "Bash",
       tool_input: { command: 'gh pr create --title foo --body "x"' },
       tool_response: { stdout: "some output without url", exit_code: 0 },
     },
-    expect: { status: 0, stdoutIncludes: "could not identify" },
+    expect: {
+      status: 0,
+      stdoutIncludesAll: [
+        "could not identify",
+        "five elements",
+        "design decisions",
+        "language",
+      ],
+    },
   },
   {
-    name: "gh pr create with URL in response attempts body fetch",
+    name: "gh pr create with URL but fetch fails: fallback lists five elements + language hint",
     payload: {
       hook_event_name: "PostToolUse",
       tool_name: "Bash",
@@ -113,24 +121,42 @@ const cases = [
       },
     },
     // The fetch will fail (no auth / no such repo). The hook should
-    // gracefully inject the fallback message — not crash, not block.
-    expect: { status: 0, stdoutIncludes: "pr-create-guard" },
+    // gracefully inject the fallback message containing the five
+    // elements and language hint — not crash, not block.
+    expect: {
+      status: 0,
+      stdoutIncludesAll: [
+        "pr-create-guard",
+        "five elements",
+        "design decisions",
+        "language",
+      ],
+    },
   },
   {
-    name: "inline URL in command body does NOT leak into extractPRRef",
+    name: "inline URL in command body does NOT leak: still emits five elements + language hint",
     payload: {
       hook_event_name: "PostToolUse",
       tool_name: "Bash",
       // Body mentions an old PR's URL; tool_response has no URL.
       // The hook must NOT fetch the old PR — it should take the
-      // passive-nudge path instead.
+      // passive-nudge path instead, which now includes the five-element
+      // verification list and a language-consistency hint.
       tool_input: {
         command:
           'gh pr create --title foo --body "refs https://github.com/some-owner/some-repo/pull/42"',
       },
       tool_response: { stdout: "creating pull request...", exit_code: 0 },
     },
-    expect: { status: 0, stdoutIncludes: "could not identify" },
+    expect: {
+      status: 0,
+      stdoutIncludesAll: [
+        "could not identify",
+        "five elements",
+        "design decisions",
+        "language",
+      ],
+    },
   },
 ];
 
@@ -151,6 +177,12 @@ for (const c of cases) {
       ok: r.stdout.includes(c.expect.stdoutIncludes),
       msg: `stdout includes "${c.expect.stdoutIncludes}" (got "${r.stdout.slice(0, 120)}")`,
     });
+  if (Array.isArray(c.expect.stdoutIncludesAll))
+    for (const needle of c.expect.stdoutIncludesAll)
+      checks.push({
+        ok: r.stdout.includes(needle),
+        msg: `stdout includes "${needle}" (got "${r.stdout.slice(0, 200)}")`,
+      });
 
   const allOk = checks.every((x) => x.ok);
   if (allOk) {

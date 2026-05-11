@@ -29,9 +29,9 @@
       }
     },
     {
-      "name": "auriga-pr-guards",
-      "package": "auriga-pr-guards@auriga-cli",
-      "description": "PR-create snapshot inject + PR-ready structural block guardrails (Claude Code + Codex)",
+      "name": "auriga-git-guards",
+      "package": "auriga-git-guards@auriga-cli",
+      "description": "Git lifecycle guardrails: commit-reminder + PR-create snapshot inject + PR-ready structural block. Bundles the git-workflow skill (Claude Code + Codex).",
       "marketplace": {
         "name": "auriga-cli",
         "source": "Ben2pc/auriga-cli"
