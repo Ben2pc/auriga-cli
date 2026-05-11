@@ -85,6 +85,24 @@ function makeClaudePluginsConfig(): string {
   return root;
 }
 
+function makeClaudePluginsConfigWithMarketplace(): string {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "auriga-claude-plugin-test-"));
+  writeJson(path.join(root, ".claude/plugins.json"), {
+    plugins: [
+      {
+        name: "auriga-go",
+        package: "auriga-go@auriga-cli",
+        description: "Workflow autopilot",
+        marketplace: {
+          name: "auriga-cli",
+          source: "Ben2pc/auriga-cli",
+        },
+      },
+    ],
+  });
+  return root;
+}
+
 async function importPlugins(
   execImpl: (cmd: string, opts?: { cwd?: string; inherit?: boolean }) => string = () => "",
   overrides: {
@@ -765,6 +783,64 @@ describe("installPlugins — Claude target", () => {
         selected: ["session-instructions-loader"],
       }),
       /not available for Claude Code/i,
+    );
+  });
+
+  test("updates an already-present Claude marketplace before installing plugins", async () => {
+    const packageRoot = makeClaudePluginsConfigWithMarketplace();
+    const commands: string[] = [];
+    const { installPlugins } = await importPlugins((cmd) => {
+      commands.push(cmd);
+      if (cmd === "claude plugins list --json") return "[]";
+      if (cmd === "claude plugins marketplace list") return "❯ auriga-cli\n";
+      return "";
+    });
+
+    await installPlugins(packageRoot, {
+      interactive: false,
+      agent: "claude",
+      selected: ["auriga-go"],
+    });
+
+    assert.ok(
+      commands.includes("claude plugins marketplace update auriga-cli"),
+      `expected marketplace update call, got: ${commands.join(" | ")}`,
+    );
+    assert.ok(
+      !commands.includes("claude plugins marketplace add Ben2pc/auriga-cli"),
+      `expected no marketplace add call when marketplace already present, got: ${commands.join(" | ")}`,
+    );
+    assert.ok(
+      commands.includes("claude plugins install auriga-go@auriga-cli --scope project"),
+      `expected plugin install call, got: ${commands.join(" | ")}`,
+    );
+  });
+
+  test("records marketplace update failure but still attempts plugin install", async () => {
+    const packageRoot = makeClaudePluginsConfigWithMarketplace();
+    const commands: string[] = [];
+    const { installPlugins } = await importPlugins((cmd) => {
+      commands.push(cmd);
+      if (cmd === "claude plugins list --json") return "[]";
+      if (cmd === "claude plugins marketplace list") return "❯ auriga-cli\n";
+      if (cmd === "claude plugins marketplace update auriga-cli") {
+        throw new Error("Command failed: claude plugins marketplace update");
+      }
+      return "";
+    });
+
+    await assert.rejects(
+      () => installPlugins(packageRoot, {
+        interactive: false,
+        agent: "claude",
+        selected: ["auriga-go"],
+      }),
+      /plugin operation/i,
+    );
+
+    assert.ok(
+      commands.includes("claude plugins install auriga-go@auriga-cli --scope project"),
+      `plugin install should still be attempted after marketplace update failure; got: ${commands.join(" | ")}`,
     );
   });
 });

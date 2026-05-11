@@ -648,12 +648,20 @@ export async function installPlugins(
     if (selected.length === 0) {
       log.skip("No plugins selected");
     } else {
-      // Install required marketplaces
+      // Install or refresh required marketplaces. Already-present
+      // marketplaces keep whatever marketplace.json was cached at the last
+      // `add` — refresh them so upstream renames / additions become
+      // visible without users manually re-adding. Mirrors the Codex
+      // path's add-or-upgrade shape (addCodexMarketplaceWithRetry).
       const existingMarketplaces = getInstalledMarketplaces();
       const marketplacesToAdd = new Map<string, string>();
+      const marketplacesToUpdate = new Set<string>();
 
       for (const plugin of selected) {
-        if (plugin.marketplace && !existingMarketplaces.has(plugin.marketplace.name)) {
+        if (!plugin.marketplace) continue;
+        if (existingMarketplaces.has(plugin.marketplace.name)) {
+          marketplacesToUpdate.add(plugin.marketplace.name);
+        } else {
           marketplacesToAdd.set(plugin.marketplace.name, plugin.marketplace.source);
         }
       }
@@ -665,6 +673,17 @@ export async function installPlugins(
           log.ok(`Marketplace ${name} added`);
         } catch {
           log.error(`Failed to add marketplace: ${name}`);
+          failures.push(`marketplace ${name}`);
+        }
+      }
+
+      for (const name of marketplacesToUpdate) {
+        console.log(`\nUpdating marketplace: ${name}...`);
+        try {
+          exec(`claude plugins marketplace update ${name}`, { inherit: true });
+          log.ok(`Marketplace ${name} updated`);
+        } catch {
+          log.error(`Failed to update marketplace: ${name}`);
           failures.push(`marketplace ${name}`);
         }
       }
