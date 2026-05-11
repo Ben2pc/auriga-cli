@@ -34,8 +34,8 @@ describe("generateCatalog (build-time)", () => {
     assert.ok(typeof catalog.generatedAt === "string" && catalog.generatedAt.length > 0);
   });
 
-  test("workflow skills: 9 entries matching WORKFLOW_SKILLS", () => {
-    assert.equal(catalog.workflowSkills.length, 9);
+  test("workflow skills: 10 entries matching WORKFLOW_SKILLS", () => {
+    assert.equal(catalog.workflowSkills.length, 10);
     const names = catalog.workflowSkills.map((e) => e.name).sort();
     assert.deepEqual(names, [
       "brainstorming",
@@ -43,6 +43,7 @@ describe("generateCatalog (build-time)", () => {
       "parallel-implementation",
       "planning-with-files",
       "playwright-cli",
+      "session-compound",
       "systematic-debugging",
       "test-designer",
       "test-driven-development",
