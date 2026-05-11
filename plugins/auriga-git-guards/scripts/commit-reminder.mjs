@@ -62,12 +62,33 @@ function resolveGitDir() {
 }
 
 function readDiffStat() {
-  const r = spawnSync("git", ["diff", "--shortstat", "HEAD"], {
+  // Tracked changes (staged + unstaged) — diff vs HEAD.
+  const diff = spawnSync("git", ["diff", "--shortstat", "HEAD"], {
     encoding: "utf8",
     timeout: 2000,
   });
-  if (r.status !== 0) return null;
-  return parseShortstat(r.stdout ?? "");
+  if (diff.status !== 0) return null;
+  const tracked = parseShortstat(diff.stdout ?? "");
+
+  // Untracked files — agents that just `Write`-ed a new file have not
+  // staged it yet, so `git diff HEAD` won't see it. Count those toward
+  // the file threshold so brand-new files still trigger the reminder.
+  // Lines are intentionally not counted for untracked files: file count
+  // alone is a strong "N new artifacts, commit soon" signal.
+  const untracked = spawnSync(
+    "git",
+    ["ls-files", "--others", "--exclude-standard"],
+    { encoding: "utf8", timeout: 2000 },
+  );
+  if (untracked.status !== 0) return null;
+  const untrackedFiles = (untracked.stdout ?? "")
+    .split("\n")
+    .filter((line) => line.length > 0).length;
+
+  return {
+    files: tracked.files + untrackedFiles,
+    lines: tracked.lines,
+  };
 }
 
 // Parse one of:

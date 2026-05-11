@@ -1,6 +1,6 @@
 ---
 name: git-workflow
-description: Drives the auriga git lifecycle phase-by-phase — branch hygiene, atomic / checkpoint commits with --autosquash cleanup, the five-element PR body (scope / acceptance criteria / design decisions / risks / remaining TODOs), and batch-comment review tracking after PR Ready. Use whenever the agent is about to create a branch, commit, push, open or update a PR, restructure history (rebase / squash / amend), or respond to review feedback. Pairs with the `commit-reminder`, `pr-create-guard`, and `pr-ready-guard` hooks shipped in the same plugin.
+description: Drives the auriga git lifecycle phase-by-phase — branch hygiene, atomic / checkpoint commits with --autosquash cleanup, and the five-element PR body (scope / acceptance criteria / design decisions / risks / remaining TODOs). Use whenever the agent is about to create a branch, author a commit message, open or update a PR, or restructure history (rebase / squash / amend). Pairs with the `commit-reminder`, `pr-create-guard`, and `pr-ready-guard` hooks shipped in the same plugin.
 ---
 
 # git-workflow

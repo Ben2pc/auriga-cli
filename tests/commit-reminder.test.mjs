@@ -238,5 +238,37 @@ function check(name, condition, info = "") {
   );
 }
 
+// Case 12: untracked files alone (no git add) cross the file threshold
+// — covers the realistic PostToolUse flow where agents Write new files
+// without staging them. Regression guard against the silent-no-op bug
+// where `git diff HEAD` ignored untracked content.
+{
+  const dir = setupRepo();
+  for (let i = 0; i < 10; i++) writeFile(dir, `untracked-${i}.txt`, 3);
+  // NB: no `git add` — files stay untracked.
+  const r = run(payload("Write"), dir);
+  check(
+    "untracked files cross file threshold without git add",
+    r.status === 0 && r.stdout.includes("commit-reminder"),
+    `stdout="${r.stdout}"`,
+  );
+}
+
+// Case 13: a small number of untracked files plus a small tracked diff
+// must stay under the threshold (negative test — avoids false-positive
+// reminders for routine single-file work).
+{
+  const dir = setupRepo();
+  writeFile(dir, "tracked.txt", 5);
+  spawnSync("git", ["add", "tracked.txt"], { cwd: dir });
+  writeFile(dir, "untracked.txt", 5);
+  const r = run(payload("Edit"), dir);
+  check(
+    "few tracked + few untracked stays silent",
+    r.status === 0 && r.stdout === "",
+    `stdout="${r.stdout}"`,
+  );
+}
+
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exit(failed === 0 ? 0 : 1);

@@ -11,6 +11,7 @@
   "license": "MIT",
   "keywords": ["workflow", "git", "pull-request", "commit", "guardrails", "gh"],
   "hooks": "./hooks/hooks.json",
+  "skills": "./skills/",
   "interface": {
     "displayName": "auriga git guards",
     "shortDescription": "PR + commit workflow guardrails",
