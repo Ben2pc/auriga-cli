@@ -13,7 +13,9 @@
 // or on malformed input.
 
 import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import os from "node:os";
 import path from "node:path";
 
 const LINE_THRESHOLD = 200;
@@ -21,6 +23,11 @@ const FILE_THRESHOLD = 8;
 const INTERVAL_SECONDS = 60;
 const STATE_FILENAME = "auriga-commit-reminder.last";
 const MATCH_TOOLS = new Set(["Edit", "Write", "MultiEdit", "apply_patch"]);
+
+// LC_ALL=C forces git --shortstat into stable English output. Without
+// this, locales like de_DE / zh_CN translate "files changed" /
+// "insertions" / "deletions" and our regex parser silently returns 0.
+const GIT_ENV = { ...process.env, LC_ALL: "C" };
 
 let input = "";
 process.stdin.setEncoding("utf8");
@@ -38,12 +45,11 @@ process.stdin.on("end", () => {
     const { files, lines } = stat;
     if (files <= FILE_THRESHOLD && lines <= LINE_THRESHOLD) return exit0();
 
-    const statePath = path.join(gitDir, STATE_FILENAME);
     const now = Math.floor(Date.now() / 1000);
-    const last = readStamp(statePath);
+    const last = readStamp(gitDir);
     if (last !== null && now - last < INTERVAL_SECONDS) return exit0();
 
-    writeStamp(statePath, now);
+    writeStamp(gitDir, now);
     return inject(formatMessage(files, lines));
   } catch {
     return exit0();
@@ -54,6 +60,7 @@ function resolveGitDir() {
   const r = spawnSync("git", ["rev-parse", "--git-dir"], {
     encoding: "utf8",
     timeout: 2000,
+    env: GIT_ENV,
   });
   if (r.status !== 0) return null;
   const out = (r.stdout ?? "").trim();
@@ -66,6 +73,7 @@ function readDiffStat() {
   const diff = spawnSync("git", ["diff", "--shortstat", "HEAD"], {
     encoding: "utf8",
     timeout: 2000,
+    env: GIT_ENV,
   });
   if (diff.status !== 0) return null;
   const tracked = parseShortstat(diff.stdout ?? "");
@@ -78,7 +86,7 @@ function readDiffStat() {
   const untracked = spawnSync(
     "git",
     ["ls-files", "--others", "--exclude-standard"],
-    { encoding: "utf8", timeout: 2000 },
+    { encoding: "utf8", timeout: 2000, env: GIT_ENV },
   );
   if (untracked.status !== 0) return null;
   const untrackedFiles = (untracked.stdout ?? "")
@@ -107,23 +115,45 @@ function parseShortstat(out) {
   return { files, lines: ins + del };
 }
 
-function readStamp(p) {
-  try {
-    const raw = readFileSync(p, "utf8").trim();
-    const n = parseInt(raw, 10);
-    return Number.isFinite(n) ? n : null;
-  } catch {
-    return null;
-  }
+// Primary state path lives inside .git/. Fallback path lives under
+// os.tmpdir() keyed by a hash of the gitDir, used when .git/ is
+// read-only (CI runners, restrictive containers). Without the fallback
+// the hook would re-fire on every Edit forever in those environments.
+function primaryStatePath(gitDir) {
+  return path.join(gitDir, STATE_FILENAME);
 }
 
-function writeStamp(p, ts) {
+function fallbackStatePath(gitDir) {
+  const hash = createHash("sha256").update(gitDir).digest("hex").slice(0, 12);
+  return path.join(os.tmpdir(), `auriga-commit-reminder-${hash}.last`);
+}
+
+function readStamp(gitDir) {
+  for (const candidate of [primaryStatePath(gitDir), fallbackStatePath(gitDir)]) {
+    try {
+      const raw = readFileSync(candidate, "utf8").trim();
+      const n = parseInt(raw, 10);
+      if (Number.isFinite(n)) return n;
+    } catch {
+      // try next candidate
+    }
+  }
+  return null;
+}
+
+function writeStamp(gitDir, ts) {
+  const primary = primaryStatePath(gitDir);
   try {
-    mkdirSync(path.dirname(p), { recursive: true });
-    writeFileSync(p, String(ts));
+    mkdirSync(path.dirname(primary), { recursive: true });
+    writeFileSync(primary, String(ts));
+    return;
   } catch {
-    // Best-effort: failing to persist just means the next call
-    // will treat the reminder as fresh-needed again.
+    // .git/ unwritable — fall through to tmpdir.
+  }
+  try {
+    writeFileSync(fallbackStatePath(gitDir), String(ts));
+  } catch {
+    // Both write paths failed; next call treats reminder as fresh-needed.
   }
 }
 

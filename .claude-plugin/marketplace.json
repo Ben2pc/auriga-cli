@@ -20,7 +20,7 @@
     },
     {
       "name": "auriga-git-guards",
-      "description": "Git lifecycle guardrails: commit-reminder (PostToolUse on Edit/Write/MultiEdit) + pr-create snapshot (PostToolUse on `gh pr create`) + pr-ready structural block (PreToolUse on `gh pr ready`). Bundles the git-workflow skill. Dual-Agent compatible (Claude Code + Codex).",
+      "description": "Git lifecycle guardrails: commit-reminder (PostToolUse on Edit/Write/MultiEdit/apply_patch) + pr-create snapshot (PostToolUse on `gh pr create`) + pr-ready structural block (PreToolUse on `gh pr ready`). Bundles the git-workflow skill. Dual-Agent compatible (Claude Code + Codex).",
       "author": {
         "name": "Ben2pc",
         "email": "pangcheng33@gmail.com"

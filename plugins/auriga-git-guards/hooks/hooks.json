@@ -1,5 +1,5 @@
 {
-  "description": "auriga git guards: commit-reminder (PostToolUse on Edit/Write/MultiEdit), pr-create-guard (PostToolUse on `gh pr create`), pr-ready-guard (PreToolUse on `gh pr ready`).",
+  "description": "auriga git guards: commit-reminder (PostToolUse on Edit/Write/MultiEdit/apply_patch — covers both Claude Code and Codex file-edit tool_names), pr-create-guard (PostToolUse on `gh pr create`), pr-ready-guard (PreToolUse on `gh pr ready`).",
   "hooks": {
     "PreToolUse": [
       {

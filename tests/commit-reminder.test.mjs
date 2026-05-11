@@ -270,5 +270,33 @@ function check(name, condition, info = "") {
   );
 }
 
+// Case 14: primary state path unwritable → hook falls back to tmpdir,
+// still injects reminder, still honors 60s rate limit via fallback.
+// Simulates read-only .git/ (CI / restricted containers) by placing a
+// directory at the primary state path so writeFileSync hits EISDIR.
+{
+  const dir = setupRepo();
+  writeFile(dir, "big.txt", 500);
+  spawnSync("git", ["add", "."], { cwd: dir });
+  // Make primary path unwritable by occupying it with a directory.
+  mkdirSync(path.join(dir, ".git", "auriga-commit-reminder.last"), {
+    recursive: true,
+  });
+
+  const r1 = run(payload("Edit"), dir);
+  check(
+    "primary state unwritable still injects via fallback",
+    r1.status === 0 && r1.stdout.includes("commit-reminder"),
+    `stdout="${r1.stdout}"`,
+  );
+
+  const r2 = run(payload("Edit"), dir);
+  check(
+    "fallback state respects 60s rate limit",
+    r2.status === 0 && r2.stdout === "",
+    `stdout2="${r2.stdout}"`,
+  );
+}
+
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exit(failed === 0 ? 0 : 1);

@@ -35,10 +35,10 @@ git switch -c <branch-name> origin/main
 
 ### Parallel isolation: git worktree
 
-When multiple agents or tasks run in parallel, give each its own worktree:
+When multiple agents or tasks run in parallel, give each its own worktree. Always pass an explicit base ref (e.g. `origin/main`) — without it, the new branch is cut from the current `HEAD`, which may already be on another feature branch:
 
 ```bash
-git worktree add ../<task-dir> -b <branch-name>
+git worktree add -b <branch-name> ../<task-dir> origin/main
 git worktree list
 git worktree remove ../<task-dir>
 ```
