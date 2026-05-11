@@ -17,10 +17,10 @@
       "category": "Productivity"
     },
     {
-      "name": "auriga-pr-guards",
+      "name": "auriga-git-guards",
       "source": {
         "source": "local",
-        "path": "./plugins/auriga-pr-guards"
+        "path": "./plugins/auriga-git-guards"
       },
       "policy": {
         "installation": "AVAILABLE",

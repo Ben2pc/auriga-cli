@@ -1,6 +1,6 @@
 {
   "name": "auriga-cli",
-  "version": "1.13.0",
+  "version": "1.14.0",
   "description": "Interactive CLI to install Claude Code harness modules (Workflow, Skills, Recommended Skills, Plugins, Hooks)",
   "license": "MIT",
   "repository": {
@@ -30,7 +30,7 @@
     "pretest:e2e": "npm run build",
     "test:e2e": "tsc -p tsconfig.test.json && node --test dist-test/tests/e2e-install.test.js",
     "test:session-instructions-loader": "node tests/session-instructions-loader.test.mjs",
-    "test:pr-guards": "node tests/pr-create-guard.test.mjs && node tests/pr-ready-guard.test.mjs"
+    "test:git-guards": "node tests/commit-reminder.test.mjs && node tests/pr-create-guard.test.mjs && node tests/pr-ready-guard.test.mjs"
   },
   "engines": {
     "node": ">=18"

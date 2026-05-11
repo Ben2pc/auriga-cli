@@ -1,0 +1,22 @@
+{
+  "name": "auriga-git-guards",
+  "version": "1.1.0",
+  "description": "Workflow guardrails for the git lifecycle: `gh pr create` / `gh pr ready` body-snapshot injection plus a commit-reminder hook that nudges agents at semantic boundaries.",
+  "author": {
+    "name": "Ben2pc",
+    "email": "pangcheng33@gmail.com"
+  },
+  "homepage": "https://github.com/Ben2pc/auriga-cli/tree/main/plugins/auriga-git-guards",
+  "repository": "https://github.com/Ben2pc/auriga-cli",
+  "license": "MIT",
+  "keywords": ["workflow", "git", "pull-request", "commit", "guardrails", "gh"],
+  "hooks": "./hooks/hooks.json",
+  "interface": {
+    "displayName": "auriga git guards",
+    "shortDescription": "PR + commit workflow guardrails",
+    "longDescription": "Three hooks for the git lifecycle: commit-reminder nudges the agent to commit at semantic boundaries when uncommitted diff crosses size thresholds; pr-create-guard injects a body snapshot after `gh pr create` so the agent can self-verify the five-element PR description (scope / acceptance criteria / design decisions / risks / TODOs); pr-ready-guard blocks `gh pr ready` on structural problems (stray planning docs, unfinalized active specs, unpushed commits) and otherwise injects the body snapshot. Bundles the git-workflow skill describing the full lifecycle. Designed for the auriga workflow in https://github.com/Ben2pc/auriga-cli.",
+    "developerName": "Ben2pc",
+    "category": "Productivity",
+    "websiteURL": "https://github.com/Ben2pc/auriga-cli"
+  }
+}

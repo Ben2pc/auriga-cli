@@ -5,8 +5,8 @@
       "description": "Workflow autopilot for the auriga workflow"
     },
     {
-      "name": "auriga-pr-guards",
-      "description": "PR-create / PR-ready workflow guardrails"
+      "name": "auriga-git-guards",
+      "description": "Git lifecycle guardrails: commit-reminder + PR-create snapshot + PR-ready structural block, with the git-workflow skill bundled"
     },
     {
       "name": "session-instructions-loader",

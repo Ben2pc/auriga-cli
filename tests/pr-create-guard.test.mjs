@@ -17,7 +17,7 @@ const ENTRY = path.resolve(
   HERE,
   "..",
   "plugins",
-  "auriga-pr-guards",
+  "auriga-git-guards",
   "scripts",
   "pr-create-guard.mjs",
 );

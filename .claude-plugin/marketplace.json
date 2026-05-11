@@ -19,15 +19,15 @@
       "homepage": "https://github.com/Ben2pc/auriga-cli/tree/main/plugins/auriga-go"
     },
     {
-      "name": "auriga-pr-guards",
-      "description": "PR-create snapshot inject (PostToolUse) + PR-ready structural block (PreToolUse) for `gh pr create` / `gh pr ready`. Dual-Agent compatible (Claude Code + Codex).",
+      "name": "auriga-git-guards",
+      "description": "Git lifecycle guardrails: commit-reminder (PostToolUse on Edit/Write/MultiEdit) + pr-create snapshot (PostToolUse on `gh pr create`) + pr-ready structural block (PreToolUse on `gh pr ready`). Bundles the git-workflow skill. Dual-Agent compatible (Claude Code + Codex).",
       "author": {
         "name": "Ben2pc",
         "email": "pangcheng33@gmail.com"
       },
-      "source": "./plugins/auriga-pr-guards",
+      "source": "./plugins/auriga-git-guards",
       "category": "development",
-      "homepage": "https://github.com/Ben2pc/auriga-cli/tree/main/plugins/auriga-pr-guards"
+      "homepage": "https://github.com/Ben2pc/auriga-cli/tree/main/plugins/auriga-git-guards"
     }
   ]
 }

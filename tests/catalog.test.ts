@@ -70,8 +70,8 @@ describe("generateCatalog (build-time)", () => {
     assert.equal(catalog.plugins.length, 7);
     const names = catalog.plugins.map((e) => e.name).sort();
     assert.deepEqual(names, [
+      "auriga-git-guards",
       "auriga-go",
-      "auriga-pr-guards",
       "claude-md-management",
       "codex",
       "deep-review",
