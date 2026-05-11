@@ -38,7 +38,7 @@
       "computedHash": "54b6e221bbe4e2d1a8461c3f9ecabe69daf891f964e9ee5e699c323daa018f2e"
     },
     "parallel-implementation": {
-      "source": "Ben2pc/g-claude-code-plugins",
+      "source": "Ben2pc/auriga-cli",
       "sourceType": "github",
       "skillPath": "skills/parallel-implementation/SKILL.md",
       "computedHash": "c1e5fcfaf26ca8f339a724a3abc0cdf1b7ad8edcd0a5035ebd9f1933101428ab"
@@ -56,7 +56,7 @@
       "computedHash": "84495cfda62b6c012afc4cc34a0c35bfc7923ba35983b8c04ce4cace0f35a5d8"
     },
     "session-compound": {
-      "source": "Ben2pc/g-claude-code-plugins",
+      "source": "Ben2pc/auriga-cli",
       "sourceType": "github",
       "skillPath": "skills/session-compound/SKILL.md",
       "computedHash": "bac1a829498978da9da89f638cdb25619bb583eb8e08cc78a93ab17e16826517"
@@ -68,7 +68,7 @@
       "computedHash": "7246fdd3a795fc3daff0af72044ca99bf836e4e6a46844742858786fdfb86488"
     },
     "test-designer": {
-      "source": "Ben2pc/g-claude-code-plugins",
+      "source": "Ben2pc/auriga-cli",
       "sourceType": "github",
       "skillPath": "skills/test-designer/SKILL.md",
       "computedHash": "52b9a0e6b8c5405eaede9c8d6b1851fa7f668f36ad86d94c20988f632143f7fd"
