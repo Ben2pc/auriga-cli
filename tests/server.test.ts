@@ -397,3 +397,137 @@ describe("server instances are independent", () => {
     }
   });
 });
+
+// ---------------------------------------------------------------------------
+// Static asset serving (uiDir) — M4 T4.3
+// ---------------------------------------------------------------------------
+
+describe("static asset serving (spec §4.1, M4)", () => {
+  test("serves uiDir/index.html on GET /", async () => {
+    const dir = await mkdtemp(path.join(os.tmpdir(), "ui-bundle-"));
+    try {
+      await writeFile(
+        path.join(dir, "index.html"),
+        "<!doctype html><html><body>auriga</body></html>",
+      );
+      const token = randomToken();
+      const server = await startServer({
+        port: 0,
+        token,
+        cwd: process.cwd(),
+        uiDir: dir,
+      });
+      try {
+        const res = await fetch(`http://127.0.0.1:${server.port}/`);
+        assert.equal(res.status, 200);
+        assert.match(res.headers.get("content-type") ?? "", /text\/html/);
+        const body = await res.text();
+        assert.match(body, /auriga/);
+      } finally {
+        await server.close();
+      }
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("serves uiDir/assets/*.js with javascript content-type", async () => {
+    const dir = await mkdtemp(path.join(os.tmpdir(), "ui-bundle-"));
+    try {
+      await writeFile(path.join(dir, "index.html"), "<html></html>");
+      await mkdir(path.join(dir, "assets"), { recursive: true });
+      await writeFile(path.join(dir, "assets", "main.js"), "console.log(1)");
+      const token = randomToken();
+      const server = await startServer({
+        port: 0,
+        token,
+        cwd: process.cwd(),
+        uiDir: dir,
+      });
+      try {
+        const res = await fetch(
+          `http://127.0.0.1:${server.port}/assets/main.js`,
+        );
+        assert.equal(res.status, 200);
+        assert.match(
+          res.headers.get("content-type") ?? "",
+          /application\/javascript/,
+        );
+        assert.equal(await res.text(), "console.log(1)");
+      } finally {
+        await server.close();
+      }
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("SPA fallback: unknown path with no extension → index.html", async () => {
+    const dir = await mkdtemp(path.join(os.tmpdir(), "ui-bundle-"));
+    try {
+      await writeFile(
+        path.join(dir, "index.html"),
+        "<html><body>spa-root</body></html>",
+      );
+      const token = randomToken();
+      const server = await startServer({
+        port: 0,
+        token,
+        cwd: process.cwd(),
+        uiDir: dir,
+      });
+      try {
+        const res = await fetch(
+          `http://127.0.0.1:${server.port}/settings/profile`,
+        );
+        assert.equal(res.status, 200);
+        const body = await res.text();
+        assert.match(body, /spa-root/);
+      } finally {
+        await server.close();
+      }
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("path traversal attempt → 404 (no escape from uiDir)", async () => {
+    const dir = await mkdtemp(path.join(os.tmpdir(), "ui-bundle-"));
+    try {
+      await writeFile(path.join(dir, "index.html"), "<html></html>");
+      const token = randomToken();
+      const server = await startServer({
+        port: 0,
+        token,
+        cwd: process.cwd(),
+        uiDir: dir,
+      });
+      try {
+        const res = await fetch(
+          `http://127.0.0.1:${server.port}/../../../etc/passwd`,
+        );
+        // Either fetch's URL normalization eats the traversal (status 200 on
+        // index.html SPA fallback for "/etc/passwd") or our resolver does
+        // (404). Both are safe; the negative invariant is that we MUST NOT
+        // serve outside uiDir. Confirm by reading the body and checking it
+        // doesn't contain an obvious passwd-shaped string.
+        const body = await res.text();
+        assert.ok(
+          !/root:.*:0:0:/.test(body),
+          "path traversal must not return /etc/passwd content",
+        );
+      } finally {
+        await server.close();
+      }
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("when uiDir omitted, static paths still return 404", async () => {
+    await withServer(async ({ baseUrl }) => {
+      const res = await fetch(`${baseUrl}/`);
+      assert.equal(res.status, 404);
+    });
+  });
+});

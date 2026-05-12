@@ -61,6 +61,10 @@ export interface StartServerOptions {
    *  omitted, name membership is not enforced (CLI builds a default
    *  catalog at boot time). */
   applyCatalog?: ApplyCatalog;
+  /** Directory whose contents are served for non-/api paths (the extracted
+   *  UI bundle). When undefined, every static path returns 404 — useful in
+   *  tests and the M1 server smoke checks. */
+  uiDir?: string;
 }
 
 export interface RunningServer {
@@ -314,14 +318,79 @@ function namesInCatalog(items: ApplyItemRef[], catalog: ApplyCatalog): boolean {
 }
 
 // ---------------------------------------------------------------------------
-// Static asset placeholder. M1 ships without a UI bundle; we return 404 for
-// every public-path request, but crucially NOT 401/403 — tests probe this.
-// M4 ui-fetch will replace this with a file-system static handler reading
-// from the cached UI bundle.
+// Static asset handler. When `uiDir` is configured, we serve files from
+// there with SPA fallback (any unknown path → index.html). When not
+// configured (tests, no-bundle environments), every request returns 404.
 // ---------------------------------------------------------------------------
 
-function handleStatic(_req: IncomingMessage, res: ServerResponse): void {
-  send404(res);
+const MIME_BY_EXT: Record<string, string> = {
+  ".html": "text/html; charset=utf-8",
+  ".js": "application/javascript; charset=utf-8",
+  ".mjs": "application/javascript; charset=utf-8",
+  ".css": "text/css; charset=utf-8",
+  ".svg": "image/svg+xml",
+  ".png": "image/png",
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".webp": "image/webp",
+  ".ico": "image/x-icon",
+  ".json": "application/json; charset=utf-8",
+  ".woff": "font/woff",
+  ".woff2": "font/woff2",
+  ".ttf": "font/ttf",
+  ".map": "application/json; charset=utf-8",
+};
+
+async function handleStatic(
+  pathname: string,
+  uiDir: string | undefined,
+  res: ServerResponse,
+): Promise<void> {
+  if (!uiDir) {
+    send404(res);
+    return;
+  }
+  // Strip leading `/`. Path traversal defense: resolve and verify the
+  // result stays inside uiDir.
+  const requested = pathname.replace(/^\/+/, "");
+  const target = requested === "" ? "index.html" : requested;
+  const resolved = path.resolve(uiDir, target);
+  const uiDirResolved = path.resolve(uiDir);
+  const isInside =
+    resolved === uiDirResolved ||
+    resolved.startsWith(uiDirResolved + path.sep);
+  if (!isInside) {
+    send404(res);
+    return;
+  }
+  try {
+    const content = await readFile(resolved);
+    sendFile(res, resolved, content);
+    return;
+  } catch {
+    // SPA fallback: serve index.html for unknown paths (excluding asset-like
+    // extensions). This keeps client-side routing usable without 404 noise.
+    if (!/\.[a-z0-9]+$/i.test(target)) {
+      try {
+        const index = await readFile(path.join(uiDirResolved, "index.html"));
+        sendFile(res, "index.html", index);
+        return;
+      } catch {
+        /* fall through to 404 */
+      }
+    }
+    send404(res);
+  }
+}
+
+function sendFile(res: ServerResponse, filePath: string, body: Buffer): void {
+  if (res.headersSent || res.writableEnded) return;
+  const ext = path.extname(filePath).toLowerCase();
+  const type = MIME_BY_EXT[ext] ?? "application/octet-stream";
+  res.statusCode = 200;
+  res.setHeader("content-type", type);
+  res.setHeader("cache-control", "no-store");
+  res.end(body);
 }
 
 // ---------------------------------------------------------------------------
@@ -628,8 +697,7 @@ export async function startServer(
     const method = req.method ?? "GET";
 
     if (!isApiPath) {
-      // Static. `/` and `/assets/*` — placeholder 404 until UI bundle is wired.
-      handleStatic(req, res);
+      await handleStatic(pathname, opts.uiDir, res);
       return;
     }
 
