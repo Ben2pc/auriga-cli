@@ -5,4 +5,4 @@ description: Plan an autonomous goal from the current spec or work-in-progress a
 
 根据 spec 或者当前的工作进展，先 plan 出 goal 然后再 set goal 并启动，如果有疑问或者目标难以明确，在 set goal 前询问用户。
 
-- 如果可能，总是应该按照auriga workflow来推进
+- 如果可能，按照auriga workflow来推进
