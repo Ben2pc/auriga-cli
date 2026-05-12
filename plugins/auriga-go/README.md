@@ -1,21 +1,19 @@
 # auriga-go
 
-Workflow autopilot for the [auriga workflow](https://github.com/Ben2pc/auriga-cli). Reminder-based navigation across the phases in `CLAUDE.md`, with an Experimental `ship` mode that drives a small-scope spec to a PR Ready candidate autonomously.
+Workflow autopilot for the [auriga workflow](https://github.com/Ben2pc/auriga-cli). Reminder-based navigation across the phases in `CLAUDE.md`.
 
 ## What it does
 
 Invoke `/auriga-go` (or say "按照工作流继续" / "drive the workflow forward"). It inspects repo state, identifies the next workflow phase, records the step in your Agent's native task tracker, then either proceeds (`auto`, default) or proposes one step (`step`). It tells the main Agent which skill to invoke next — it does not dispatch skills itself.
 
-Experimental `ship` mode (`/auriga-go ship [max-iter]`) runs a Stop-hook-backed loop until the Agent emits `<ship-done>Ready</ship-done>` or `<ship-done>Blocked</ship-done>`, applying strictest defaults at every decision point. See `skills/auriga-go/references/ship.md`.
+For autonomous self-driven runs, the plugin also bundles a `/goalify` skill that plans a goal from the current spec or work-in-progress and dispatches it via Claude Code's built-in `/goal` command.
 
 ## Structure
 
-- `skills/auriga-go/` — the skill (autoloaded by description + `/auriga-go` slash command).
-- `hooks/hooks.json` + `scripts/ship-loop.sh` — Stop hook bundled at the plugin level (uses `${CLAUDE_PLUGIN_ROOT}` for a reliable substitution). Gated by the state file `.claude/auriga-go-ship.local.md` — no-op outside `ship` mode.
+- `skills/auriga-go/` — workflow-navigator skill (autoloaded by description + `/auriga-go` slash command).
+- `skills/goalify/` — single-prompt skill that plans + sets a `/goal` for autonomous execution.
 
-## Why a plugin
-
-This used to be a pure skill with a `hooks:` block in its SKILL.md frontmatter. Claude Code's `${CLAUDE_SKILL_DIR}` substitution does not currently expand inside skill-bundled hook commands (empirically tested in both `claude -p` and interactive mode), and the hook's cwd is the project root rather than the skill dir, so the documented `./scripts/...` form also fails. Plugins use `${CLAUDE_PLUGIN_ROOT}` which works in both modes, so the hook was lifted to the plugin level; the skill keeps its description-based natural-language trigger.
+For the history of why this is a plugin rather than a pure skill (the underlying `${CLAUDE_SKILL_DIR}` substitution caveat and why the plugin form is kept even though auriga-go ships no hooks), see [`docs/architecture/auriga-go.md`](https://github.com/Ben2pc/auriga-cli/blob/main/docs/architecture/auriga-go.md).
 
 ## Install
 
