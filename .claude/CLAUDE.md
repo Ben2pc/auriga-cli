@@ -69,14 +69,27 @@ plugins/
                     scripts/session-start.mjs   (injects ancestor AGENTS.md
                                                  files plus repo-configured
                                                  extra instruction files)
+  deep-review/  — Repo-owned dual-Agent plugin (Claude Code + Codex).
+                    .claude-plugin/plugin.json  (Claude Code manifest)
+                    .codex-plugin/plugin.json   (Codex manifest)
+                    skills/deep-review/         (orchestrator skill +
+                                                 references/reviewers/<name>.md
+                                                 per-dimension reviewer files)
+                    skills/reviewer-creator/    (scaffolds project-level
+                                                 custom reviewers under
+                                                 docs/rules/review/)
+                  Vendored from Ben2pc/g-claude-code-plugins at v0.3.0 +
+                  augmented with .codex-plugin/plugin.json for dual-Agent
+                  parity. No hooks — pure orchestration.
 
 .claude-plugin/
   marketplace.json — Marketplace manifest for this repo; lists auriga-go +
-                     auriga-git-guards for Claude Code.
+                     auriga-git-guards + deep-review for Claude Code.
 
 .agents/plugins/
   marketplace.json — Codex-native marketplace manifest for this repo; lists
-                     auriga-go + auriga-git-guards + session-instructions-loader.
+                     auriga-go + auriga-git-guards + session-instructions-loader
+                     + deep-review.
                      Codex prefers this repo-scoped file when present instead
                      of falling back to the Claude-style marketplace.
   install.json     — auriga-cli's Codex plugin install list. Marketplace
