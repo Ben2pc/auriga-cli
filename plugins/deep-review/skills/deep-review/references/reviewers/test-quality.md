@@ -6,6 +6,8 @@ The checklist below is a **starting point, not a fence**. It covers the most com
 
 This reviewer covers **two scenarios**: tests-present (quality review) and tests-missing (coverage-gap analysis). The split is what makes "tests should exist but don't" findings visible — do not narrow this reviewer to only the tests-present case.
 
+The §1–§8 rubric in Scenario A mirrors the `test-designer` skill's Step 3 *Test quality constraints* — front (design time) and back (review time) carry the same standards independently. Concept names align so findings from one inform the other; wording lives in each component's own file because they ship through different distribution channels (auriga-cli skills vs this plugin).
+
 ## Metadata
 
 - **Best for**: Both reviewing test quality and surfacing missing coverage on new production behavior
@@ -18,13 +20,39 @@ This reviewer covers **two scenarios**: tests-present (quality review) and tests
 
 ### Scenario A — Tests present in diff
 
-1. **Behavior vs implementation**: do tests assert observable contracts (inputs → outputs / state changes) or do they assert on internals (private methods, mock call counts, exact log text)? Implementation-coupled tests fail on harmless refactors and pass on real bugs.
-2. **Mock granularity**: are mocks at the right boundary (network / DB / clock / FS) or do they replace the unit under test itself? Over-mocking hides production drift; mocking too little produces a flaky integration test.
-3. **Mocked-only assertions**: tests that assert only on what they themselves mocked are tautologies. Flag them.
-4. **Flaky risk**: time-dependent (`Date.now()`, `setTimeout`), order-dependent (relies on iteration order, parallel test pollution), network-dependent (real HTTP, no fixture), filesystem-dependent (uses `/tmp` without cleanup).
-5. **Edge coverage**: empty inputs, nulls, error paths, permission denials, partial failures, concurrency races, boundary values (0, 1, max, max+1).
-6. **Negative cases**: validation logic without negative tests is half-tested.
-7. **DAMP over DRY**: test names should describe the behavior under test in plain language; over-DRY'd test setup hides what each case actually verifies.
+#### §1. Test at the right level
+Pure logic with no I/O wrapped in an integration / E2E test, or cross-boundary work faked into a pure-unit test that doesn't exercise the boundary. Test should sit at the lowest level that captures the behavior.
+
+#### §2. Behavior, not implementation
+Assertions on internal method-call sequences (`expect(spy).toHaveBeenCalledWith(...)`, mock invocation counts), private helpers, or exact log strings. Implementation-coupled tests fail on harmless refactors and pass on real bugs. **Sub-rule: mocked-only tautologies** — tests that assert only on values they themselves stubbed (e.g., mock `jwt.verify` to return `{userId: 1}`, then assert the function returns `1`) prove nothing about production behavior.
+
+#### §3. Mock at boundaries only
+Mocks belong at network / DB / clock / filesystem / randomness boundaries. Preference order: real implementation > in-memory fake > stub > mock. Flag when the unit under test itself is mocked, when pure internal dependencies are replaced unnecessarily, or when mocks replace logic that could be exercised with real code.
+
+#### §4. 5-scenario coverage
+For each public behavior introduced or modified, expect tests across these categories — flag a category as missing unless the diff explicitly justifies inapplicability (e.g., concurrency for a pure function):
+
+| Scenario | Example |
+|---|---|
+| Happy path | Valid input → expected output |
+| Empty / null | "", [], null, undefined |
+| Boundary | 0, 1, max, max+1, negative |
+| Error path | Invalid input, timeout, permission denied |
+| Concurrency / order | Rapid repeats, out-of-order responses, races |
+
+Validation logic without negative tests is half-tested — flag as Error-path gap.
+
+#### §5. Structural quality
+Arrange-Act-Assert visibly separated. One assertion concept per test (test name containing "and" → flag for split). Test names read like specification sentences (good: `it('rejects empty email with "Email required"')`; bad: `it('test1')`, `it('works')`, `it('handles errors')`). DAMP > DRY: over-DRY'd shared setup hides what each test actually verifies.
+
+#### §6. Flake risk
+Time-dependent without fake timers (real `setTimeout`, `Date.now()`), order-dependent (shared mutable state across tests, iteration-order assertions), network-dependent (real HTTP without fixture), filesystem-dependent (uses `/tmp` without cleanup), snapshot tests of unreviewed output (flag overuse as a quality concern).
+
+#### §7. Test must actually fail
+A test that never fails is as useless as one that always fails. Flag suspicious always-green patterns: assertions that tautologize (`expect(x).toBe(x)`), tests that wrap the entire body in a try/catch that swallows failures, or tests where the asserted condition is logically implied by setup (e.g., `expect(array.length).toBeGreaterThan(-1)`). Snapshot tests without periodic review fall in this bucket — they pass automatically when content changes.
+
+#### §8. Property over example
+Tests that assert on specific happy-path values from the requirement's example data (e.g., "output equals exactly `[1, 2, 3]` for this fixture") pass whenever input==fixture and break for any valid variant. Flag and recommend property assertions (sorted, idempotent, contains-all-inputs) or a paired variant-input test exercising the same invariant.
 
 ### Scenario B — Tests missing for new production behavior
 
@@ -47,9 +75,10 @@ Fires for any non-trivial change (same bar as `code-quality`). Detection signals
 
 Worked scenarios:
 
-1. **A: Over-mocked auth test.** Diff adds `verifyToken()` and a test that mocks `jwt.verify` to always return `{userId: 1}`, then asserts `verifyToken()` returns `1`. Reviewer flags `<test>:<line> — test asserts only on what it mocked; verify against a real (or canonical fixture) JWT — [severity: blocking] — [confidence: high]`.
-2. **A: Flaky setTimeout test.** Test uses `setTimeout(..., 50)` then `await sleep(100)` to assert. Reviewer flags timing-dependent flake risk and recommends fake timers.
+1. **A§2: Over-mocked auth test.** Diff adds `verifyToken()` and a test that mocks `jwt.verify` to always return `{userId: 1}`, then asserts `verifyToken()` returns `1`. Reviewer flags `<test>:<line> — test asserts only on what it mocked (§2 sub-rule); verify against a real (or canonical fixture) JWT — [severity: blocking] — [confidence: high]`.
+2. **A§6: Flaky setTimeout test.** Test uses `setTimeout(..., 50)` then `await sleep(100)` to assert. Reviewer flags timing-dependent flake risk and recommends fake timers.
 3. **B: New parser, no test.** Diff adds `parseV2(input)` with three branches (valid / partial / malformed). No test file changed. Reviewer flags 3 missing test cases as separate findings, each at the new function's file:line.
+4. **A§4 + A§8: Example-only test for sorter.** Diff adds `sortByPriority(items)` with one test asserting output equals exactly `[A, B, C]` for one fixture input. Reviewer flags §4 (no boundary / empty / error tests) and §8 (shape-to-example assertion, no property-style or variant-input pairing).
 
 ## Output contract
 
@@ -60,4 +89,4 @@ Return:
 - Summary of **at most 300 words**, with sub-headings `Scenario A — quality` and `Scenario B — missing` if both apply
 - Followed by a bullet list, each: `<file>:<line> — <one-line description> — [severity: blocking | non-blocking] — [confidence: high | medium | low]`
 
-For Scenario B findings, point at the **production** file:line where the untested branch lives, not at a test file (the test doesn't exist yet). Return `"No findings."` only when you genuinely found nothing.
+For Scenario A findings, prefix the description with the rubric section that fired (`§1` through `§8`) so synthesis can group by standard and so test-designer's matching front-of-loop rubric is discoverable. For Scenario B findings, point at the **production** file:line where the untested branch lives, not at a test file (the test doesn't exist yet). Return `"No findings."` only when you genuinely found nothing.
