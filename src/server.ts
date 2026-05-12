@@ -12,6 +12,17 @@ export interface StartServerOptions {
   port?: number;
   token: string;
   cwd: string;
+  /** Where auriga-cli itself lives — source of dist/catalog.json,
+   *  skills-lock.json, hook payloads, etc. Defaults to cwd, which is
+   *  correct when running tests from the auriga-cli checkout. CLI mode
+   *  must pass getPackageRoot() so the server uses the installed package
+   *  rather than the user's project. */
+  packageRoot?: string;
+  /** Idle-shutdown timeout in ms. The browser POSTs /api/ping every 5s;
+   *  if no ping arrives for this duration, the server shuts down
+   *  gracefully (closing-browser-closes-server UX). `0` disables the
+   *  heartbeat (used by tests so a single suite doesn't time-bomb). */
+  heartbeatTimeoutMs?: number;
 }
 
 export interface RunningServer {
@@ -30,6 +41,8 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 
 import type { ApplyRequest } from "./api-types.js";
+import { buildScanCatalog } from "./scan-catalog.js";
+import { scanState } from "./state.js";
 
 // Body parsing cap. /api/apply payloads are tiny (an array of item refs);
 // 1 MiB is generously above the largest realistic batch and small enough that
@@ -232,25 +245,10 @@ function parseApplyRequest(raw: string): ApplyRequest | null {
 }
 
 // ---------------------------------------------------------------------------
-// Placeholder StateReport. Slice C wires in the real scanner; the route still
-// returns 200 + a structurally valid (but empty) report so the contract holds.
-// ---------------------------------------------------------------------------
-
-function placeholderStateReport(): object {
-  return {
-    workflow: { status: "not-installed", expectedVersion: "" },
-    skills: [],
-    recommendedSkills: [],
-    plugins: [],
-    hooks: [],
-    warnings: [],
-  };
-}
-
-// ---------------------------------------------------------------------------
 // Static asset placeholder. M1 ships without a UI bundle; we return 404 for
 // every public-path request, but crucially NOT 401/403 — tests probe this.
-// Slice D / ui-fetch will replace this with a file-system static handler.
+// M4 ui-fetch will replace this with a file-system static handler reading
+// from the cached UI bundle.
 // ---------------------------------------------------------------------------
 
 function handleStatic(_req: IncomingMessage, res: ServerResponse): void {
@@ -270,6 +268,12 @@ export async function startServer(
   // connections (Node's `server.close` only stops accepting; it waits for
   // open sockets indefinitely otherwise).
   const openSockets = new Set<Socket>();
+  // Heartbeat state. `lastPingAt` is bumped on each POST /api/ping. The
+  // interval fires periodically and triggers shutdown if too much time
+  // has passed without a ping — implementing "closing the browser closes
+  // the server" UX.
+  let lastPingAt = Date.now();
+  let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
 
   // Per-instance helpers that need the port (chosen after listen()).
   let allowedHosts: Set<string>;
@@ -365,7 +369,7 @@ export async function startServer(
       return;
     }
     if (pathname === "/api/state" && method === "GET") {
-      sendJson(res, 200, placeholderStateReport());
+      await routeState(opts.cwd, opts.packageRoot ?? opts.cwd, res);
       return;
     }
     if (pathname === "/api/apply" && method === "POST") {
@@ -377,6 +381,7 @@ export async function startServer(
       return;
     }
     if (pathname === "/api/ping" && method === "POST") {
+      lastPingAt = Date.now();
       sendJson(res, 200, { ok: true });
       return;
     }
@@ -395,6 +400,10 @@ export async function startServer(
 
   async function initiateShutdown(): Promise<void> {
     closing = true;
+    if (heartbeatTimer) {
+      clearInterval(heartbeatTimer);
+      heartbeatTimer = null;
+    }
     // Stop accepting new connections.
     server.close();
     // Force-close open keep-alive sockets so close() can resolve promptly.
@@ -423,10 +432,29 @@ export async function startServer(
   const port = address?.port ?? opts.port ?? 0;
   allowedHosts = buildAllowedHosts(port);
 
+  // Start heartbeat if enabled. Interval is half the timeout so the worst-
+  // case detection latency is ≤ timeout + interval. `.unref()` keeps Node
+  // from hanging waiting on this timer if the user kills the process.
+  const heartbeatMs = opts.heartbeatTimeoutMs ?? 0;
+  if (heartbeatMs > 0) {
+    const interval = Math.max(1000, Math.floor(heartbeatMs / 3));
+    heartbeatTimer = setInterval(() => {
+      if (closing) return;
+      if (Date.now() - lastPingAt > heartbeatMs) {
+        void initiateShutdown();
+      }
+    }, interval);
+    heartbeatTimer.unref();
+  }
+
   return {
     port,
     close: async () => {
       closing = true;
+      if (heartbeatTimer) {
+        clearInterval(heartbeatTimer);
+        heartbeatTimer = null;
+      }
       // Synchronously break all open sockets so close() resolves quickly
       // (otherwise keep-alive idle conns would block until their timeout).
       for (const s of openSockets) {
@@ -438,6 +466,26 @@ export async function startServer(
       });
     },
   };
+}
+
+// ---------------------------------------------------------------------------
+// Route: GET /api/state
+// ---------------------------------------------------------------------------
+
+async function routeState(
+  cwd: string,
+  packageRoot: string,
+  res: ServerResponse,
+): Promise<void> {
+  try {
+    const catalog = await buildScanCatalog(packageRoot);
+    const report = await scanState(cwd, catalog);
+    sendJson(res, 200, report);
+  } catch {
+    // Catalog or scan blew up — return a structured 500 so the UI can show
+    // a recovery banner rather than getting an HTML error page.
+    sendJson(res, 500, { error: "scan-failed" });
+  }
 }
 
 // ---------------------------------------------------------------------------
