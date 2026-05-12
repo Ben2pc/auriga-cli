@@ -69,7 +69,12 @@ export interface StartServerOptions {
 
 export interface RunningServer {
   port: number;
+  /** Explicit shutdown. Idempotent. */
   close(): Promise<void>;
+  /** Resolves when the server has fully stopped — either via close() or the
+   *  heartbeat-driven shutdown. CLI callers await this to block their event
+   *  loop until "browser was closed" actually fires. */
+  closed: Promise<void>;
 }
 
 // ---- IMPLEMENTATION GOES BELOW ----
@@ -790,6 +795,13 @@ export async function startServer(
     heartbeatTimer.unref();
   }
 
+  // Tracks "fully stopped" — resolved by Node's http server `close` event,
+  // which fires on either the explicit close() path or the heartbeat-driven
+  // initiateShutdown() path.
+  const closed = new Promise<void>((resolve) => {
+    server.once("close", () => resolve());
+  });
+
   return {
     port,
     close: async () => {
@@ -804,10 +816,19 @@ export async function startServer(
         s.destroy();
       }
       openSockets.clear();
-      await new Promise<void>((resolve, reject) => {
-        server.close((err) => (err ? reject(err) : resolve()));
-      });
+      try {
+        await new Promise<void>((resolve, reject) => {
+          server.close((err) => (err ? reject(err) : resolve()));
+        });
+      } catch (err) {
+        // `Server.close()` rejects when the server isn't running — happens
+        // when the heartbeat path already shut things down. Treat as success.
+        const msg = err instanceof Error ? err.message : String(err);
+        if (!/not running|not listening/i.test(msg)) throw err;
+      }
+      await closed;
     },
+    closed,
   };
 }
 

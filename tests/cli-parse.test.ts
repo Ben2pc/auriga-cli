@@ -250,4 +250,45 @@ describe("parseArgs", () => {
       /--plugin .* already (set|given)|repeated.*--plugin/i,
     );
   });
+
+  // ui subcommand (M4 T4.3)
+  test("parses 'ui' with no args → command:'ui', ui:{}", () => {
+    const r = parseArgs(["ui"]);
+    assert.deepEqual(r, { command: "ui", ui: {} });
+  });
+  test("parses 'ui --port 5000'", () => {
+    const r = parseArgs(["ui", "--port", "5000"]);
+    assert.deepEqual(r, { command: "ui", ui: { port: 5000 } });
+  });
+  test("parses 'ui --port=5000' (equals form)", () => {
+    const r = parseArgs(["ui", "--port=5000"]);
+    assert.deepEqual(r, { command: "ui", ui: { port: 5000 } });
+  });
+  test("parses 'ui --ui-dir /tmp/x --no-open'", () => {
+    const r = parseArgs(["ui", "--ui-dir", "/tmp/x", "--no-open"]);
+    assert.deepEqual(r, {
+      command: "ui",
+      ui: { uiDir: "/tmp/x", noOpen: true },
+    });
+  });
+  test("'ui --help' → help command", () => {
+    const r = parseArgs(["ui", "--help"]);
+    assert.deepEqual(r, { command: "help" });
+  });
+  test("rejects non-numeric port", () => {
+    expectParseError(
+      ["ui", "--port", "abc"],
+      /--port must be a port number/i,
+    );
+  });
+  test("rejects out-of-range port", () => {
+    expectParseError(["ui", "--port", "0"], /--port must be a port number/i);
+    expectParseError(
+      ["ui", "--port", "70000"],
+      /--port must be a port number/i,
+    );
+  });
+  test("rejects unknown 'ui' flag", () => {
+    expectParseError(["ui", "--zonk"], /unknown argument '--zonk' for 'ui'/i);
+  });
 });
