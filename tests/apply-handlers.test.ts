@@ -139,18 +139,6 @@ describe("buildDefaultApplyHandlers — workflow", () => {
     assert.equal(calls.uninstallWorkflow.length, 0);
   });
 
-  test("update → also calls installWorkflow (idempotent reinstall)", async () => {
-    const calls = makeCallLog();
-    const { buildDefaultApplyHandlers } = await importAdapter(calls);
-    const handlers = buildDefaultApplyHandlers({
-      packageRoot: "/pkg",
-      cwd: "/proj",
-      pluginAgentsByName: new Map(),
-    });
-    await handlers.workflow("update", "default-workflow", noopLog());
-    assert.equal(calls.installWorkflow.length, 1);
-  });
-
   test("uninstall → calls uninstallWorkflow with force=true", async () => {
     const calls = makeCallLog();
     const { buildDefaultApplyHandlers } = await importAdapter(calls);

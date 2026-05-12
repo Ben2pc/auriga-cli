@@ -72,8 +72,7 @@ describe("GET /api/catalog (spec §6.1)", () => {
       const dist = path.join(tmp, "dist");
       await mkdir(dist, { recursive: true });
       const expected = {
-        workflowVersion: "v1.6.0",
-        skills: { foo: { description: "Foo skill", expectedHash: "abc", isWorkflow: true } },
+        skills: { foo: { description: "Foo skill", isWorkflow: true } },
         plugins: {},
       };
       await writeFile(
@@ -184,9 +183,8 @@ describe("GET /api/state (spec §6.1)", () => {
       assert.ok(Array.isArray(body.warnings));
       const wf = body.workflow as Record<string, unknown>;
       assert.equal(typeof wf.status, "string");
-      assert.equal(typeof wf.expectedVersion, "string");
       assert.ok(
-        ["installed", "update-available", "not-installed"].includes(
+        ["installed", "not-installed", "partial-install"].includes(
           wf.status as string,
         ),
         `workflow.status must be a valid ItemStatus, got: ${String(wf.status)}`,

@@ -413,7 +413,7 @@ describe("POST /api/apply — fail-continue semantics (spec §6.4)", () => {
     const applyRes = await postApply(ctx.baseUrl, ctx.token, {
       items: items(
         ["skill", "alpha", "install"],
-        ["skill", "beta", "update"],
+        ["skill", "beta", "install"],
         ["skill", "gamma", "uninstall"],
       ),
     });
@@ -842,7 +842,7 @@ describe("GET /api/progress — late subscriber receives full replay", () => {
     const applyRes = await postApply(ctx.baseUrl, ctx.token, {
       items: items(
         ["skill", "alpha", "install"],
-        ["skill", "beta", "update"],
+        ["skill", "beta", "install"],
         ["plugin", "plug-alpha", "uninstall"],
       ),
     });

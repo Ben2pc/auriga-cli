@@ -106,37 +106,6 @@ describe("generateCatalog (build-time)", () => {
     assertEntriesShape(catalog.hooks, "hooks");
   });
 
-  test("workflowVersion is baked from CLAUDE.md header", () => {
-    // rationale: scan-catalog at runtime cannot read CLAUDE.md from the
-    // npm-installed packageRoot because `package.json` `files` allowlist
-    // does not ship CLAUDE.md. Reading would silently return "" and the
-    // scanner would force every workflow row to "installed" regardless
-    // of the user's actual version — root cause of the v1.18.4 hotfix.
-    // The contract: catalog MUST carry the version baked at build time
-    // from the repo's CLAUDE.md `# auriga Workflow (vX.Y.Z)` header.
-    assert.match(
-      catalog.workflowVersion,
-      /^\d+\.\d+\.\d+/,
-      `workflowVersion must be a semver baked from CLAUDE.md; got ${JSON.stringify(catalog.workflowVersion)}`,
-    );
-  });
-
-  test("owned plugins carry baked expectedVersion from plugin.json", () => {
-    // rationale: the scanner relies on this baked field to surface
-    // "update-available" for already-installed plugins. Reading at runtime
-    // doesn't work because `plugins/<name>/` is not in the npm tarball's
-    // `files` allowlist — must be baked into dist/catalog.json at build time.
-    for (const name of ["auriga-go", "auriga-git-guards", "deep-review", "session-instructions-loader"]) {
-      const e = catalog.plugins.find((p) => p.name === name);
-      assert.ok(e, `${name} present in catalog`);
-      assert.match(
-        e!.expectedVersion ?? "",
-        /^\d+\.\d+\.\d+/,
-        `${name} must bake a semver expectedVersion; got ${JSON.stringify(e!.expectedVersion)}`,
-      );
-    }
-  });
-
   test("plugins carry baked agents map (build-time, no runtime IO)", () => {
     // rationale: scan-catalog used to read .claude/plugins.json +
     // .agents/plugins/install.json at runtime to derive the agent map.
@@ -165,11 +134,10 @@ describe("generateCatalog (build-time)", () => {
   });
 
   test("external flag set on upstream-marketplace plugins, absent on owned", () => {
-    // rationale: the scanner uses external as a hard short-circuit — never
-    // report update-available for upstream-owned plugins because we don't
-    // know (and shouldn't claim to know) the canonical version. Mis-flagging
-    // an owned plugin as external would suppress real upgrade signals;
-    // mis-flagging an external as owned would force phantom updates.
+    // rationale: the EXTERNAL badge tells users "upgrades go through
+    // `claude plugins update`, not us" for plugins published in upstream
+    // marketplaces. Mis-flagging an owned plugin as external would point
+    // users at the wrong upgrade channel; the inverse would do the same.
     const externals = new Set(["skill-creator", "claude-md-management", "codex"]);
     for (const entry of catalog.plugins) {
       if (externals.has(entry.name)) {
@@ -181,23 +149,6 @@ describe("generateCatalog (build-time)", () => {
           `${entry.name} must NOT be external (owned in-tree)`,
         );
       }
-    }
-  });
-
-  test("external-marketplace plugins do NOT carry expectedVersion", () => {
-    // rationale: skill-creator / claude-md-management / codex install from
-    // upstream marketplaces; their manifest doesn't live in this repo. The
-    // scanner must treat them as "trust whatever is installed" by leaving
-    // expectedVersion undefined — pinning a version here would force
-    // perpetual update-available against upstream's own release cadence.
-    for (const name of ["skill-creator", "claude-md-management", "codex"]) {
-      const e = catalog.plugins.find((p) => p.name === name);
-      assert.ok(e, `${name} present in catalog`);
-      assert.equal(
-        e!.expectedVersion,
-        undefined,
-        `${name} must NOT carry expectedVersion (external marketplace)`,
-      );
     }
   });
 
