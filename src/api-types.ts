@@ -4,6 +4,16 @@
 
 export type ItemStatus = "installed" | "update-available" | "not-installed";
 
+/**
+ * Per-category scan scope. Each category (workflow / skills / plugins / hooks)
+ * can be independently scanned in either user scope (~/.claude/, ~/.codex/)
+ * or project scope (<proj>/.claude/). The Web UI's per-column scope picker
+ * carries these through the `/api/state` query so the scanner reads the
+ * right truth source per category. Codex plugins are user-scope only by
+ * design and ignore this field.
+ */
+export type ScanScope = "user" | "project";
+
 export interface StateReport {
   /** Absolute path to the project the server was launched against. Surfaced
    *  in the UI's top bar so users know where Apply will write project-scope
@@ -22,6 +32,13 @@ export interface WorkflowState {
   status: ItemStatus;
   currentVersion?: string;
   expectedVersion: string;
+  /** Which scope the scanner read to produce this row. Reflects the scope
+   *  scanned, not where the file was found — e.g. when scope=user and
+   *  ~/.claude/CLAUDE.md is absent, observedScope is still "user". The
+   *  scanner ALWAYS sets this field at runtime; it is typed optional only
+   *  so the mergePluginsById regression helper (which carries over from the
+   *  pre-rewrite suite without an explicit scope) continues to compile. */
+  observedScope?: ScanScope;
 }
 
 export interface SkillState {
@@ -31,6 +48,8 @@ export interface SkillState {
   isWorkflow: boolean;
   currentHash?: string;
   expectedHash: string;
+  /** Scope the scanner read to produce this row. See WorkflowState comment. */
+  observedScope?: ScanScope;
 }
 
 export type ApplyAgent = "claude" | "codex";
@@ -50,6 +69,10 @@ export interface PluginState {
   currentVersion?: string;
   expectedVersion?: string;
   versionSource: "upstream-live" | "catalog";
+  /** Scope the scanner read to produce this row. Codex plugins are always
+   *  "user" (Codex has no project-scope plugin concept). See WorkflowState
+   *  comment on why this is typed optional. */
+  observedScope?: ScanScope;
 }
 
 export interface HookState {
@@ -58,10 +81,19 @@ export interface HookState {
   status: ItemStatus;
   currentHash?: string;
   expectedHash: string;
+  /** Scope the scanner read to produce this row. See WorkflowState comment. */
+  observedScope?: ScanScope;
 }
 
 export interface StateWarning {
-  code: "claude-cli-missing" | "codex-cli-missing" | "marketplace-offline";
+  code:
+    | "claude-cli-missing"
+    | "codex-cli-missing"
+    | "marketplace-offline"
+    | "claude-code-not-installed"
+    | "settings-unreadable"
+    | "skill-malformed"
+    | "workflow-unknown-version";
   message: string;
 }
 
