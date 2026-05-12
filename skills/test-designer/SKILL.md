@@ -198,7 +198,7 @@ Before handing the tests to the implementation phase, the main Agent runs these 
 2. **Failure reason matches the rationale.** Not `ImportError`, not "module not found", not syntax error. The test fails because the asserted behavior is missing — the rationale comment predicts the failure message.
 
 #### Standards-based checks
-These map 1:1 to Step 3's *Test quality constraints* §1–§8. Reject any test that violates them.
+These cover Step 3's *Test quality constraints* §1–§6 + §8 (§7 "must actually fail" is enforced by the Run-the-tests checks above). Reject any test that violates them.
 
 3. **Level appropriate** (§1) — unit-testable logic isn't wrapped in E2E; cross-boundary work isn't faked into a pure-unit test.
 4. **Behavior, not implementation** (§2) — no `expect(spy).toHaveBeenCalled…` chains where state assertions would suffice; no assertions on private helpers or exact log strings.
