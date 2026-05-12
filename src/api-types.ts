@@ -73,6 +73,12 @@ export interface PluginState {
    *  "user" (Codex has no project-scope plugin concept). See WorkflowState
    *  comment on why this is typed optional. */
   observedScope?: ScanScope;
+  /** True for plugins whose source lives in an upstream marketplace, not in
+   *  this repo (skill-creator / claude-md-management / codex). The scanner
+   *  short-circuits update-available reporting for these — upgrades go
+   *  through `claude plugins update`, not us. The UI renders an EXTERNAL
+   *  badge to make the "not our jurisdiction" signal explicit. */
+  external?: boolean;
 }
 
 export interface HookState {

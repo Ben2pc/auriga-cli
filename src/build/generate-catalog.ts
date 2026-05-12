@@ -142,7 +142,8 @@ export function generateCatalog(repoRoot: string): Catalog {
     pluginByName.set(p.name, {
       name: p.name,
       description: p.description,
-      ...(expectedVersion ? { expectedVersion } : {}),
+      agents: ["claude"],
+      ...(expectedVersion ? { expectedVersion } : { external: true }),
     });
   }
 
@@ -182,12 +183,23 @@ export function generateCatalog(repoRoot: string): Catalog {
       // Otherwise read from this plugin's in-tree manifest (handles codex-only
       // plugins like session-instructions-loader).
       const expectedVersion = existing?.expectedVersion ?? readPluginManifestVersion(repoRoot, p.name);
+      // Agent map: if existing came from the Claude pass it's ["claude"]; this
+      // pass adds "codex". Codex-only entries get ["codex"].
+      const agents: ("claude" | "codex")[] = existing
+        ? ["claude", "codex"]
+        : ["codex"];
+      // external flag: true when no in-tree manifest in this repo's plugins/.
+      // The Claude pass may have already set it; respect either signal —
+      // a plugin we don't own on either Agent side stays external.
+      const external = !expectedVersion;
       pluginByName.set(p.name, {
         name: p.name,
         description: existing
           ? `(Claude/Codex) ${existing.description}`
           : `(Codex) ${description}`,
+        agents,
         ...(expectedVersion ? { expectedVersion } : {}),
+        ...(external ? { external: true } : {}),
       });
     }
   }

@@ -12,6 +12,19 @@ export interface CatalogEntry {
    *  because `plugins/<name>/.claude-plugin/plugin.json` is NOT shipped in
    *  the npm tarball (see `package.json` `files` field). */
   expectedVersion?: string;
+  /** Build-time-baked agent map for plugin entries. Derived from
+   *  `.claude/plugins.json` ∪ `.agents/plugins/install.json` — those config
+   *  files are NOT shipped in the npm tarball, so the scanner can't read
+   *  them at runtime. Baking here lets `/api/state` correctly classify
+   *  dual-Agent plugins as `["claude","codex"]` for installed users.
+   *  Absent on skill / hook entries. */
+  agents?: ("claude" | "codex")[];
+  /** True for plugins whose source lives in an UPSTREAM marketplace
+   *  (skill-creator / claude-md-management / codex), not in this repo. The
+   *  scanner uses this to disable update-available reporting — those
+   *  plugins update through `claude plugins update`, not through us. UI
+   *  surfaces an EXTERNAL badge so users know where to look. */
+  external?: boolean;
 }
 
 export interface Catalog {

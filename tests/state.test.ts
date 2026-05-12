@@ -593,11 +593,19 @@ describe("scanState — #10 Skills malformed (dir present, SKILL.md missing)", (
 });
 
 // ===========================================================================
-// #11 — Skills / update detection (hash mismatch)
+// #11 — Skills / drift detection deliberately deferred to `npx skills update`
 // ===========================================================================
-describe("scanState — #11 Skills update detection", () => {
-  test("#11 skills SKILL.md content differs from catalog expectedHash → update-available", async () => {
-    // rationale: catches scanner declaring installed when hashes diverge
+describe("scanState — #11 Skills drift detection deferred", () => {
+  test("#11 skill content drift is ignored when catalog expectedHash is empty (production path)", async () => {
+    // rationale: production scan-catalog sets every skill's expectedHash to
+    // "" (wildcard) — drift detection deliberately deferred to
+    // `npx skills update --project`, which compares against each skill's own
+    // upstream HEAD. Our catalog snapshot is at best stale; mis-reporting
+    // legitimate user-side updates as drift would push users into a confusing
+    // "auriga-cli says reinstall, npx skills says you're current" loop.
+    // The classifier already supports the wildcard (state.ts:455); this test
+    // pins the contract so a future regression that reintroduces non-empty
+    // skill hashes will fail loudly here too.
     const home = makeScratch("home11");
     redirectHome(home);
     const onDisk = "---\nname: brainstorming\nversion: 0.9.0\n---\nold";
@@ -607,7 +615,8 @@ describe("scanState — #11 Skills update detection", () => {
       skills: {
         brainstorming: {
           description: "",
-          expectedHash: sha256("---\nname: brainstorming\nversion: 1.0.0\n---\nnew"),
+          // Mirror production: scan-catalog always emits "" for skills.
+          expectedHash: "",
           isWorkflow: true,
         },
       },
@@ -618,7 +627,16 @@ describe("scanState — #11 Skills update detection", () => {
     });
 
     const s = report.skills.find((x) => x.name === "brainstorming")!;
-    assert.equal(s.status, "update-available");
+    assert.equal(
+      s.status,
+      "installed",
+      "skill with content drift must still classify as installed when expectedHash is wildcard",
+    );
+    assert.notEqual(
+      s.status,
+      "update-available",
+      "must not surface update-available — that signal would be a stale proxy for what `npx skills update` already checks better",
+    );
     assert.equal((s as any).observedScope, "user");
   });
 });
@@ -812,6 +830,62 @@ describe("scanState — #14c Plugins (Claude) baked expectedVersion", () => {
     assert.equal(p.status, "installed");
     assert.equal(p.currentVersion, "0.3.1");
     assert.equal(p.versionSource, "catalog");
+  });
+});
+
+// ===========================================================================
+// #14d — Plugins (Claude) / external short-circuit
+// ===========================================================================
+describe("scanState — #14d Plugins (Claude) external short-circuit", () => {
+  test("#14d external plugin with installed.version mismatch → still installed (never update-available)", async () => {
+    // rationale: external-marketplace plugins (skill-creator etc.) install
+    // through Claude Code's marketplace; upgrades go through
+    // `claude plugins update`, not us. Even if some signal claims a newer
+    // version is available, the scanner MUST report installed — surfacing
+    // update-available would push users to apply via auriga-cli, which
+    // doesn't know how to talk to the upstream marketplace correctly.
+    // Property under test: def.external === true overrides version compare.
+    const home = makeScratch("home14d");
+    redirectHome(home);
+    const catalog = makeCatalog({
+      plugins: {
+        "skill-creator@claude-plugins-official": {
+          description: "",
+          agents: ["claude"],
+          external: true,
+        },
+      },
+    });
+    const report = await scan(makeScratch("proj14d"), catalog, {
+      execPluginList: (async () => ({
+        installed: [
+          { id: "skill-creator@claude-plugins-official", version: "1.0.0" },
+        ],
+        // Even a live "newer" marketplace ref must not flip the status —
+        // we explicitly defer authority to upstream for these.
+        available: [
+          {
+            id: "skill-creator@claude-plugins-official",
+            source: { ref: "v2.0.0" },
+          },
+        ],
+      })) as NonNullable<ScanOptions["execPluginList"]>,
+      scopes: { plugins: "user" },
+      homeDir: home,
+      ...codexNone,
+    });
+
+    const p = report.plugins.find(
+      (x) => x.id === "skill-creator@claude-plugins-official",
+    )!;
+    assert.equal(p.status, "installed");
+    assert.equal(p.currentVersion, "1.0.0");
+    assert.equal((p as any).external, true);
+    assert.notEqual(
+      p.status,
+      "update-available",
+      "external plugins must never report update-available",
+    );
   });
 });
 

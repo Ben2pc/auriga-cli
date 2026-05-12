@@ -45,6 +45,10 @@ export interface StateCardProps {
    *  doesn't belong to a category where agent split is meaningful, e.g.
    *  workflow / skill / hook). */
   agents?: ("claude" | "codex")[];
+  /** True for plugins whose source lives in an upstream marketplace. Adds
+   *  an EXTERNAL badge alongside the agent badge to signal "upgrades go
+   *  through `claude plugins update`, not us". */
+  external?: boolean;
 }
 
 interface StatusVisual {
@@ -102,6 +106,7 @@ export default function StateCard({
   onSelectChange,
   uninstallable = false,
   agents,
+  external = false,
 }: StateCardProps): JSX.Element {
   const visual = STATUS_VISUALS[status];
 
@@ -345,6 +350,23 @@ export default function StateCard({
               }}
             >
               {agentLabel(agents)}
+            </span>
+          )}
+          {external && (
+            <span
+              data-testid="statecard-external"
+              className="font-anthropic-mono uppercase"
+              title="Updates via `claude plugins update`"
+              style={{
+                color: "var(--color-slate-light)",
+                border: "1px solid var(--color-slate-light)",
+                padding: "0 4px",
+                letterSpacing: "0.04em",
+                fontWeight: 600,
+                lineHeight: "14px",
+              }}
+            >
+              EXTERNAL
             </span>
           )}
         </div>

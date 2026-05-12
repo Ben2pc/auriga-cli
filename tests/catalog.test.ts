@@ -137,6 +137,53 @@ describe("generateCatalog (build-time)", () => {
     }
   });
 
+  test("plugins carry baked agents map (build-time, no runtime IO)", () => {
+    // rationale: scan-catalog used to read .claude/plugins.json +
+    // .agents/plugins/install.json at runtime to derive the agent map.
+    // Those files are NOT in the npm tarball (`files` only ships dist/), so
+    // installed users had every plugin default to ["claude"] — dual-Agent
+    // plugins (auriga-go etc.) mis-classified as Claude-only. The fix bakes
+    // `agents` at build time. This pins the contract per plugin.
+    const expectedAgents: Record<string, ("claude" | "codex")[]> = {
+      "auriga-go": ["claude", "codex"],
+      "auriga-git-guards": ["claude", "codex"],
+      "deep-review": ["claude", "codex"],
+      "session-instructions-loader": ["codex"],
+      "skill-creator": ["claude"],
+      "claude-md-management": ["claude"],
+      codex: ["claude"],
+    };
+    for (const [name, agents] of Object.entries(expectedAgents)) {
+      const e = catalog.plugins.find((p) => p.name === name);
+      assert.ok(e, `${name} present in catalog`);
+      assert.deepEqual(
+        e!.agents,
+        agents,
+        `${name} agents must be ${JSON.stringify(agents)}, got ${JSON.stringify(e!.agents)}`,
+      );
+    }
+  });
+
+  test("external flag set on upstream-marketplace plugins, absent on owned", () => {
+    // rationale: the scanner uses external as a hard short-circuit — never
+    // report update-available for upstream-owned plugins because we don't
+    // know (and shouldn't claim to know) the canonical version. Mis-flagging
+    // an owned plugin as external would suppress real upgrade signals;
+    // mis-flagging an external as owned would force phantom updates.
+    const externals = new Set(["skill-creator", "claude-md-management", "codex"]);
+    for (const entry of catalog.plugins) {
+      if (externals.has(entry.name)) {
+        assert.equal(entry.external, true, `${entry.name} must be external`);
+      } else {
+        assert.notEqual(
+          entry.external,
+          true,
+          `${entry.name} must NOT be external (owned in-tree)`,
+        );
+      }
+    }
+  });
+
   test("external-marketplace plugins do NOT carry expectedVersion", () => {
     // rationale: skill-creator / claude-md-management / codex install from
     // upstream marketplaces; their manifest doesn't live in this repo. The
