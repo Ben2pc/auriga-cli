@@ -1401,14 +1401,46 @@ describe("mergePluginsById — dedup by id + aggregate status", () => {
     assert.equal(out[0].status, "not-installed");
   });
 
-  test("partial install → update-available", () => {
-    // rationale: regression — partial install surfaces yellow so single
-    // Apply backfills the missing agent
+  test("partial install (installed + not-installed) → partial-install + missingAgents", () => {
+    // rationale: revised v1.18.5 — pre-v1.18.5 this folded to
+    // update-available, which surfaced as a misleading "vX → vX" upgrade
+    // when the installed side's version matched the catalog. The new
+    // partial-install state names the actual problem (the other agent
+    // doesn't have it) and missingAgents lets the UI render per-agent
+    // ✓/✗ marks. The Apply path can dispatch a single install to the
+    // missing agent.
     const out = mergePluginsById([
       p("x", ["claude"], "installed"),
       p("x", ["codex"], "not-installed"),
     ]);
     assert.equal(out.length, 1);
+    assert.equal(out[0].status, "partial-install");
+    assert.deepEqual(out[0].missingAgents, ["codex"]);
+  });
+
+  test("update-available on one side + not-installed on other → partial-install", () => {
+    // rationale: missing on one agent supersedes stale-on-another — the
+    // user-facing action is "install on the missing agent" first, then
+    // upgrade. Apply will do both, but the badge color must lead with
+    // "Codex side missing", not "Claude side stale".
+    const out = mergePluginsById([
+      p("x", ["claude"], "update-available"),
+      p("x", ["codex"], "not-installed"),
+    ]);
+    assert.equal(out.length, 1);
+    assert.equal(out[0].status, "partial-install");
+    assert.deepEqual(out[0].missingAgents, ["codex"]);
+  });
+
+  test("update-available on both sides → update-available (pure version drift)", () => {
+    // rationale: regression — version drift on every targeted agent stays
+    // update-available; no partial-install when nothing is "missing".
+    const out = mergePluginsById([
+      p("x", ["claude"], "update-available"),
+      p("x", ["codex"], "update-available"),
+    ]);
+    assert.equal(out.length, 1);
     assert.equal(out[0].status, "update-available");
+    assert.equal(out[0].missingAgents, undefined, "no missingAgents when nothing is missing");
   });
 });

@@ -27,6 +27,7 @@ import path from "node:path";
 import { parse as parseToml } from "smol-toml";
 
 import type {
+  ApplyAgent,
   HookState,
   ItemStatus,
   PluginState,
@@ -233,12 +234,19 @@ function dirExists(p: string): boolean {
  */
 export function mergePluginsById(records: PluginState[]): PluginState[] {
   const byId = new Map<string, PluginState>();
-  const statusByIdPerAgent = new Map<string, ItemStatus[]>();
+  // Per-agent (agent, status) tuples preserved across the fold so the
+  // aggregation step can emit `partial-install` + `missingAgents` when one
+  // side is installed and the other isn't.
+  const perAgentByIdEntries = new Map<string, Array<{ agent: ApplyAgent; status: ItemStatus }>>();
   for (const rec of records) {
+    // Pre-merge records are per-agent: their `agents[]` array contains the
+    // single Agent this row was scanned for. The merge step below unions
+    // those into the final dual-Agent record.
+    const recAgent = rec.agents[0];
     const existing = byId.get(rec.id);
     if (!existing) {
       byId.set(rec.id, { ...rec });
-      statusByIdPerAgent.set(rec.id, [rec.status]);
+      perAgentByIdEntries.set(rec.id, recAgent ? [{ agent: recAgent, status: rec.status }] : []);
       continue;
     }
     // Union agents preserving order: existing first, then any new ones.
@@ -249,25 +257,45 @@ export function mergePluginsById(records: PluginState[]): PluginState[] {
         seen.add(a);
       }
     }
-    statusByIdPerAgent.get(rec.id)!.push(rec.status);
+    if (recAgent) {
+      perAgentByIdEntries.get(rec.id)!.push({ agent: recAgent, status: rec.status });
+    }
   }
-  // Fold each id's per-agent status list into the aggregated status.
-  for (const [id, statuses] of statusByIdPerAgent) {
+  // Fold per-agent (agent, status) tuples into the aggregated status plus
+  // (when applicable) the missingAgents enumeration.
+  for (const [id, perAgent] of perAgentByIdEntries) {
     const rec = byId.get(id);
     if (!rec) continue;
-    rec.status = aggregateStatus(statuses);
+    const aggregated = aggregateStatus(perAgent);
+    rec.status = aggregated.status;
+    if (aggregated.missingAgents && aggregated.missingAgents.length > 0) {
+      rec.missingAgents = aggregated.missingAgents;
+    } else {
+      delete rec.missingAgents;
+    }
   }
   return Array.from(byId.values());
 }
 
-function aggregateStatus(statuses: ItemStatus[]): ItemStatus {
-  if (statuses.length === 0) return "not-installed";
-  if (statuses.every((s) => s === "installed")) return "installed";
-  if (statuses.every((s) => s === "not-installed")) return "not-installed";
-  // Anything else — partial install, pending updates on any agent, mixed
-  // — falls through to update-available so a single Apply backfills the
-  // missing pieces.
-  return "update-available";
+function aggregateStatus(
+  records: Array<{ agent: ApplyAgent; status: ItemStatus }>,
+): { status: ItemStatus; missingAgents?: ApplyAgent[] } {
+  if (records.length === 0) return { status: "not-installed" };
+  if (records.every((r) => r.status === "installed")) return { status: "installed" };
+  if (records.every((r) => r.status === "not-installed")) return { status: "not-installed" };
+  // Mixed. If ANY agent reports not-installed, the row is partially installed
+  // — the user-facing action is "install on the missing side". Surfaces as a
+  // distinct status from version-drift `update-available` so the UI doesn't
+  // render misleading `vX → vX` upgrades (the v1.18.4 deep-review symptom).
+  const missingAgents = records
+    .filter((r) => r.status === "not-installed")
+    .map((r) => r.agent);
+  if (missingAgents.length > 0) {
+    return { status: "partial-install", missingAgents };
+  }
+  // Otherwise version drift on at least one targeted agent — single Apply
+  // upgrades the stale side(s).
+  return { status: "update-available" };
 }
 
 // ---------------------------------------------------------------------------
