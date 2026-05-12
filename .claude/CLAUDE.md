@@ -198,6 +198,30 @@ npx skills update --project
                  # Run after upstream PR-merges. Does not commit or push.
 ```
 
+## Web UI manual verification
+
+Before PR Ready (and again before merging) any change touching `src/state.ts`, `src/scan-catalog.ts`, `src/server.ts`, `src/api-types.ts`, `src/build/generate-catalog.ts`, `ui/`, or any input flowing into `dist/catalog.json` (CLAUDE.md, `.claude/plugins.json`, `.agents/plugins/install.json`, `skills-lock.json`, `plugins/<name>/.claude-plugin/plugin.json`, `.claude/hooks/hooks.json`), spin up the installed `web-ui` from three project roots and eyeball every row. Automated `tests/tarball-shape.test.ts` covers the build-time tarball-shape contract; this manual step covers runtime behavior against real install state, which can't be unit-tested without a hermetic fixture for every project shape.
+
+1. `~/` — exposes scope-boundary corner cases (e.g. `<proj>/.claude/CLAUDE.md` collapsing onto `$HOME/.claude/CLAUDE.md`)
+2. `~/Workspace/` (or any non-auriga-cli parent dir) — baseline "nothing installed" state
+3. The current repo dir — fully-installed dev state
+
+Recipe per root:
+
+```bash
+cd <test-root>
+nohup npx -y auriga-cli@<version> web-ui --no-open > /tmp/auriga-web-ui.log 2>&1 &
+sleep 6
+TOKEN=$(grep -oE 'token=[a-f0-9]+' /tmp/auriga-web-ui.log | head -1 | cut -d= -f2)
+curl -s "http://127.0.0.1:4747/api/state?token=$TOKEN&projectRoot=$PWD" | python3 -m json.tool
+# UI view: http://127.0.0.1:4747/?token=$TOKEN
+pkill -f 'auriga-cli web-ui'
+```
+
+Per-row checks: workflow `status` reflects on-disk reality (CLAUDE.md exists ⊕ auriga header present — "exists but no header" must not silently become `installed`), plugin `agents` map correct, `external: true` on upstream-owned plugins (skill-creator / claude-md-management / codex), dual-Agent partial installs don't surface as confusing `vX → vX` upgrades, no spurious `update-available` rows, top-level `warnings[]` populated when CLAUDE.md / settings.json are present-but-foreign.
+
+For unreleased work (no published version yet), swap `npx auriga-cli@<version>` for a locally-packed tarball (`npm pack --pack-destination /tmp` → install to a scratch prefix → run `auriga-cli web-ui` from that bin). Do NOT run `node dist/cli.js web-ui` from the repo — it bypasses the tarball boundary and hides the entire `runtime-reads-non-shipped-paths` bug class (the v1.18.x regression series).
+
 ## Data Sources
 
 | File | Maintained by | Purpose |
