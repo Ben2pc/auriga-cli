@@ -87,8 +87,9 @@ describe("generateCatalog (build-time)", () => {
       catalog.plugins.find((e) => e.name === "session-instructions-loader")?.description ?? "",
       /^\(Codex\)/,
     );
-    // deep-review is dual-Agent (registered in both .claude/plugins.json
-    // and .agents/plugins/install.json with an external marketplace ref).
+    // deep-review is dual-Agent and locally bundled (registered in
+    // .claude/plugins.json + .agents/plugins/install.json, sourced from
+    // .claude-plugin/marketplace.json + .agents/plugins/marketplace.json).
     assert.match(
       catalog.plugins.find((e) => e.name === "deep-review")?.description ?? "",
       /^\(Claude\/Codex\)/,
