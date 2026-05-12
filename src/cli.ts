@@ -180,8 +180,10 @@ function parseUi(argv: string[]): UiParsed {
     if (t === "--port" || t.startsWith("--port=")) {
       const [v, adv] = readSingleValue(argv, i, "--port");
       const n = Number.parseInt(v, 10);
-      if (!Number.isFinite(n) || n <= 0 || n > 65535) {
-        parseErr(`--port must be a port number in [1, 65535], got '${v}'`);
+      // 0 is a deliberate "OS-assigned ephemeral port" affordance used by
+      // hermetic e2e tests (spec §8.1). Real users pass a normal port.
+      if (!Number.isFinite(n) || n < 0 || n > 65535) {
+        parseErr(`--port must be a port number in [0, 65535], got '${v}'`);
       }
       out.port = n;
       i += adv;

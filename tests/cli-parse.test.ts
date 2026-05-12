@@ -282,11 +282,21 @@ describe("parseArgs", () => {
     );
   });
   test("rejects out-of-range port", () => {
-    expectParseError(["ui", "--port", "0"], /--port must be a port number/i);
+    // 0 is intentionally allowed (OS-assigned ephemeral) for hermetic e2e.
+    // Use the equals form for the negative case since `--port -1` would be
+    // caught earlier as "no value provided" (the value starts with `-`).
+    expectParseError(
+      ["ui", "--port=-1"],
+      /--port must be a port number/i,
+    );
     expectParseError(
       ["ui", "--port", "70000"],
       /--port must be a port number/i,
     );
+  });
+  test("accepts 'ui --port 0' (OS-assigned ephemeral)", () => {
+    const r = parseArgs(["ui", "--port", "0"]);
+    assert.deepEqual(r, { command: "ui", ui: { port: 0 } });
   });
   test("rejects unknown 'ui' flag", () => {
     expectParseError(["ui", "--zonk"], /unknown argument '--zonk' for 'ui'/i);
