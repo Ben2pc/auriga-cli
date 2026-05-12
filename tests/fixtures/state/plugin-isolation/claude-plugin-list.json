@@ -1,0 +1,32 @@
+{
+  "installed": [
+    {
+      "id": "good-a@auriga-cli",
+      "name": "good-a",
+      "version": "v1.0.0"
+    },
+    {
+      "id": "good-b@auriga-cli",
+      "name": "good-b",
+      "version": "v2.0.0"
+    },
+    {
+      "id": "broken-c@auriga-cli",
+      "name": "broken-c"
+    }
+  ],
+  "available": [
+    {
+      "id": "good-a@auriga-cli",
+      "source": { "ref": "v1.0.0" }
+    },
+    {
+      "id": "good-b@auriga-cli",
+      "source": { "ref": "v3.0.0" }
+    },
+    {
+      "id": "broken-c@auriga-cli",
+      "source": null
+    }
+  ]
+}

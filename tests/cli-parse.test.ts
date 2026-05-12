@@ -250,4 +250,58 @@ describe("parseArgs", () => {
       /--plugin .* already (set|given)|repeated.*--plugin/i,
     );
   });
+
+  // web-ui subcommand (M4 T4.3)
+  test("parses 'web-ui' with no args → command:'web-ui', ui:{}", () => {
+    const r = parseArgs(["web-ui"]);
+    assert.deepEqual(r, { command: "web-ui", ui: {} });
+  });
+  test("parses 'web-ui --port 5000'", () => {
+    const r = parseArgs(["web-ui", "--port", "5000"]);
+    assert.deepEqual(r, { command: "web-ui", ui: { port: 5000 } });
+  });
+  test("parses 'web-ui --port=5000' (equals form)", () => {
+    const r = parseArgs(["web-ui", "--port=5000"]);
+    assert.deepEqual(r, { command: "web-ui", ui: { port: 5000 } });
+  });
+  test("parses 'web-ui --ui-dir /tmp/x --no-open'", () => {
+    const r = parseArgs(["web-ui", "--ui-dir", "/tmp/x", "--no-open"]);
+    assert.deepEqual(r, {
+      command: "web-ui",
+      ui: { uiDir: "/tmp/x", noOpen: true },
+    });
+  });
+  test("'web-ui --help' → help command", () => {
+    const r = parseArgs(["web-ui", "--help"]);
+    assert.deepEqual(r, { command: "help" });
+  });
+  test("rejects non-numeric port", () => {
+    expectParseError(
+      ["web-ui", "--port", "abc"],
+      /--port must be a port number/i,
+    );
+  });
+  test("rejects out-of-range port", () => {
+    // 0 is intentionally allowed (OS-assigned ephemeral) for hermetic e2e.
+    // Use the equals form for the negative case since `--port -1` would be
+    // caught earlier as "no value provided" (the value starts with `-`).
+    expectParseError(
+      ["web-ui", "--port=-1"],
+      /--port must be a port number/i,
+    );
+    expectParseError(
+      ["web-ui", "--port", "70000"],
+      /--port must be a port number/i,
+    );
+  });
+  test("accepts 'web-ui --port 0' (OS-assigned ephemeral)", () => {
+    const r = parseArgs(["web-ui", "--port", "0"]);
+    assert.deepEqual(r, { command: "web-ui", ui: { port: 0 } });
+  });
+  test("rejects unknown 'web-ui' flag", () => {
+    expectParseError(
+      ["web-ui", "--zonk"],
+      /unknown argument '--zonk' for 'web-ui'/i,
+    );
+  });
 });

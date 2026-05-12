@@ -1,0 +1,13 @@
+{
+  "hooks": [
+    {
+      "name": "notify",
+      "description": "macOS notification on prompts",
+      "runtimePlatforms": ["darwin"],
+      "settingsEvents": [{ "event": "Notification" }],
+      "command": "node \"$HOOK_DIR/index.mjs\"",
+      "files": ["index.mjs"],
+      "marker": "auriga:notify"
+    }
+  ]
+}

@@ -1,4 +1,4 @@
-import { execSync } from "node:child_process";
+import { execSync, spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import crypto from "node:crypto";
 import fs from "node:fs";
@@ -62,6 +62,14 @@ export interface InstallOpts {
   /** `true` = drive via inquirer prompts (existing interactive UX);
    *  `false` = non-interactive, use only the fields above. */
   interactive: boolean;
+  /**
+   * Optional per-line callback for installer stdout/stderr. When set,
+   * exec uses spawn under the hood and forwards each line. Used by the
+   * Web UI server's /api/apply path to stream installer output through
+   * SSE item:log events (spec §6.4). When omitted, installers fall back
+   * to inherit-style exec which writes to the parent process terminal.
+   */
+  onLog?: (line: string, stream: "stdout" | "stderr") => void;
 }
 
 /**
@@ -107,6 +115,73 @@ export function exec(
     stdio: opts?.inherit ? "inherit" : "pipe",
     encoding: "utf-8",
   }) as string;
+}
+
+/**
+ * Async variant of `exec`: spawns the command, captures stdout/stderr
+ * line-by-line via the per-line callback, and resolves on exit code 0.
+ * Non-zero exit rejects with an Error whose `stderr` field carries the
+ * buffered stderr and whose message mirrors execSync's "Command failed:"
+ * shape — so the existing `isSkillsRemoveUnsupported` matcher still works.
+ *
+ * Used by Web UI install paths to forward installer output through SSE.
+ * Synchronous callers continue to use `exec`.
+ */
+export function execAsync(
+  cmd: string,
+  opts: {
+    cwd?: string;
+    onLine?: (line: string, stream: "stdout" | "stderr") => void;
+  },
+): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const child = spawn(cmd, { cwd: opts.cwd, shell: true });
+    let stdout = "";
+    let stderr = "";
+
+    const lineBuffers: Record<"stdout" | "stderr", string> = {
+      stdout: "",
+      stderr: "",
+    };
+    const drain = (stream: "stdout" | "stderr", chunk: Buffer): void => {
+      const text = chunk.toString("utf-8");
+      if (stream === "stdout") stdout += text;
+      else stderr += text;
+      lineBuffers[stream] += text;
+      let idx: number;
+      while ((idx = lineBuffers[stream].indexOf("\n")) !== -1) {
+        const line = lineBuffers[stream].slice(0, idx).replace(/\r$/, "");
+        lineBuffers[stream] = lineBuffers[stream].slice(idx + 1);
+        if (opts.onLine && line.length > 0) opts.onLine(line, stream);
+      }
+    };
+
+    child.stdout?.on("data", (chunk: Buffer) => drain("stdout", chunk));
+    child.stderr?.on("data", (chunk: Buffer) => drain("stderr", chunk));
+
+    child.on("error", (err) => reject(err));
+    child.on("close", (code) => {
+      // Flush trailing partial lines (no final newline).
+      for (const s of ["stdout", "stderr"] as const) {
+        if (lineBuffers[s].length > 0 && opts.onLine) {
+          opts.onLine(lineBuffers[s], s);
+        }
+      }
+      if (code === 0) {
+        resolve(stdout);
+      } else {
+        const err = new Error(`Command failed: ${cmd}`) as Error & {
+          stderr: string;
+          stdout: string;
+          status: number | null;
+        };
+        err.stderr = stderr;
+        err.stdout = stdout;
+        err.status = code;
+        reject(err);
+      }
+    });
+  });
 }
 
 // --- Language config ---

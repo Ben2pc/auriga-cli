@@ -19,10 +19,26 @@ src/
     generate-catalog.ts — Build-time: parses SKILL.md + plugin/hook configs → dist/catalog.json
   codex-plugin-config.ts — Codex plugin manifest/config validators + safe local-path helpers
   utils.ts      — Constants, remote fetch, exec, logging, InstallOpts, getPackageRoot
-  workflow.ts   — CLAUDE.md + AGENTS.md installation (throws on failure in non-interactive)
-  skills.ts     — Workflow + recommended skills installation; exports WORKFLOW_SKILLS
-  plugins.ts    — Plugin + marketplace installation
-  hooks.ts      — Per-hook directory copy + idempotent settings merge
+  workflow.ts   — CLAUDE.md + AGENTS.md installation (throws on failure in non-interactive). Also exports `uninstallWorkflow({force, cwd})` for the Web UI's /api/apply route.
+  skills.ts     — Workflow + recommended skills installation; exports WORKFLOW_SKILLS and `uninstallSkill(name, opts)`
+  plugins.ts    — Plugin + marketplace installation; exports `uninstallPlugin(id, agent, opts)`
+  hooks.ts      — Per-hook directory copy + idempotent settings merge; exports `uninstallHook(name, opts)`
+  api-types.ts  — Shared TS types between src/server.ts and ui/ (StateReport, ApplyRequest, ProgressEvent…)
+  state.ts      — `scanState(projectRoot, catalog)` — per-category three-state scanner for /api/state
+  scan-catalog.ts — Build-time catalog → runtime ScanCatalog adapter (workflow version, skill hashes, plugin agent map, hook hashes)
+  server.ts     — Local HTTP server (token + Origin auth, SSE /api/progress, static asset serve from uiDir). Boots via `npx auriga-cli web-ui`
+  apply-handlers.ts — `buildDefaultApplyHandlers(ctx)` wires the bulk installers as per-item ApplyHandlers via `selected: [name]`. Web UI's CLI mode uses this; tests inject their own mocks
+  ui-fetch.ts   — Downloads `ui-bundle.tar.gz` + `.sha256` for the current CLI version from GitHub Releases, SHA256-verifies, extracts to `~/.cache/auriga-cli/ui-v<version>/`. LRU eviction keeps last 3 versions.
+
+ui/             — Vite + React 19 + Tailwind v4 subproject. Built artifacts ship as a GitHub Release asset (ui-bundle.tar.gz) — release.yml builds + uploads on tag push. CLI lazy-fetches via ui-fetch.ts.
+                    src/components/  TopBar / Layout / StateCard / LogPanel
+                    src/pages/Dashboard.tsx
+                    src/styles/tokens.css     Anthropic visual tokens (see docs/design/anthropic-style-reference.md)
+                    src/styles/index.css      Tailwind v4 @theme + base
+                    src/lib/api.ts            fetch wrapper (token from URL ?token=)
+                    vite.config.ts            dev proxy /api → http://127.0.0.1:4747 (changeOrigin: false)
+
+tests/web-ui-e2e.test.ts — Hermetic end-to-end harness for `npx auriga-cli web-ui`. Spawns the real CLI in a HOME-redirected scratch dir, hits /api/state + /api/apply, asserts filesystem side effects in scratch and verifies the real $HOME stays untouched (canary). Not part of `npm test` — invoke via `npm run test:web-ui-e2e`.
 
 .claude/hooks/
   hooks.json    — Hook registry (parallels .claude/plugins.json)

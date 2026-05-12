@@ -41,11 +41,23 @@ export interface InstallParsed {
   agent?: PluginAgent;
 }
 
+export interface UiParsed {
+  /** Override the default port (4747). When set, the fallback range is
+   *  also skipped — we either succeed on this port or fail. */
+  port?: number;
+  /** Override ui-fetch; serve from this local directory instead. Useful
+   *  for development against `ui/dist` without a release tag. */
+  uiDir?: string;
+  /** Skip opening the browser. Prints the URL only. */
+  noOpen?: boolean;
+}
+
 export type ParsedArgs =
   | { command: "help"; helpType?: CategoryName }
   | { command: "version" }
   | { command: "guide" }
-  | { command: "install"; install: InstallParsed };
+  | { command: "install"; install: InstallParsed }
+  | { command: "web-ui"; ui: UiParsed };
 
 const CATEGORY_SET = new Set<CategoryName>(CATEGORY_NAMES);
 
@@ -133,6 +145,14 @@ export function parseArgs(argv: string[]): ParsedArgs {
     }
     return { command: "guide" };
   }
+  if (head === "web-ui") {
+    try {
+      return { command: "web-ui", ui: parseUi(argv.slice(1)) };
+    } catch (e) {
+      if (e instanceof PerTypeHelpRequest) return { command: "help" };
+      throw e;
+    }
+  }
   if (head !== "install") {
     parseErr(`unknown argument '${head}'. Run 'npx auriga-cli --help' for usage.`);
   }
@@ -145,6 +165,44 @@ export function parseArgs(argv: string[]): ParsedArgs {
     }
     throw e;
   }
+}
+
+function parseUi(argv: string[]): UiParsed {
+  const out: UiParsed = {};
+  let i = 0;
+  while (i < argv.length) {
+    const t = argv[i];
+    if (t === "--help" || t === "-h") {
+      // ui --help routes to the top-level help — keeps the parser narrow
+      // and avoids a per-command help renderer for one subcommand.
+      throw new PerTypeHelpRequest(undefined);
+    }
+    if (t === "--port" || t.startsWith("--port=")) {
+      const [v, adv] = readSingleValue(argv, i, "--port");
+      const n = Number.parseInt(v, 10);
+      // 0 is a deliberate "OS-assigned ephemeral port" affordance used by
+      // hermetic e2e tests (spec §8.1). Real users pass a normal port.
+      if (!Number.isFinite(n) || n < 0 || n > 65535) {
+        parseErr(`--port must be a port number in [0, 65535], got '${v}'`);
+      }
+      out.port = n;
+      i += adv;
+      continue;
+    }
+    if (t === "--ui-dir" || t.startsWith("--ui-dir=")) {
+      const [v, adv] = readSingleValue(argv, i, "--ui-dir");
+      out.uiDir = v;
+      i += adv;
+      continue;
+    }
+    if (t === "--no-open") {
+      out.noOpen = true;
+      i += 1;
+      continue;
+    }
+    parseErr(`unknown argument '${t}' for 'web-ui'. Run 'npx auriga-cli --help' for usage.`);
+  }
+  return out;
 }
 
 function parseInstall(argv: string[]): InstallParsed {
@@ -380,6 +438,10 @@ export async function main(argv: string[]): Promise<number> {
     return 0;
   }
 
+  if (parsed.command === "web-ui") {
+    return runUi(parsed.ui, version);
+  }
+
   // install — catalog is required for filter validation and for the TTY
   // menu's category descriptions; fail-fast at entry rather than produce
   // a cryptic error mid-dispatch (spec §7 / §11 acceptance).
@@ -570,6 +632,191 @@ async function dispatchInstaller(
     case "plugins": return installPlugins(packageRoot, opts);
     case "hooks": return installHooks(packageRoot, opts);
   }
+}
+
+// ---------------------------------------------------------------------------
+// `web-ui` subcommand — boots the local Web UI server (spec §4)
+// ---------------------------------------------------------------------------
+
+const UI_DEFAULT_PORT = 4747;
+const UI_PORT_RANGE = 10; // 4747..4756
+const UI_HEARTBEAT_TIMEOUT_MS = 15_000;
+
+async function runUi(p: UiParsed, version: string): Promise<number> {
+  // Lazy-load the server-side deps so the install / guide paths stay light.
+  const { randomBytes } = await import("node:crypto");
+  const { startServer } = await import("./server.js");
+  const { buildDefaultApplyHandlers } = await import("./apply-handlers.js");
+  const { buildScanCatalog } = await import("./scan-catalog.js");
+  const { ensureUiBundle } = await import("./ui-fetch.js");
+
+  const cwd = process.cwd();
+  const packageRoot = getPackageRoot();
+
+  // 1. Resolve UI bundle directory.
+  let uiDir: string;
+  if (p.uiDir) {
+    uiDir = path.resolve(p.uiDir);
+    if (!fs.existsSync(path.join(uiDir, "index.html"))) {
+      log.error(`--ui-dir does not contain index.html: ${uiDir}`);
+      return 3;
+    }
+  } else if (process.env.DEV === "1") {
+    // Dev convenience: prefer the locally-built ui/dist over a network fetch.
+    const localDist = path.join(packageRoot, "ui", "dist");
+    if (fs.existsSync(path.join(localDist, "index.html"))) {
+      uiDir = localDist;
+    } else {
+      log.error(
+        "DEV mode: ui/dist not built. Run 'npm --prefix ui run build' or unset DEV to fetch from GitHub.",
+      );
+      return 3;
+    }
+  } else {
+    try {
+      uiDir = await ensureUiBundle({
+        version,
+        onLog: (line) => log.ok(line),
+      });
+    } catch (e) {
+      log.error(
+        `Failed to fetch UI bundle: ${(e as Error).message}\n` +
+          `  Try again or pass --ui-dir <path> with a locally-built bundle.`,
+      );
+      return 3;
+    }
+  }
+
+  // 2. Build scan catalog → ApplyCatalog + pluginAgentsByName.
+  let scanCatalog: Awaited<ReturnType<typeof buildScanCatalog>>;
+  try {
+    scanCatalog = await buildScanCatalog(packageRoot);
+  } catch (e) {
+    log.error(`Failed to build catalog: ${(e as Error).message}`);
+    return 1;
+  }
+
+  const applyCatalog = {
+    // Workflow is a singleton (one CLAUDE.md per project); we pick the
+    // sentinel name "workflow" to match what the Web UI's Dashboard sends
+    // and to remain semantically self-describing. The handler ignores the
+    // name argument either way.
+    workflow: new Set<string>(["workflow"]),
+    skill: new Set<string>(Object.keys(scanCatalog.skills)),
+    "recommended-skill": new Set<string>(
+      Object.keys(scanCatalog.recommendedSkills),
+    ),
+    plugin: new Set<string>(Object.keys(scanCatalog.plugins)),
+    hook: new Set<string>(Object.keys(scanCatalog.hooks)),
+  };
+  const pluginAgentsByName = new Map<string, ("claude" | "codex")[]>();
+  for (const [name, def] of Object.entries(scanCatalog.plugins)) {
+    pluginAgentsByName.set(name, def.agents);
+  }
+  const applyHandlers = buildDefaultApplyHandlers({
+    packageRoot,
+    cwd,
+    pluginAgentsByName,
+  });
+
+  // 3. Token: 32 bytes hex per spec §4.4.
+  const token = randomBytes(32).toString("hex");
+
+  // 4. Bind port: try requested → otherwise 4747..4756 in sequence.
+  // Use `!== undefined` so `--port 0` (OS-ephemeral) is honored. `0` is
+  // falsy in JS; `p.port ? [p.port] : range` would silently fall back to
+  // the default range and break hermetic e2e isolation.
+  const ports = p.port !== undefined
+    ? [p.port]
+    : Array.from({ length: UI_PORT_RANGE }, (_, i) => UI_DEFAULT_PORT + i);
+  let server: Awaited<ReturnType<typeof startServer>> | null = null;
+  let lastErr: Error | null = null;
+  for (const port of ports) {
+    try {
+      server = await startServer({
+        port,
+        token,
+        cwd,
+        packageRoot,
+        heartbeatTimeoutMs: UI_HEARTBEAT_TIMEOUT_MS,
+        applyHandlers,
+        applyCatalog,
+        uiDir,
+      });
+      break;
+    } catch (e) {
+      lastErr = e as Error;
+      // Only swallow address-in-use; everything else propagates.
+      if (!/EADDRINUSE|EACCES/i.test(lastErr.message)) {
+        log.error(`Failed to start server on port ${port}: ${lastErr.message}`);
+        return 1;
+      }
+    }
+  }
+  if (!server) {
+    log.error(
+      `All ports occupied in range (${ports[0]}..${ports[ports.length - 1]}). ` +
+        `Try '--port <n>' or 'npx auriga-cli' for the TTY menu. Last error: ${lastErr?.message ?? "unknown"}`,
+    );
+    return 2;
+  }
+
+  // 5. URL + browser open.
+  const url = `http://127.0.0.1:${server.port}/?token=${token}`;
+  process.stdout.write(
+    `\n${highlight("auriga UI is live:")}  ${url}\n` +
+      `   (closing the browser shuts the server down after ~${Math.round(UI_HEARTBEAT_TIMEOUT_MS / 1000)}s of inactivity)\n` +
+      `   Note: the URL contains a per-session token — don't paste it into chats, CI logs, or screenshots.\n\n`,
+  );
+  if (!p.noOpen) {
+    await openBrowser(url);
+  }
+
+  // 6. Block until the server fully stops. The heartbeat closes it after
+  //    UI_HEARTBEAT_TIMEOUT_MS without a /api/ping; SIGINT triggers an
+  //    explicit close().
+  const onSig = (): void => {
+    void server!.close();
+  };
+  process.once("SIGINT", onSig);
+  process.once("SIGTERM", onSig);
+  try {
+    await server.closed;
+  } finally {
+    process.off("SIGINT", onSig);
+    process.off("SIGTERM", onSig);
+  }
+  return 0;
+}
+
+/** Best-effort cross-platform browser open. Failure is non-fatal — the
+ *  printed URL is still actionable. */
+async function openBrowser(url: string): Promise<void> {
+  const opener: [string, string[]] =
+    process.platform === "darwin"
+      ? ["open", [url]]
+      : process.platform === "win32"
+        ? ["cmd", ["/c", "start", "", url]]
+        : ["xdg-open", [url]];
+  try {
+    const { spawn } = await import("node:child_process");
+    const proc = spawn(opener[0], opener[1], {
+      stdio: "ignore",
+      detached: true,
+    });
+    proc.on("error", () => {
+      /* swallow: URL was already printed */
+    });
+    proc.unref();
+  } catch {
+    /* swallow */
+  }
+}
+
+/** Bold + cyan when stdout is a TTY; otherwise plain. */
+function highlight(text: string): string {
+  if (!process.stdout.isTTY || process.env.NO_COLOR) return text;
+  return `\x1b[1;36m${text}\x1b[0m`;
 }
 
 // ---------------------------------------------------------------------------

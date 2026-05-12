@@ -86,6 +86,29 @@ jobs:
         # + skills filter) still validate the tarball + fetch pipeline.
         run: npm run test:e2e
 
+      - name: Build Web UI bundle
+        # The `ui/` subproject ships its build output as a Release asset
+        # rather than via npm so `npx auriga-cli ui` can lazy-fetch the
+        # exact same artifact users see (no version drift). Per spec §9:
+        # UI bundle + CLI share the same version tag.
+        # Failure here aborts the release — a half-shipped UI is worse
+        # than a delayed release.
+        run: |
+          cd ui
+          npm ci
+          npm run build
+          cd ..
+          # Pack the build output flat (no leading ./ui or ./dist segment)
+          # so ensureUiBundle's `tar -xf` lands index.html directly under
+          # the version cache dir.
+          tar -czf ui-bundle.tar.gz -C ui/dist .
+
+      - name: Compute UI bundle SHA256
+        # Side-by-side `.sha256` so the client (`src/ui-fetch.ts`) can
+        # verify integrity against the same Release asset set.
+        # GNU shasum's two-space format: `<hex>  <filename>\n`.
+        run: shasum -a 256 ui-bundle.tar.gz > ui-bundle.sha256
+
       - name: Publish to npm
         # Publish only on tag push, OR on workflow_dispatch explicitly
         # invoked against a tag ref with dry_run=false. The tag-ref
@@ -141,4 +164,5 @@ jobs:
             --title "$GITHUB_REF_NAME" \
             --generate-notes \
             --verify-tag \
-            $PRERELEASE_FLAG
+            $PRERELEASE_FLAG \
+            ui-bundle.tar.gz ui-bundle.sha256

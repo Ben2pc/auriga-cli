@@ -20,6 +20,8 @@ USAGE
                                                          (excludes recommended — install separately)
   npx auriga-cli install <type> [type-specific flags]    single category
   npx auriga-cli install <type> --help                   per-category help + catalog subset
+  npx auriga-cli web-ui [--port <n>] [--ui-dir <path>] [--no-open]
+                                                         open the local Web UI (spec §4)
   npx auriga-cli --help
 
   For non-interactive (Agent) use, prepend npx's own -y flag:

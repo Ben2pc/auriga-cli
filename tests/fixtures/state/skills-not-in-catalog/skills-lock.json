@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "skills": {
+    "brainstorming": {
+      "source": "obra/superpowers",
+      "sourceType": "github",
+      "skillPath": "skills/brainstorming/SKILL.md",
+      "computedHash": "hash-brainstorming-current"
+    },
+    "some-orphan-skill-not-in-catalog": {
+      "source": "random/repo",
+      "sourceType": "github",
+      "skillPath": "skills/orphan/SKILL.md",
+      "computedHash": "hash-orphan"
+    }
+  }
+}

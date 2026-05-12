@@ -50,6 +50,18 @@ npx -y auriga-cli --help                     # full catalog + flags
 
 Exit codes: `0` success, `1` fatal (precheck / parse / fetch), `2` partial success — `stderr` lists per-category `[OK]/[FAIL]` and a `Retry:` hint. After install, reload the Claude Code or Codex session so the new `CLAUDE.md` / skills / plugins / hook registrations are picked up.
 
+### Web UI (opt-in)
+
+For a browser-based view of what's installed and one-click apply, run:
+
+```bash
+npx auriga-cli web-ui
+```
+
+This boots a local server on `127.0.0.1`, opens your default browser, and serves a dashboard that scans the current project, shows each module's status (installed / update-available / not-installed), and applies install / update / uninstall in a queue with live SSE progress. The server shuts down on its own ~15 s after the browser closes.
+
+The UI is opt-in — `npx auriga-cli` still launches the TTY menu below.
+
 ### Interactive menu
 
 ```bash

@@ -14,7 +14,7 @@ import {
   type CodexMarketplacePlugin,
 } from "./codex-plugin-config.js";
 import { validateMarketplaceField, type MarketplaceRef } from "./marketplace.js";
-import { atomicWriteFile, exec, fetchExtraContent, log, withEsc } from "./utils.js";
+import { atomicWriteFile, exec, execAsync, fetchExtraContent, log, withEsc } from "./utils.js";
 import type { InstallOpts, PluginAgent, PluginsConfig, PluginDef } from "./utils.js";
 
 // Plugin names and plugin-package names end up in `claude plugins ...`
@@ -670,7 +670,13 @@ export async function installPlugins(
       for (const [name, source] of marketplacesToAdd) {
         console.log(`\nAdding marketplace: ${name}...`);
         try {
-          exec(`claude plugins marketplace add ${source}`, { inherit: true });
+          const cmd = `claude plugins marketplace add ${source}`;
+          if (opts.onLog) {
+            opts.onLog(`▸ ${cmd}`, "stdout");
+            await execAsync(cmd, { onLine: opts.onLog });
+          } else {
+            exec(cmd, { inherit: true });
+          }
           log.ok(`Marketplace ${name} added`);
         } catch {
           log.error(`Failed to add marketplace: ${name}`);
@@ -681,7 +687,13 @@ export async function installPlugins(
       for (const name of marketplacesToUpdate) {
         console.log(`\nUpdating marketplace: ${name}...`);
         try {
-          exec(`claude plugins marketplace update ${name}`, { inherit: true });
+          const cmd = `claude plugins marketplace update ${name}`;
+          if (opts.onLog) {
+            opts.onLog(`▸ ${cmd}`, "stdout");
+            await execAsync(cmd, { onLine: opts.onLog });
+          } else {
+            exec(cmd, { inherit: true });
+          }
           log.ok(`Marketplace ${name} updated`);
         } catch (e) {
           // Surface the underlying error so a 6-month-out reader can tell
@@ -696,9 +708,13 @@ export async function installPlugins(
       for (const plugin of selected) {
         console.log(`\nInstalling ${plugin.name}...`);
         try {
-          exec(`claude plugins install ${plugin.package} --scope ${scope}`, {
-            inherit: true,
-          });
+          const cmd = `claude plugins install ${plugin.package} --scope ${scope}`;
+          if (opts.onLog) {
+            opts.onLog(`▸ ${cmd}`, "stdout");
+            await execAsync(cmd, { onLine: opts.onLog });
+          } else {
+            exec(cmd, { inherit: true });
+          }
           log.ok(`${plugin.name} installed`);
         } catch {
           log.error(`Failed to install: ${plugin.name}`);
@@ -725,5 +741,130 @@ export async function installPlugins(
         `${failures.length} plugin operation(s) failed: ${failures.join(", ")}`,
       );
     }
+  }
+}
+
+// --- Uninstall ----------------------------------------------------------------
+
+// Plugin id format: `<plugin>@<marketplace>` (matches the Codex config.toml
+// key shape and Claude Code's `claude plugins install ...` argument).
+// Tightened with the same name regex used everywhere else in this file
+// (PLUGIN_NAME_RE on the plugin side, MARKETPLACE_NAME_RE on the
+// marketplace side, both anchored). `name` is interpolated into a shell
+// command (Claude path) and used as a filesystem segment (Codex path);
+// rejecting unsafe shapes here closes both attack surfaces in one place.
+const PLUGIN_ID_RE = /^([A-Za-z0-9][A-Za-z0-9._-]{0,127})@([A-Za-z0-9][A-Za-z0-9._-]{0,127})$/;
+
+function parsePluginId(id: string): { plugin: string; marketplace: string } {
+  const m = PLUGIN_ID_RE.exec(id);
+  if (!m) {
+    throw new Error(
+      `uninstallPlugin: invalid plugin id ${JSON.stringify(id)}; expected <plugin>@<marketplace>`,
+    );
+  }
+  return { plugin: m[1], marketplace: m[2] };
+}
+
+/**
+ * Remove `[plugins."<id>"]` from a parsed Codex config TOML tree.
+ * Returns true if anything was removed. Idempotent: missing key → false.
+ *
+ * Pure function operating on the parsed tree — no I/O. Lets the test
+ * harness assert tree shape without touching disk + lets the I/O wrapper
+ * skip the atomic write when nothing changed.
+ */
+function removeCodexPluginFromConfig(
+  parsed: TomlTable,
+  pluginId: string,
+): boolean {
+  const plugins = parsed.plugins;
+  if (!isTomlTable(plugins)) return false;
+  if (!(pluginId in plugins)) return false;
+  delete plugins[pluginId];
+  return true;
+}
+
+/**
+ * Uninstall a single plugin.
+ *
+ *   Claude side: shells out to `claude plugins uninstall <id>` (the
+ *     canonical CLI path). Errors are propagated — the CLI sometimes
+ *     surfaces nuanced failure modes (marketplace gone, network) that
+ *     the caller needs to see verbatim.
+ *
+ *   Codex side: no `codex plugin uninstall` exists today (spec §10.4
+ *     flagged this as v0.1 needs-confirm). We mimic the install path
+ *     in reverse:
+ *       1. Read + parse `~/.codex/config.toml`, delete `[plugins."<id>"]`,
+ *          atomic write back. Throws on parse error (don't half-corrupt).
+ *       2. rm `~/.codex/plugins/cache/<marketplace>/<plugin>/` directory.
+ *     Both steps are idempotent — missing config / missing cache dir is
+ *     a no-op (the user may have manually cleaned half of the install).
+ *
+ *     Caveat: we deliberately do NOT remove the marketplace itself. A
+ *     single marketplace may host multiple plugins; tearing it down
+ *     because one plugin left would break others. The user can
+ *     `codex plugin marketplace remove` separately when they want.
+ *
+ * Validation happens before any I/O — a malformed id throws cleanly with
+ * no side effects, so retries are safe.
+ */
+export async function uninstallPlugin(
+  id: string,
+  agent: "claude" | "codex",
+  opts: { cwd: string; onLog?: (line: string) => void },
+): Promise<void> {
+  const { plugin, marketplace } = parsePluginId(id);
+  const emit = (line: string): void => { opts.onLog?.(line); };
+
+  if (agent === "claude") {
+    // Note: scope is intentionally NOT specified. `claude plugins
+    // uninstall <id>` operates against whatever scope the plugin is
+    // installed in (user / project) — letting the CLI find it is
+    // more robust than guessing wrong and silently no-op'ing.
+    exec(`claude plugins uninstall ${id}`, { cwd: opts.cwd, inherit: true });
+    log.ok(`${id} uninstalled from Claude Code`);
+    emit(`uninstalled ${id} from Claude Code`);
+    return;
+  }
+
+  // Codex path.
+  const home = codexHome();
+  const configPath = path.join(home, "config.toml");
+
+  if (fs.existsSync(configPath)) {
+    const content = fs.readFileSync(configPath, "utf-8");
+    // Parse-then-mutate: any parse failure aborts BEFORE we touch the
+    // filesystem (cache dir removal also gets skipped) so a damaged
+    // config doesn't end up half-uninstalled. The test "config.toml
+    // damaged → throw before mutation" locks this in.
+    const parsed = parseCodexConfigToml(content, configPath);
+    const removed = removeCodexPluginFromConfig(parsed, id);
+    if (removed) {
+      const next = stringifyToml(parsed);
+      atomicWriteFile(configPath, next.endsWith("\n") ? next : `${next}\n`);
+      log.ok(`${id} disabled in Codex config.toml`);
+      emit(`removed ${id} from Codex config.toml`);
+    } else {
+      log.skip(`${id} not present in Codex config.toml`);
+      emit(`${id} not present in Codex config.toml`);
+    }
+  } else {
+    log.skip(`Codex config.toml not present`);
+    emit(`Codex config.toml not present`);
+  }
+
+  // Cache dir: ~/.codex/plugins/cache/<marketplace>/<plugin>/
+  // PLUGIN_ID_RE constrains both segments to a safe charset, so the
+  // path can't escape via injection. rmSync with recursive+force is
+  // the standard rm-rf idiom; missing dir is a no-op.
+  const cacheDir = path.join(home, "plugins", "cache", marketplace, plugin);
+  if (fs.existsSync(cacheDir)) {
+    fs.rmSync(cacheDir, { recursive: true, force: true });
+    log.ok(`${id} cache directory removed`);
+    emit(`removed Codex cache directory for ${id}`);
+  } else {
+    log.skip(`${id} cache directory not present`);
+    emit(`Codex cache directory for ${id} not present`);
   }
 }
