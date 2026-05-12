@@ -368,6 +368,26 @@ describe("scanState — #3 Workflow / user scope version mismatch", () => {
     assert.equal(report.workflow.expectedVersion, "1.6.0");
     assert.equal((report.workflow as any).observedScope, "user");
   });
+
+  test("#3b workflow/empty-expectedVersion trusts installed (no phantom update-available)", async () => {
+    // rationale: scan-catalog may fail to extract auriga-cli's own
+    // CLAUDE.md header (build-time miss / malformed shipped template), in
+    // which case catalog.workflowVersion is "". Without an explicit bypass
+    // the comparison `"1.6.0" === ""` is false and a freshly-installed
+    // workflow flips to "update-available" against the empty string —
+    // user has nothing to upgrade to and the UI gives no actionable info.
+    const home = makeScratch("home3b");
+    writeWorkflowFile(path.join(home, ".claude", "CLAUDE.md"), "1.6.0");
+    redirectHome(home);
+
+    const report = await scan(makeScratch("proj3b"), makeCatalog({ workflowVersion: "" }), {
+      scopes: { workflow: "user" },
+      homeDir: home,
+    });
+
+    assert.equal(report.workflow.status, "installed", "empty expectedVersion must NOT trigger update-available");
+    assert.equal(report.workflow.currentVersion, "1.6.0");
+  });
 });
 
 // ===========================================================================
@@ -753,6 +773,38 @@ describe("scanState — #15 Plugins (Codex) sanity (unchanged behavior)", () => 
     assert.equal(p.versionSource, "catalog");
     // Codex is user-scope only.
     assert.equal((p as any).observedScope, "user");
+  });
+
+  test("#15b plugins/codex: catalog bare name resolves to enabled `<plugin>@<marketplace>` entry", async () => {
+    // rationale: production catalog tracks bare names (e.g. "auriga-go") but
+    // ~/.codex/config.toml [plugins.<plugin>@<marketplace>] sections plus
+    // defaultReadCodexPluginsDir emit `<plugin>@<marketplace>` keys (e.g.
+    // "auriga-go@auriga-cli"). Without dual-indexing the bare-named catalog
+    // entry can never match, so every dual-Agent plugin permanently reports
+    // as not-installed on the Codex side → mergePluginsById then folds that
+    // into a sticky "update-available" even when both sides are installed.
+    const home = makeScratch("home15b");
+    redirectHome(home);
+    const catalog = makeCatalog({
+      plugins: {
+        "auriga-go": {
+          description: "",
+          agents: ["codex"],
+          expectedVersion: "1.1.0",
+        },
+      },
+    });
+    const report = await scan(makeScratch("proj15b"), catalog, {
+      // Codex emits the @marketplace form on both reads.
+      readCodexConfig: async () => `[plugins."auriga-go@auriga-cli"]\nenabled = true\n`,
+      readCodexPluginsDir: async () => new Map([["auriga-go@auriga-cli", "1.1.0"]]),
+      homeDir: home,
+    });
+
+    const p = report.plugins.find((x) => x.id === "auriga-go")!;
+    assert.ok(p, "catalog bare-name row must be present in the report");
+    assert.equal(p.status, "installed", "bare-name catalog entry must resolve to the @marketplace TOML key");
+    assert.equal(p.currentVersion, "1.1.0");
   });
 });
 

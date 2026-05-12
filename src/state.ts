@@ -310,8 +310,12 @@ function scanWorkflow(
     const m = WORKFLOW_HEADER_RE.exec(line);
     if (m) {
       const currentVersion = m[1];
+      // Empty expectedVersion means scan-catalog couldn't extract the
+      // shipped workflow's header (auriga-cli's own CLAUDE.md missing or
+      // malformed at build time). Trust the installed version rather than
+      // forcing a phantom "update-available" against the empty string.
       const status: ItemStatus =
-        currentVersion === expectedVersion ? "installed" : "update-available";
+        !expectedVersion || currentVersion === expectedVersion ? "installed" : "update-available";
       return { status, expectedVersion, currentVersion, observedScope: scope };
     }
     if (line.trim().length > 0) break;
@@ -651,9 +655,33 @@ async function scanCodexPlugins(
     fsVersions = new Map();
   }
 
+  // Mirror the Claude side: catalog tracks bare names (e.g. "auriga-go") but
+  // ~/.codex/config.toml [plugins.*] sections and defaultReadCodexPluginsDir
+  // both emit `<plugin>@<marketplace>` keys (e.g. "auriga-go@auriga-cli").
+  // Without dual indexing every dual-Agent plugin reports `not-installed` on
+  // the Codex side, which `mergePluginsById` then folds into a permanent
+  // `update-available` even when both sides are genuinely installed.
+  const lookupEnabled = (catalogId: string): boolean => {
+    if (enabledIds.has(catalogId)) return true;
+    for (const id of enabledIds) {
+      const at = id.indexOf("@");
+      if (at > 0 && id.slice(0, at) === catalogId) return true;
+    }
+    return false;
+  };
+  const lookupFsVersion = (catalogId: string): string | undefined => {
+    const direct = fsVersions.get(catalogId);
+    if (direct) return direct;
+    for (const [id, v] of fsVersions) {
+      const at = id.indexOf("@");
+      if (at > 0 && id.slice(0, at) === catalogId) return v;
+    }
+    return undefined;
+  };
+
   const out: PluginState[] = [];
   for (const [id, def] of entries) {
-    out.push(classifyCodexPlugin(id, def, enabledIds.has(id), fsVersions.get(id)));
+    out.push(classifyCodexPlugin(id, def, lookupEnabled(id), lookupFsVersion(id)));
   }
   return out;
 }

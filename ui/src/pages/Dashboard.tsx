@@ -218,6 +218,13 @@ interface CategorySectionProps {
   lang?: Lang;
   onLangChange?: (next: Lang) => void;
   langTestId?: string;
+  /** True while /api/state is being re-fetched after a scope flip. Surfaces
+   *  as `aria-busy` + a subtle opacity dip on the list so the user has a
+   *  visual + screen-reader signal that the click registered and the
+   *  shown rows are about to update. The list stays interactive (Apply
+   *  button etc. don't disappear), matching the "don't blank during
+   *  refetch" decision in Dashboard.useEffect. */
+  refetching?: boolean;
   children: React.ReactNode;
 }
 
@@ -231,11 +238,13 @@ function CategorySection({
   lang,
   onLangChange,
   langTestId,
+  refetching = false,
   children,
 }: CategorySectionProps): JSX.Element {
   return (
     <section
       data-testid={testId}
+      aria-busy={refetching || undefined}
       style={{
         display: "flex",
         flexDirection: "column",
@@ -263,6 +272,11 @@ function CategorySection({
           gap: "6px",
           flex: 1,
           minHeight: 0,
+          // Subtle visual feedback while the scope flip is in flight. We
+          // keep the rows interactive but dim them so the user sees the
+          // click landed and the data is stale-pending.
+          opacity: refetching ? 0.55 : 1,
+          transition: "opacity 120ms ease",
         }}
       >
         {children}
@@ -334,8 +348,12 @@ export default function Dashboard(): JSX.Element {
   // so a scope flip is effectively a per-column re-scan. Subsequent
   // refetches keep the prior state visible (so the Apply button etc.
   // don't disappear mid-flip); only the initial mount blocks on `loading`.
+  // `refetching` is a separate signal — see WorkflowSection + scope-picker
+  // captions for the visual + a11y treatment.
+  const [refetching, setRefetching] = useState(false);
   useEffect(() => {
     let cancelled = false;
+    setRefetching(true);
     fetchState(currentScopes)
       .then((report) => {
         if (cancelled) return;
@@ -348,7 +366,10 @@ export default function Dashboard(): JSX.Element {
         setError(msg);
       })
       .finally(() => {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+          setRefetching(false);
+        }
       });
     return () => {
       cancelled = true;
@@ -702,6 +723,7 @@ export default function Dashboard(): JSX.Element {
               onToggle={toggleSelection}
               lang={workflowLang}
               onLangChange={changeWorkflowLang}
+              refetching={refetching}
             />
           </div>
           <div data-section="skill">
@@ -711,6 +733,7 @@ export default function Dashboard(): JSX.Element {
               onToggle={toggleSelection}
               scope={scopeByCategory.get("skill") ?? "user"}
               onScopeChange={(s) => changeScope("skill", s)}
+              refetching={refetching}
             />
           </div>
           <div data-section="recommended">
@@ -720,6 +743,7 @@ export default function Dashboard(): JSX.Element {
               onToggle={toggleSelection}
               scope={scopeByCategory.get("recommended-skill") ?? "user"}
               onScopeChange={(s) => changeScope("recommended-skill", s)}
+              refetching={refetching}
             />
           </div>
           <div data-section="plugin">
@@ -729,6 +753,7 @@ export default function Dashboard(): JSX.Element {
               onToggle={toggleSelection}
               scope={scopeByCategory.get("plugin") ?? "user"}
               onScopeChange={(s) => changeScope("plugin", s)}
+              refetching={refetching}
             />
           </div>
           <div data-section="hook">
@@ -738,6 +763,7 @@ export default function Dashboard(): JSX.Element {
               onToggle={toggleSelection}
               scope={scopeByCategory.get("hook") ?? "user"}
               onScopeChange={(s) => changeScope("hook", s)}
+              refetching={refetching}
             />
           </div>
           <div data-section="log">
@@ -776,6 +802,7 @@ interface WorkflowSectionProps {
   onToggle: ToggleFn;
   lang: Lang;
   onLangChange: (next: Lang) => void;
+  refetching?: boolean;
 }
 
 function WorkflowSection({
@@ -784,8 +811,24 @@ function WorkflowSection({
   onToggle,
   lang,
   onLangChange,
+  refetching = false,
 }: WorkflowSectionProps): JSX.Element {
   const key = makeKey("workflow", "workflow");
+  // Workflow is the only column without a scope dropdown (v1.16.1 defers
+  // adding one to v0.2 — see docs/architecture/web-ui.md §6.3). Surface
+  // the resolved scope as a card-level caption so a user running web-ui
+  // from `~/` can see "this row came from your USER-scope CLAUDE.md"
+  // rather than guessing whether it's project or user.
+  const observed = (workflow as WorkflowState & { observedScope?: Scope }).observedScope;
+  const observedCaption =
+    observed === "user"
+      ? "Source: USER (~/.claude/CLAUDE.md)"
+      : observed === "project"
+        ? "Source: PROJECT (<cwd>/CLAUDE.md)"
+        : null;
+  const description = observedCaption
+    ? `The auriga workflow template. ${observedCaption}`
+    : "The auriga workflow template installed at the repo root.";
   return (
     <CategorySection
       title="Workflow"
@@ -794,10 +837,11 @@ function WorkflowSection({
       lang={lang}
       onLangChange={onLangChange}
       langTestId="section-workflow-lang"
+      refetching={refetching}
     >
       <StateCard
         name="CLAUDE.md workflow"
-        description="The auriga workflow template installed at the repo root."
+        description={description}
         status={toCardStatus(workflow.status)}
         currentVersion={workflow.currentVersion}
         expectedVersion={workflow.expectedVersion}
@@ -816,6 +860,7 @@ interface SkillsSectionProps {
   onToggle: ToggleFn;
   scope: Scope;
   onScopeChange: (next: Scope) => void;
+  refetching?: boolean;
 }
 
 function SkillsSection({
@@ -824,6 +869,7 @@ function SkillsSection({
   onToggle,
   scope,
   onScopeChange,
+  refetching = false,
 }: SkillsSectionProps): JSX.Element | null {
   if (skills.length === 0) return null;
   return (
@@ -834,6 +880,7 @@ function SkillsSection({
       scope={scope}
       onScopeChange={onScopeChange}
       scopeTestId="section-skills-scope"
+      refetching={refetching}
     >
       {skills.map((skill) => {
         const key = makeKey("skill", skill.name);
@@ -862,6 +909,7 @@ interface RecommendedSkillsSectionProps {
   onToggle: ToggleFn;
   scope: Scope;
   onScopeChange: (next: Scope) => void;
+  refetching?: boolean;
 }
 
 function RecommendedSkillsSection({
@@ -870,6 +918,7 @@ function RecommendedSkillsSection({
   onToggle,
   scope,
   onScopeChange,
+  refetching = false,
 }: RecommendedSkillsSectionProps): JSX.Element | null {
   if (recommendedSkills.length === 0) return null;
   return (
@@ -880,6 +929,7 @@ function RecommendedSkillsSection({
       scope={scope}
       onScopeChange={onScopeChange}
       scopeTestId="section-recommended-skills-scope"
+      refetching={refetching}
     >
       {recommendedSkills.map((skill) => {
         const key = makeKey("recommended-skill", skill.name);
@@ -908,6 +958,7 @@ interface PluginsSectionProps {
   onToggle: ToggleFn;
   scope: Scope;
   onScopeChange: (next: Scope) => void;
+  refetching?: boolean;
 }
 
 function PluginsSection({
@@ -916,6 +967,7 @@ function PluginsSection({
   onToggle,
   scope,
   onScopeChange,
+  refetching = false,
 }: PluginsSectionProps): JSX.Element | null {
   if (plugins.length === 0) return null;
   return (
@@ -926,6 +978,7 @@ function PluginsSection({
       scope={scope}
       onScopeChange={onScopeChange}
       scopeTestId="section-plugins-scope"
+      refetching={refetching}
     >
       {plugins.map((plugin) => {
         const key = makeKey("plugin", plugin.id);
@@ -955,6 +1008,7 @@ interface HooksSectionProps {
   onToggle: ToggleFn;
   scope: Scope;
   onScopeChange: (next: Scope) => void;
+  refetching?: boolean;
 }
 
 function HooksSection({
@@ -963,6 +1017,7 @@ function HooksSection({
   onToggle,
   scope,
   onScopeChange,
+  refetching = false,
 }: HooksSectionProps): JSX.Element | null {
   if (hooks.length === 0) return null;
   return (
@@ -973,6 +1028,7 @@ function HooksSection({
       scope={scope}
       onScopeChange={onScopeChange}
       scopeTestId="section-hooks-scope"
+      refetching={refetching}
     >
       {hooks.map((hook) => {
         const key = makeKey("hook", hook.name);
