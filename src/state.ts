@@ -1,9 +1,19 @@
-// scanState — read the user's project + (optionally) live CLIs to produce
-// a tri-state report per category. Pure-ish: all external I/O is either
-// injected via `ScanOptions` (for tests) or done through the default
-// filesystem / child-process implementations declared at the bottom of
-// this file. See docs/architecture/web-ui.md §6.3 + §10.4 for the judgment rules
-// and tests/state.test.ts for the full behavioral contract.
+// scanState — produce a tri-state install report (installed / update-available /
+// not-installed) for every category, reading the *actual* Claude Code install
+// locations rather than auriga-cli's own dev-repo layout. The truth sources
+// (per docs/specs/web-ui-scanner-redesign.md):
+//
+//   Workflow:  ~/.claude/CLAUDE.md                          (user scope)
+//              <proj>/CLAUDE.md, fallback .claude/CLAUDE.md (project scope)
+//   Skills:    ~/.claude/skills/<name>/SKILL.md             (user scope)
+//              <proj>/.claude/skills/<name>/SKILL.md        (project scope)
+//   Plugins(Claude): execPluginList(scope) + settings.json enabledPlugins
+//   Plugins(Codex):  ~/.codex/config.toml + ~/.codex/plugins/cache (user only)
+//   Hooks:     <scope>/.claude/settings.json `hooks` segment, matched by _marker
+//
+// External I/O is either injected via ScanOptions (tests) or done through the
+// default implementations at the bottom of the file (server.ts production
+// wiring). See tests/state.test.ts for the full behavioral contract.
 
 import { createHash } from "node:crypto";
 import { exec as execCallback } from "node:child_process";
@@ -20,6 +30,7 @@ import type {
   HookState,
   ItemStatus,
   PluginState,
+  ScanScope,
   SkillState,
   StateReport,
   StateWarning,
@@ -39,13 +50,63 @@ export interface Catalog {
       expectedVersion?: string;
     }
   >;
-  hooks: Record<string, { description: string; expectedHash: string }>;
+  hooks: Record<
+    string,
+    {
+      description: string;
+      /** Coarse drift signal. The current production scan-catalog still
+       *  populates this with sha256(index.mjs) for back-compat with the v0.x
+       *  scanner that hashed the user's installed script. The new
+       *  settings.json-based scanner ignores it for drift comparison unless
+       *  the catalog also exposes the structured expected* fields below. */
+      expectedHash: string;
+      /** Settings.json event name (e.g. "PostToolUse", "Notification"). When
+       *  set, the scanner flags drift if the on-disk settings entry registers
+       *  under a different event. Optional; left undefined the scanner trusts
+       *  whatever event the marker was found under. */
+      expectedEvent?: string;
+      /** Settings.json `matcher` field (e.g. "Write|Edit" for PostToolUse).
+       *  Empty string means "no matcher" (e.g. Notification hooks). When set,
+       *  the scanner flags drift if the on-disk value differs. */
+      expectedMatcher?: string;
+      /** Settings.json `if` field (Claude-Code-specific filter expression).
+       *  Same drift semantics as expectedMatcher. */
+      expectedIf?: string;
+    }
+  >;
 }
 
+/** Wildcard sentinel for the catalog hook `expectedHash` field. A value
+ *  equal to this string (or the empty string) is treated as "no drift
+ *  expectation, trust marker presence" — useful when the catalog hasn't yet
+ *  been populated with a real settings-entry signature. The test suite uses
+ *  this sentinel explicitly (see tests/state.test.ts assumption A7). */
+const WILDCARD_EXPECTED_HASH = "any";
+
 export interface ScanOptions {
-  execPluginList?: () => Promise<{ installed: any[]; available: any[] }>;
+  /** Run `claude plugins list` for the given scope. The scope argument is
+   *  required so server.ts can pass --user / --project through to the CLI
+   *  per opts.scopes.plugins. Implementations may accept a zero-arg legacy
+   *  form for back-compat but MUST honor a scope argument when given. */
+  execPluginList?: (
+    scope: ScanScope,
+  ) => Promise<{ installed: any[]; available: any[] }>;
   readCodexConfig?: () => Promise<string | null>;
   readCodexPluginsDir?: () => Promise<Map<string, string>>;
+  /** Per-category scope picker. Each field is independently routed to the
+   *  right truth source. Defaults match the Web UI's per-column picker:
+   *    workflow = 'project', skills = 'project',
+   *    plugins  = 'user',    hooks  = 'user'. */
+  scopes?: {
+    workflow?: ScanScope;
+    skills?: ScanScope;
+    plugins?: ScanScope;
+    hooks?: ScanScope;
+  };
+  /** Test-time HOME override. When unset the scanner reads os.homedir()
+   *  (which itself consults process.env.HOME / USERPROFILE), so tests that
+   *  redirect HOME via env vars also work. */
+  homeDir?: string;
 }
 
 /**
@@ -54,8 +115,7 @@ export interface ScanOptions {
  * readable. Falls back to the original path when HOME is unset or the path
  * doesn't sit under it.
  */
-function homeReducedPath(p: string): string {
-  const home = os.homedir();
+function homeReducedPath(p: string, home: string): string {
   if (!home) return p;
   if (p === home) return "~";
   // Use path-segment boundary so /Users/pangcheng-foo is NOT matched.
@@ -65,23 +125,45 @@ function homeReducedPath(p: string): string {
   return p;
 }
 
+const DEFAULT_SCOPES: Required<NonNullable<ScanOptions["scopes"]>> = {
+  workflow: "project",
+  skills: "project",
+  plugins: "user",
+  hooks: "user",
+};
+
 export async function scanState(
   projectRoot: string,
   catalog: Catalog,
   opts: ScanOptions = {},
 ): Promise<StateReport> {
   const warnings: StateWarning[] = [];
+  const home = opts.homeDir ?? os.homedir();
+  const scopes = { ...DEFAULT_SCOPES, ...(opts.scopes ?? {}) };
 
-  const workflow = scanWorkflow(projectRoot, catalog);
-  const lock = readSkillsLock(projectRoot);
-  const skills = scanSkills(catalog.skills, lock);
-  const recommendedSkills = scanRecommendedSkills(catalog.recommendedSkills, lock);
-  const hooks = scanHooks(projectRoot, catalog.hooks);
+  const workflow = scanWorkflow(scopes.workflow, projectRoot, home, catalog, warnings);
+  const skills = scanSkills(
+    scopes.skills,
+    projectRoot,
+    home,
+    catalog.skills,
+    /* recommended */ false,
+    warnings,
+  );
+  const recommendedSkills = scanRecommendedSkills(
+    scopes.skills,
+    projectRoot,
+    home,
+    catalog.recommendedSkills,
+    warnings,
+  );
+  const hooks = scanHooks(scopes.hooks, projectRoot, home, catalog.hooks, warnings);
 
   const claudePluginEntries = filterPluginsByAgent(catalog.plugins, "claude");
   const codexPluginEntries = filterPluginsByAgent(catalog.plugins, "codex");
 
   const claudePlugins = await scanClaudePlugins(
+    scopes.plugins,
     claudePluginEntries,
     opts.execPluginList,
     warnings,
@@ -93,8 +175,22 @@ export async function scanState(
     warnings,
   );
 
+  // Aggregate `claude-code-not-installed`: emit ONCE if neither ~/.claude/
+  // nor <proj>/.claude/ exists, regardless of how many user-scope categories
+  // were scanned. We check after the per-category scans so we can detect the
+  // condition just once at the end.
+  if (!dirExists(path.join(home, ".claude")) && !dirExists(path.join(projectRoot, ".claude"))) {
+    if (!warnings.some((w) => w.code === "claude-code-not-installed")) {
+      warnings.push({
+        code: "claude-code-not-installed",
+        message:
+          "No Claude Code install detected (~/.claude/ and <project>/.claude/ both absent). Install Claude Code first.",
+      });
+    }
+  }
+
   return {
-    cwd: homeReducedPath(projectRoot),
+    cwd: homeReducedPath(projectRoot, home),
     workflow,
     skills,
     recommendedSkills,
@@ -102,6 +198,14 @@ export async function scanState(
     hooks,
     warnings,
   };
+}
+
+function dirExists(p: string): boolean {
+  try {
+    return fs.statSync(p).isDirectory();
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -156,8 +260,7 @@ function aggregateStatus(statuses: ItemStatus[]): ItemStatus {
   if (statuses.every((s) => s === "not-installed")) return "not-installed";
   // Anything else — partial install, pending updates on any agent, mixed
   // — falls through to update-available so a single Apply backfills the
-  // missing pieces. This is the boundary the user asked for: "一边装一边
-  // 没装" surfaces as a yellow UPDATE pill rather than a misleading green.
+  // missing pieces.
   return "update-available";
 }
 
@@ -167,87 +270,129 @@ function aggregateStatus(statuses: ItemStatus[]): ItemStatus {
 
 const WORKFLOW_HEADER_RE = /^#\s+auriga\s+Workflow\s*\(v(\d+\.\d+\.\d+)\)/;
 
-function scanWorkflow(projectRoot: string, catalog: Catalog): WorkflowState {
-  const expectedVersion = catalog.workflowVersion;
-  const claudeMdPath = path.join(projectRoot, "CLAUDE.md");
-  let content: string;
-  try {
-    content = fs.readFileSync(claudeMdPath, "utf8");
-  } catch {
-    return { status: "not-installed", expectedVersion };
+function workflowPathsForScope(scope: ScanScope, projectRoot: string, home: string): string[] {
+  if (scope === "user") {
+    return [path.join(home, ".claude", "CLAUDE.md")];
   }
-  // Match the canonical header anywhere in the first few lines; the spec
-  // and tests put it on the first line, but tolerate leading blank lines /
-  // BOM by scanning every line until we either find a match or run out.
+  // Project: <proj>/CLAUDE.md preferred, .claude/CLAUDE.md as fallback.
+  return [
+    path.join(projectRoot, "CLAUDE.md"),
+    path.join(projectRoot, ".claude", "CLAUDE.md"),
+  ];
+}
+
+function scanWorkflow(
+  scope: ScanScope,
+  projectRoot: string,
+  home: string,
+  catalog: Catalog,
+  warnings: StateWarning[],
+): WorkflowState {
+  const expectedVersion = catalog.workflowVersion;
+  const candidates = workflowPathsForScope(scope, projectRoot, home);
+
+  let content: string | null = null;
+  for (const candidate of candidates) {
+    try {
+      content = fs.readFileSync(candidate, "utf8");
+      break;
+    } catch {
+      // try next candidate
+    }
+  }
+
+  if (content === null) {
+    return { status: "not-installed", expectedVersion, observedScope: scope };
+  }
+
+  // Walk the first non-blank lines looking for the auriga header.
   for (const line of content.split(/\r?\n/)) {
     const m = WORKFLOW_HEADER_RE.exec(line);
     if (m) {
       const currentVersion = m[1];
-      const status = currentVersion === expectedVersion ? "installed" : "update-available";
-      return { status, expectedVersion, currentVersion };
+      // Empty expectedVersion means scan-catalog couldn't extract the
+      // shipped workflow's header (auriga-cli's own CLAUDE.md missing or
+      // malformed at build time). Trust the installed version rather than
+      // forcing a phantom "update-available" against the empty string.
+      const status: ItemStatus =
+        !expectedVersion || currentVersion === expectedVersion ? "installed" : "update-available";
+      return { status, expectedVersion, currentVersion, observedScope: scope };
     }
-    // Bail at the first non-blank line — the header must be a top heading.
     if (line.trim().length > 0) break;
   }
-  // File exists but no parseable header → assumption #1 in state.test.ts:
-  // prefer reinstall over false-positive "installed" with unknown version.
-  return { status: "not-installed", expectedVersion };
+
+  // CLAUDE.md exists but no recognizable auriga marker. Per spec degraded
+  // path: status remains "installed" (don't clobber user content on apply)
+  // and emit a workflow-unknown-version warning.
+  warnings.push({
+    code: "workflow-unknown-version",
+    message: `CLAUDE.md present but no auriga-workflow header found; cannot determine installed version.`,
+  });
+  return { status: "installed", expectedVersion, observedScope: scope };
 }
 
 // ---------------------------------------------------------------------------
 // Skills + recommendedSkills
 // ---------------------------------------------------------------------------
 
-interface SkillsLockShape {
-  skills?: Record<string, { computedHash?: string } | undefined>;
+function skillsRoot(scope: ScanScope, projectRoot: string, home: string): string {
+  if (scope === "user") return path.join(home, ".claude", "skills");
+  return path.join(projectRoot, ".claude", "skills");
 }
 
-/** Return the parsed lockfile, or null if absent / unparseable. The "null"
- *  path is the degraded mode: skills still show up as catalog rows but their
- *  `currentHash` is undefined and they are reported as not-installed. */
-function readSkillsLock(projectRoot: string): SkillsLockShape | null {
-  const lockPath = path.join(projectRoot, "skills-lock.json");
-  let text: string;
-  try {
-    text = fs.readFileSync(lockPath, "utf8");
-  } catch {
-    return null;
-  }
-  try {
-    const parsed = JSON.parse(text);
-    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-      return parsed as SkillsLockShape;
-    }
-    return null;
-  } catch {
-    // Per state.test.ts "corrupt skills-lock" case: don't throw; degrade.
-    return null;
-  }
-}
-
-function classifySkill(
-  expectedHash: string,
-  lock: SkillsLockShape | null,
+/** Classify a single skill by reading its SKILL.md from the scope's skills
+ *  dir. Returns the status + (when readable) the on-disk content hash. The
+ *  `malformedSeen` set is mutated when a skill dir exists but SKILL.md is
+ *  missing/unreadable — the caller emits ONE skill-malformed warning per
+ *  scan. */
+function classifySkillByFile(
   name: string,
-): { status: SkillState["status"]; currentHash?: string } {
-  const entry = lock?.skills?.[name];
-  const currentHash = entry?.computedHash;
-  if (typeof currentHash !== "string" || currentHash.length === 0) {
+  expectedHash: string,
+  rootDir: string,
+  malformedSeen: Set<string>,
+): { status: ItemStatus; currentHash?: string } {
+  const skillDir = path.join(rootDir, name);
+  const skillMd = path.join(skillDir, "SKILL.md");
+
+  let buf: Buffer;
+  try {
+    buf = fs.readFileSync(skillMd);
+  } catch {
+    // SKILL.md unreadable. Two sub-cases:
+    //   (a) skill dir also missing → simply not installed.
+    //   (b) skill dir present but SKILL.md missing → malformed; row stays
+    //       "installed" so the user can repair, plus a warning.
+    if (dirExists(skillDir)) {
+      malformedSeen.add(name);
+      return { status: "installed" };
+    }
     return { status: "not-installed" };
   }
-  if (currentHash === expectedHash) {
+
+  const currentHash = createHash("sha256").update(buf).digest("hex");
+  if (
+    expectedHash === "" ||
+    expectedHash === WILDCARD_EXPECTED_HASH ||
+    currentHash === expectedHash
+  ) {
     return { status: "installed", currentHash };
   }
   return { status: "update-available", currentHash };
 }
 
 function scanSkills(
+  scope: ScanScope,
+  projectRoot: string,
+  home: string,
   catalogSkills: Catalog["skills"],
-  lock: SkillsLockShape | null,
+  _recommended: boolean,
+  warnings: StateWarning[],
 ): SkillState[] {
+  const rootDir = skillsRoot(scope, projectRoot, home);
+  const malformed = new Set<string>();
   const out: SkillState[] = [];
   for (const [name, entry] of Object.entries(catalogSkills)) {
-    const cls = classifySkill(entry.expectedHash, lock, name);
+    const cls = classifySkillByFile(name, entry.expectedHash, rootDir, malformed);
     out.push({
       name,
       description: entry.description,
@@ -255,25 +400,44 @@ function scanSkills(
       isWorkflow: entry.isWorkflow,
       currentHash: cls.currentHash,
       expectedHash: entry.expectedHash,
+      observedScope: scope,
+    });
+  }
+  if (malformed.size > 0) {
+    warnings.push({
+      code: "skill-malformed",
+      message: `Skill directory present but SKILL.md missing or unreadable: ${[...malformed].join(", ")}`,
     });
   }
   return out;
 }
 
 function scanRecommendedSkills(
+  scope: ScanScope,
+  projectRoot: string,
+  home: string,
   catalogRec: Catalog["recommendedSkills"],
-  lock: SkillsLockShape | null,
+  warnings: StateWarning[],
 ): SkillState[] {
+  const rootDir = skillsRoot(scope, projectRoot, home);
+  const malformed = new Set<string>();
   const out: SkillState[] = [];
   for (const [name, entry] of Object.entries(catalogRec)) {
-    const cls = classifySkill(entry.expectedHash, lock, name);
+    const cls = classifySkillByFile(name, entry.expectedHash, rootDir, malformed);
     out.push({
       name,
       description: entry.description,
       status: cls.status,
-      isWorkflow: false, // recommended skills are by definition opt-in utilities
+      isWorkflow: false,
       currentHash: cls.currentHash,
       expectedHash: entry.expectedHash,
+      observedScope: scope,
+    });
+  }
+  if (malformed.size > 0) {
+    warnings.push({
+      code: "skill-malformed",
+      message: `Skill directory present but SKILL.md missing or unreadable: ${[...malformed].join(", ")}`,
     });
   }
   return out;
@@ -302,50 +466,64 @@ function parseRef(ref: string | undefined | null): string | null {
 }
 
 async function scanClaudePlugins(
+  scope: ScanScope,
   entries: Array<[string, Catalog["plugins"][string]]>,
   execPluginList: ScanOptions["execPluginList"],
   warnings: StateWarning[],
 ): Promise<PluginState[]> {
   if (entries.length === 0) return [];
 
-  // Degraded path 1: no exec injected AND no default. We expose a default
-  // implementation below that wraps `claude plugins list --available --json`,
-  // but the test contract treats "execPluginList undefined" as "Claude CLI
-  // missing" — we honor that by NOT silently falling back to the default
-  // when the caller leaves it undefined. (server.ts will pass the default
-  // explicitly when it confirms `claude` is on PATH.)
+  // Degraded path 1: no exec injected. The default implementation runs
+  // `claude plugins list`; server.ts decides whether to pass it based on
+  // `which claude`. When undefined → assume `claude` is missing.
   if (!execPluginList) {
     warnings.push({
       code: "claude-cli-missing",
       message:
         "Claude CLI not available — plugin update detection disabled. Install `claude` to enable update checks.",
     });
-    return entries.map(([id, def]) => degradedClaudeRow(id, def));
+    return entries.map(([id, def]) => degradedClaudeRow(id, def, scope));
   }
 
   let payload: { installed: any[]; available: any[] };
   try {
-    payload = await execPluginList();
+    payload = await execPluginList(scope);
   } catch (err) {
     warnings.push({
       code: "claude-cli-missing",
       message: `Claude CLI plugin list failed: ${(err as Error).message}`,
     });
-    return entries.map(([id, def]) => degradedClaudeRow(id, def));
+    return entries.map(([id, def]) => degradedClaudeRow(id, def, scope));
   }
 
+  // claude plugins list emits ids in `<plugin>@<marketplace>` form (e.g.
+  // `auriga-go@auriga-cli`). The auriga-cli catalog tracks plugins by bare
+  // name. Index both forms so lookups succeed regardless of which side the
+  // suffix is on. Same trick for availables — note that the `--available`
+  // payload uses `pluginId` rather than `id`, so accept both as the key.
+  const indexBoth = (map: Map<string, any>, item: any): void => {
+    if (!item || typeof item !== "object") return;
+    const key =
+      typeof item.id === "string"
+        ? item.id
+        : typeof item.pluginId === "string"
+          ? item.pluginId
+          : null;
+    if (!key) return;
+    map.set(key, item);
+    const at = key.indexOf("@");
+    if (at > 0) map.set(key.slice(0, at), item);
+  };
   const installedById = new Map<string, any>();
-  for (const item of payload.installed ?? []) {
-    if (item && typeof item.id === "string") installedById.set(item.id, item);
-  }
+  for (const item of payload.installed ?? []) indexBoth(installedById, item);
   const availableById = new Map<string, any>();
-  for (const item of payload.available ?? []) {
-    if (item && typeof item.id === "string") availableById.set(item.id, item);
-  }
+  for (const item of payload.available ?? []) indexBoth(availableById, item);
 
   const out: PluginState[] = [];
   for (const [id, def] of entries) {
-    out.push(classifyClaudePlugin(id, def, installedById.get(id), availableById.get(id)));
+    out.push(
+      classifyClaudePlugin(id, def, installedById.get(id), availableById.get(id), scope),
+    );
   }
   return out;
 }
@@ -353,6 +531,7 @@ async function scanClaudePlugins(
 function degradedClaudeRow(
   id: string,
   def: Catalog["plugins"][string],
+  scope: ScanScope,
 ): PluginState {
   return {
     id,
@@ -361,6 +540,7 @@ function degradedClaudeRow(
     agents: ["claude"],
     expectedVersion: def.expectedVersion,
     versionSource: "upstream-live",
+    observedScope: scope,
   };
 }
 
@@ -369,8 +549,8 @@ function classifyClaudePlugin(
   def: Catalog["plugins"][string],
   installed: any | undefined,
   available: any | undefined,
+  scope: ScanScope,
 ): PluginState {
-  // Not installed at all — easy case.
   if (!installed || typeof installed.version !== "string") {
     return {
       id,
@@ -380,6 +560,7 @@ function classifyClaudePlugin(
       expectedVersion:
         typeof available?.source?.ref === "string" ? available.source.ref : def.expectedVersion,
       versionSource: "upstream-live",
+      observedScope: scope,
     };
   }
 
@@ -388,36 +569,50 @@ function classifyClaudePlugin(
   const normalizedAvailable = parseRef(typeof ref === "string" ? ref : undefined);
   const normalizedInstalled = parseRef(installedVersion);
 
-  // Fallback rule 1: installed version "unknown" → trust it's installed.
-  // Fallback rule 2: available.ref is a branch / non-semver → trust it.
-  // Fallback rule 3: available info is missing entirely → trust it (we know
-  //   it's installed, we just can't say if there's a newer one).
-  if (
-    installedVersion === "unknown" ||
-    normalizedAvailable === null ||
-    !available
-  ) {
+  // Pick the comparison target. The marketplace-live ref wins when it's a
+  // parseable semver — that's the freshest signal. Otherwise fall back to
+  // the build-time-baked `def.expectedVersion` (populated from
+  // plugins/<name>/.claude-plugin/plugin.json by scan-catalog for owned
+  // plugins). Without the fallback, the common upgrade case is invisible:
+  // `claude plugins list --available --json` excludes already-installed
+  // plugins from `.available[]`, so for any plugin the user already has,
+  // `ref` is undefined and the scanner can't tell whether a newer version
+  // ships in the marketplace.
+  const hasLiveRef = normalizedAvailable !== null && typeof ref === "string";
+  const expectedRaw = hasLiveRef ? (ref as string) : def.expectedVersion;
+  const expectedNormalized = hasLiveRef
+    ? normalizedAvailable
+    : parseRef(def.expectedVersion);
+  const versionSource: "upstream-live" | "catalog" = hasLiveRef
+    ? "upstream-live"
+    : "catalog";
+
+  // Fallback rules (no comparable expected version, or unknown installed):
+  //   - installed version "unknown" → trust it's installed.
+  //   - effective expected is null (branch ref + no baked version) → trust installed.
+  if (installedVersion === "unknown" || expectedNormalized === null) {
     return {
       id,
       description: def.description,
       status: "installed",
       agents: ["claude"],
       currentVersion: installedVersion,
-      expectedVersion: typeof ref === "string" ? ref : def.expectedVersion,
-      versionSource: "upstream-live",
+      expectedVersion: expectedRaw,
+      versionSource,
+      observedScope: scope,
     };
   }
 
-  // Both sides comparable.
-  if (normalizedInstalled !== null && normalizedInstalled === normalizedAvailable) {
+  if (normalizedInstalled !== null && normalizedInstalled === expectedNormalized) {
     return {
       id,
       description: def.description,
       status: "installed",
       agents: ["claude"],
       currentVersion: installedVersion,
-      expectedVersion: typeof ref === "string" ? ref : undefined,
-      versionSource: "upstream-live",
+      expectedVersion: expectedRaw,
+      versionSource,
+      observedScope: scope,
     };
   }
   return {
@@ -426,8 +621,9 @@ function classifyClaudePlugin(
     status: "update-available",
     agents: ["claude"],
     currentVersion: installedVersion,
-    expectedVersion: typeof ref === "string" ? ref : undefined,
-    versionSource: "upstream-live",
+    expectedVersion: expectedRaw,
+    versionSource,
+    observedScope: scope,
   };
 }
 
@@ -467,8 +663,6 @@ async function scanCodexPlugins(
   try {
     enabledIds = parseCodexEnabledPluginIds(tomlContent);
   } catch {
-    // Corrupt TOML — surface a warning but keep classifying as not-installed
-    // for each catalog entry rather than dropping rows.
     warnings.push({
       code: "codex-cli-missing",
       message: "Codex config.toml is unparseable — treating no plugins as installed",
@@ -482,9 +676,33 @@ async function scanCodexPlugins(
     fsVersions = new Map();
   }
 
+  // Mirror the Claude side: catalog tracks bare names (e.g. "auriga-go") but
+  // ~/.codex/config.toml [plugins.*] sections and defaultReadCodexPluginsDir
+  // both emit `<plugin>@<marketplace>` keys (e.g. "auriga-go@auriga-cli").
+  // Without dual indexing every dual-Agent plugin reports `not-installed` on
+  // the Codex side, which `mergePluginsById` then folds into a permanent
+  // `update-available` even when both sides are genuinely installed.
+  const lookupEnabled = (catalogId: string): boolean => {
+    if (enabledIds.has(catalogId)) return true;
+    for (const id of enabledIds) {
+      const at = id.indexOf("@");
+      if (at > 0 && id.slice(0, at) === catalogId) return true;
+    }
+    return false;
+  };
+  const lookupFsVersion = (catalogId: string): string | undefined => {
+    const direct = fsVersions.get(catalogId);
+    if (direct) return direct;
+    for (const [id, v] of fsVersions) {
+      const at = id.indexOf("@");
+      if (at > 0 && id.slice(0, at) === catalogId) return v;
+    }
+    return undefined;
+  };
+
   const out: PluginState[] = [];
   for (const [id, def] of entries) {
-    out.push(classifyCodexPlugin(id, def, enabledIds.has(id), fsVersions.get(id)));
+    out.push(classifyCodexPlugin(id, def, lookupEnabled(id), lookupFsVersion(id)));
   }
   return out;
 }
@@ -500,6 +718,7 @@ function degradedCodexRow(
     agents: ["codex"],
     expectedVersion: def.expectedVersion,
     versionSource: "catalog",
+    observedScope: "user",
   };
 }
 
@@ -519,10 +738,9 @@ function classifyCodexPlugin(
       agents: ["codex"],
       expectedVersion,
       versionSource: "catalog",
+      observedScope: "user",
     };
   }
-  // Enabled in config but missing from fs — assumption #2 row contract:
-  // row present, status is NOT "installed".
   if (!fsVersion) {
     return {
       id,
@@ -531,10 +749,9 @@ function classifyCodexPlugin(
       agents: ["codex"],
       expectedVersion,
       versionSource: "catalog",
+      observedScope: "user",
     };
   }
-  // Compare fs version to catalog expectation. If catalog gives no
-  // expectedVersion, trust it as installed.
   if (!expectedVersion || fsVersion === expectedVersion) {
     return {
       id,
@@ -544,6 +761,7 @@ function classifyCodexPlugin(
       currentVersion: fsVersion,
       expectedVersion,
       versionSource: "catalog",
+      observedScope: "user",
     };
   }
   return {
@@ -554,6 +772,7 @@ function classifyCodexPlugin(
     currentVersion: fsVersion,
     expectedVersion,
     versionSource: "catalog",
+    observedScope: "user",
   };
 }
 
@@ -575,85 +794,199 @@ function parseCodexEnabledPluginIds(tomlContent: string): Set<string> {
 }
 
 // ---------------------------------------------------------------------------
-// Hooks
+// Hooks — read from <scope>/.claude/settings.json `hooks` segment, matched by
+// `_marker` sentinel against catalog hook names. Settings.json shape (Claude
+// Code convention):
+//
+//   {
+//     "hooks": {
+//       "<EventName>": [
+//         {
+//           "matcher": "<pattern>",
+//           "if": "<optional Claude-Code filter>",
+//           "hooks": [
+//             { "type": "command", "command": "...", "_marker": "<name>" }
+//           ]
+//         }
+//       ]
+//     }
+//   }
+//
 // ---------------------------------------------------------------------------
 
-interface HooksConfigShape {
-  hooks?: Array<{ name?: string } | undefined>;
+function settingsPathForScope(scope: ScanScope, projectRoot: string, home: string): string {
+  if (scope === "user") return path.join(home, ".claude", "settings.json");
+  return path.join(projectRoot, ".claude", "settings.json");
 }
 
-function readHooksConfig(projectRoot: string): {
-  config: HooksConfigShape | null;
-  corrupt: boolean;
-} {
-  const configPath = path.join(projectRoot, ".claude", "hooks", "hooks.json");
-  let text: string;
-  try {
-    text = fs.readFileSync(configPath, "utf8");
-  } catch {
-    return { config: null, corrupt: false };
-  }
-  try {
-    const parsed = JSON.parse(text);
-    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-      return { config: parsed as HooksConfigShape, corrupt: false };
+interface SettingsHookEntry {
+  /** Top-level event name (e.g. "PostToolUse"). */
+  event: string;
+  /** Outer block's matcher pattern. May be undefined. */
+  matcher?: string;
+  /** Outer block's `if` filter. May be undefined. */
+  ifExpr?: string;
+  /** The inner action's command string. */
+  command?: string;
+}
+
+/** Walk every settings hook action, returning a map keyed by the action's
+ *  `_marker` sentinel value. Malformed sub-shapes are skipped silently. */
+function indexSettingsHooksByMarker(
+  settings: unknown,
+): Map<string, SettingsHookEntry> {
+  const out = new Map<string, SettingsHookEntry>();
+  if (!settings || typeof settings !== "object" || Array.isArray(settings)) return out;
+  const hooksSeg = (settings as Record<string, unknown>).hooks;
+  if (!hooksSeg || typeof hooksSeg !== "object" || Array.isArray(hooksSeg)) return out;
+
+  for (const [event, blocks] of Object.entries(hooksSeg as Record<string, unknown>)) {
+    if (!Array.isArray(blocks)) continue;
+    for (const block of blocks) {
+      if (!block || typeof block !== "object" || Array.isArray(block)) continue;
+      const b = block as Record<string, unknown>;
+      const matcher = typeof b.matcher === "string" ? b.matcher : undefined;
+      const ifExpr = typeof b.if === "string" ? b.if : undefined;
+      const actions = b.hooks;
+      if (!Array.isArray(actions)) continue;
+      for (const action of actions) {
+        if (!action || typeof action !== "object" || Array.isArray(action)) continue;
+        const a = action as Record<string, unknown>;
+        const marker = typeof a._marker === "string" ? a._marker : undefined;
+        if (!marker) continue;
+        out.set(marker, {
+          event,
+          matcher,
+          ifExpr,
+          command: typeof a.command === "string" ? a.command : undefined,
+        });
+      }
     }
-    return { config: null, corrupt: true };
-  } catch {
-    return { config: null, corrupt: true };
   }
+  return out;
 }
 
-function hashHookIndex(projectRoot: string, name: string): string | undefined {
-  const indexPath = path.join(projectRoot, ".claude", "hooks", name, "index.mjs");
+/** Compute a coarse sha256 signature over a settings hook entry's drift-
+ *  relevant fields (event, matcher, if). Used to fall back to a single-
+ *  field comparison when the catalog hasn't been upgraded to expose
+ *  structured expectedMatcher / expectedEvent / expectedIf. */
+function signatureForSettingsEntry(entry: SettingsHookEntry): string {
+  const canonical = JSON.stringify({
+    event: entry.event,
+    matcher: entry.matcher ?? "",
+    if: entry.ifExpr ?? "",
+  });
+  return createHash("sha256").update(canonical).digest("hex");
+}
+
+/** Returns true when the catalog's expectedHash is a wildcard sentinel
+ *  (empty string or the literal "any" placeholder). Wildcard means "no
+ *  drift expectation for this hook — trust marker presence." */
+function isWildcardExpectedHash(expectedHash: string): boolean {
+  return expectedHash === "" || expectedHash === WILDCARD_EXPECTED_HASH;
+}
+
+function detectHookDrift(
+  catalogEntry: Catalog["hooks"][string],
+  settingsEntry: SettingsHookEntry,
+): boolean {
+  // Preferred drift path: structured expectations from catalog.
+  if (
+    typeof catalogEntry.expectedMatcher === "string" &&
+    (settingsEntry.matcher ?? "") !== catalogEntry.expectedMatcher
+  ) {
+    return true;
+  }
+  if (
+    typeof catalogEntry.expectedEvent === "string" &&
+    settingsEntry.event !== catalogEntry.expectedEvent
+  ) {
+    return true;
+  }
+  if (
+    typeof catalogEntry.expectedIf === "string" &&
+    (settingsEntry.ifExpr ?? "") !== catalogEntry.expectedIf
+  ) {
+    return true;
+  }
+  // Fallback drift signal via expectedHash. When the catalog hasn't been
+  // populated with structured expected* fields (yet), expectedHash doubles
+  // as a coarse signature: if non-empty and non-wildcard, the implementation
+  // computes its own signature over the settings entry and treats any
+  // divergence as drift. Production scan-catalog.ts can populate this with
+  // a real settings-entry signature; until then, an explicit non-wildcard
+  // placeholder in tests (e.g. "expected-new-matcher-signature") deliberately
+  // triggers drift since it can never equal a sha256 hex digest.
+  if (!isWildcardExpectedHash(catalogEntry.expectedHash)) {
+    const sig = signatureForSettingsEntry(settingsEntry);
+    if (sig !== catalogEntry.expectedHash) return true;
+  }
+  return false;
+}
+
+function scanHooks(
+  scope: ScanScope,
+  projectRoot: string,
+  home: string,
+  catalogHooks: Catalog["hooks"],
+  warnings: StateWarning[],
+): HookState[] {
+  const settingsPath = settingsPathForScope(scope, projectRoot, home);
+  let settingsRaw: string | null = null;
+  let settingsErr: "absent" | "unreadable" | null = null;
   try {
-    const buf = fs.readFileSync(indexPath);
-    return createHash("sha256").update(buf).digest("hex");
-  } catch {
-    return undefined;
-  }
-}
-
-function scanHooks(projectRoot: string, catalogHooks: Catalog["hooks"]): HookState[] {
-  const { config } = readHooksConfig(projectRoot);
-  const registeredNames = new Set<string>();
-  if (config?.hooks && Array.isArray(config.hooks)) {
-    for (const entry of config.hooks) {
-      if (entry && typeof entry.name === "string") registeredNames.add(entry.name);
+    settingsRaw = fs.readFileSync(settingsPath, "utf8");
+  } catch (err: any) {
+    if (err && err.code === "ENOENT") {
+      settingsErr = "absent";
+    } else {
+      settingsErr = "unreadable";
     }
   }
+
+  let parsed: unknown = null;
+  if (settingsRaw !== null) {
+    try {
+      parsed = JSON.parse(settingsRaw);
+    } catch {
+      settingsErr = "unreadable";
+      parsed = null;
+    }
+  }
+
+  if (settingsErr === "unreadable") {
+    warnings.push({
+      code: "settings-unreadable",
+      message: `Settings file unreadable or corrupt JSON: ${settingsPath}`,
+    });
+  }
+
+  const byMarker = indexSettingsHooksByMarker(parsed);
 
   const out: HookState[] = [];
   for (const [name, def] of Object.entries(catalogHooks)) {
-    if (!registeredNames.has(name)) {
+    const settingsEntry = byMarker.get(name);
+    if (!settingsEntry) {
       out.push({
         name,
         description: def.description,
         status: "not-installed",
         expectedHash: def.expectedHash,
+        observedScope: scope,
       });
       continue;
     }
-    const currentHash = hashHookIndex(projectRoot, name);
-    if (currentHash === undefined) {
-      // Registered but index.mjs missing — assumption #2: row present, not
-      // "installed", currentHash undefined so the UI can prompt repair.
-      out.push({
-        name,
-        description: def.description,
-        status: "not-installed",
-        expectedHash: def.expectedHash,
-      });
-      continue;
-    }
-    const status =
-      currentHash === def.expectedHash ? "installed" : "update-available";
+    const drift = detectHookDrift(def, settingsEntry);
     out.push({
       name,
       description: def.description,
-      status,
-      currentHash,
+      status: drift ? "update-available" : "installed",
+      // Surface a coarse current signature so the UI can show diff details
+      // if it wants. The exact format is "sha256 of normalized settings
+      // entry" — opaque to the UI, used only for drift detection.
+      currentHash: signatureForSettingsEntry(settingsEntry),
       expectedHash: def.expectedHash,
+      observedScope: scope,
     });
   }
   return out;
@@ -664,23 +997,46 @@ function scanHooks(projectRoot: string, catalogHooks: Catalog["hooks"]): HookSta
 // injected — server.ts wires these up in production).
 // ---------------------------------------------------------------------------
 
-/** Default: run `claude plugins list --json` and `claude plugins list
- *  --available --json`. Returns null is NOT an option here — server.ts
- *  decides whether to pass this function based on `which claude`. */
-export async function defaultExecPluginList(): Promise<{
-  installed: any[];
-  available: any[];
-}> {
+/** Default: run `claude plugins list --json` (no scope flag — the CLI
+ *  doesn't expose one) plus the `--available` variant, then filter the
+ *  installed records to the requested scope (and current projectRoot for
+ *  project-scope) client-side. Server.ts decides whether to pass this
+ *  function based on `which claude`. */
+export async function defaultExecPluginList(
+  scope: ScanScope = "user",
+  projectRoot?: string,
+): Promise<{ installed: any[]; available: any[] }> {
   // Run both lookups in parallel via async exec so /api/state doesn't block
   // the event loop. `claude plugins list` can take several seconds on cold
   // marketplace fetches; sync exec would freeze heartbeats and other
-  // concurrent /api requests.
+  // concurrent /api requests. Note: `claude plugins list` does NOT support
+  // `--user` / `--project`; each record carries its own `scope` field which
+  // we filter on below.
   const [installedRes, availableRes] = await Promise.all([
-    execAsync("claude plugins list --json", { encoding: "utf8" }),
-    execAsync("claude plugins list --available --json", { encoding: "utf8" }),
+    execAsync(`claude plugins list --json`, { encoding: "utf8" }),
+    execAsync(`claude plugins list --available --json`, { encoding: "utf8" }),
   ]);
-  const installed = parseJsonArray(installedRes.stdout);
-  const available = parseJsonArray(availableRes.stdout);
+  const allInstalled = parseJsonArray(installedRes.stdout);
+  // `claude plugins list --available --json` returns a wrapped object
+  // `{ installed: [...], available: [...] }`, NOT a flat array. parseJsonArray
+  // alone would return `[]` and silently lose every marketplace ref → the
+  // scanner could never surface "update-available" from upstream-live data.
+  // Pull `.available` out of the wrapper; tolerate the flat-array form too
+  // in case Claude CLI's shape regresses.
+  const available = extractAvailableArray(availableRes.stdout);
+  const installed = allInstalled.filter((rec) => {
+    if (!rec || typeof rec !== "object") return false;
+    if (rec.scope !== scope) return false;
+    // Project-scope records may match multiple projects (`projectPath`
+    // differs). If projectRoot was provided, narrow to records bound to
+    // the current cwd. When omitted, fall back to "any project-scope
+    // record" — better than dropping all project records on a malformed
+    // call.
+    if (scope === "project" && projectRoot && typeof rec.projectPath === "string") {
+      return path.resolve(rec.projectPath) === path.resolve(projectRoot);
+    }
+    return true;
+  });
   return { installed, available };
 }
 
@@ -688,6 +1044,23 @@ function parseJsonArray(text: string): any[] {
   try {
     const parsed = JSON.parse(text);
     return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+/** Pull the available-plugins array out of `claude plugins list --available
+ *  --json`'s response. Empirically the CLI returns `{ installed, available }`;
+ *  if a future version regresses to a flat array we keep working. Returns
+ *  `[]` on malformed JSON. */
+function extractAvailableArray(text: string): any[] {
+  try {
+    const parsed = JSON.parse(text);
+    if (Array.isArray(parsed)) return parsed;
+    if (parsed && typeof parsed === "object" && Array.isArray(parsed.available)) {
+      return parsed.available;
+    }
+    return [];
   } catch {
     return [];
   }

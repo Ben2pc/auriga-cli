@@ -8,7 +8,9 @@
 //   skills-lock.json      — expected SHA256 for every vendored skill
 //   .claude/plugins.json  — Claude plugin entries (agent = "claude")
 //   .agents/plugins/install.json — Codex plugin entries (agent = "codex")
-//   .claude/hooks/<name>/index.mjs — runtime SHA256 = expected hash
+//   .claude/hooks/hooks.json — registers settingsEvents per hook (event /
+//                           matcher / if) used by state.ts for drift
+//                           detection in <scope>/.claude/settings.json
 //   CLAUDE.md             — `# auriga Workflow (vX.Y.Z)` provides
 //                           workflowVersion
 //
@@ -24,6 +26,42 @@ import path from "node:path";
 import { loadCatalog } from "./catalog.js";
 import type { Catalog as ScanCatalog } from "./state.js";
 
+async function sha256SkillMd(skillsRoot: string, name: string): Promise<string> {
+  try {
+    const buf = await readFile(path.join(skillsRoot, name, "SKILL.md"));
+    return createHash("sha256").update(buf).digest("hex");
+  } catch {
+    return "";
+  }
+}
+
+/** Read `plugins/<name>/.claude-plugin/plugin.json` (or `.codex-plugin/plugin.json`
+ *  as fallback) and return the `version` field. Returns "" when no manifest
+ *  exists or the JSON is malformed — the scanner then leaves expectedVersion
+ *  unset, which means external-marketplace plugins (whose source lives
+ *  upstream, not in this repo) get the "trust installed" classification. */
+async function readPluginManifestVersion(
+  packageRoot: string,
+  name: string,
+): Promise<string> {
+  const candidates = [
+    path.join(packageRoot, "plugins", name, ".claude-plugin", "plugin.json"),
+    path.join(packageRoot, "plugins", name, ".codex-plugin", "plugin.json"),
+  ];
+  for (const p of candidates) {
+    try {
+      const raw = await readFile(p, "utf8");
+      const parsed = JSON.parse(raw) as { version?: unknown };
+      if (typeof parsed.version === "string" && parsed.version.length > 0) {
+        return parsed.version;
+      }
+    } catch {
+      /* try next candidate */
+    }
+  }
+  return "";
+}
+
 const WORKFLOW_VERSION_RE = /^#\s*auriga Workflow\s*\(v([\d.]+)\)/m;
 
 async function tryReadFile(p: string): Promise<string | null> {
@@ -34,21 +72,27 @@ async function tryReadFile(p: string): Promise<string | null> {
   }
 }
 
-async function sha256File(p: string): Promise<string> {
-  const bytes = await readFile(p);
-  return createHash("sha256").update(bytes).digest("hex");
-}
-
-interface SkillsLock {
-  skills?: Record<string, { computedHash?: string }>;
-}
-
 interface ClaudePluginsJson {
   plugins?: Array<{ name?: string }>;
 }
 
 interface CodexInstallJson {
   plugins?: Array<{ name?: string }>;
+}
+
+interface HookSettingsEvent {
+  event?: string;
+  matcher?: string;
+  if?: string;
+}
+
+interface HooksJsonEntry {
+  name?: string;
+  settingsEvents?: HookSettingsEvent[];
+}
+
+interface HooksJson {
+  hooks?: HooksJsonEntry[];
 }
 
 export async function buildScanCatalog(
@@ -63,22 +107,18 @@ export async function buildScanCatalog(
   const m = claudeMd ? WORKFLOW_VERSION_RE.exec(claudeMd) : null;
   const workflowVersion = m ? m[1] : "";
 
-  // Skills + recommended: hashes from skills-lock.json.
-  let lock: SkillsLock = {};
-  const lockText = await tryReadFile(path.join(packageRoot, "skills-lock.json"));
-  if (lockText) {
-    try {
-      lock = JSON.parse(lockText) as SkillsLock;
-    } catch {
-      // corrupted lock → no expectations; user state still classifies safely
-    }
-  }
-
+  // Skills + recommended: sha256 of each shipped SKILL.md. This is the same
+  // hash the scanner computes for `<scope>/.claude/skills/<name>/SKILL.md`
+  // at scan time, so a match means "user's installed copy is identical to
+  // the version auriga-cli ships". skills-lock.json's `computedHash` field
+  // hashes the entire skill directory (every file, sorted), which doesn't
+  // line up with the scanner's per-file model — we deliberately ignore it.
+  const skillsRoot = path.join(packageRoot, ".agents", "skills");
   const skills: ScanCatalog["skills"] = {};
   for (const entry of dist.workflowSkills) {
     skills[entry.name] = {
       description: entry.description,
-      expectedHash: lock.skills?.[entry.name]?.computedHash ?? "",
+      expectedHash: await sha256SkillMd(skillsRoot, entry.name),
       isWorkflow: true,
     };
   }
@@ -86,7 +126,7 @@ export async function buildScanCatalog(
   for (const entry of dist.recommendedSkills) {
     recommendedSkills[entry.name] = {
       description: entry.description,
-      expectedHash: lock.skills?.[entry.name]?.computedHash ?? "",
+      expectedHash: await sha256SkillMd(skillsRoot, entry.name),
     };
   }
 
@@ -132,28 +172,51 @@ export async function buildScanCatalog(
     if (claudeNames.has(entry.name)) agents.push("claude");
     if (codexNames.has(entry.name)) agents.push("codex");
     if (agents.length === 0) agents.push("claude"); // unknown defaults to claude
-    plugins[entry.name] = { description: entry.description, agents };
+
+    // Bake expectedVersion from the owned plugin's manifest. For Claude-side
+    // plugins prefer plugins/<name>/.claude-plugin/plugin.json; fall back to
+    // .codex-plugin/plugin.json for codex-only plugins (e.g.
+    // session-instructions-loader). External-marketplace plugins (skill-creator,
+    // claude-md-management, codex) have no local manifest — they install from
+    // their upstream marketplace, so we deliberately leave expectedVersion
+    // undefined. The scanner then falls through to "trust whatever is installed",
+    // which matches what the user agreed to when they registered the upstream.
+    const expectedVersion = await readPluginManifestVersion(packageRoot, entry.name);
+    plugins[entry.name] = {
+      description: entry.description,
+      agents,
+      ...(expectedVersion ? { expectedVersion } : {}),
+    };
   }
 
-  // Hooks: runtime SHA256 of each hook's index.mjs serves as the expected
-  // hash. If the file can't be read, leave the expectation empty so the
-  // hook classifies as not-installed.
+  // Hooks: the scanner reads <scope>/.claude/settings.json and matches by
+  // `_marker` (see state.ts scanHooks). Drift detection compares the
+  // registered event / matcher / if values against the hook's canonical
+  // settingsEvents[0] from .claude/hooks/hooks.json. We deliberately do NOT
+  // hash index.mjs — the user's installed index.mjs lives at <scope>/.claude/
+  // hooks/<name>/index.mjs and isn't part of the settings.json drift signal.
+  const hooksJsonPath = path.join(packageRoot, ".claude", "hooks", "hooks.json");
+  const hooksJsonRaw = await tryReadFile(hooksJsonPath);
+  const hooksJson: HooksJson = hooksJsonRaw ? JSON.parse(hooksJsonRaw) : {};
+  const settingsEventsByName = new Map<string, HookSettingsEvent>();
+  for (const h of hooksJson.hooks ?? []) {
+    if (typeof h.name === "string" && h.settingsEvents?.length) {
+      settingsEventsByName.set(h.name, h.settingsEvents[0]);
+    }
+  }
   const hooks: ScanCatalog["hooks"] = {};
   for (const entry of dist.hooks) {
-    const hookEntry = path.join(
-      packageRoot,
-      ".claude",
-      "hooks",
-      entry.name,
-      "index.mjs",
-    );
-    let expectedHash = "";
-    try {
-      expectedHash = await sha256File(hookEntry);
-    } catch {
-      /* missing or unreadable hook payload; leave hash empty */
-    }
-    hooks[entry.name] = { description: entry.description, expectedHash };
+    const ev = settingsEventsByName.get(entry.name);
+    hooks[entry.name] = {
+      description: entry.description,
+      // Empty expectedHash flips state.ts into wildcard mode — drift judged
+      // purely from the structured expected* fields below, not from a
+      // settings-entry content hash.
+      expectedHash: "",
+      ...(typeof ev?.event === "string" ? { expectedEvent: ev.event } : {}),
+      ...(typeof ev?.matcher === "string" ? { expectedMatcher: ev.matcher } : {}),
+      ...(typeof ev?.if === "string" ? { expectedIf: ev.if } : {}),
+    };
   }
 
   return {

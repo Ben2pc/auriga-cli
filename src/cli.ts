@@ -640,7 +640,12 @@ async function dispatchInstaller(
 
 const UI_DEFAULT_PORT = 4747;
 const UI_PORT_RANGE = 10; // 4747..4756
-const UI_HEARTBEAT_TIMEOUT_MS = 15_000;
+// 2 minutes covers Chrome's "intensive throttling" of background tabs
+// (kicks in after ~5 min of being hidden, drops setInterval to ~1 ping/min).
+// At 15s the browser tab being switched away for a moment would tear down
+// the server — bad UX. Closing the browser now takes up to 2 min to release
+// the port; users who care can ctrl+C the CLI for immediate exit.
+const UI_HEARTBEAT_TIMEOUT_MS = 120_000;
 
 async function runUi(p: UiParsed, version: string): Promise<number> {
   // Lazy-load the server-side deps so the install / guide paths stay light.

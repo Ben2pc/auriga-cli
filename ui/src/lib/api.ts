@@ -78,11 +78,31 @@ function authHeaders(): HeadersInit {
 /**
  * GET /api/state — fetch the live `StateReport` for the current cwd.
  *
+ * `scopes` is the per-category scope the UI is currently showing
+ * (workflow / skills / plugins / hooks each "user" | "project"). When
+ * provided, serialized into the `scopes` query param as a comma-separated
+ * `cat:scope` list. Omit the param to let the server fall back to its
+ * built-in defaults (workflow=project, skills=project, plugins=user,
+ * hooks=user — matches `claude plugins install` default).
+ *
  * Throws on non-2xx so callers can surface an error banner with the status
  * code rather than silently rendering empty categories.
  */
-export async function fetchState(): Promise<StateReport> {
-  const res = await fetch("/api/state", {
+export async function fetchState(scopes?: Partial<{
+  workflow: "user" | "project";
+  skills: "user" | "project";
+  plugins: "user" | "project";
+  hooks: "user" | "project";
+}>): Promise<StateReport> {
+  const url = scopes && Object.keys(scopes).length > 0
+    ? `/api/state?scopes=${encodeURIComponent(
+        Object.entries(scopes)
+          .filter(([, v]) => v === "user" || v === "project")
+          .map(([k, v]) => `${k}:${v}`)
+          .join(","),
+      )}`
+    : "/api/state";
+  const res = await fetch(url, {
     method: "GET",
     headers: authHeaders(),
   });
@@ -113,7 +133,7 @@ export async function submitApply(req: ApplyRequest): Promise<ApplyResponse> {
 
 /**
  * POST /api/ping — bumps the server-side `lastPingAt` heartbeat so the
- * 15-second idle-shutdown timer doesn't fire while the tab is open. The
+ * 2-minute idle-shutdown timer doesn't fire while the tab is open. The
  * Dashboard fires this every 5 seconds.
  *
  * Failures here are non-fatal; we deliberately don't throw because a

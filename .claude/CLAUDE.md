@@ -94,9 +94,13 @@ plugins/
                     skills/reviewer-creator/    (scaffolds project-level
                                                  custom reviewers under
                                                  docs/rules/review/)
-                  Vendored from Ben2pc/g-claude-code-plugins at v0.3.0 +
-                  augmented with .codex-plugin/plugin.json for dual-Agent
-                  parity. No hooks — pure orchestration.
+                  Owned in-tree. Originally vendored from
+                  Ben2pc/g-claude-code-plugins at v0.3.0; upstream has
+                  since deleted its copy (the 70fe9cf "migrated to
+                  auriga-cli" commit), so this repo is now the canonical
+                  source — edit plugins/deep-review/ directly and bump
+                  the plugin.json version when the contract changes.
+                  No hooks — pure orchestration.
 
 .claude-plugin/
   marketplace.json — Marketplace manifest for this repo; lists auriga-go +

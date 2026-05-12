@@ -98,7 +98,7 @@ npx auriga-cli guide            → 现有，未变
 ### 4.3 生命周期
 
 - UI 每 5s POST `/api/ping`
-- server 内部维护 `lastPingAt`，> 15s 未刷新 → graceful shutdown：
+- server 内部维护 `lastPingAt`，> 120s 未刷新 → graceful shutdown：
   - 等当前 job 完成，最多再等 30s
   - 关 server，清理资源，退出码 0
 - Ctrl+C 同路径
@@ -186,7 +186,7 @@ src/cli.ts
 | `/api/state` | GET | 实时扫描 → `StateReport` |
 | `/api/apply` | POST | 提交 batch，立即返 `{ jobId }` |
 | `/api/progress?jobId=...` | GET (SSE) | 推送该 job 的逐项进度 |
-| `/api/ping` | POST | 心跳，重置 15s 退出计时器 |
+| `/api/ping` | POST | 心跳，重置 120s 退出计时器 |
 | `/api/shutdown` | POST | 主动优雅退出（best-effort） |
 
 所有 `/api/*` 校验 token + Origin。静态资源不校验（公开内容）。
@@ -266,13 +266,29 @@ export type ProgressEvent =
 
 ### 6.3 scanner 判定逻辑
 
-| 类目 | 三态判定依据 |
+scanner 按 Claude Code 实际安装位置读真值源，**支持 per-category × per-scope（user / project）**：
+
+| 类目 | User scope 真值 | Project scope 真值 | 三态判定 |
+|---|---|---|---|
+| Workflow | `~/.claude/CLAUDE.md` | `<proj>/CLAUDE.md` 优先，回落 `<proj>/.claude/CLAUDE.md` | 文件缺失 → not-installed；解析 `# auriga Workflow (vX.Y.Z)` 头部成功且版本 = `catalog.workflowVersion` → installed；版本不同 → update-available；文件存在但无 auriga 头 → installed + `workflow-unknown-version` warning |
+| Skills / Recommended | `~/.claude/skills/<name>/SKILL.md` 文件系统 | `<proj>/.claude/skills/<name>/SKILL.md` 文件系统 | 目录缺 → not-installed；SKILL.md 不可读 → installed + `skill-malformed` warning（不影响其他 skill）；`sha256(SKILL.md bytes)` 与 catalog 期望同 → installed，不同 → update-available |
+| Plugins (Claude) | `claude plugins list --json` + 客户端按 `record.scope === "user"` 过滤 | 同命令 + 按 `record.scope === "project"` 且 `record.projectPath === <projectRoot>` 过滤 | `installed[id].version` vs `available[id].source.ref`（注意 id 双索引：CLI 用 `<plugin>@<marketplace>` 形式，catalog 用裸名）；CLI 不在 PATH → 类目降级为二态 + `claude-cli-missing` warning |
+| Plugins (Codex) | `~/.codex/config.toml` + `~/.codex/plugins/cache/<marketplace>/<plugin>/<version>/` 文件系统 | n/a — Codex 设计上 user-scope only | 不变（v0.1 即正确）|
+| Hooks | `~/.claude/settings.json` 的 `hooks.<Event>[].hooks[]` 按 `_marker` sentinel 匹配 catalog 登记的 hook | `<proj>/.claude/settings.json` 同段同匹配 | 文件缺 → not-installed（不发 warning，常见情况）；JSON 损坏 → not-installed + `settings-unreadable` warning；marker 命中但 `matcher` / `if` / event 与 catalog 不同 → update-available |
+
+**默认 scope**（与 install 默认一致）：workflow=project，skills=project，plugins=user，hooks=user。UI 每列有独立的 scope 下拉，切换即触发该列单独 refetch。
+
+**真值源迁移说明（v1.16.0 → v1.16.1）**：v1.16.0 读 auriga-cli **dev 仓库自己的清单文件**（`<cwd>/.claude/plugins.json`、`<cwd>/skills-lock.json`、`<cwd>/.claude/hooks/hooks.json`），结果用户在普通项目或 `~/` 下都看到「全 not installed」。v1.16.1 全部换成 Claude Code 实际安装位置（上表）。`claude plugins list` 不支持 `--user/--project` 旗标，scope 过滤改在客户端做。skill 的 `expectedHash` 改为 `sha256(SKILL.md bytes)` —— `skills-lock.json` 的 `computedHash`（全目录 sorted-hash）与该算法不兼容，过去比对永远不等，现在不再读 lock 文件。
+
+**降级路径汇总**：
+
+| 触发 | 行为 |
 |---|---|
-| Workflow | 读 `<cwd>/CLAUDE.md` 顶部 `# auriga Workflow (v...)` 版本号 vs `catalog.workflowVersion`。文件缺失 → not-installed；版本同 → installed；不同 → update-available |
-| Skills / Recommended | 读 `<cwd>/skills-lock.json` 里该 skill 的 `computedHash` vs `catalog.skills[name].expectedHash`。条目缺 → not-installed；hash 同 → installed；不同 → update-available |
-| Plugins (Claude) | 调 `claude plugin list --available --json` 一次。`installed[id].version` vs `parseRef(available[pluginId].source.ref)`。version "unknown" / ref 是分支 → 回落 installed。CLI 缺失 → 类目降级为二态 + warning |
-| Plugins (Codex) | 读 `~/.codex/config.toml` `[plugins.*]` → installedSet。filesystem 扫 `~/.codex/plugins/cache/<marketplace>/<plugin>/<version>/` 得 installed 版本。对比 catalog 烤入的期望版本。CLI 缺失 → 类目降级。**作用域：UI 仅展示 auriga-cli catalog 里登记的 plugins**，用户在 auriga-cli 外手动安装的 Codex plugin 不出现在 state report 里（v0.1 范围决定，不视为缺陷） |
-| Hooks | 检查 `<cwd>/.claude/hooks/hooks.json` 含该项 + 算 `<cwd>/.claude/hooks/<name>/index.mjs` SHA256 vs `catalog.hooks[name].expectedHash` |
+| 既无 `~/.claude/` 又无 `<proj>/.claude/` | 所有 user-scope 类目落 not-installed + 一次性 `claude-code-not-installed` warning |
+| `which claude` 失败 | Plugins (Claude) degraded rows + `claude-cli-missing` warning |
+| `<scope>/.claude/settings.json` 损坏 JSON | Hooks 落 not-installed + `settings-unreadable` warning |
+| Skill 目录存在但 SKILL.md 不可读 | 该 skill installed + 一次性 `skill-malformed` warning，兄弟 skill 不受影响 |
+| CLAUDE.md 存在但无 auriga 头 | installed + `workflow-unknown-version` warning |
 
 **Claude / Codex Plugins 不对称的合理性**：
 
@@ -303,8 +319,8 @@ export type ProgressEvent =
 ### 6.6 心跳详情
 
 - UI 每 5s POST `/api/ping`
-- server 维护 `lastPingAt: number`（单时间戳，单 token = 单 session）；启动时初始化为当前时间，给浏览器 15s 启动窗口
-- 后台 setInterval 每 5s 检查 `Date.now() - lastPingAt > 15000`
+- server 维护 `lastPingAt: number`（单时间戳，单 token = 单 session）；启动时初始化为当前时间，给浏览器 120s 启动窗口
+- 后台 setInterval 每 ~40s 检查 `Date.now() - lastPingAt > 120000`（间隔 = `timeout/3`）
 - 触发 → 调 `gracefulShutdown()`：阻塞新 `/api/apply`，等当前 job 完，最多再等 30s 后强退
 
 ---
@@ -323,7 +339,7 @@ export type ProgressEvent =
 | `/api/apply` 单项 | 执行中 | catch → `item:done success: false, error` 通过 SSE 推；不中断 batch |
 | `/api/apply` 全部失败 | 末尾 | `all-done failedCount: N, success: false`；HTTP 仍 200 |
 | SSE 断线 | 推流中 | client `Last-Event-ID` 重连；server 缓存最近 200 个事件 5 分钟 |
-| 心跳超时 | server 运行中 | 15s 无 ping → graceful shutdown |
+| 心跳超时 | server 运行中 | 120s 无 ping → graceful shutdown（覆盖 Chrome 后台 tab 的 throttle）|
 
 ---
 
@@ -441,7 +457,7 @@ UI bundle 路径键就是 `v<package.version>`，CLI 启动时根据自身版本
 | installer 集成方式 | A 方案：薄 wrapper + 独立 scanner（读 catalog） | 工程量最小，catalog 已是真值源；preview 推迟 |
 | Plugin 期望版本源 | Claude 走活上游，Codex 走 catalog（不对称） | Claude 体验最优，Codex 受限于其 CLI 无 `list` |
 | Apply 并发 | 串行 + 单项失败继续 | installer 撞共享文件；继续比 fail-fast 实用 |
-| 生命周期 | 浏览器心跳 + 15s 超时退出 | "关浏览器 = 关 server" 自然体验 |
+| 生命周期 | 浏览器心跳 + 120s 超时退出 | "关浏览器 = 关 server" 自然体验；超时长到能容忍 Chrome 后台 tab throttling |
 | 卸载范围 | v0.1 包含 install / update / uninstall 三动作 | UI dashboard 完整性需要 |
 | Plugins 二态/三态 | Claude 三态（CLI 离线 / 缺失时降级二态 + warning）、Codex 三态（仅对 catalog 登记项；非 catalog plugin 不展示） | 与 scanner depth = 三态目标一致 |
 | e2e 形态 | v0.1 含 **hermetic spawn-CLI 调用 + HOME 重定向 + scratch 项目** 的 e2e 套（`tests/web-ui-e2e.test.ts`，plain `node:test`，无 Playwright）；Playwright browser overlay 推迟到 v0.2，但保留实现路径——同一套 fixture 可以无成本接上 | 用户接受“模拟环境也行”的等价要求；Vitest + RTL 已覆盖 UI 渲染层，server-apply.test.ts 覆盖 SSE/文件副作用契约；Playwright 的增量价值（“真浏览器 × 真后端”）在 v0.1 的边际收益不抵其 ~80MB 浏览器依赖 + CI flakiness 成本 |
