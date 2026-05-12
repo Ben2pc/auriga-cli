@@ -1,5 +1,6 @@
 // Dashboard — top-level page. Composes Layout + TopBar + 5 category
-// sections (each a list of StateCards) + the sticky ApplyBar.
+// columns of StateCards + a right-rail OUTPUT column (LogPanel) that
+// hosts the SSE log buffer and the Apply/Cancel actions.
 //
 // Spec mapping:
 //   - Layout/composition: docs/architecture/web-ui.md §12 "页面布局"
@@ -9,7 +10,7 @@
 //                         StateReport carries them in one `plugins[]` array
 //                         distinguished by `plugin.agent`. We group inline.
 //   - Visual encoding:    §13 (status → StateCard, no chip chrome, single
-//                         clay accent on the ApplyBar top border).
+//                         clay accent on the LogPanel footer border).
 //
 // Default action derivation (when a card is selected):
 //
@@ -26,16 +27,16 @@
 // `name` is the per-category identifier (workflow→"workflow", skill→skill
 // name, plugin→plugin.id, hook→hook name).
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { JSX } from "react";
-import ApplyBar from "../components/ApplyBar.js";
-import type { PendingAction } from "../components/ApplyBar.js";
 import Layout from "../components/Layout.js";
+import LogPanel from "../components/LogPanel.js";
+import type { LogLine } from "../components/LogPanel.js";
 import StateCard from "../components/StateCard.js";
 import type { CardStatus } from "../components/StateCard.js";
 import TopBar from "../components/TopBar.js";
 import type { MarketplaceStatus } from "../components/TopBar.js";
-import { fetchState, ping, submitApply } from "../lib/api.js";
+import { fetchState, openProgress, ping, submitApply } from "../lib/api.js";
 import type {
   ApplyAction,
   ApplyCategory,
@@ -43,6 +44,7 @@ import type {
   HookState,
   ItemStatus,
   PluginState,
+  ProgressEvent as ApiProgressEvent,
   SkillState,
   StateReport,
   WorkflowState,
@@ -339,35 +341,110 @@ export default function Dashboard(): JSX.Element {
     [],
   );
 
-  const pendingActions = useMemo<PendingAction[]>(() => {
-    return Array.from(selected.values()).map((ref) => ({
-      category: ref.category,
-      name: ref.name,
-      action: ref.action,
-    }));
-  }, [selected]);
+  // ---- Log buffer state ----
+  const [logLines, setLogLines] = useState<LogLine[]>([]);
+  const [jobStatus, setJobStatus] = useState<string | undefined>(undefined);
+  const sseRef = useRef<{ close: () => void } | null>(null);
+  const logSeq = useRef<number>(0);
+
+  // Close any in-flight SSE when the dashboard unmounts.
+  useEffect(() => {
+    return () => {
+      sseRef.current?.close();
+      sseRef.current = null;
+    };
+  }, []);
+
+  const appendLog = useCallback(
+    (level: LogLine["level"], text: string) => {
+      logSeq.current += 1;
+      const id = `${Date.now()}-${logSeq.current}`;
+      setLogLines((prev) => {
+        // Cap to last 500 lines so a misbehaving installer can't grow the
+        // DOM unbounded. The SSE server-side already caps at 200 events,
+        // but our log buffer also includes synthesized meta lines.
+        const next = prev.length >= 500 ? prev.slice(-499) : prev.slice();
+        next.push({ id, level, text });
+        return next;
+      });
+    },
+    [],
+  );
 
   const handleCancel = useCallback(() => {
     setSelected(new Map());
   }, []);
 
+  const formatProgressEvent = useCallback(
+    (ev: ApiProgressEvent): { level: LogLine["level"]; text: string } | null => {
+      switch (ev.type) {
+        case "item:start": {
+          const scopeSuffix = ev.item.scope ? ` [${ev.item.scope}]` : "";
+          return {
+            level: "meta",
+            text: `▸ ${ev.item.action} ${ev.item.category}/${ev.item.name}${scopeSuffix}  (${ev.index + 1}/${ev.total})`,
+          };
+        }
+        case "item:log":
+          return { level: ev.level === "error" ? "error" : ev.level === "warn" ? "warn" : "info", text: `  ${ev.line}` };
+        case "item:done":
+          if (ev.success) {
+            return { level: "ok", text: "  ✓ done" };
+          }
+          return { level: "error", text: `  ✗ ${ev.error ?? "failed"}` };
+        case "all-done":
+          if (ev.success) {
+            return { level: "ok", text: `── all-done · ${ev.failedCount === 0 ? "all succeeded" : `${ev.failedCount} failed`}` };
+          }
+          return { level: "error", text: `── all-done · ${ev.failedCount} failed` };
+      }
+    },
+    [],
+  );
+
   const handleApply = useCallback(async () => {
     if (selected.size === 0) return;
     setApplying(true);
+    setLogLines([]);
+    setJobStatus("Submitting apply request…");
+    const items = Array.from(selected.values());
     try {
-      await submitApply({
-        items: Array.from(selected.values()),
+      appendLog("meta", `── Apply ${items.length} item${items.length > 1 ? "s" : ""}`);
+      const { jobId } = await submitApply({ items });
+      appendLog("meta", `── job ${jobId.slice(0, 12)}…`);
+      setJobStatus(`Job ${jobId.slice(0, 12)}…  running`);
+
+      // Open SSE; close any prior stream first.
+      sseRef.current?.close();
+      sseRef.current = openProgress(jobId, (ev) => {
+        const formatted = formatProgressEvent(ev);
+        if (formatted) appendLog(formatted.level, formatted.text);
+        if (ev.type === "all-done") {
+          sseRef.current?.close();
+          sseRef.current = null;
+          setApplying(false);
+          setJobStatus(
+            ev.success
+              ? `Last job completed · ${ev.failedCount === 0 ? "all succeeded" : `${ev.failedCount} failed`}`
+              : `Last job completed · ${ev.failedCount} failed`,
+          );
+          // Refresh /api/state so badges reflect the new ground truth.
+          fetchState()
+            .then((report) => setState(report))
+            .catch(() => {
+              /* keep prior state; non-fatal */
+            });
+          setSelected(new Map());
+        }
       });
-      // M3 wires the SSE flow to drive the log panel; for now we just clear
-      // the pending set so the user sees the submit succeeded.
-      setSelected(new Map());
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "apply failed";
+      appendLog("error", `submit failed: ${msg}`);
+      setJobStatus(undefined);
       setError(msg);
-    } finally {
       setApplying(false);
     }
-  }, [selected]);
+  }, [selected, appendLog, formatProgressEvent]);
 
   // Resolve the cwd label for the top bar. The server doesn't echo cwd in
   // the state report yet, so we fall back to a placeholder; M3+ will surface
@@ -385,16 +462,6 @@ export default function Dashboard(): JSX.Element {
   }, [state]);
 
   const topBar = <TopBar cwd={cwdLabel} marketplaceStatus={marketplaceStatus} />;
-
-  const bottomBar =
-    pendingActions.length > 0 ? (
-      <ApplyBar
-        pendingActions={pendingActions}
-        onCancel={handleCancel}
-        onApply={() => void handleApply()}
-        applying={applying}
-      />
-    ) : undefined;
 
   if (loading) {
     return (
@@ -436,7 +503,7 @@ export default function Dashboard(): JSX.Element {
   }
 
   return (
-    <Layout topBar={topBar} bottomBar={bottomBar}>
+    <Layout topBar={topBar}>
       <div data-testid="dashboard-root">
         {/* Non-fatal error banner: e.g. a submitApply failure while state
             is otherwise valid. */}
@@ -459,11 +526,13 @@ export default function Dashboard(): JSX.Element {
           data-testid="dashboard-grid"
           style={{
             display: "grid",
-            // 5 columns, each can shrink to 0 (minmax handles content
-            // overflow inside via min-width: 0 on the section).
-            gridTemplateColumns: "repeat(5, minmax(0, 1fr))",
+            // 5 category columns + 1 OUTPUT column (fixed 320px).
+            // minmax(0, 1fr) lets the category columns shrink to 0 and rely
+            // on min-width: 0 inside each section for overflow.
+            gridTemplateColumns: "repeat(5, minmax(0, 1fr)) 320px",
             gap: "12px",
-            alignItems: "start",
+            alignItems: "stretch",
+            minHeight: "calc(100vh - 160px)",
           }}
         >
           <WorkflowSection
@@ -498,6 +567,14 @@ export default function Dashboard(): JSX.Element {
             onToggle={toggleSelection}
             scope={scopeByCategory.get("hook") ?? "project"}
             onScopeChange={(s) => changeScope("hook", s)}
+          />
+          <LogPanel
+            lines={logLines}
+            pendingCount={selected.size}
+            applying={applying}
+            status={jobStatus}
+            onApply={() => void handleApply()}
+            onCancel={handleCancel}
           />
         </div>
       </div>

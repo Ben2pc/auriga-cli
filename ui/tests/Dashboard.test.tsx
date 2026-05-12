@@ -4,9 +4,10 @@
 //   - loading state on mount
 //   - fetch success → all category sections render
 //   - fetch failure → error banner
-//   - selection → ApplyBar appears with derived actions
-//   - cancel clears selection (ApplyBar unmounts)
+//   - selection → LogPanel Apply button enables with correct pending count
+//   - cancel clears selection (Apply button disables again)
 //   - empty StateReport (all arrays empty + workflow present) → no crash
+//   - submitApply POST carries the correct derived action per item status
 //
 // We use `vi.stubGlobal("fetch", ...)` so the component's real fetch call
 // goes through a controllable double; no msw needed for this slice.
@@ -193,7 +194,7 @@ describe("Dashboard — mount + fetch lifecycle", () => {
   });
 });
 
-describe("Dashboard — selection drives ApplyBar", () => {
+describe("Dashboard — selection drives the LogPanel Apply button", () => {
   beforeEach(() => {
     if (typeof window !== "undefined") {
       window.sessionStorage.clear();
@@ -204,7 +205,7 @@ describe("Dashboard — selection drives ApplyBar", () => {
     vi.unstubAllGlobals();
   });
 
-  test("no selection → ApplyBar is not rendered", async () => {
+  test("no selection → LogPanel apply button is disabled + empty-state hint", async () => {
     stubFetch((url) =>
       url.includes("/api/state")
         ? jsonResponse(makeReport())
@@ -214,10 +215,19 @@ describe("Dashboard — selection drives ApplyBar", () => {
     await waitFor(() =>
       expect(screen.getByTestId("dashboard-root")).toBeInTheDocument(),
     );
-    expect(screen.queryByTestId("applybar")).toBeNull();
+    // LogPanel itself is always mounted (right rail), but the Apply button
+    // is disabled and the body shows the empty hint when nothing is selected.
+    expect(screen.getByTestId("log-panel")).toBeInTheDocument();
+    expect(
+      (screen.getByTestId("log-panel-apply") as HTMLButtonElement).disabled,
+    ).toBe(true);
+    expect(screen.queryByTestId("log-panel-pending-count")).toBeNull();
+    expect(screen.getByTestId("log-panel-empty").textContent).toMatch(
+      /select items/i,
+    );
   });
 
-  test("selecting an update-available item → ApplyBar shows action='update'", async () => {
+  test("selecting an item → Apply button enables and shows pending count", async () => {
     stubFetch((url) =>
       url.includes("/api/state")
         ? jsonResponse(makeReport())
@@ -227,7 +237,6 @@ describe("Dashboard — selection drives ApplyBar", () => {
     await waitFor(() =>
       expect(screen.getByTestId("dashboard-root")).toBeInTheDocument(),
     );
-    // The second skill in the fixture is update-available.
     const cards = screen.getAllByTestId("statecard");
     const updateCard = cards.find(
       (c) => c.getAttribute("data-status") === "update-available",
@@ -239,67 +248,17 @@ describe("Dashboard — selection drives ApplyBar", () => {
     ) as HTMLInputElement;
     fireEvent.click(cb);
 
-    const applyBar = await screen.findByTestId("applybar");
-    expect(applyBar).toBeInTheDocument();
-    expect(applyBar.getAttribute("data-pending-count")).toBe("1");
-    // Summary text encodes derived action.
-    expect(screen.getByTestId("applybar-summary").textContent).toMatch(
-      /1 update/,
+    const applyBtn = (await screen.findByTestId(
+      "log-panel-apply",
+    )) as HTMLButtonElement;
+    expect(applyBtn.disabled).toBe(false);
+    expect(applyBtn.textContent).toMatch(/APPLY \(1\)/);
+    expect(screen.getByTestId("log-panel-pending-count").textContent).toMatch(
+      /\(1\)/,
     );
   });
 
-  test("selecting a not-installed item → derived action='install'", async () => {
-    stubFetch((url) =>
-      url.includes("/api/state")
-        ? jsonResponse(makeReport())
-        : jsonResponse({ ok: true }),
-    );
-    render(<Dashboard />);
-    await waitFor(() =>
-      expect(screen.getByTestId("dashboard-root")).toBeInTheDocument(),
-    );
-    const cards = screen.getAllByTestId("statecard");
-    const notInstalled = cards.find(
-      (c) => c.getAttribute("data-status") === "not-installed",
-    );
-    expect(notInstalled).toBeDefined();
-
-    const cb = notInstalled!.querySelector(
-      '[data-testid="statecard-checkbox"]',
-    ) as HTMLInputElement;
-    fireEvent.click(cb);
-
-    const summary = await screen.findByTestId("applybar-summary");
-    expect(summary.textContent).toMatch(/1 install/);
-  });
-
-  test("selecting an installed item → derived action='uninstall'", async () => {
-    stubFetch((url) =>
-      url.includes("/api/state")
-        ? jsonResponse(makeReport())
-        : jsonResponse({ ok: true }),
-    );
-    render(<Dashboard />);
-    await waitFor(() =>
-      expect(screen.getByTestId("dashboard-root")).toBeInTheDocument(),
-    );
-    const cards = screen.getAllByTestId("statecard");
-    const installedCards = cards.filter(
-      (c) => c.getAttribute("data-status") === "installed",
-    );
-    // Pick the first installed card (skill).
-    const target = installedCards[0];
-    expect(target).toBeDefined();
-    const cb = target.querySelector(
-      '[data-testid="statecard-checkbox"]',
-    ) as HTMLInputElement;
-    fireEvent.click(cb);
-
-    const summary = await screen.findByTestId("applybar-summary");
-    expect(summary.textContent).toMatch(/1 uninstall/);
-  });
-
-  test("Cancel clears all selections and unmounts ApplyBar", async () => {
+  test("Cancel clears all selections → Apply button disables again", async () => {
     stubFetch((url) =>
       url.includes("/api/state")
         ? jsonResponse(makeReport())
@@ -315,12 +274,19 @@ describe("Dashboard — selection drives ApplyBar", () => {
         '[data-testid="statecard-checkbox"]',
       ) as HTMLInputElement,
     );
-    expect(await screen.findByTestId("applybar")).toBeInTheDocument();
-
-    fireEvent.click(screen.getByTestId("applybar-cancel"));
     await waitFor(() =>
-      expect(screen.queryByTestId("applybar")).toBeNull(),
+      expect(
+        (screen.getByTestId("log-panel-apply") as HTMLButtonElement).disabled,
+      ).toBe(false),
     );
+
+    fireEvent.click(screen.getByTestId("log-panel-cancel"));
+    await waitFor(() =>
+      expect(
+        (screen.getByTestId("log-panel-apply") as HTMLButtonElement).disabled,
+      ).toBe(true),
+    );
+    expect(screen.queryByTestId("log-panel-pending-count")).toBeNull();
   });
 });
 
@@ -375,7 +341,7 @@ describe("Dashboard — TopBar marketplace status", () => {
   });
 });
 
-describe("Dashboard — apply submission", () => {
+describe("Dashboard — apply submission carries derived action per status", () => {
   beforeEach(() => {
     if (typeof window !== "undefined") {
       window.sessionStorage.clear();
@@ -386,53 +352,89 @@ describe("Dashboard — apply submission", () => {
     vi.unstubAllGlobals();
   });
 
-  test("clicking Apply POSTs the items batch and clears selection", async () => {
-    const calls: Array<{ url: string; init?: RequestInit }> = [];
-    vi.stubGlobal(
-      "fetch",
-      vi.fn((url: string, init?: RequestInit) => {
-        calls.push({ url, init });
-        if (url.includes("/api/state")) {
-          return Promise.resolve(jsonResponse(makeReport()));
-        }
-        if (url.includes("/api/apply")) {
-          return Promise.resolve(jsonResponse({ jobId: "test-job" }, 202));
-        }
-        return Promise.resolve(jsonResponse({ ok: true }));
-      }),
-    );
+  type DerivedCase = {
+    label: string;
+    status: "update-available" | "not-installed" | "installed";
+    expectedAction: "update" | "install" | "uninstall";
+  };
 
-    render(<Dashboard />);
-    await waitFor(() =>
-      expect(screen.getByTestId("dashboard-root")).toBeInTheDocument(),
-    );
-    const cards = screen.getAllByTestId("statecard");
-    const target = cards.find(
-      (c) => c.getAttribute("data-status") === "update-available",
-    )!;
-    fireEvent.click(
-      target.querySelector(
-        '[data-testid="statecard-checkbox"]',
-      ) as HTMLInputElement,
-    );
+  // Each card's status drives the action that Dashboard derives at selection
+  // time. Verified at the network boundary (POST body) since the new LogPanel
+  // doesn't surface the action verb in its DOM.
+  const cases: DerivedCase[] = [
+    {
+      label: "update-available → action='update'",
+      status: "update-available",
+      expectedAction: "update",
+    },
+    {
+      label: "not-installed → action='install'",
+      status: "not-installed",
+      expectedAction: "install",
+    },
+    {
+      label: "installed → action='uninstall'",
+      status: "installed",
+      expectedAction: "uninstall",
+    },
+  ];
 
-    const applyBtn = await screen.findByTestId("applybar-apply");
-    await act(async () => {
-      fireEvent.click(applyBtn);
+  for (const c of cases) {
+    test(c.label, async () => {
+      const calls: Array<{ url: string; init?: RequestInit }> = [];
+      vi.stubGlobal(
+        "fetch",
+        vi.fn((url: string, init?: RequestInit) => {
+          calls.push({ url, init });
+          if (url.includes("/api/state")) {
+            return Promise.resolve(jsonResponse(makeReport()));
+          }
+          if (url.includes("/api/apply")) {
+            return Promise.resolve(jsonResponse({ jobId: "test-job" }, 202));
+          }
+          return Promise.resolve(jsonResponse({ ok: true }));
+        }),
+      );
+
+      render(<Dashboard />);
+      await waitFor(() =>
+        expect(screen.getByTestId("dashboard-root")).toBeInTheDocument(),
+      );
+      const cards = screen.getAllByTestId("statecard");
+      const target = cards.find(
+        (card) => card.getAttribute("data-status") === c.status,
+      );
+      expect(target).toBeDefined();
+      fireEvent.click(
+        target!.querySelector(
+          '[data-testid="statecard-checkbox"]',
+        ) as HTMLInputElement,
+      );
+
+      const applyBtn = await screen.findByTestId("log-panel-apply");
+      await act(async () => {
+        fireEvent.click(applyBtn);
+      });
+
+      const applyCall = calls.find((call) => call.url.includes("/api/apply"));
+      expect(applyCall).toBeDefined();
+      expect(applyCall!.init?.method).toBe("POST");
+      const body = JSON.parse(applyCall!.init!.body as string) as {
+        items: Array<{ action: string }>;
+      };
+      expect(body.items).toHaveLength(1);
+      expect(body.items[0].action).toBe(c.expectedAction);
+
+      // Selection stays until the SSE all-done event arrives. EventSource is
+      // not defined in jsdom, so openProgress is a no-op and selection
+      // remains — that's the correct behavior, the SSE stream is the source
+      // of truth for completion. Assert the UI entered the in-flight state.
+      await waitFor(() =>
+        expect(
+          (screen.getByTestId("log-panel-apply") as HTMLButtonElement)
+            .textContent,
+        ).toMatch(/APPLYING/),
+      );
     });
-
-    const applyCall = calls.find((c) => c.url.includes("/api/apply"));
-    expect(applyCall).toBeDefined();
-    expect(applyCall!.init?.method).toBe("POST");
-    const body = JSON.parse(applyCall!.init!.body as string) as {
-      items: Array<{ action: string }>;
-    };
-    expect(body.items).toHaveLength(1);
-    expect(body.items[0].action).toBe("update");
-
-    // After successful submission selection is cleared → ApplyBar unmounts.
-    await waitFor(() =>
-      expect(screen.queryByTestId("applybar")).toBeNull(),
-    );
-  });
+  }
 });
