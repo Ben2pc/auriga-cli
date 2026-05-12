@@ -194,17 +194,14 @@ function dirExists(p: string): boolean {
  * multi-agent row. Aggregation rules:
  *
  *   agents:  union of all agent arrays for this id (claude before codex).
- *   status:  installed     ⇔ every agent's record is installed
- *            not-installed ⇔ every agent's record is not-installed
- *            otherwise     → update-available (partial install or any agent
- *                            with a pending update). One Apply covers all
- *                            gaps because the handler iterates `agents`.
+ *   status:  installed       ⇔ every agent's record is installed
+ *            not-installed   ⇔ every agent's record is not-installed
+ *            otherwise       → partial-install (some agents have it, some
+ *                              don't). One Apply backfills all gaps because
+ *                              the handler iterates `agents`.
  *
- * Non-status fields (description, currentVersion, expectedVersion,
- * versionSource) come from the first record we see. Today both sides report
- * the same description (catalog-driven) and the same versions for any
- * registry-pinned plugin, so this is safe; if a future divergence appears
- * we'll need a deliberate merge policy.
+ * The description field comes from the first record we see (catalog-
+ * driven; both sides report the same value today).
  */
 interface PerAgentRecord {
   agent: ApplyAgent;
@@ -304,7 +301,7 @@ function scanWorkflow(
   }
 
   if (content === null) {
-    return { status: "not-installed", expectedVersion: "", observedScope: scope };
+    return { status: "not-installed", observedScope: scope };
   }
 
   // Walk the first non-blank lines looking for the auriga header. We only
@@ -312,7 +309,7 @@ function scanWorkflow(
   // string is unused since v1.19.0 dropped update-available status.
   for (const line of content.split(/\r?\n/)) {
     if (WORKFLOW_HEADER_RE.test(line)) {
-      return { status: "installed", expectedVersion: "", observedScope: scope };
+      return { status: "installed", observedScope: scope };
     }
     if (line.trim().length > 0) break;
   }
@@ -325,7 +322,7 @@ function scanWorkflow(
     code: "workflow-foreign-claudemd",
     message: `Foreign CLAUDE.md detected at the workflow path — no auriga-workflow header. Install will back up to CLAUDE.md.bak.`,
   });
-  return { status: "not-installed", expectedVersion: "", observedScope: scope };
+  return { status: "not-installed", observedScope: scope };
 }
 
 // ---------------------------------------------------------------------------
@@ -381,7 +378,6 @@ function scanSkills(
       description: entry.description,
       status: classifySkillByFile(name, rootDir, malformed),
       isWorkflow: entry.isWorkflow,
-      expectedHash: "",
       observedScope: scope,
     });
   }
@@ -410,7 +406,6 @@ function scanRecommendedSkills(
       description: entry.description,
       status: classifySkillByFile(name, rootDir, malformed),
       isWorkflow: false,
-      expectedHash: "",
       observedScope: scope,
     });
   }
@@ -498,7 +493,6 @@ function degradedClaudeRow(
     description: def.description,
     status: "not-installed",
     agents: ["claude"],
-    versionSource: "upstream-live",
     observedScope: scope,
     ...(def.external === true ? { external: true as const } : {}),
   };
@@ -518,7 +512,6 @@ function classifyClaudePlugin(
     description: def.description,
     status,
     agents: ["claude"],
-    versionSource: "upstream-live",
     observedScope: scope,
     ...externalFlag,
   };
@@ -613,7 +606,6 @@ function degradedCodexRow(
     description: def.description,
     status: "not-installed",
     agents: ["codex"],
-    versionSource: "catalog",
     observedScope: "user",
     ...(def.external === true ? { external: true as const } : {}),
   };
@@ -632,7 +624,6 @@ function classifyCodexPlugin(
     description: def.description,
     status,
     agents: ["codex"],
-    versionSource: "catalog",
     observedScope: "user",
     ...externalFlag,
   };
@@ -751,7 +742,6 @@ function scanHooks(
       name,
       description: def.description,
       status: markers.has(name) ? "installed" : "not-installed",
-      expectedHash: "",
       observedScope: scope,
     });
   }
