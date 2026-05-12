@@ -276,7 +276,9 @@ function CategorySection({
           style={{
             fontSize: "10px",
             lineHeight: 1.4,
-            color: "var(--color-cloud-dark)",
+            // slate-light on ivory-light = ~6:1 (clears WCAG AA 4.5:1 for body text);
+            // cloud-dark (3.47:1) failed AA — see deep-review PR #86.
+            color: "var(--color-slate-light)",
             padding: "0 12px 8px 12px",
             letterSpacing: "0.02em",
           }}

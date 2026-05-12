@@ -25,7 +25,7 @@ src/
   hooks.ts      — Per-hook directory copy + idempotent settings merge; exports `uninstallHook(name, opts)`
   api-types.ts  — Shared TS types between src/server.ts and ui/ (StateReport, ApplyRequest, ProgressEvent…)
   state.ts      — `scanState(projectRoot, catalog)` — per-category three-state scanner for /api/state
-  scan-catalog.ts — Build-time catalog → runtime ScanCatalog adapter (workflow version, skill hashes, plugin agent map, hook hashes)
+  scan-catalog.ts — Build-time catalog → runtime ScanCatalog adapter (consumes baked workflow version + plugin agent map + plugin external flag + plugin expectedVersion from dist/catalog.json; skill expectedHash is always "" since v1.18.4 — drift moved to `npx skills update`; hooks still read .claude/hooks/hooks.json at runtime as a TODO follow-up)
   server.ts     — Local HTTP server (token + Origin auth, SSE /api/progress, static asset serve from uiDir). Boots via `npx auriga-cli web-ui`
   apply-handlers.ts — `buildDefaultApplyHandlers(ctx)` wires the bulk installers as per-item ApplyHandlers via `selected: [name]`. Web UI's CLI mode uses this; tests inject their own mocks
   ui-fetch.ts   — Downloads `ui-bundle.tar.gz` + `.sha256` for the current CLI version from GitHub Releases, SHA256-verifies, extracts to `~/.cache/auriga-cli/ui-v<version>/`. LRU eviction keeps last 3 versions.

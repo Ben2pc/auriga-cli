@@ -221,7 +221,7 @@ export interface SkillState {
   status: ItemStatus;
   isWorkflow: boolean;         // workflow-set vs recommended
   currentHash?: string;
-  expectedHash: string;
+  expectedHash: string;        // v1.18.4 起恒为 ""（通配符）：drift 移交 npx skills update
 }
 
 export interface PluginState {
@@ -271,14 +271,16 @@ scanner 按 Claude Code 实际安装位置读真值源，**支持 per-category �
 | 类目 | User scope 真值 | Project scope 真值 | 三态判定 |
 |---|---|---|---|
 | Workflow | `~/.claude/CLAUDE.md` | `<proj>/CLAUDE.md` 优先，回落 `<proj>/.claude/CLAUDE.md` | 文件缺失 → not-installed；解析 `# auriga Workflow (vX.Y.Z)` 头部成功且版本 = `catalog.workflowVersion` → installed；版本不同 → update-available；文件存在但无 auriga 头 → installed + `workflow-unknown-version` warning |
-| Skills / Recommended | `~/.claude/skills/<name>/SKILL.md` 文件系统 | `<proj>/.claude/skills/<name>/SKILL.md` 文件系统 | 目录缺 → not-installed；SKILL.md 不可读 → installed + `skill-malformed` warning（不影响其他 skill）；`sha256(SKILL.md bytes)` 与 catalog 期望同 → installed，不同 → update-available |
+| Skills / Recommended | `~/.claude/skills/<name>/SKILL.md` 文件系统 | `<proj>/.claude/skills/<name>/SKILL.md` 文件系统 | 目录缺 → not-installed；SKILL.md 不可读 → installed + `skill-malformed` warning（不影响其他 skill）；SKILL.md 存在 → installed。**不再做内容 drift 比对** —— 自 v1.18.4 起 skill 升级走 `npx skills update --project`（直接对每个 skill 的上游 HEAD 比对），catalog 烤的 hash 顶多是 stale 快照、再做比对反而误导 |
 | Plugins (Claude) | `claude plugins list --json` + 客户端按 `record.scope === "user"` 过滤 | 同命令 + 按 `record.scope === "project"` 且 `record.projectPath === <projectRoot>` 过滤 | `installed[id].version` vs `available[id].source.ref`（注意 id 双索引：CLI 用 `<plugin>@<marketplace>` 形式，catalog 用裸名）；CLI 不在 PATH → 类目降级为二态 + `claude-cli-missing` warning |
 | Plugins (Codex) | `~/.codex/config.toml` + `~/.codex/plugins/cache/<marketplace>/<plugin>/<version>/` 文件系统 | n/a — Codex 设计上 user-scope only | 不变（v0.1 即正确）|
 | Hooks | `~/.claude/settings.json` 的 `hooks.<Event>[].hooks[]` 按 `_marker` sentinel 匹配 catalog 登记的 hook | `<proj>/.claude/settings.json` 同段同匹配 | 文件缺 → not-installed（不发 warning，常见情况）；JSON 损坏 → not-installed + `settings-unreadable` warning；marker 命中但 `matcher` / `if` / event 与 catalog 不同 → update-available |
 
 **默认 scope**（与 install 默认一致）：workflow=project，skills=project，plugins=user，hooks=user。UI 每列有独立的 scope 下拉，切换即触发该列单独 refetch。
 
-**真值源迁移说明（v1.16.0 → v1.16.1）**：v1.16.0 读 auriga-cli **dev 仓库自己的清单文件**（`<cwd>/.claude/plugins.json`、`<cwd>/skills-lock.json`、`<cwd>/.claude/hooks/hooks.json`），结果用户在普通项目或 `~/` 下都看到「全 not installed」。v1.16.1 全部换成 Claude Code 实际安装位置（上表）。`claude plugins list` 不支持 `--user/--project` 旗标，scope 过滤改在客户端做。skill 的 `expectedHash` 改为 `sha256(SKILL.md bytes)` —— `skills-lock.json` 的 `computedHash`（全目录 sorted-hash）与该算法不兼容，过去比对永远不等，现在不再读 lock 文件。
+**真值源迁移说明（v1.16.0 → v1.16.1）**：v1.16.0 读 auriga-cli **dev 仓库自己的清单文件**（`<cwd>/.claude/plugins.json`、`<cwd>/skills-lock.json`、`<cwd>/.claude/hooks/hooks.json`），结果用户在普通项目或 `~/` 下都看到「全 not installed」。v1.16.1 全部换成 Claude Code 实际安装位置（上表）。`claude plugins list` 不支持 `--user/--project` 旗标，scope 过滤改在客户端做。skill 的 `expectedHash` 当时改为 `sha256(SKILL.md bytes)` —— `skills-lock.json` 的 `computedHash`（全目录 sorted-hash）与该算法不兼容，过去比对永远不等，现在不再读 lock 文件。
+
+**v1.18.4 后续修订**：v1.16.1 之前的 skill drift 检测**已撤销**——scan-catalog 现在所有 skill 都设 `expectedHash: ""` 通配符，scanner 退化为「SKILL.md 存在 → installed，缺失 → not-installed」二态。原因：`npx skills update --project` 已经直接对每个 skill 上游 HEAD 做比对，我们的 catalog 烤焙的 hash 顶多是发版瞬间的快照，再做 drift 比对反而把"用户已手动升级到最新"误判成"漂移了"。同 PR 把 plugin `agents` map / `external` 标志 / workflow version 全部 build 时烤进 `dist/catalog.json` —— 因为 `package.json` `files` 字段只 ship `dist/`，runtime 读 `.claude/plugins.json` / `.agents/plugins/install.json` / `CLAUDE.md` 在 npm 装好后都拿空（dev 环境 packageRoot=repoRoot 才能撑住，掩盖了 bug）。配套 `tests/tarball-shape.test.ts` 元 regression 在 CI 守这个契约。
 
 **降级路径汇总**：
 

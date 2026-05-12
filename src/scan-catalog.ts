@@ -106,10 +106,12 @@ export async function buildScanCatalog(
   }
 
   // Hooks: TODO follow-up — bake expectedEvent / expectedMatcher / expectedIf
-  // into dist/catalog.json the same way agents are baked, so drift detection
-  // works for npm-installed users. Currently the runtime read of
-  // packageRoot/.claude/hooks/hooks.json fails silently for those users
-  // and hook drift detection is inert.
+  // into dist/catalog.json the same way agents are baked. Currently the
+  // runtime read of packageRoot/.claude/hooks/hooks.json works in dev
+  // (packageRoot === repoRoot) but fails silently for npm-installed users
+  // — `package.json` `files` allowlist doesn't ship `.claude/`. So hook
+  // drift detection is correct in dev and degraded (always "installed" if
+  // marker present) in production. Follow-up bake closes the dev/prod gap.
   const hooksJsonPath = path.join(packageRoot, ".claude", "hooks", "hooks.json");
   const hooksJsonRaw = await tryReadFile(hooksJsonPath);
   const hooksJson: HooksJson = hooksJsonRaw ? JSON.parse(hooksJsonRaw) : {};
