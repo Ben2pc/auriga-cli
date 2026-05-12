@@ -55,6 +55,7 @@
 //      the relative import `../src/server.js`.
 
 import assert from "node:assert/strict";
+import { request as httpRequest } from "node:http";
 import { after, before, describe, test } from "node:test";
 
 import { startServer } from "../src/server.js";
@@ -62,6 +63,54 @@ import type {
   RunningServer,
   StartServerOptions,
 } from "../src/server.js";
+
+// `fetch` (undici) overwrites the `Host` header with the URL's host, so it
+// cannot be used to send a forged `Host` header. To exercise the Host-based
+// DNS-rebinding defense, we need a request client that transmits whatever
+// headers we set. Node's `http.request` respects the `Host` header verbatim.
+//
+// `rawFetch` wraps `http.request` into a `fetch`-compatible Response so the
+// rest of the test file's helpers (`expectStatus`, `expectErrorBody`,
+// `expectAuthPassed`) keep working without per-call branching.
+async function rawFetch(
+  url: string,
+  init?: { method?: string; headers?: Record<string, string>; body?: string },
+): Promise<Response> {
+  const parsed = new URL(url);
+  return new Promise<Response>((resolve, reject) => {
+    const req = httpRequest(
+      {
+        hostname: parsed.hostname,
+        port: parsed.port,
+        path: parsed.pathname + parsed.search,
+        method: init?.method ?? "GET",
+        headers: init?.headers,
+      },
+      (res) => {
+        const chunks: Buffer[] = [];
+        res.on("data", (c: Buffer) => chunks.push(c));
+        res.on("end", () => {
+          const body = Buffer.concat(chunks).toString("utf8");
+          const respHeaders = new Headers();
+          for (const [k, v] of Object.entries(res.headers)) {
+            if (v === undefined) continue;
+            respHeaders.set(k, Array.isArray(v) ? v.join(", ") : v);
+          }
+          resolve(
+            new Response(body, {
+              status: res.statusCode ?? 0,
+              statusText: res.statusMessage ?? "",
+              headers: respHeaders,
+            }),
+          );
+        });
+      },
+    );
+    req.on("error", reject);
+    if (init?.body) req.write(init.body);
+    req.end();
+  });
+}
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -314,7 +363,10 @@ describe("server auth — Origin/Host whitelist (spec §4.4)", () => {
   });
 
   test("boundary: DNS rebinding — Host=evil.com + good token → 403", async () => {
-    const res = await fetch(`${ctx.baseUrl}/api/state`, {
+    // Use rawFetch so the forged Host header reaches the server. `fetch`
+    // would overwrite Host with the URL's host (127.0.0.1) and silently
+    // turn this into a happy-path request.
+    const res = await rawFetch(`${ctx.baseUrl}/api/state`, {
       headers: {
         Authorization: `Bearer ${TOKEN}`,
         Host: "evil.com",
@@ -325,7 +377,9 @@ describe("server auth — Origin/Host whitelist (spec §4.4)", () => {
   });
 
   test("boundary: Host case-insensitive — Host=LOCALHOST:<port> passes", async () => {
-    const res = await fetch(`${ctx.baseUrl}/api/state`, {
+    // rawFetch so the upper-cased Host actually transmits. With fetch the
+    // Host would silently downcase via URL normalization.
+    const res = await rawFetch(`${ctx.baseUrl}/api/state`, {
       headers: {
         Authorization: `Bearer ${TOKEN}`,
         Host: `LOCALHOST:${ctx.port}`,
@@ -335,7 +389,9 @@ describe("server auth — Origin/Host whitelist (spec §4.4)", () => {
   });
 
   test("boundary: IPv6 form — Host=[::1]:<port> passes", async () => {
-    const res = await fetch(`${ctx.baseUrl}/api/state`, {
+    // rawFetch so [::1] reaches the server unchanged. fetch would parse the
+    // bracketed form differently and rewrite Host.
+    const res = await rawFetch(`${ctx.baseUrl}/api/state`, {
       headers: {
         Authorization: `Bearer ${TOKEN}`,
         Host: `[::1]:${ctx.port}`,
@@ -356,7 +412,8 @@ describe("server auth — Origin/Host whitelist (spec §4.4)", () => {
   });
 
   test("boundary: Origin valid + Host evil → 403 (both must pass, not either)", async () => {
-    const res = await fetch(`${ctx.baseUrl}/api/state`, {
+    // rawFetch so Host="evil.com" actually transmits. fetch would override.
+    const res = await rawFetch(`${ctx.baseUrl}/api/state`, {
       headers: {
         Authorization: `Bearer ${TOKEN}`,
         Origin: `http://localhost:${ctx.port}`,
