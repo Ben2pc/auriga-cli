@@ -16,6 +16,13 @@ export interface CatalogEntry {
 
 export interface Catalog {
   generatedAt: string;
+  /** Workflow content version baked from `CLAUDE.md`'s `# auriga Workflow (vX.Y.Z)`
+   *  header at build time. MUST live here rather than be read at runtime
+   *  because `CLAUDE.md` is NOT in the npm tarball — `package.json` `files`
+   *  allowlists only `dist/`. Empty string when the header is unparseable;
+   *  the scanner then degrades to "trust whatever the user has" rather than
+   *  forcing phantom update-available against an empty expected value. */
+  workflowVersion: string;
   workflowSkills: CatalogEntry[];
   recommendedSkills: CatalogEntry[];
   plugins: CatalogEntry[];

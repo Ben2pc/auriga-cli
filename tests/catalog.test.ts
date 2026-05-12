@@ -106,6 +106,21 @@ describe("generateCatalog (build-time)", () => {
     assertEntriesShape(catalog.hooks, "hooks");
   });
 
+  test("workflowVersion is baked from CLAUDE.md header", () => {
+    // rationale: scan-catalog at runtime cannot read CLAUDE.md from the
+    // npm-installed packageRoot because `package.json` `files` allowlist
+    // does not ship CLAUDE.md. Reading would silently return "" and the
+    // scanner would force every workflow row to "installed" regardless
+    // of the user's actual version — root cause of the v1.18.4 hotfix.
+    // The contract: catalog MUST carry the version baked at build time
+    // from the repo's CLAUDE.md `# auriga Workflow (vX.Y.Z)` header.
+    assert.match(
+      catalog.workflowVersion,
+      /^\d+\.\d+\.\d+/,
+      `workflowVersion must be a semver baked from CLAUDE.md; got ${JSON.stringify(catalog.workflowVersion)}`,
+    );
+  });
+
   test("owned plugins carry baked expectedVersion from plugin.json", () => {
     // rationale: the scanner relies on this baked field to surface
     // "update-available" for already-installed plugins. Reading at runtime

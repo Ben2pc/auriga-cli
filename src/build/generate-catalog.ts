@@ -200,8 +200,20 @@ export function generateCatalog(repoRoot: string): Catalog {
     description: h.defaultOn === false ? `(opt-in) ${h.description}` : h.description,
   }));
 
+  // Workflow content version. MUST be baked at build time because the user's
+  // installed CLAUDE.md (the workflow product) and auriga-cli's own CLAUDE.md
+  // template share the same filename but live at different paths, and the
+  // npm tarball does not ship the template — `files` only allowlists `dist/`.
+  // Without baking, scan-catalog at runtime can't compare versions and the
+  // Web UI silently never shows "update-available" for workflow upgrades.
+  const workflowMdPath = path.join(repoRoot, "CLAUDE.md");
+  const workflowMd = fs.readFileSync(workflowMdPath, "utf-8");
+  const headerMatch = /^#\s*auriga Workflow\s*\(v([\d.]+)\)/m.exec(workflowMd);
+  const workflowVersion = headerMatch ? headerMatch[1] : "";
+
   return {
     generatedAt: new Date().toISOString(),
+    workflowVersion,
     workflowSkills,
     recommendedSkills,
     plugins,

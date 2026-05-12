@@ -36,8 +36,6 @@ async function sha256SkillMd(skillsRoot: string, name: string): Promise<string> 
 }
 
 
-const WORKFLOW_VERSION_RE = /^#\s*auriga Workflow\s*\(v([\d.]+)\)/m;
-
 async function tryReadFile(p: string): Promise<string | null> {
   try {
     return await readFile(p, "utf8");
@@ -74,12 +72,15 @@ export async function buildScanCatalog(
 ): Promise<ScanCatalog> {
   const dist = loadCatalog(packageRoot);
 
-  // Workflow version: parse from auriga-cli's own CLAUDE.md template.
-  // If missing, leave as empty string so workflow always classifies as
-  // not-installed (no expectation set).
-  const claudeMd = await tryReadFile(path.join(packageRoot, "CLAUDE.md"));
-  const m = claudeMd ? WORKFLOW_VERSION_RE.exec(claudeMd) : null;
-  const workflowVersion = m ? m[1] : "";
+  // Workflow version comes from dist.workflowVersion (baked at build time
+  // from `CLAUDE.md`'s header). Reading at runtime from packageRoot/CLAUDE.md
+  // would fail for npm-installed users — the tarball's `files` allowlist
+  // (`dist/*.js`, `dist/*.d.ts`, `dist/catalog.json`) does NOT ship the
+  // workflow template. Dev environment (packageRoot === repoRoot) hides
+  // this; production silently sets workflowVersion to "" and the scanner
+  // forces all workflow rows to "installed" no matter what version the
+  // user has — root cause of the v1.18.4 hotfix.
+  const workflowVersion = dist.workflowVersion ?? "";
 
   // Skills + recommended: sha256 of each shipped SKILL.md. This is the same
   // hash the scanner computes for `<scope>/.claude/skills/<name>/SKILL.md`
