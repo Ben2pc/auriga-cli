@@ -1443,4 +1443,37 @@ describe("mergePluginsById — dedup by id + aggregate status", () => {
     assert.equal(out[0].status, "update-available");
     assert.equal(out[0].missingAgents, undefined, "no missingAgents when nothing is missing");
   });
+
+  test("mixed installed + update-available picks the stale side's currentVersion", () => {
+    // rationale: the v1.18.4 live verification showed deep-review folding
+    // to update-available with currentVersion = Claude's 0.3.1 (the side
+    // that matched expected), producing the misleading "0.3.1 → 0.3.1"
+    // display. The merge must surface the version of the agent that's
+    // actually stale (Codex 0.3.0 in that case) so the UI renders the
+    // correct drift.
+    const claude: PluginState = {
+      id: "x",
+      description: "",
+      status: "installed",
+      agents: ["claude"],
+      versionSource: "upstream-live",
+      currentVersion: "1.0.1",
+      expectedVersion: "1.0.1",
+    };
+    const codex: PluginState = {
+      id: "x",
+      description: "",
+      status: "update-available",
+      agents: ["codex"],
+      versionSource: "upstream-live",
+      currentVersion: "1.0.0",
+      expectedVersion: "1.0.1",
+    };
+    const out = mergePluginsById([claude, codex]);
+    assert.equal(out.length, 1);
+    assert.equal(out[0].status, "update-available");
+    assert.equal(out[0].currentVersion, "1.0.0", "must surface the stale Codex side's version, not the up-to-date Claude side");
+    assert.equal(out[0].expectedVersion, "1.0.1");
+    assert.equal(out[0].missingAgents, undefined);
+  });
 });

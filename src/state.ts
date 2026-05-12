@@ -232,21 +232,33 @@ function dirExists(p: string): boolean {
  * registry-pinned plugin, so this is safe; if a future divergence appears
  * we'll need a deliberate merge policy.
  */
+interface PerAgentRecord {
+  agent: ApplyAgent;
+  status: ItemStatus;
+  currentVersion?: string;
+}
+
 export function mergePluginsById(records: PluginState[]): PluginState[] {
   const byId = new Map<string, PluginState>();
-  // Per-agent (agent, status) tuples preserved across the fold so the
-  // aggregation step can emit `partial-install` + `missingAgents` when one
-  // side is installed and the other isn't.
-  const perAgentByIdEntries = new Map<string, Array<{ agent: ApplyAgent; status: ItemStatus }>>();
+  // Per-agent (agent, status, version) tuples preserved across the fold so
+  // the aggregation step can emit `partial-install` + `missingAgents` when
+  // one side is installed and the other isn't, AND pick the *stale* side's
+  // currentVersion when status === "update-available" (otherwise the merge
+  // inherited Claude's version, producing the misleading `vX → vX` display
+  // in the v1.18.4 verification).
+  const perAgentByIdEntries = new Map<string, PerAgentRecord[]>();
   for (const rec of records) {
     // Pre-merge records are per-agent: their `agents[]` array contains the
     // single Agent this row was scanned for. The merge step below unions
     // those into the final dual-Agent record.
     const recAgent = rec.agents[0];
+    const perAgentEntry: PerAgentRecord | null = recAgent
+      ? { agent: recAgent, status: rec.status, currentVersion: rec.currentVersion }
+      : null;
     const existing = byId.get(rec.id);
     if (!existing) {
       byId.set(rec.id, { ...rec });
-      perAgentByIdEntries.set(rec.id, recAgent ? [{ agent: recAgent, status: rec.status }] : []);
+      perAgentByIdEntries.set(rec.id, perAgentEntry ? [perAgentEntry] : []);
       continue;
     }
     // Union agents preserving order: existing first, then any new ones.
@@ -257,12 +269,12 @@ export function mergePluginsById(records: PluginState[]): PluginState[] {
         seen.add(a);
       }
     }
-    if (recAgent) {
-      perAgentByIdEntries.get(rec.id)!.push({ agent: recAgent, status: rec.status });
+    if (perAgentEntry) {
+      perAgentByIdEntries.get(rec.id)!.push(perAgentEntry);
     }
   }
-  // Fold per-agent (agent, status) tuples into the aggregated status plus
-  // (when applicable) the missingAgents enumeration.
+  // Fold per-agent tuples into the aggregated status, missingAgents, and
+  // (when applicable) the corrected currentVersion.
   for (const [id, perAgent] of perAgentByIdEntries) {
     const rec = byId.get(id);
     if (!rec) continue;
@@ -272,6 +284,17 @@ export function mergePluginsById(records: PluginState[]): PluginState[] {
       rec.missingAgents = aggregated.missingAgents;
     } else {
       delete rec.missingAgents;
+    }
+    // When status is update-available, surface the version of the *stale*
+    // agent (one whose own status was update-available). Otherwise we'd
+    // keep whichever agent's version was merged first — Claude's, which
+    // may already be at the expected version, producing a `vX → vX`
+    // pseudo-upgrade display.
+    if (rec.status === "update-available") {
+      const stale = perAgent.find((r) => r.status === "update-available");
+      if (stale?.currentVersion) {
+        rec.currentVersion = stale.currentVersion;
+      }
     }
   }
   return Array.from(byId.values());
