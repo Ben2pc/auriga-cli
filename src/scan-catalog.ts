@@ -1,42 +1,31 @@
-// Build the scan-time Catalog (the shape src/state.ts consumes) from
-// auriga-cli's installed package state. This bridges the build-time
-// `dist/catalog.json` (which carries names + descriptions for the menu)
-// and the runtime scanner's need for expected hashes + versions.
+// Build the scan-time Catalog (the shape src/state.ts consumes) from the
+// build-time `dist/catalog.json`. This module is intentionally a *thin
+// adapter* — it must NOT read any file outside `dist/catalog.json`, because
+// the npm tarball's `files` field allowlists only `dist/`. Reading from
+// `packageRoot/CLAUDE.md`, `packageRoot/.claude/plugins.json`, or
+// `packageRoot/.agents/skills/<name>/SKILL.md` succeeds in dev (where
+// packageRoot === repoRoot) but silently returns empty for npm-installed
+// users, leaving the scanner unable to surface real update signals.
 //
-// Inputs (all under packageRoot):
-//   dist/catalog.json     — names + descriptions for 5 categories
-//   skills-lock.json      — expected SHA256 for every vendored skill
-//   .claude/plugins.json  — Claude plugin entries (agent = "claude")
-//   .agents/plugins/install.json — Codex plugin entries (agent = "codex")
-//   .claude/hooks/hooks.json — registers settingsEvents per hook (event /
-//                           matcher / if) used by state.ts for drift
-//                           detection in <scope>/.claude/settings.json
-//   CLAUDE.md             — `# auriga Workflow (vX.Y.Z)` provides
-//                           workflowVersion
+// Anything the scanner needs beyond what's already in catalog.json must
+// first be baked at build time in `src/build/generate-catalog.ts`.
 //
-// Anything missing is treated as "no expectation" (empty hash / version)
-// rather than throwing; scanState will still produce a structurally valid
-// StateReport — items just classify as not-installed or installed
-// depending on whether the user-side data exists.
+// Scope of the current bake (covered fields):
+//   - workflowVersion         — from CLAUDE.md header
+//   - plugin agents map       — from .claude/plugins.json ∪ .agents/plugins/install.json
+//   - plugin expectedVersion  — from plugins/<name>/.claude-plugin/plugin.json
+//   - plugin external flag    — derived (no in-tree manifest = external)
+//
+// Out of scope for v1.18.4 (follow-up PRs):
+//   - hook expectedEvent / expectedMatcher / expectedIf (from .claude/hooks/hooks.json)
+//   - apply-time installer config (the install path reads .claude/plugins.json
+//     directly — that needs runWebUi → fetchContentRoot rewire, not bake).
 
-import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 
 import { loadCatalog } from "./catalog.js";
 import type { Catalog as ScanCatalog } from "./state.js";
-
-async function sha256SkillMd(skillsRoot: string, name: string): Promise<string> {
-  try {
-    const buf = await readFile(path.join(skillsRoot, name, "SKILL.md"));
-    return createHash("sha256").update(buf).digest("hex");
-  } catch {
-    return "";
-  }
-}
-
-
-const WORKFLOW_VERSION_RE = /^#\s*auriga Workflow\s*\(v([\d.]+)\)/m;
 
 async function tryReadFile(p: string): Promise<string | null> {
   try {
@@ -44,14 +33,6 @@ async function tryReadFile(p: string): Promise<string | null> {
   } catch {
     return null;
   }
-}
-
-interface ClaudePluginsJson {
-  plugins?: Array<{ name?: string }>;
-}
-
-interface CodexInstallJson {
-  plugins?: Array<{ name?: string }>;
 }
 
 interface HookSettingsEvent {
@@ -74,25 +55,22 @@ export async function buildScanCatalog(
 ): Promise<ScanCatalog> {
   const dist = loadCatalog(packageRoot);
 
-  // Workflow version: parse from auriga-cli's own CLAUDE.md template.
-  // If missing, leave as empty string so workflow always classifies as
-  // not-installed (no expectation set).
-  const claudeMd = await tryReadFile(path.join(packageRoot, "CLAUDE.md"));
-  const m = claudeMd ? WORKFLOW_VERSION_RE.exec(claudeMd) : null;
-  const workflowVersion = m ? m[1] : "";
+  // Workflow version — baked from CLAUDE.md header at build time. See
+  // module comment for the "no runtime reads outside dist/" rule.
+  const workflowVersion = dist.workflowVersion ?? "";
 
-  // Skills + recommended: sha256 of each shipped SKILL.md. This is the same
-  // hash the scanner computes for `<scope>/.claude/skills/<name>/SKILL.md`
-  // at scan time, so a match means "user's installed copy is identical to
-  // the version auriga-cli ships". skills-lock.json's `computedHash` field
-  // hashes the entire skill directory (every file, sorted), which doesn't
-  // line up with the scanner's per-file model — we deliberately ignore it.
-  const skillsRoot = path.join(packageRoot, ".agents", "skills");
+  // Skills: drift detection deliberately deferred to `npx skills update
+  // --project`, which already compares against the skill's own upstream
+  // repo HEAD. Our catalog snapshot would only know "what auriga-cli
+  // shipped at this CLI release" — at best a stale proxy that mis-reports
+  // legitimate user-side updates as drift. Setting expectedHash to "" puts
+  // classifySkillByFile into wildcard mode: row reports installed if
+  // SKILL.md exists, not-installed otherwise; never update-available.
   const skills: ScanCatalog["skills"] = {};
   for (const entry of dist.workflowSkills) {
     skills[entry.name] = {
       description: entry.description,
-      expectedHash: await sha256SkillMd(skillsRoot, entry.name),
+      expectedHash: "",
       isWorkflow: true,
     };
   }
@@ -100,74 +78,40 @@ export async function buildScanCatalog(
   for (const entry of dist.recommendedSkills) {
     recommendedSkills[entry.name] = {
       description: entry.description,
-      expectedHash: await sha256SkillMd(skillsRoot, entry.name),
+      expectedHash: "",
     };
   }
 
-  // Plugins: split by agent based on which config file lists them. A
-  // plugin can appear in both registries (cross-agent plugins like
-  // auriga-go); we represent it once per agent.
+  // Plugins: agents + expectedVersion + external all come from
+  // dist/catalog.json now (baked in src/build/generate-catalog.ts). The
+  // previous version of this module read .claude/plugins.json +
+  // .agents/plugins/install.json at runtime — those files are NOT in the
+  // npm tarball, so for installed users every plugin defaulted to a
+  // ["claude"] agent classification (root cause of dual-Agent plugin
+  // mis-classification in v1.18.x).
   const plugins: ScanCatalog["plugins"] = {};
-  const claudePluginsText = await tryReadFile(
-    path.join(packageRoot, ".claude", "plugins.json"),
-  );
-  const claudeNames = new Set<string>();
-  if (claudePluginsText) {
-    try {
-      const parsed = JSON.parse(claudePluginsText) as ClaudePluginsJson;
-      for (const p of parsed.plugins ?? []) {
-        if (p.name) claudeNames.add(p.name);
-      }
-    } catch {
-      /* ignore */
-    }
-  }
-  const codexInstallText = await tryReadFile(
-    path.join(packageRoot, ".agents", "plugins", "install.json"),
-  );
-  const codexNames = new Set<string>();
-  if (codexInstallText) {
-    try {
-      const parsed = JSON.parse(codexInstallText) as CodexInstallJson;
-      for (const p of parsed.plugins ?? []) {
-        if (p.name) codexNames.add(p.name);
-      }
-    } catch {
-      /* ignore */
-    }
-  }
-
   for (const entry of dist.plugins) {
-    // Collect every agent that registers this plugin. A plugin can ship in
-    // both registries (cross-agent plugins like auriga-go); we emit it as
-    // a single multi-agent record so the UI shows one row + BOTH badge and
-    // Apply installs to each side.
-    const agents: ("claude" | "codex")[] = [];
-    if (claudeNames.has(entry.name)) agents.push("claude");
-    if (codexNames.has(entry.name)) agents.push("codex");
-    if (agents.length === 0) agents.push("claude"); // unknown defaults to claude
-
-    // expectedVersion comes from the build-time-baked field in dist/catalog.json
-    // (populated by `src/build/generate-catalog.ts` from
-    // `plugins/<name>/.claude-plugin/plugin.json`). It MUST be baked at build
-    // time because `plugins/<name>/` is NOT shipped in the npm tarball
-    // (`package.json` `files` field allowlists only `dist/`), so reading it
-    // at runtime from packageRoot would silently fail for npm-installed users.
+    const agents: ("claude" | "codex")[] =
+      Array.isArray(entry.agents) && entry.agents.length > 0
+        ? [...entry.agents]
+        : ["claude"]; // safety fallback: unknown shape defaults to claude
     plugins[entry.name] = {
       description: entry.description,
       agents,
       ...(typeof entry.expectedVersion === "string" && entry.expectedVersion.length > 0
         ? { expectedVersion: entry.expectedVersion }
         : {}),
+      ...(entry.external === true ? { external: true } : {}),
     };
   }
 
-  // Hooks: the scanner reads <scope>/.claude/settings.json and matches by
-  // `_marker` (see state.ts scanHooks). Drift detection compares the
-  // registered event / matcher / if values against the hook's canonical
-  // settingsEvents[0] from .claude/hooks/hooks.json. We deliberately do NOT
-  // hash index.mjs — the user's installed index.mjs lives at <scope>/.claude/
-  // hooks/<name>/index.mjs and isn't part of the settings.json drift signal.
+  // Hooks: TODO follow-up — bake expectedEvent / expectedMatcher / expectedIf
+  // into dist/catalog.json the same way agents are baked. Currently the
+  // runtime read of packageRoot/.claude/hooks/hooks.json works in dev
+  // (packageRoot === repoRoot) but fails silently for npm-installed users
+  // — `package.json` `files` allowlist doesn't ship `.claude/`. So hook
+  // drift detection is correct in dev and degraded (always "installed" if
+  // marker present) in production. Follow-up bake closes the dev/prod gap.
   const hooksJsonPath = path.join(packageRoot, ".claude", "hooks", "hooks.json");
   const hooksJsonRaw = await tryReadFile(hooksJsonPath);
   const hooksJson: HooksJson = hooksJsonRaw ? JSON.parse(hooksJsonRaw) : {};

@@ -106,6 +106,21 @@ describe("generateCatalog (build-time)", () => {
     assertEntriesShape(catalog.hooks, "hooks");
   });
 
+  test("workflowVersion is baked from CLAUDE.md header", () => {
+    // rationale: scan-catalog at runtime cannot read CLAUDE.md from the
+    // npm-installed packageRoot because `package.json` `files` allowlist
+    // does not ship CLAUDE.md. Reading would silently return "" and the
+    // scanner would force every workflow row to "installed" regardless
+    // of the user's actual version — root cause of the v1.18.4 hotfix.
+    // The contract: catalog MUST carry the version baked at build time
+    // from the repo's CLAUDE.md `# auriga Workflow (vX.Y.Z)` header.
+    assert.match(
+      catalog.workflowVersion,
+      /^\d+\.\d+\.\d+/,
+      `workflowVersion must be a semver baked from CLAUDE.md; got ${JSON.stringify(catalog.workflowVersion)}`,
+    );
+  });
+
   test("owned plugins carry baked expectedVersion from plugin.json", () => {
     // rationale: the scanner relies on this baked field to surface
     // "update-available" for already-installed plugins. Reading at runtime
@@ -119,6 +134,53 @@ describe("generateCatalog (build-time)", () => {
         /^\d+\.\d+\.\d+/,
         `${name} must bake a semver expectedVersion; got ${JSON.stringify(e!.expectedVersion)}`,
       );
+    }
+  });
+
+  test("plugins carry baked agents map (build-time, no runtime IO)", () => {
+    // rationale: scan-catalog used to read .claude/plugins.json +
+    // .agents/plugins/install.json at runtime to derive the agent map.
+    // Those files are NOT in the npm tarball (`files` only ships dist/), so
+    // installed users had every plugin default to ["claude"] — dual-Agent
+    // plugins (auriga-go etc.) mis-classified as Claude-only. The fix bakes
+    // `agents` at build time. This pins the contract per plugin.
+    const expectedAgents: Record<string, ("claude" | "codex")[]> = {
+      "auriga-go": ["claude", "codex"],
+      "auriga-git-guards": ["claude", "codex"],
+      "deep-review": ["claude", "codex"],
+      "session-instructions-loader": ["codex"],
+      "skill-creator": ["claude"],
+      "claude-md-management": ["claude"],
+      codex: ["claude"],
+    };
+    for (const [name, agents] of Object.entries(expectedAgents)) {
+      const e = catalog.plugins.find((p) => p.name === name);
+      assert.ok(e, `${name} present in catalog`);
+      assert.deepEqual(
+        e!.agents,
+        agents,
+        `${name} agents must be ${JSON.stringify(agents)}, got ${JSON.stringify(e!.agents)}`,
+      );
+    }
+  });
+
+  test("external flag set on upstream-marketplace plugins, absent on owned", () => {
+    // rationale: the scanner uses external as a hard short-circuit — never
+    // report update-available for upstream-owned plugins because we don't
+    // know (and shouldn't claim to know) the canonical version. Mis-flagging
+    // an owned plugin as external would suppress real upgrade signals;
+    // mis-flagging an external as owned would force phantom updates.
+    const externals = new Set(["skill-creator", "claude-md-management", "codex"]);
+    for (const entry of catalog.plugins) {
+      if (externals.has(entry.name)) {
+        assert.equal(entry.external, true, `${entry.name} must be external`);
+      } else {
+        assert.notEqual(
+          entry.external,
+          true,
+          `${entry.name} must NOT be external (owned in-tree)`,
+        );
+      }
     }
   });
 

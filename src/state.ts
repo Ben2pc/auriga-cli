@@ -48,6 +48,12 @@ export interface Catalog {
       /** Agents this plugin can install into. Length 1 or 2. */
       agents: ("claude" | "codex")[];
       expectedVersion?: string;
+      /** When true, this plugin is published in an UPSTREAM marketplace
+       *  (skill-creator / claude-md-management / codex), not in this repo.
+       *  Classifier MUST NOT report `update-available` for external plugins —
+       *  those upgrade through `claude plugins update`, not us. The UI surfaces
+       *  an EXTERNAL badge so users know to defer to the upstream tool. */
+      external?: boolean;
     }
   >;
   hooks: Record<
@@ -541,6 +547,7 @@ function degradedClaudeRow(
     expectedVersion: def.expectedVersion,
     versionSource: "upstream-live",
     observedScope: scope,
+    ...(def.external === true ? { external: true as const } : {}),
   };
 }
 
@@ -551,6 +558,10 @@ function classifyClaudePlugin(
   available: any | undefined,
   scope: ScanScope,
 ): PluginState {
+  // `external` propagates onto every return below so the UI can surface the
+  // EXTERNAL badge regardless of install state.
+  const externalFlag = def.external === true ? { external: true as const } : {};
+
   if (!installed || typeof installed.version !== "string") {
     return {
       id,
@@ -561,10 +572,34 @@ function classifyClaudePlugin(
         typeof available?.source?.ref === "string" ? available.source.ref : def.expectedVersion,
       versionSource: "upstream-live",
       observedScope: scope,
+      ...externalFlag,
     };
   }
 
   const installedVersion = installed.version as string;
+
+  // External plugin short-circuit: we don't own these, so we don't claim
+  // authority on "what version they should be at". `claude plugins update`
+  // is the right channel — the scanner just confirms presence. Status stays
+  // "installed" even if installed.version differs from any signal we have.
+  // The catalog deliberately omits `expectedVersion` for externals, but we
+  // double-down with this guard so a future regression that accidentally
+  // populates expectedVersion still can't flip externals to update-available.
+  if (def.external === true) {
+    return {
+      id,
+      description: def.description,
+      status: "installed",
+      agents: ["claude"],
+      currentVersion: installedVersion,
+      // Don't surface any "expected" on externals — the upstream tool owns
+      // the version conversation.
+      versionSource: "upstream-live",
+      observedScope: scope,
+      ...externalFlag,
+    };
+  }
+
   const ref = available?.source?.ref;
   const normalizedAvailable = parseRef(typeof ref === "string" ? ref : undefined);
   const normalizedInstalled = parseRef(installedVersion);
@@ -600,6 +635,7 @@ function classifyClaudePlugin(
       expectedVersion: expectedRaw,
       versionSource,
       observedScope: scope,
+      ...externalFlag,
     };
   }
 
@@ -613,6 +649,7 @@ function classifyClaudePlugin(
       expectedVersion: expectedRaw,
       versionSource,
       observedScope: scope,
+      ...externalFlag,
     };
   }
   return {
@@ -624,6 +661,7 @@ function classifyClaudePlugin(
     expectedVersion: expectedRaw,
     versionSource,
     observedScope: scope,
+    ...externalFlag,
   };
 }
 
@@ -719,6 +757,7 @@ function degradedCodexRow(
     expectedVersion: def.expectedVersion,
     versionSource: "catalog",
     observedScope: "user",
+    ...(def.external === true ? { external: true as const } : {}),
   };
 }
 
@@ -729,6 +768,7 @@ function classifyCodexPlugin(
   fsVersion: string | undefined,
 ): PluginState {
   const expectedVersion = def.expectedVersion;
+  const externalFlag = def.external === true ? { external: true as const } : {};
 
   if (!enabled) {
     return {
@@ -739,6 +779,7 @@ function classifyCodexPlugin(
       expectedVersion,
       versionSource: "catalog",
       observedScope: "user",
+      ...externalFlag,
     };
   }
   if (!fsVersion) {
@@ -750,6 +791,22 @@ function classifyCodexPlugin(
       expectedVersion,
       versionSource: "catalog",
       observedScope: "user",
+      ...externalFlag,
+    };
+  }
+  // External plugin short-circuit, same rationale as classifyClaudePlugin:
+  // we defer authority to `codex plugin marketplace update` and never flag
+  // update-available for upstream-owned plugins.
+  if (def.external === true) {
+    return {
+      id,
+      description: def.description,
+      status: "installed",
+      agents: ["codex"],
+      currentVersion: fsVersion,
+      versionSource: "catalog",
+      observedScope: "user",
+      ...externalFlag,
     };
   }
   if (!expectedVersion || fsVersion === expectedVersion) {
@@ -762,6 +819,7 @@ function classifyCodexPlugin(
       expectedVersion,
       versionSource: "catalog",
       observedScope: "user",
+      ...externalFlag,
     };
   }
   return {
@@ -773,6 +831,7 @@ function classifyCodexPlugin(
     expectedVersion,
     versionSource: "catalog",
     observedScope: "user",
+    ...externalFlag,
   };
 }
 

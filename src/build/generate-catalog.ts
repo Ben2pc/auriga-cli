@@ -142,7 +142,8 @@ export function generateCatalog(repoRoot: string): Catalog {
     pluginByName.set(p.name, {
       name: p.name,
       description: p.description,
-      ...(expectedVersion ? { expectedVersion } : {}),
+      agents: ["claude"],
+      ...(expectedVersion ? { expectedVersion } : { external: true }),
     });
   }
 
@@ -182,12 +183,23 @@ export function generateCatalog(repoRoot: string): Catalog {
       // Otherwise read from this plugin's in-tree manifest (handles codex-only
       // plugins like session-instructions-loader).
       const expectedVersion = existing?.expectedVersion ?? readPluginManifestVersion(repoRoot, p.name);
+      // Agent map: if existing came from the Claude pass it's ["claude"]; this
+      // pass adds "codex". Codex-only entries get ["codex"].
+      const agents: ("claude" | "codex")[] = existing
+        ? ["claude", "codex"]
+        : ["codex"];
+      // external flag: true when no in-tree manifest in this repo's plugins/.
+      // The Claude pass may have already set it; respect either signal —
+      // a plugin we don't own on either Agent side stays external.
+      const external = !expectedVersion;
       pluginByName.set(p.name, {
         name: p.name,
         description: existing
           ? `(Claude/Codex) ${existing.description}`
           : `(Codex) ${description}`,
+        agents,
         ...(expectedVersion ? { expectedVersion } : {}),
+        ...(external ? { external: true } : {}),
       });
     }
   }
@@ -200,8 +212,20 @@ export function generateCatalog(repoRoot: string): Catalog {
     description: h.defaultOn === false ? `(opt-in) ${h.description}` : h.description,
   }));
 
+  // Workflow content version. MUST be baked at build time because the user's
+  // installed CLAUDE.md (the workflow product) and auriga-cli's own CLAUDE.md
+  // template share the same filename but live at different paths, and the
+  // npm tarball does not ship the template — `files` only allowlists `dist/`.
+  // Without baking, scan-catalog at runtime can't compare versions and the
+  // Web UI silently never shows "update-available" for workflow upgrades.
+  const workflowMdPath = path.join(repoRoot, "CLAUDE.md");
+  const workflowMd = fs.readFileSync(workflowMdPath, "utf-8");
+  const headerMatch = /^#\s*auriga Workflow\s*\(v([\d.]+)\)/m.exec(workflowMd);
+  const workflowVersion = headerMatch ? headerMatch[1] : "";
+
   return {
     generatedAt: new Date().toISOString(),
+    workflowVersion,
     workflowSkills,
     recommendedSkills,
     plugins,
