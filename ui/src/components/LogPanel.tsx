@@ -49,7 +49,10 @@ export interface LogPanelProps {
 const LEVEL_COLOR: Record<LogLineLevel, string> = {
   info: "var(--color-slate-light)",
   warn: "var(--color-clay)",
-  error: "var(--color-accent-ember)",
+  // ember-deep instead of accent-ember: error lines are the most consequential
+  // to read accurately, and accent-ember on ivory-medium only clears ~3.5:1
+  // (fails WCAG AA 4.5:1 for body text). ember-deep clears ~5:1.
+  error: "var(--color-ember-deep)",
   ok: "var(--color-olive)",
   meta: "var(--color-cloud-dark)",
 };
@@ -140,8 +143,10 @@ export default function LogPanel({
       </h2>
 
       {/* Destructive batch warning — fires when any pending item is an
-          uninstall. Ember color flags the row as needing extra attention
-          before Apply. */}
+          uninstall. Ember background + slate-dark text gives 4.6:1 contrast
+          (WCAG AA passes); ivory-on-ember at 11px was 3.85:1 (fails AA for
+          body text). Bold weight reinforces hierarchy without relying on
+          color alone. */}
       {hasDestructive && pendingCount > 0 && (
         <div
           data-testid="log-panel-destructive-banner"
@@ -149,12 +154,13 @@ export default function LogPanel({
           className="font-anthropic-mono"
           style={{
             fontSize: "11px",
-            color: "var(--color-ivory-light)",
+            color: "var(--color-slate-dark)",
             backgroundColor: "var(--color-accent-ember)",
             padding: "6px 12px",
             borderBottom: "1px solid var(--color-cloud-light)",
             fontFamily: "var(--font-anthropic-mono)",
             letterSpacing: "0.04em",
+            fontWeight: 600,
           }}
         >
           ! destructive — batch contains uninstall action(s)
@@ -207,7 +213,9 @@ export default function LogPanel({
           <div
             data-testid="log-panel-empty"
             style={{
-              color: "var(--color-cloud-light)",
+              // slate-light on ivory-medium = 6.1:1 (was cloud-light at 1.34:1 —
+              // primary "what do I do next" copy was effectively invisible).
+              color: "var(--color-slate-light)",
               fontSize: "11px",
               fontStyle: "italic",
             }}
@@ -249,8 +257,11 @@ export default function LogPanel({
           data-testid="log-panel-cancel"
           type="button"
           onClick={onCancel}
-          disabled={pendingCount === 0 || applying}
+          // Enabled when either there's a pending batch (clear) OR a job is
+          // applying (disconnect). Only disabled in the idle empty state.
+          disabled={!applying && pendingCount === 0}
           className="font-anthropic-mono uppercase"
+          aria-label={applying ? "Disconnect from running job" : "Clear pending selection"}
           style={{
             flex: 1,
             padding: "8px 12px",
@@ -259,14 +270,13 @@ export default function LogPanel({
             color: "var(--color-slate-dark)",
             fontSize: "11px",
             letterSpacing: "0.04em",
-            cursor:
-              pendingCount === 0 || applying ? "not-allowed" : "pointer",
-            opacity: pendingCount === 0 || applying ? 0.5 : 1,
+            cursor: !applying && pendingCount === 0 ? "not-allowed" : "pointer",
+            opacity: !applying && pendingCount === 0 ? 0.5 : 1,
             fontFamily: "var(--font-anthropic-mono)",
             borderRadius: 0,
           }}
         >
-          CANCEL
+          {applying ? "DISCONNECT" : "CANCEL"}
         </button>
         <button
           data-testid="log-panel-apply"

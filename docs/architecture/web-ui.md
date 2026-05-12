@@ -154,7 +154,7 @@ server 启动时锁定 `process.cwd()`，整个会话只操作这一个项目。
 | `.github/workflows/release.yml` | publish 前加 UI build + tarball + upload | 中（CI 改动） |
 | `tsconfig.json` | `exclude` 加 `ui/` | 极低 |
 | `.gitignore` | 加 `ui/dist`、`ui/node_modules` | 极低 |
-| `package.json` | 不加 workspaces；加 `scripts.test:web-ui-e2e`、`scripts.ui:build`；`devDependencies` 加 `@playwright/test` | 极低 |
+| `package.json` | 不加 workspaces；加 `scripts.test:web-ui-e2e`、`scripts.ui:build`（v0.1 不依赖 `@playwright/test`，hermetic spawn-CLI e2e 即可覆盖契约） | 极低 |
 
 ### 5.3 依赖图
 

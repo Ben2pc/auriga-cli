@@ -463,18 +463,35 @@ export default function Dashboard(): JSX.Element {
   );
 
   const handleCancel = useCallback(() => {
-    if (selected.size === 0) return;
+    // Two distinct modes:
+    //
+    //   1. applying === true  → DISCONNECT from the SSE stream. The server
+    //      keeps the job running (there's no /api/cancel endpoint in v0.1),
+    //      but the UI releases its locked state so the user isn't trapped.
+    //      Spelled out in the confirm copy so the user isn't surprised by
+    //      the background-continuation.
+    //
+    //   2. applying === false → CLEAR the pending selection. Confirm before
+    //      discarding to defeat misclicks.
     if (applying) {
-      // Cancel during apply has no abort path yet — just leave the in-flight
-      // job alone and don't clear the queue. Surface a hint to the user.
-      return;
-    }
-    if (selected.size > 0) {
       const ok = window.confirm(
-        `Clear ${selected.size} pending item${selected.size > 1 ? "s" : ""}? This won't undo anything already applied.`,
+        "Disconnect from the running apply job?\n\n" +
+          "The installer continues running on the server — there's no abort in v0.1. " +
+          "You'll stop seeing live log lines, but the install isn't stopped. " +
+          "Reload the page later to see the final result.",
       );
       if (!ok) return;
+      sseRef.current?.close();
+      sseRef.current = null;
+      setApplying(false);
+      setJobStatus("Disconnected — job continues in background");
+      return;
     }
+    if (selected.size === 0) return;
+    const ok = window.confirm(
+      `Clear ${selected.size} pending item${selected.size > 1 ? "s" : ""}? This won't undo anything already applied.`,
+    );
+    if (!ok) return;
     setSelected(new Map());
   }, [selected, applying]);
 
