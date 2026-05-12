@@ -2,7 +2,7 @@
 // a tri-state report per category. Pure-ish: all external I/O is either
 // injected via `ScanOptions` (for tests) or done through the default
 // filesystem / child-process implementations declared at the bottom of
-// this file. See docs/specs/web-ui.md §6.3 + §10.4 for the judgment rules
+// this file. See docs/architecture/web-ui.md §6.3 + §10.4 for the judgment rules
 // and tests/state.test.ts for the full behavioral contract.
 
 import { createHash } from "node:crypto";

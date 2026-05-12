@@ -1,4 +1,4 @@
-// ApplyBar — sticky bottom action bar. Maps to docs/specs/web-ui.md §12.3
+// ApplyBar — sticky bottom action bar. Maps to docs/architecture/web-ui.md §12.3
 // + §13.5. Carries the signature asymmetric-radius primary CTA from
 // DESIGN.md §"Primary Nav Button (Try Claude)".
 //

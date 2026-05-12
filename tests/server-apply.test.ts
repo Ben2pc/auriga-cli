@@ -3,9 +3,9 @@
 // Failing tests for the /api/apply + /api/progress (SSE) contract of
 // `src/server.ts`. Designed by an independent test designer who has NOT read
 // any implementation of the apply/progress slice. Drives spec:
-//   - docs/specs/web-ui.md §6.1 (endpoints)
-//   - docs/specs/web-ui.md §6.4 (apply execution model: serial, fail-continue)
-//   - docs/specs/web-ui.md §6.5 (SSE implementation: 200-event cache, 5min TTL,
+//   - docs/architecture/web-ui.md §6.1 (endpoints)
+//   - docs/architecture/web-ui.md §6.4 (apply execution model: serial, fail-continue)
+//   - docs/architecture/web-ui.md §6.5 (SSE implementation: 200-event cache, 5min TTL,
 //     Last-Event-ID resume)
 //   - api-types.ts (ApplyRequest / ProgressEvent shapes)
 //

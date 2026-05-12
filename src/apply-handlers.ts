@@ -17,7 +17,7 @@
 //   hook:               installHook(hookDef, "project",…)│  needs HookDef
 //   hook:               uninstallHook(name, …)           │
 //
-// Spec: docs/specs/web-ui.md §6.4 (apply execution model).
+// Spec: docs/architecture/web-ui.md §6.4 (apply execution model).
 
 import type { ApplyAction } from "./api-types.js";
 import { installHook, loadHooksConfig, uninstallHook } from "./hooks.js";

@@ -1,4 +1,4 @@
-// StateCard — the three-state badge card. Maps to docs/specs/web-ui.md
+// StateCard — the three-state badge card. Maps to docs/architecture/web-ui.md
 // §13.4 (visual encoding) + §13.5 (Release Card mapping). This is the
 // visual-encoding centerpiece of the entire UI: status is conveyed by the
 // combination of uppercase Mono badge text + card background level, with

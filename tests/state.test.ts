@@ -7,7 +7,7 @@
 // access to the implementation, only to:
 //
 //   - src/api-types.ts (StateReport, ItemStatus, etc. — exported shape)
-//   - docs/specs/web-ui.md §6.3 + §10.4 (judgment rules)
+//   - docs/architecture/web-ui.md §6.3 + §10.4 (judgment rules)
 //   - the task brief (judgment logic + boundary categories)
 //
 // =============================================================================

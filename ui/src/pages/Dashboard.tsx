@@ -2,7 +2,7 @@
 // sections (each a list of StateCards) + the sticky ApplyBar.
 //
 // Spec mapping:
-//   - Layout/composition: docs/specs/web-ui.md §12 "页面布局"
+//   - Layout/composition: docs/architecture/web-ui.md §12 "页面布局"
 //   - Category order:     §12.2 (Workflow → Skills → Recommended Skills →
 //                         Plugins → Hooks). The spec lists Plugins (Claude)
 //                         and Plugins (Codex) as separate sub-headers, but

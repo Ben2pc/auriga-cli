@@ -3,10 +3,10 @@
 // Failing tests for the auth + Origin/Host middleware of the (unimplemented)
 // HTTP server in `src/server.ts`. Designed by an independent test designer
 // who has NOT read any server implementation. Drives spec/docs:
-//   - docs/specs/web-ui.md §4.4 (security model)
-//   - docs/specs/web-ui.md §6.1 (endpoints; `/api/*` token-protected, `/` and
+//   - docs/architecture/web-ui.md §4.4 (security model)
+//   - docs/architecture/web-ui.md §6.1 (endpoints; `/api/*` token-protected, `/` and
 //     `/assets/*` public)
-//   - docs/specs/web-ui.md §7   (401/403 generic, no leak of cause)
+//   - docs/architecture/web-ui.md §7   (401/403 generic, no leak of cause)
 //
 // ---------------------------------------------------------------------------
 // Assumptions (locked here so the implementer can read the contract before

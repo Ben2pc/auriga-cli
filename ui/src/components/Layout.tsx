@@ -1,5 +1,5 @@
 // Layout — page-level container with three slots (topBar / children /
-// bottomBar). Maps to docs/specs/web-ui.md §12:
+// bottomBar). Maps to docs/architecture/web-ui.md §12:
 //   - Page surface = --color-ivory-light (the "warm paper" base)
 //   - max-width 1200px, centered (handled inside content slot)
 //   - section gap = --spacing-32 between top-level children

@@ -1,7 +1,7 @@
 // Stub for test designer's red phase. The real implementation must
 // replace everything below the marker. Tests in tests/server-auth.test.ts
 // and tests/server.test.ts exercise contracts defined in
-// docs/specs/web-ui.md §4.4 / §6 / §7.
+// docs/architecture/web-ui.md §4.4 / §6 / §7.
 //
 // This stub returns a trivially-wrong server (every request → 200) so tests
 // compile and produce real assertion-mismatch failures (not "cannot find

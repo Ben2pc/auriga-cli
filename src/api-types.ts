@@ -1,6 +1,6 @@
 // Shared API types between server (src/server.ts) and the Web UI frontend
 // (ui/). All /api/* endpoints carry token + Origin auth. See spec
-// docs/specs/web-ui.md §6.2 for the contract these types encode.
+// docs/architecture/web-ui.md §6.2 for the contract these types encode.
 
 export type ItemStatus = "installed" | "update-available" | "not-installed";
 

@@ -2,7 +2,7 @@
 // verifies its SHA256, and extracts it into a per-version cache directory.
 // Subsequent CLI invocations reuse the cache instead of re-downloading.
 //
-// Spec: docs/specs/web-ui.md §4.1 (boot), §9 (release pipeline + checksum +
+// Spec: docs/architecture/web-ui.md §4.1 (boot), §9 (release pipeline + checksum +
 // cache policy). Tests inject a fake `fetcher` so the unit suite never
 // touches the network.
 

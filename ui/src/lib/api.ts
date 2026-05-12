@@ -1,6 +1,6 @@
 // API helpers for the Dashboard.
 //
-// Maps to docs/specs/web-ui.md §6 ("数据流与 API 设计"):
+// Maps to docs/architecture/web-ui.md §6 ("数据流与 API 设计"):
 //
 //  - Token discovery: URL `?token=<hex>` on first load → sessionStorage so a
 //    page refresh keeps the same session without losing the token from the

@@ -6,7 +6,7 @@
 //        (`${cacheRoot}/ui-v${version}/`). Caller can serve static assets
 //        from there.
 //
-// Spec refs: docs/specs/web-ui.md §4.1 (CLI ui boot), §9.3 (SHA256 verify),
+// Spec refs: docs/architecture/web-ui.md §4.1 (CLI ui boot), §9.3 (SHA256 verify),
 // §9.4 (cache management), §9.5 (no version mismatch).
 
 import assert from "node:assert/strict";

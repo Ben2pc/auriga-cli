@@ -1,6 +1,6 @@
 // TopBar — sticky top navigation bar.
 //
-// Maps to docs/specs/web-ui.md §12.1 "Top Bar" and DESIGN.md
+// Maps to docs/architecture/web-ui.md §12.1 "Top Bar" and DESIGN.md
 // §"Top Navigation Bar". Surface --color-ivory-medium, 68px tall, sticky.
 //
 // - Left: AURIGA-CLI wordmark (Anthropic Sans 16/700, slate-dark) + cwd label
