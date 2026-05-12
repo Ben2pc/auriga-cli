@@ -72,6 +72,11 @@ export interface StartServerOptions {
    *  UI bundle). When undefined, every static path returns 404 — useful in
    *  tests and the M1 server smoke checks. */
   uiDir?: string;
+  /** Max time to wait for an in-flight job during graceful shutdown before
+   *  force-closing sockets (spec §4.3 / §6.6). Defaults to 30000 ms in
+   *  production; tests override to a small value (e.g. 200 ms) so they
+   *  don't time-bomb. */
+  shutdownGraceMs?: number;
 }
 
 export interface RunningServer {
@@ -778,6 +783,22 @@ export async function startServer(
     if (heartbeatTimer) {
       clearInterval(heartbeatTimer);
       heartbeatTimer = null;
+    }
+    // Spec §4.3 / §6.6 — graceful shutdown waits for the in-flight job up to
+    // `shutdownGraceMs` (default 30s). Items continue to drive SSE events
+    // through to all-done; new /api/apply is already blocked by `closing`.
+    const graceMs = opts.shutdownGraceMs ?? 30_000;
+    if (currentJobId !== null && graceMs > 0) {
+      await new Promise<void>((resolve) => {
+        const start = Date.now();
+        const timer = setInterval(() => {
+          if (currentJobId === null || Date.now() - start >= graceMs) {
+            clearInterval(timer);
+            resolve();
+          }
+        }, 50);
+        timer.unref?.();
+      });
     }
     // Stop accepting new connections.
     server.close();

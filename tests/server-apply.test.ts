@@ -1044,6 +1044,115 @@ describe("POST /api/apply — concurrent apply rejected (AA5)", () => {
 });
 
 // ---------------------------------------------------------------------------
+// Graceful shutdown — spec §4.3 / §6.6
+// ---------------------------------------------------------------------------
+
+describe("POST /api/shutdown — graceful drain of in-flight job", () => {
+  test("waits for the in-flight job to finish (within grace window)", async (t) => {
+    // Job takes ~250 ms to finish; grace window is 5000 ms. The shutdown
+    // must wait for the job's all-done before closing sockets — otherwise
+    // the SSE stream is force-killed mid-job and the user loses the result.
+    const token = randomToken();
+    const server = await startServer({
+      port: 0,
+      token,
+      cwd: process.cwd(),
+      applyHandlers: uniformHandlers(delayedHandler(250)),
+      applyCatalog: defaultCatalog(),
+      shutdownGraceMs: 5000,
+    } as unknown as Parameters<typeof startServer>[0]);
+    const baseUrl = `http://127.0.0.1:${server.port}`;
+    t.after(() => server.close().catch(() => {}));
+
+    const applyRes = await postApply(baseUrl, token, {
+      items: items(["skill", "alpha", "install"]),
+    });
+    assert.equal(applyRes.status, 202);
+    const { jobId } = (await applyRes.json()) as { jobId: string };
+
+    const progressRes = await openProgress(baseUrl, token, jobId);
+    assert.equal(progressRes.status, 200);
+
+    // Kick shutdown immediately; the job is still running.
+    const shutdownPromise = fetch(`${baseUrl}/api/shutdown`, {
+      method: "POST",
+      headers: authHeaders(token),
+    });
+
+    // The in-flight SSE stream must still complete with all-done — that's
+    // the contract of graceful drain.
+    const frames = await readSSEUntil(progressRes, (_f, parsed) => {
+      const ev = parsed as ProgressEvent | null;
+      return ev?.type === "all-done";
+    });
+
+    const types = frames.map((f) => (JSON.parse(f.data) as ProgressEvent).type);
+    assert.ok(
+      types.includes("all-done"),
+      `in-flight job must finish before shutdown closes sockets; got ${types.join(",")}`,
+    );
+
+    // Shutdown acknowledgement must have arrived (200).
+    const shutdownRes = await shutdownPromise;
+    assert.equal(shutdownRes.status, 200);
+  });
+
+  test("force-closes after shutdownGraceMs when the job is hung", async (t) => {
+    // Handler hangs forever; grace window is 200 ms. The shutdown must
+    // give up after 200 ms and force-close. After that, the server is
+    // unreachable.
+    const token = randomToken();
+    const server = await startServer({
+      port: 0,
+      token,
+      cwd: process.cwd(),
+      applyHandlers: uniformHandlers(delayedHandler(10_000)),
+      applyCatalog: defaultCatalog(),
+      shutdownGraceMs: 200,
+    } as unknown as Parameters<typeof startServer>[0]);
+    const baseUrl = `http://127.0.0.1:${server.port}`;
+    t.after(() => server.close().catch(() => {}));
+
+    const applyRes = await postApply(baseUrl, token, {
+      items: items(["skill", "alpha", "install"]),
+    });
+    assert.equal(applyRes.status, 202);
+
+    // Trigger shutdown. The grace window is short; we measure that the
+    // server becomes unreachable within ~1 second.
+    const t0 = Date.now();
+    const shutdownRes = await fetch(`${baseUrl}/api/shutdown`, {
+      method: "POST",
+      headers: authHeaders(token),
+    });
+    assert.equal(shutdownRes.status, 200);
+    await shutdownRes.text();
+
+    // Poll for refusal. Should happen ≤ ~1s after the 200 ms grace expires.
+    let refused = false;
+    for (let i = 0; i < 30; i++) {
+      await new Promise((r) => setTimeout(r, 50));
+      try {
+        const probe = await fetch(`${baseUrl}/api/ping`, {
+          method: "POST",
+          headers: authHeaders(token),
+        });
+        await probe.text();
+        if (probe.status === 503) {
+          refused = true;
+          break;
+        }
+      } catch {
+        refused = true;
+        break;
+      }
+    }
+    const elapsed = Date.now() - t0;
+    assert.ok(refused, `server must refuse after grace; elapsed=${elapsed}ms`);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Suppress an unused-symbol warning if the runtime never reaches httpRequest
 // (some tests imported it speculatively for forged-Host scenarios; keeping
 // the import behind a no-op reference avoids tsconfig noUnusedLocals firing
