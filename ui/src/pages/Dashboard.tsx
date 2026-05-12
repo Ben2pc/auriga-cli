@@ -446,9 +446,33 @@ export default function Dashboard(): JSX.Element {
     [],
   );
 
+  // Any selected item with action === "uninstall" triggers destructive
+  // visual treatment + Apply-time confirmation. Workflow uninstall is the
+  // most dangerous (removes CLAUDE.md) so it gets a separate, harder confirm.
+  const hasDestructive = useMemo(
+    () => Array.from(selected.values()).some((item) => item.action === "uninstall"),
+    [selected],
+  );
+  const destructiveItems = useMemo(
+    () => Array.from(selected.values()).filter((i) => i.action === "uninstall"),
+    [selected],
+  );
+
   const handleCancel = useCallback(() => {
+    if (selected.size === 0) return;
+    if (applying) {
+      // Cancel during apply has no abort path yet — just leave the in-flight
+      // job alone and don't clear the queue. Surface a hint to the user.
+      return;
+    }
+    if (selected.size > 0) {
+      const ok = window.confirm(
+        `Clear ${selected.size} pending item${selected.size > 1 ? "s" : ""}? This won't undo anything already applied.`,
+      );
+      if (!ok) return;
+    }
     setSelected(new Map());
-  }, []);
+  }, [selected, applying]);
 
   const formatProgressEvent = useCallback(
     (ev: ApiProgressEvent): { level: LogLine["level"]; text: string } | null => {
@@ -479,10 +503,44 @@ export default function Dashboard(): JSX.Element {
 
   const handleApply = useCallback(async () => {
     if (selected.size === 0) return;
+    const items = Array.from(selected.values());
+
+    // Two-stage confirmation for destructive batches:
+    //   1. Workflow uninstall is the hardest — removes CLAUDE.md / AGENTS.md
+    //      and unconditionally with force=true. Spec §13.5 demands explicit
+    //      double-confirm; we use two separate prompts so the user can't
+    //      muscle-memory through a single "OK".
+    //   2. Any other uninstall (skill / plugin / hook) gets a single confirm
+    //      listing what's being removed.
+    const workflowUninstall = items.find(
+      (i) => i.category === "workflow" && i.action === "uninstall",
+    );
+    if (workflowUninstall !== undefined) {
+      const first = window.confirm(
+        "Uninstall workflow? This deletes CLAUDE.md and the AGENTS.md symlink from the current project.",
+      );
+      if (!first) return;
+      const second = window.confirm(
+        "Are you sure? This is destructive and cannot be undone from the Web UI.",
+      );
+      if (!second) return;
+    }
+    const otherUninstalls = items.filter(
+      (i) => i.action === "uninstall" && i.category !== "workflow",
+    );
+    if (otherUninstalls.length > 0) {
+      const summary = otherUninstalls
+        .map((i) => `• ${i.category}/${i.name}`)
+        .join("\n");
+      const ok = window.confirm(
+        `Uninstall the following?\n\n${summary}\n\nThis removes their files and settings entries.`,
+      );
+      if (!ok) return;
+    }
+
     setApplying(true);
     setLogLines([]);
     setJobStatus("Submitting apply request…");
-    const items = Array.from(selected.values());
     try {
       appendLog("meta", `── Apply ${items.length} item${items.length > 1 ? "s" : ""}`);
       const { jobId } = await submitApply({ items });
@@ -596,62 +654,63 @@ export default function Dashboard(): JSX.Element {
           </div>
         )}
 
-        <div
-          data-testid="dashboard-grid"
-          style={{
-            display: "grid",
-            // 5 category columns + 1 OUTPUT column (fixed 320px).
-            // minmax(0, 1fr) lets the category columns shrink to 0 and rely
-            // on min-width: 0 inside each section for overflow.
-            gridTemplateColumns: "repeat(5, minmax(0, 1fr)) 320px",
-            gap: "12px",
-            alignItems: "stretch",
-            minHeight: "calc(100vh - 160px)",
-          }}
-        >
-          <WorkflowSection
-            workflow={state.workflow}
-            selected={selected}
-            onToggle={toggleSelection}
-            lang={workflowLang}
-            onLangChange={changeWorkflowLang}
-          />
-          <SkillsSection
-            skills={state.skills}
-            selected={selected}
-            onToggle={toggleSelection}
-            scope={scopeByCategory.get("skill") ?? "user"}
-            onScopeChange={(s) => changeScope("skill", s)}
-          />
-          <RecommendedSkillsSection
-            recommendedSkills={state.recommendedSkills}
-            selected={selected}
-            onToggle={toggleSelection}
-            scope={scopeByCategory.get("recommended-skill") ?? "user"}
-            onScopeChange={(s) => changeScope("recommended-skill", s)}
-          />
-          <PluginsSection
-            plugins={state.plugins}
-            selected={selected}
-            onToggle={toggleSelection}
-            scope={scopeByCategory.get("plugin") ?? "user"}
-            onScopeChange={(s) => changeScope("plugin", s)}
-          />
-          <HooksSection
-            hooks={state.hooks}
-            selected={selected}
-            onToggle={toggleSelection}
-            scope={scopeByCategory.get("hook") ?? "user"}
-            onScopeChange={(s) => changeScope("hook", s)}
-          />
-          <LogPanel
-            lines={logLines}
-            pendingCount={selected.size}
-            applying={applying}
-            status={jobStatus}
-            onApply={() => void handleApply()}
-            onCancel={handleCancel}
-          />
+        <div className="dashboard-grid" data-testid="dashboard-grid">
+          <div data-section="workflow">
+            <WorkflowSection
+              workflow={state.workflow}
+              selected={selected}
+              onToggle={toggleSelection}
+              lang={workflowLang}
+              onLangChange={changeWorkflowLang}
+            />
+          </div>
+          <div data-section="skill">
+            <SkillsSection
+              skills={state.skills}
+              selected={selected}
+              onToggle={toggleSelection}
+              scope={scopeByCategory.get("skill") ?? "user"}
+              onScopeChange={(s) => changeScope("skill", s)}
+            />
+          </div>
+          <div data-section="recommended">
+            <RecommendedSkillsSection
+              recommendedSkills={state.recommendedSkills}
+              selected={selected}
+              onToggle={toggleSelection}
+              scope={scopeByCategory.get("recommended-skill") ?? "user"}
+              onScopeChange={(s) => changeScope("recommended-skill", s)}
+            />
+          </div>
+          <div data-section="plugin">
+            <PluginsSection
+              plugins={state.plugins}
+              selected={selected}
+              onToggle={toggleSelection}
+              scope={scopeByCategory.get("plugin") ?? "user"}
+              onScopeChange={(s) => changeScope("plugin", s)}
+            />
+          </div>
+          <div data-section="hook">
+            <HooksSection
+              hooks={state.hooks}
+              selected={selected}
+              onToggle={toggleSelection}
+              scope={scopeByCategory.get("hook") ?? "user"}
+              onScopeChange={(s) => changeScope("hook", s)}
+            />
+          </div>
+          <div data-section="log">
+            <LogPanel
+              lines={logLines}
+              pendingCount={selected.size}
+              applying={applying}
+              status={jobStatus}
+              hasDestructive={hasDestructive}
+              onApply={() => void handleApply()}
+              onCancel={handleCancel}
+            />
+          </div>
         </div>
       </div>
     </Layout>

@@ -89,3 +89,57 @@ body {
 .font-anthropic-sans {
   font-family: var(--font-anthropic-sans);
 }
+
+/* Dashboard grid — responsive layout
+ *  Default (≥ 1440px): 5 category columns + 320px LogPanel on the right
+ *  1024px–1439px:       5 category columns + LogPanel wraps to a second row
+ *  640px–1023px:        2 columns + LogPanel below
+ *  < 640px:             single-column stack
+ */
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr)) 320px;
+  grid-template-areas: "workflow skills recommended plugins hooks log";
+  gap: 12px;
+  align-items: stretch;
+  min-height: calc(100vh - 160px);
+}
+.dashboard-grid > [data-section="workflow"]     { grid-area: workflow; }
+.dashboard-grid > [data-section="skill"]        { grid-area: skills; }
+.dashboard-grid > [data-section="recommended"]  { grid-area: recommended; }
+.dashboard-grid > [data-section="plugin"]       { grid-area: plugins; }
+.dashboard-grid > [data-section="hook"]         { grid-area: hooks; }
+.dashboard-grid > [data-section="log"]          { grid-area: log; min-height: 320px; }
+
+@media (max-width: 1439px) {
+  .dashboard-grid {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    grid-template-areas:
+      "workflow skills recommended plugins hooks"
+      "log      log    log         log     log";
+  }
+}
+
+@media (max-width: 1023px) {
+  .dashboard-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-areas:
+      "workflow    skills"
+      "recommended plugins"
+      "hooks       hooks"
+      "log         log";
+  }
+}
+
+@media (max-width: 639px) {
+  .dashboard-grid {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      "workflow"
+      "skills"
+      "recommended"
+      "plugins"
+      "hooks"
+      "log";
+  }
+}

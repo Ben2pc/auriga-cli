@@ -265,6 +265,12 @@ describe("Dashboard — selection drives the LogPanel Apply button", () => {
         ? jsonResponse(makeReport())
         : jsonResponse({ ok: true }),
     );
+    // Cancel now confirms before clearing (deep-review UX blocker:
+    // pre-apply Cancel was destroying batches with no confirm). Mock
+    // window.confirm to auto-accept so this test still exercises the
+    // clear-selection path.
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+
     render(<Dashboard />);
     await waitFor(() =>
       expect(screen.getByTestId("dashboard-root")).toBeInTheDocument(),
@@ -423,6 +429,10 @@ describe("Dashboard — apply submission carries derived action per status", () 
           return Promise.resolve(jsonResponse({ ok: true }));
         }),
       );
+      // Uninstall batches now require a window.confirm before /api/apply
+      // fires (deep-review UX blocker). Auto-accept so this test still
+      // exercises the derived-action plumbing.
+      vi.spyOn(window, "confirm").mockReturnValue(true);
 
       render(<Dashboard />);
       await waitFor(() =>

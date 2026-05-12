@@ -18,7 +18,7 @@
 // already-formatted lines plus the action buttons.
 
 import type { JSX } from "react";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
 export type LogLevel = "info" | "warn" | "error" | "ok" | "meta";
 
@@ -38,6 +38,10 @@ export interface LogPanelProps {
   /** Optional banner under the header explaining the in-flight job /
    *  completed status. */
   status?: string;
+  /** True if the pending batch contains any uninstall action. Drives the
+   *  destructive visual treatment (clay header strip + Apply button color).
+   *  Dashboard derives this from the selected map and passes it through. */
+  hasDestructive?: boolean;
   onApply: () => void;
   onCancel: () => void;
 }
@@ -55,19 +59,40 @@ export default function LogPanel({
   pendingCount,
   applying,
   status,
+  hasDestructive = false,
   onApply,
   onCancel,
 }: LogPanelProps): JSX.Element {
-  // Auto-scroll the log body to the bottom when new lines arrive so the user
-  // always sees the latest event without having to scroll manually.
+  // Position-aware auto-scroll. If the user has scrolled up away from the
+  // bottom we DON'T pull them back — that hijacks their attention and is
+  // why deep-review flagged the original auto-scroll as a UX blocker.
+  // `stickToBottom` defaults to true; flips off when the user scrolls up,
+  // back on when they reach the bottom.
   const bodyRef = useRef<HTMLDivElement | null>(null);
+  const [stickToBottom, setStickToBottom] = useState(true);
   useEffect(() => {
+    if (!stickToBottom) return;
     const el = bodyRef.current;
     if (!el) return;
     el.scrollTop = el.scrollHeight;
-  }, [lines.length]);
+  }, [lines.length, stickToBottom]);
+
+  const onScroll = (): void => {
+    const el = bodyRef.current;
+    if (!el) return;
+    // Consider "at bottom" within a 12px tolerance — keyboard scroll
+    // increments and trackpad inertia can otherwise drop us out of sticky
+    // mode just from passive scroll events.
+    const atBottom = el.scrollHeight - (el.scrollTop + el.clientHeight) <= 12;
+    setStickToBottom(atBottom);
+  };
 
   const applyDisabled = applying || pendingCount === 0;
+  const applyColor = hasDestructive && !applyDisabled
+    ? "var(--color-accent-ember)"
+    : applyDisabled
+      ? "var(--color-cloud-light)"
+      : "var(--color-slate-dark)";
 
   return (
     <section
@@ -114,6 +139,28 @@ export default function LogPanel({
         )}
       </h2>
 
+      {/* Destructive batch warning — fires when any pending item is an
+          uninstall. Ember color flags the row as needing extra attention
+          before Apply. */}
+      {hasDestructive && pendingCount > 0 && (
+        <div
+          data-testid="log-panel-destructive-banner"
+          role="alert"
+          className="font-anthropic-mono"
+          style={{
+            fontSize: "11px",
+            color: "var(--color-ivory-light)",
+            backgroundColor: "var(--color-accent-ember)",
+            padding: "6px 12px",
+            borderBottom: "1px solid var(--color-cloud-light)",
+            fontFamily: "var(--font-anthropic-mono)",
+            letterSpacing: "0.04em",
+          }}
+        >
+          ! destructive — batch contains uninstall action(s)
+        </div>
+      )}
+
       {/* Optional status banner */}
       {status && (
         <div
@@ -134,6 +181,7 @@ export default function LogPanel({
       {/* Scrollable body */}
       <div
         ref={bodyRef}
+        onScroll={onScroll}
         data-testid="log-panel-body"
         className="font-anthropic-mono"
         style={{
@@ -216,6 +264,7 @@ export default function LogPanel({
         </button>
         <button
           data-testid="log-panel-apply"
+          data-destructive={hasDestructive ? "true" : "false"}
           type="button"
           onClick={onApply}
           disabled={applyDisabled}
@@ -223,10 +272,8 @@ export default function LogPanel({
           style={{
             flex: 1.5,
             padding: "8px 12px",
-            backgroundColor: applyDisabled
-              ? "var(--color-cloud-light)"
-              : "var(--color-slate-dark)",
-            border: "1px solid var(--color-slate-dark)",
+            backgroundColor: applyColor,
+            border: `1px solid ${applyColor}`,
             color: "var(--color-ivory-light)",
             fontSize: "11px",
             letterSpacing: "0.04em",
@@ -237,7 +284,9 @@ export default function LogPanel({
             borderRadius: 0,
           }}
         >
-          {applying ? "APPLYING…" : `APPLY${pendingCount > 0 ? ` (${pendingCount})` : ""}`}
+          {applying
+            ? "APPLYING…"
+            : `${hasDestructive ? "APPLY (DESTRUCTIVE)" : "APPLY"}${pendingCount > 0 ? ` (${pendingCount})` : ""}`}
         </button>
       </div>
     </section>
