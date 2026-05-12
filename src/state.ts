@@ -492,14 +492,20 @@ async function scanClaudePlugins(
     return entries.map(([id, def]) => degradedClaudeRow(id, def, scope));
   }
 
+  // claude plugins list emits ids in `<plugin>@<marketplace>` form (e.g.
+  // `auriga-go@auriga-cli`). The auriga-cli catalog tracks plugins by bare
+  // name. Index both forms so lookups succeed regardless of which side the
+  // suffix is on. Same trick for availables.
+  const indexBoth = (map: Map<string, any>, item: any): void => {
+    if (!item || typeof item.id !== "string") return;
+    map.set(item.id, item);
+    const at = item.id.indexOf("@");
+    if (at > 0) map.set(item.id.slice(0, at), item);
+  };
   const installedById = new Map<string, any>();
-  for (const item of payload.installed ?? []) {
-    if (item && typeof item.id === "string") installedById.set(item.id, item);
-  }
+  for (const item of payload.installed ?? []) indexBoth(installedById, item);
   const availableById = new Map<string, any>();
-  for (const item of payload.available ?? []) {
-    if (item && typeof item.id === "string") availableById.set(item.id, item);
-  }
+  for (const item of payload.available ?? []) indexBoth(availableById, item);
 
   const out: PluginState[] = [];
   for (const [id, def] of entries) {
@@ -942,23 +948,40 @@ function scanHooks(
 // injected — server.ts wires these up in production).
 // ---------------------------------------------------------------------------
 
-/** Default: run `claude plugins list [--user|--project] --json` and the
- *  matching `--available` variant. Returns null is NOT an option here —
- *  server.ts decides whether to pass this function based on `which claude`. */
+/** Default: run `claude plugins list --json` (no scope flag — the CLI
+ *  doesn't expose one) plus the `--available` variant, then filter the
+ *  installed records to the requested scope (and current projectRoot for
+ *  project-scope) client-side. Server.ts decides whether to pass this
+ *  function based on `which claude`. */
 export async function defaultExecPluginList(
   scope: ScanScope = "user",
+  projectRoot?: string,
 ): Promise<{ installed: any[]; available: any[] }> {
-  const scopeFlag = scope === "user" ? "--user" : "--project";
   // Run both lookups in parallel via async exec so /api/state doesn't block
   // the event loop. `claude plugins list` can take several seconds on cold
   // marketplace fetches; sync exec would freeze heartbeats and other
-  // concurrent /api requests.
+  // concurrent /api requests. Note: `claude plugins list` does NOT support
+  // `--user` / `--project`; each record carries its own `scope` field which
+  // we filter on below.
   const [installedRes, availableRes] = await Promise.all([
-    execAsync(`claude plugins list ${scopeFlag} --json`, { encoding: "utf8" }),
-    execAsync(`claude plugins list ${scopeFlag} --available --json`, { encoding: "utf8" }),
+    execAsync(`claude plugins list --json`, { encoding: "utf8" }),
+    execAsync(`claude plugins list --available --json`, { encoding: "utf8" }),
   ]);
-  const installed = parseJsonArray(installedRes.stdout);
+  const allInstalled = parseJsonArray(installedRes.stdout);
   const available = parseJsonArray(availableRes.stdout);
+  const installed = allInstalled.filter((rec) => {
+    if (!rec || typeof rec !== "object") return false;
+    if (rec.scope !== scope) return false;
+    // Project-scope records may match multiple projects (`projectPath`
+    // differs). If projectRoot was provided, narrow to records bound to
+    // the current cwd. When omitted, fall back to "any project-scope
+    // record" — better than dropping all project records on a malformed
+    // call.
+    if (scope === "project" && projectRoot && typeof rec.projectPath === "string") {
+      return path.resolve(rec.projectPath) === path.resolve(projectRoot);
+    }
+    return true;
+  });
   return { installed, available };
 }
 

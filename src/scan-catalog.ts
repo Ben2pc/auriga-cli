@@ -19,11 +19,21 @@
 // StateReport — items just classify as not-installed or installed
 // depending on whether the user-side data exists.
 
+import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 
 import { loadCatalog } from "./catalog.js";
 import type { Catalog as ScanCatalog } from "./state.js";
+
+async function sha256SkillMd(skillsRoot: string, name: string): Promise<string> {
+  try {
+    const buf = await readFile(path.join(skillsRoot, name, "SKILL.md"));
+    return createHash("sha256").update(buf).digest("hex");
+  } catch {
+    return "";
+  }
+}
 
 const WORKFLOW_VERSION_RE = /^#\s*auriga Workflow\s*\(v([\d.]+)\)/m;
 
@@ -33,10 +43,6 @@ async function tryReadFile(p: string): Promise<string | null> {
   } catch {
     return null;
   }
-}
-
-interface SkillsLock {
-  skills?: Record<string, { computedHash?: string }>;
 }
 
 interface ClaudePluginsJson {
@@ -74,22 +80,18 @@ export async function buildScanCatalog(
   const m = claudeMd ? WORKFLOW_VERSION_RE.exec(claudeMd) : null;
   const workflowVersion = m ? m[1] : "";
 
-  // Skills + recommended: hashes from skills-lock.json.
-  let lock: SkillsLock = {};
-  const lockText = await tryReadFile(path.join(packageRoot, "skills-lock.json"));
-  if (lockText) {
-    try {
-      lock = JSON.parse(lockText) as SkillsLock;
-    } catch {
-      // corrupted lock → no expectations; user state still classifies safely
-    }
-  }
-
+  // Skills + recommended: sha256 of each shipped SKILL.md. This is the same
+  // hash the scanner computes for `<scope>/.claude/skills/<name>/SKILL.md`
+  // at scan time, so a match means "user's installed copy is identical to
+  // the version auriga-cli ships". skills-lock.json's `computedHash` field
+  // hashes the entire skill directory (every file, sorted), which doesn't
+  // line up with the scanner's per-file model — we deliberately ignore it.
+  const skillsRoot = path.join(packageRoot, ".agents", "skills");
   const skills: ScanCatalog["skills"] = {};
   for (const entry of dist.workflowSkills) {
     skills[entry.name] = {
       description: entry.description,
-      expectedHash: lock.skills?.[entry.name]?.computedHash ?? "",
+      expectedHash: await sha256SkillMd(skillsRoot, entry.name),
       isWorkflow: true,
     };
   }
@@ -97,7 +99,7 @@ export async function buildScanCatalog(
   for (const entry of dist.recommendedSkills) {
     recommendedSkills[entry.name] = {
       description: entry.description,
-      expectedHash: lock.skills?.[entry.name]?.computedHash ?? "",
+      expectedHash: await sha256SkillMd(skillsRoot, entry.name),
     };
   }
 

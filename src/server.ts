@@ -88,6 +88,7 @@ export interface RunningServer {
   closed: Promise<void>;
 }
 
+import { spawnSync } from "node:child_process";
 import { createServer } from "node:http";
 import type { IncomingMessage, Server, ServerResponse } from "node:http";
 import type { AddressInfo, Socket } from "node:net";
@@ -104,7 +105,7 @@ import type {
   ScanScope,
 } from "./api-types.js";
 import { buildScanCatalog } from "./scan-catalog.js";
-import { scanState } from "./state.js";
+import { defaultExecPluginList, scanState } from "./state.js";
 
 // Body parsing cap. /api/apply payloads are tiny (an array of item refs);
 // 1 MiB is generously above the largest realistic batch and small enough that
@@ -896,13 +897,31 @@ async function routeState(
   try {
     const catalog = await buildScanCatalog(packageRoot);
     const scopes = parseScopesParam(searchParams);
-    const report = await scanState(cwd, catalog, scopes ? { scopes } : {});
+    // Only wire `defaultExecPluginList` if the `claude` CLI is on PATH —
+    // otherwise the scanner's degraded-path warning ("claude-cli-missing")
+    // is what we want the UI to surface. Cache the result per process so we
+    // don't re-`which` on every /api/state poll.
+    const execPluginList = isClaudeOnPath()
+      ? (scope: ScanScope) => defaultExecPluginList(scope, cwd)
+      : undefined;
+    const report = await scanState(cwd, catalog, {
+      ...(scopes ? { scopes } : {}),
+      ...(execPluginList ? { execPluginList } : {}),
+    });
     sendJson(res, 200, report);
   } catch {
     // Catalog or scan blew up — return a structured 500 so the UI can show
     // a recovery banner rather than getting an HTML error page.
     sendJson(res, 500, { error: "scan-failed" });
   }
+}
+
+let claudeOnPathCache: boolean | null = null;
+function isClaudeOnPath(): boolean {
+  if (claudeOnPathCache !== null) return claudeOnPathCache;
+  const res = spawnSync("which", ["claude"], { stdio: "ignore" });
+  claudeOnPathCache = res.status === 0;
+  return claudeOnPathCache;
 }
 
 /**
