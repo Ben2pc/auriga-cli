@@ -50,6 +50,18 @@ npx -y auriga-cli --help                     # 完整 catalog + flag 说明
 
 退出码：`0` 成功；`1` 致命错误（前置检查 / 解析 / 拉取失败）；`2` 部分成功——`stderr` 会列出逐类 `[OK]/[FAIL]` 和 `Retry:` 提示。装完后请重启 Claude Code 或 Codex 会话，让新的 `CLAUDE.md` / skills / plugins / hook 注册生效。
 
+### Web UI（可选）
+
+如果想在浏览器里看到“已装 / 可更新 / 未装”全景并一键 apply，跑：
+
+```bash
+npx auriga-cli ui
+```
+
+它会在 `127.0.0.1` 起一个本地 server、自动开浏览器，扫描当前项目并展示 5 个分类的状态。勾选要安装/更新/卸载的项目后点 Apply，SSE 实时回传执行进度。关浏览器后约 15 秒 server 自动退出。
+
+Web UI 是显式入口；`npx auriga-cli` 仍然走下面的 TTY 菜单。
+
 ### 交互式菜单
 
 ```bash

@@ -438,11 +438,13 @@ UI bundle 路径键就是 `v<package.version>`，CLI 启动时根据自身版本
 | 生命周期 | 浏览器心跳 + 15s 超时退出 | "关浏览器 = 关 server" 自然体验 |
 | 卸载范围 | v0.1 包含 install / update / uninstall 三动作 | UI dashboard 完整性需要 |
 | Plugins 二态/三态 | Claude 三态（CLI 离线 / 缺失时降级二态 + warning）、Codex 三态（仅对 catalog 登记项；非 catalog plugin 不展示） | 与 scanner depth = 三态目标一致 |
-| e2e 形态 | v0.1 含 Playwright e2e；本地 / 发版前手工跑，不上 CI；HOME 重定向 + scratch 项目实现零环境副作用 | 用户明确要求 e2e 进 v0.1 验收且不污染环境；Playwright 在 CI 的成本超过收益（server-apply 单测 + RTL 已覆盖契约层） |
+| e2e 形态 | v0.1 含 **hermetic spawn-CLI 调用 + HOME 重定向 + scratch 项目** 的 e2e 套（`tests/web-ui-e2e.test.ts`，plain `node:test`，无 Playwright）；Playwright browser overlay 推迟到 v0.2，但保留实现路径——同一套 fixture 可以无成本接上 | 用户接受“模拟环境也行”的等价要求；Vitest + RTL 已覆盖 UI 渲染层，server-apply.test.ts 覆盖 SSE/文件副作用契约；Playwright 的增量价值（“真浏览器 × 真后端”）在 v0.1 的边际收益不抵其 ~80MB 浏览器依赖 + CI flakiness 成本 |
 | 视觉系统 | 复用 Anthropic 自家"温白 + Clay 强调"风格的全套 token；DESIGN.md 入仓；强制 polish 阶段调 `make-interfaces-feel-better` skill | 视觉品质是非工程师用户的关键体验差距；现成且自洽的 token 系统避免新造车；polish skill 把"hover/focus/empty/error"这类容易漏的细节按方法论补齐 |
 
 ### 10.2 v0.2 候选
 
+- **UI polish 第二轮**——v0.1 落地 Anthropic token + 基础 Dashboard 后，下一轮 `make-interfaces-feel-better` skill 跑一遍补 loading / empty / error / focus-ring / 微文案
+- **Playwright browser overlay**——v0.1 的 hermetic harness 已经 spawn 真 CLI + HOME 重定向；v0.2 在同一套 fixture 上挂 chromium，把"真浏览器 × 真后端 × 真 installer"补齐
 - 搜索 / 筛选 UI
 - 单项详细描述展开（截图、README、示例）
 - 安装前 preview（"会写哪些文件"）—— 需要 installer 加 `plan()` 函数（A → B 升级路径已在代码组织上预留）
