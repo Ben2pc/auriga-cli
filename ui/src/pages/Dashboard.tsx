@@ -78,20 +78,43 @@ function makeKey(category: ApplyCategory, name: string): string {
 // "no sidebar/footer chrome").
 // ---------------------------------------------------------------------------
 
-function CategoryHeader({ children }: { children: string }): JSX.Element {
+function CategoryHeader({
+  children,
+  count,
+}: {
+  children: string;
+  count?: number;
+}): JSX.Element {
   return (
     <h2
       data-testid="category-header"
-      className="font-anthropic-sans text-slate-dark"
+      className="font-anthropic-mono text-cloud-dark uppercase"
       style={{
-        fontSize: "20px",
-        lineHeight: "var(--leading-heading-sm)",
-        fontWeight: 600,
+        fontSize: "11px",
+        lineHeight: 1.3,
+        fontFamily: "var(--font-anthropic-mono)",
+        fontWeight: 500,
+        letterSpacing: "0.06em",
         margin: 0,
-        marginBottom: "var(--spacing-16)",
+        padding: "12px 12px 6px 12px",
+        display: "flex",
+        alignItems: "baseline",
+        gap: "8px",
       }}
     >
-      {children}
+      <span>{children}</span>
+      {count !== undefined && (
+        <span
+          data-testid="category-header-count"
+          style={{
+            color: "var(--color-cloud-light)",
+            fontSize: "11px",
+            fontWeight: 400,
+          }}
+        >
+          ({count})
+        </span>
+      )}
     </h2>
   );
 }
@@ -99,21 +122,28 @@ function CategoryHeader({ children }: { children: string }): JSX.Element {
 interface CategorySectionProps {
   title: string;
   testId: string;
+  count?: number;
   children: React.ReactNode;
 }
 
 function CategorySection({
   title,
   testId,
+  count,
   children,
 }: CategorySectionProps): JSX.Element {
   return (
     <section
       data-testid={testId}
-      style={{ marginBottom: "var(--spacing-32)" }}
+      style={{ marginBottom: "16px" }}
     >
-      <CategoryHeader>{title}</CategoryHeader>
-      <div className="flex flex-col" style={{ gap: "8px" }}>
+      <CategoryHeader count={count}>{title}</CategoryHeader>
+      <div
+        className="flex flex-col"
+        style={{
+          borderBottom: "1px solid var(--color-cloud-light)",
+        }}
+      >
         {children}
       </div>
     </section>
@@ -366,7 +396,7 @@ function WorkflowSection({
 }: WorkflowSectionProps): JSX.Element {
   const key = makeKey("workflow", "workflow");
   return (
-    <CategorySection title="Workflow" testId="section-workflow">
+    <CategorySection title="Workflow" testId="section-workflow" count={1}>
       <StateCard
         name="CLAUDE.md workflow"
         description="The auriga workflow template installed at the repo root."
@@ -395,7 +425,11 @@ function SkillsSection({
 }: SkillsSectionProps): JSX.Element | null {
   if (skills.length === 0) return null;
   return (
-    <CategorySection title="Skills" testId="section-skills">
+    <CategorySection
+      title="Skills"
+      testId="section-skills"
+      count={skills.length}
+    >
       {skills.map((skill) => {
         const key = makeKey("skill", skill.name);
         return (
@@ -433,6 +467,7 @@ function RecommendedSkillsSection({
     <CategorySection
       title="Recommended Skills"
       testId="section-recommended-skills"
+      count={recommendedSkills.length}
     >
       {recommendedSkills.map((skill) => {
         const key = makeKey("recommended-skill", skill.name);
@@ -468,7 +503,11 @@ function PluginsSection({
 }: PluginsSectionProps): JSX.Element | null {
   if (plugins.length === 0) return null;
   return (
-    <CategorySection title="Plugins" testId="section-plugins">
+    <CategorySection
+      title="Plugins"
+      testId="section-plugins"
+      count={plugins.length}
+    >
       {plugins.map((plugin) => {
         const key = makeKey("plugin", plugin.id);
         return (
@@ -503,7 +542,11 @@ function HooksSection({
 }: HooksSectionProps): JSX.Element | null {
   if (hooks.length === 0) return null;
   return (
-    <CategorySection title="Hooks" testId="section-hooks">
+    <CategorySection
+      title="Hooks"
+      testId="section-hooks"
+      count={hooks.length}
+    >
       {hooks.map((hook) => {
         const key = makeKey("hook", hook.name);
         return (

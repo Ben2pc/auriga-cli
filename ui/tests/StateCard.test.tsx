@@ -23,10 +23,12 @@ describe("StateCard — status encoding", () => {
     expect(badge.style.color).toBe("var(--color-cloud-dark)");
   });
 
-  test("update-available renders UPDATE AVAILABLE badge with clay color", () => {
+  test("update-available renders UPDATE badge with clay color", () => {
+    // Compact dashboard layout uses "UPDATE" (short form) so the badge fits
+    // within a single 40px row. The chromatic accent (clay) is unchanged.
     render(<StateCard {...baseProps({ status: "update-available" })} />);
     const badge = screen.getByTestId("statecard-badge") as HTMLElement;
-    expect(badge).toHaveTextContent("UPDATE AVAILABLE");
+    expect(badge).toHaveTextContent("UPDATE");
     expect(badge.style.color).toBe("var(--color-clay)");
   });
 
@@ -44,22 +46,35 @@ describe("StateCard — status encoding", () => {
     expect(badge.style.color).toBe("var(--color-accent-ember)");
   });
 
-  test("card background varies by status (ivory-light vs ivory-medium)", () => {
+  test("status is encoded via the chromatic status-dot (not the row background)", () => {
+    // Compact dashboard rows share a transparent background; status is
+    // conveyed by the dot + badge color instead of per-row tint. Row
+    // background only fills on selection / hover so density stays high.
     const { rerender } = render(
       <StateCard {...baseProps({ status: "installed" })} />
     );
-    let card = screen.getByTestId("statecard") as HTMLElement;
-    expect(card.style.backgroundColor).toBe("var(--color-ivory-light)");
+    let dot = screen.getByTestId("statecard-status-dot") as HTMLElement;
+    expect(dot.style.backgroundColor).toBe("var(--color-olive)");
 
     rerender(<StateCard {...baseProps({ status: "update-available" })} />);
-    card = screen.getByTestId("statecard") as HTMLElement;
-    expect(card.style.backgroundColor).toBe("var(--color-ivory-medium)");
+    dot = screen.getByTestId("statecard-status-dot") as HTMLElement;
+    expect(dot.style.backgroundColor).toBe("var(--color-clay)");
 
     rerender(<StateCard {...baseProps({ status: "not-installed" })} />);
-    card = screen.getByTestId("statecard") as HTMLElement;
-    expect(card.style.backgroundColor).toBe("var(--color-ivory-light)");
+    dot = screen.getByTestId("statecard-status-dot") as HTMLElement;
+    expect(dot.style.backgroundColor).toBe("var(--color-cloud-light)");
 
     rerender(<StateCard {...baseProps({ status: "error" })} />);
+    dot = screen.getByTestId("statecard-status-dot") as HTMLElement;
+    expect(dot.style.backgroundColor).toBe("var(--color-accent-ember)");
+  });
+
+  test("selected row gets the ivory-medium fill; deselected stays transparent", () => {
+    const { rerender } = render(<StateCard {...baseProps({ selected: false })} />);
+    let card = screen.getByTestId("statecard") as HTMLElement;
+    expect(card.style.backgroundColor).toBe("transparent");
+
+    rerender(<StateCard {...baseProps({ selected: true })} />);
     card = screen.getByTestId("statecard") as HTMLElement;
     expect(card.style.backgroundColor).toBe("var(--color-ivory-medium)");
   });
@@ -235,16 +250,18 @@ describe("StateCard — version metadata", () => {
 
 describe("StateCard — long content handling", () => {
   test("a very long description does not throw layout", () => {
+    // Compact-row layout truncates the description with ellipsis instead of
+    // wrapping, so the row height stays uniform across all entries. The
+    // negative-space invariant is: the row never grows past its min-height
+    // because of description length.
     const longDesc = "lorem ipsum ".repeat(80).trim();
     render(<StateCard {...baseProps({ description: longDesc })} />);
     const desc = screen.getByTestId(
       "statecard-description"
     ) as HTMLElement;
     expect(desc).toBeInTheDocument();
-    // Word-break / overflow-wrap inline-style guard
-    expect(
-      desc.style.overflowWrap === "anywhere" ||
-        desc.style.wordBreak === "break-word"
-    ).toBe(true);
+    expect(desc.style.whiteSpace).toBe("nowrap");
+    expect(desc.style.overflow).toBe("hidden");
+    expect(desc.style.textOverflow).toBe("ellipsis");
   });
 });
