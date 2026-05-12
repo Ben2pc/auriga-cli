@@ -66,8 +66,11 @@ const STATUS_VISUALS: Record<CardStatus, StatusVisual> = {
   },
   "not-installed": {
     label: "NOT INSTALLED",
-    badgeColor: "var(--color-cloud-medium)",
-    accentColor: "var(--color-cloud-light)",
+    // cloud-medium on ivory-light fails WCAG AA (~2.4:1); slate-light
+    // clears 4.5:1. cloud-light stripe also failed 3:1 for non-text UI;
+    // cloud-dark gives the rail enough presence to read as a status hint.
+    badgeColor: "var(--color-slate-light)",
+    accentColor: "var(--color-cloud-dark)",
   },
   error: {
     label: "ERROR",

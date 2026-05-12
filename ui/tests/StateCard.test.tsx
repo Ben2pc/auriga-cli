@@ -32,11 +32,13 @@ describe("StateCard — status encoding", () => {
     expect(badge.style.color).toBe("var(--color-clay)");
   });
 
-  test("not-installed renders NOT INSTALLED badge with cloud-medium color", () => {
+  test("not-installed renders NOT INSTALLED badge with slate-light (WCAG AA contrast)", () => {
     render(<StateCard {...baseProps({ status: "not-installed" })} />);
     const badge = screen.getByTestId("statecard-badge") as HTMLElement;
     expect(badge).toHaveTextContent("NOT INSTALLED");
-    expect(badge.style.color).toBe("var(--color-cloud-medium)");
+    // Was cloud-medium (~2.4:1 on ivory-light) — fails AA. slate-light
+    // gives ~5.5:1, clearing the 4.5:1 threshold for normal-size text.
+    expect(badge.style.color).toBe("var(--color-slate-light)");
   });
 
   test("error renders ERROR badge with accent-ember color", () => {
@@ -62,7 +64,10 @@ describe("StateCard — status encoding", () => {
 
     rerender(<StateCard {...baseProps({ status: "not-installed" })} />);
     dot = screen.getByTestId("statecard-status-dot") as HTMLElement;
-    expect(dot.style.backgroundColor).toBe("var(--color-cloud-light)");
+    // cloud-dark (3:1 on ivory-light) replaces cloud-light (~1.4:1, fails
+    // WCAG's 3:1 floor for non-text UI). Same visual story (neutral grey),
+    // higher contrast.
+    expect(dot.style.backgroundColor).toBe("var(--color-cloud-dark)");
 
     rerender(<StateCard {...baseProps({ status: "error" })} />);
     dot = screen.getByTestId("statecard-status-dot") as HTMLElement;

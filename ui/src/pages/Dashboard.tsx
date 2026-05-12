@@ -101,7 +101,11 @@ const DROPDOWN_STYLE = {
   fontSize: "10px",
   letterSpacing: "0.04em",
   fontWeight: 600,
-  color: "var(--color-clay)",
+  // Clay text on ivory-medium fails WCAG AA (~2.7:1). slate-dark on
+  // ivory-medium clears 4.5:1 comfortably — keep the clay border for the
+  // visual accent, but ink the text in slate so the dropdown's value is
+  // legible to users with low-contrast vision.
+  color: "var(--color-slate-dark)",
   cursor: "pointer",
   backgroundImage:
     "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12' fill='none' stroke='%23d97757' stroke-width='1.75'><path d='M3 5l3 3 3-3'/></svg>\")",
