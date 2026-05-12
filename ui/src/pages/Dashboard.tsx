@@ -67,6 +67,12 @@ function deriveAction(status: ItemStatus): ApplyAction {
       return "update";
     case "not-installed":
       return "install";
+    case "partial-install":
+      // Action lives on the missing side(s). The Apply path dispatches
+      // install on each targeted agent; agents that already have it become
+      // no-ops at the installer level. UI presents this as a one-click
+      // backfill — same UX shape as "install".
+      return "install";
   }
 }
 
@@ -1020,6 +1026,7 @@ function PluginsSection({
             }
             agents={plugin.agents}
             external={plugin.external}
+            missingAgents={plugin.missingAgents}
           />
         );
       })}
