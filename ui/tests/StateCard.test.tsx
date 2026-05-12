@@ -69,10 +69,14 @@ describe("StateCard — status encoding", () => {
     expect(dot.style.backgroundColor).toBe("var(--color-accent-ember)");
   });
 
-  test("selected row gets the ivory-medium fill; deselected stays transparent", () => {
+  test("selected cell uses ivory-medium fill; deselected uses ivory-light", () => {
+    // Kanban-column cells sit on a card surface so they're distinguishable
+    // from the page background. Selected darkens the fill to ivory-medium
+    // (same direction as hover) while keeping the chromatic accent on the
+    // left stripe.
     const { rerender } = render(<StateCard {...baseProps({ selected: false })} />);
     let card = screen.getByTestId("statecard") as HTMLElement;
-    expect(card.style.backgroundColor).toBe("transparent");
+    expect(card.style.backgroundColor).toBe("var(--color-ivory-light)");
 
     rerender(<StateCard {...baseProps({ selected: true })} />);
     card = screen.getByTestId("statecard") as HTMLElement;
@@ -249,19 +253,20 @@ describe("StateCard — version metadata", () => {
 });
 
 describe("StateCard — long content handling", () => {
-  test("a very long description does not throw layout", () => {
-    // Compact-row layout truncates the description with ellipsis instead of
-    // wrapping, so the row height stays uniform across all entries. The
-    // negative-space invariant is: the row never grows past its min-height
-    // because of description length.
+  test("a very long description clamps to 2 lines with ellipsis", () => {
+    // Kanban cell uses a 2-line line-clamp (overflow hidden + webkit-box +
+    // line-clamp 2) so the cell stays at a uniform height regardless of how
+    // chatty the catalog's description happens to be. Invariant: cell height
+    // doesn't grow beyond its 2-line cap because of description length.
     const longDesc = "lorem ipsum ".repeat(80).trim();
     render(<StateCard {...baseProps({ description: longDesc })} />);
     const desc = screen.getByTestId(
       "statecard-description"
     ) as HTMLElement;
     expect(desc).toBeInTheDocument();
-    expect(desc.style.whiteSpace).toBe("nowrap");
     expect(desc.style.overflow).toBe("hidden");
     expect(desc.style.textOverflow).toBe("ellipsis");
+    // -webkit-line-clamp is the canonical 2-line clamp lever.
+    expect(desc.style.webkitLineClamp).toBe("2");
   });
 });

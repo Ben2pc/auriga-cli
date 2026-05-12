@@ -85,7 +85,7 @@ export default function ApplyBar({
         transition: "transform 120ms ease-out, border-top-color 80ms ease-out",
       }}
     >
-      <div className="mx-auto flex max-w-[1200px] items-center justify-between gap-16">
+      <div className="mx-auto flex max-w-[1440px] items-center justify-between gap-16">
         <span
           data-testid="applybar-summary"
           className="font-anthropic-sans text-slate-dark"

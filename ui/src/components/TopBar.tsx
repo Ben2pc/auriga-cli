@@ -72,7 +72,7 @@ export default function TopBar({
         // Scroll state border (slate-medium) is left to T2.7 to wire up.
       }}
     >
-      <div className="mx-auto flex h-full max-w-[1200px] items-center justify-between px-32">
+      <div className="mx-auto flex h-full max-w-[1440px] items-center justify-between px-32">
         {/* Left: wordmark + cwd */}
         <div className="flex items-center gap-16 min-w-0">
           <span

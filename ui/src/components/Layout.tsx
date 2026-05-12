@@ -32,7 +32,7 @@ export default function Layout({
         data-testid="layout-main"
         className="flex-1 w-full"
       >
-        <div className="mx-auto max-w-[1200px] px-32 py-32">
+        <div className="mx-auto max-w-[1440px] px-32 py-32">
           {children}
         </div>
       </main>

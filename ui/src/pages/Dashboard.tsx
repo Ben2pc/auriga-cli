@@ -135,13 +135,23 @@ function CategorySection({
   return (
     <section
       data-testid={testId}
-      style={{ marginBottom: "16px" }}
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        // Columns get fixed-ish width via the parent grid; allow content
+        // to size with the column rather than the items.
+        minWidth: 0,
+      }}
     >
       <CategoryHeader count={count}>{title}</CategoryHeader>
       <div
-        className="flex flex-col"
+        data-testid={`${testId}-list`}
         style={{
-          borderBottom: "1px solid var(--color-cloud-light)",
+          display: "flex",
+          flexDirection: "column",
+          gap: "6px",
+          flex: 1,
+          minHeight: 0,
         }}
       >
         {children}
@@ -340,31 +350,43 @@ export default function Dashboard(): JSX.Element {
           </div>
         )}
 
-        <WorkflowSection
-          workflow={state.workflow}
-          selected={selected}
-          onToggle={toggleSelection}
-        />
-        <SkillsSection
-          skills={state.skills}
-          selected={selected}
-          onToggle={toggleSelection}
-        />
-        <RecommendedSkillsSection
-          recommendedSkills={state.recommendedSkills}
-          selected={selected}
-          onToggle={toggleSelection}
-        />
-        <PluginsSection
-          plugins={state.plugins}
-          selected={selected}
-          onToggle={toggleSelection}
-        />
-        <HooksSection
-          hooks={state.hooks}
-          selected={selected}
-          onToggle={toggleSelection}
-        />
+        <div
+          data-testid="dashboard-grid"
+          style={{
+            display: "grid",
+            // 5 columns, each can shrink to 0 (minmax handles content
+            // overflow inside via min-width: 0 on the section).
+            gridTemplateColumns: "repeat(5, minmax(0, 1fr))",
+            gap: "12px",
+            alignItems: "start",
+          }}
+        >
+          <WorkflowSection
+            workflow={state.workflow}
+            selected={selected}
+            onToggle={toggleSelection}
+          />
+          <SkillsSection
+            skills={state.skills}
+            selected={selected}
+            onToggle={toggleSelection}
+          />
+          <RecommendedSkillsSection
+            recommendedSkills={state.recommendedSkills}
+            selected={selected}
+            onToggle={toggleSelection}
+          />
+          <PluginsSection
+            plugins={state.plugins}
+            selected={selected}
+            onToggle={toggleSelection}
+          />
+          <HooksSection
+            hooks={state.hooks}
+            selected={selected}
+            onToggle={toggleSelection}
+          />
+        </div>
       </div>
     </Layout>
   );

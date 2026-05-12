@@ -40,7 +40,10 @@ describe("Layout", () => {
     expect(root.className).toContain("bg-ivory-light");
   });
 
-  test("content wrapper applies the max-w-[1200px] constraint", () => {
+  test("content wrapper applies the max-w-[1440px] constraint", () => {
+    // 5-column Kanban layout needs more horizontal room than the original
+    // 1200px allowed; bumped to 1440 so 5 columns at ~270px each fit on a
+    // typical 14"+ laptop screen without column truncation.
     render(
       <Layout topBar={<div>top</div>}>
         <div data-testid="probe-children">child</div>
@@ -48,6 +51,6 @@ describe("Layout", () => {
     );
     const main = screen.getByTestId("layout-main");
     const wrapper = main.firstElementChild as HTMLElement;
-    expect(wrapper.className).toContain("max-w-[1200px]");
+    expect(wrapper.className).toContain("max-w-[1440px]");
   });
 });

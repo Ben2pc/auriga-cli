@@ -1,32 +1,24 @@
-// StateCard — compact dashboard row. Reworked from the original tall card
-// layout (~120px per item) to a denser table-style row (~40px) so a typical
-// project's 5 categories × ~5–10 items fit in one viewport without scroll.
+// StateCard — compact column-cell. Designed for a Kanban-style 5-column
+// dashboard where each category gets its own column and items stack
+// vertically inside the column.
 //
-// Layout (horizontal, single visible row):
+// Layout (vertical, ~80px tall):
 //
-//   [✓]  ●   name           description (truncated)         meta      STATUS
-//   ────────────────────────────────────────────────────────────────────────
-//        ↑                                                  ↑         ↑
-//        status indicator                                   ver diff  badge
+//   ┃ [✓] name               ●
+//   ┃ description (2 lines, truncated)
+//   ┃ STATUS · v1.6.0
 //
-// Status encoding (single-source data-status attribute drives both the dot
-// color and the badge text):
-//   installed         → olive dot      | INSTALLED
-//   update-available  → clay dot       | UPDATE
-//   not-installed     → cloud-medium   | NOT INSTALLED
-//   error             → ember dot      | ERROR
+// Status encoding:
+//   - LEFT border stripe (3px) is the chromatic accent — installed=olive,
+//     update=clay, not-installed=cloud-light, error=ember.
+//   - SMALL dot in the header row mirrors the same color (redundant but
+//     scannable from a distance).
+//   - BADGE text in the footer is uppercase mono, no background.
 //
-// Hard rules carried over from the previous design:
-//   - Badge is pure typography — no background, no border, no radius.
-//   - Status dot is a chromatic accent (one of clay / olive / ember / cloud).
-//   - Whole row is interactive (click anywhere off the checkbox to toggle).
-//   - Keyboard: Enter / Space on the row toggles selection.
-//   - Focus ring: 2px slate-medium outline (DESIGN.md polish §13.6).
-//
-// Stable data-testids preserved so the existing RTL suite keeps passing:
+// Stable data-testids preserved:
 //   statecard, statecard-checkbox, statecard-name, statecard-description,
-//   statecard-badge, statecard-meta, statecard-version-diff, statecard-version,
-//   statecard-uninstallable.
+//   statecard-badge, statecard-meta, statecard-version-diff,
+//   statecard-version, statecard-uninstallable, statecard-status-dot.
 
 import type { JSX, KeyboardEvent, MouseEvent } from "react";
 
@@ -46,37 +38,35 @@ export interface StateCardProps {
   expectedHash?: string;
   selected: boolean;
   onSelectChange: (selected: boolean) => void;
-  // Reserved for the uninstall affordance — surfaced visually via a small
-  // marker but the modal confirmation lives at the Dashboard / ApplyBar layer.
   uninstallable?: boolean;
 }
 
 interface StatusVisual {
   label: string;
   badgeColor: string;
-  dotColor: string;
+  accentColor: string;
 }
 
 const STATUS_VISUALS: Record<CardStatus, StatusVisual> = {
   installed: {
     label: "INSTALLED",
     badgeColor: "var(--color-cloud-dark)",
-    dotColor: "var(--color-olive)",
+    accentColor: "var(--color-olive)",
   },
   "update-available": {
     label: "UPDATE",
     badgeColor: "var(--color-clay)",
-    dotColor: "var(--color-clay)",
+    accentColor: "var(--color-clay)",
   },
   "not-installed": {
     label: "NOT INSTALLED",
     badgeColor: "var(--color-cloud-medium)",
-    dotColor: "var(--color-cloud-light)",
+    accentColor: "var(--color-cloud-light)",
   },
   error: {
     label: "ERROR",
     badgeColor: "var(--color-accent-ember)",
-    dotColor: "var(--color-accent-ember)",
+    accentColor: "var(--color-accent-ember)",
   },
 };
 
@@ -99,11 +89,9 @@ export default function StateCard({
 }: StateCardProps): JSX.Element {
   const visual = STATUS_VISUALS[status];
 
-  const handleRowClick = (e: MouseEvent<HTMLDivElement>) => {
+  const handleClick = (e: MouseEvent<HTMLDivElement>) => {
     const target = e.target as HTMLElement;
-    if (target.closest('[data-testid="statecard-checkbox"]')) {
-      return;
-    }
+    if (target.closest('[data-testid="statecard-checkbox"]')) return;
     onSelectChange(!selected);
   };
 
@@ -128,11 +116,9 @@ export default function StateCard({
   const captionVersion =
     status !== "update-available" && currentVersion ? currentVersion : null;
 
-  // Background: selected wins, then a subtle alternating shade on hover
-  // is provided by CSS (defined inline as data-attribute-driven).
-  const rowBg = selected
+  const cellBg = selected
     ? "var(--color-ivory-medium)"
-    : "transparent";
+    : "var(--color-ivory-light)";
 
   return (
     <div
@@ -143,18 +129,18 @@ export default function StateCard({
       tabIndex={0}
       aria-pressed={selected}
       aria-label={`${name} (${visual.label.toLowerCase()})`}
-      onClick={handleRowClick}
+      onClick={handleClick}
       onKeyDown={handleKeyDown}
-      className="group cursor-pointer focus:outline-none"
+      className="cursor-pointer focus:outline-none"
       style={{
-        display: "grid",
-        gridTemplateColumns: "16px 8px minmax(140px, 220px) minmax(0, 1fr) auto auto",
-        alignItems: "center",
-        gap: "12px",
-        padding: "8px 12px",
-        minHeight: "40px",
-        backgroundColor: rowBg,
+        position: "relative",
+        backgroundColor: cellBg,
         borderTop: "1px solid var(--color-cloud-light)",
+        borderRight: "1px solid var(--color-cloud-light)",
+        borderBottom: "1px solid var(--color-cloud-light)",
+        // 3px chromatic left-stripe carries the status accent.
+        borderLeft: `3px solid ${visual.accentColor}`,
+        padding: "10px 12px 10px 12px",
         outline: "none",
         transition: "background-color 80ms ease-out",
       }}
@@ -166,7 +152,8 @@ export default function StateCard({
       }}
       onMouseLeave={(e) => {
         if (!selected) {
-          (e.currentTarget as HTMLElement).style.backgroundColor = "transparent";
+          (e.currentTarget as HTMLElement).style.backgroundColor =
+            "var(--color-ivory-light)";
         }
       }}
       onFocus={(e) => {
@@ -179,132 +166,153 @@ export default function StateCard({
         (e.currentTarget as HTMLElement).style.outlineOffset = "0";
       }}
     >
-      {/* Column 1: checkbox */}
-      <input
-        type="checkbox"
-        checked={selected}
-        onChange={(e) => onSelectChange(e.target.checked)}
-        onClick={(e) => e.stopPropagation()}
-        data-testid="statecard-checkbox"
-        aria-label={`Select ${name}`}
+      {/* Header row: checkbox + name + small status dot */}
+      <div
         style={{
-          appearance: "none",
-          WebkitAppearance: "none",
-          MozAppearance: "none",
-          width: "14px",
-          height: "14px",
-          borderRadius: "0px",
-          border: "1px solid var(--color-slate-dark)",
-          backgroundColor: selected ? "var(--color-slate-dark)" : "transparent",
-          backgroundImage: selected
-            ? `url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%23faf9f5' stroke-width='2.5'><path d='M3 8.5l3.5 3.5L13 4.5'/></svg>")`
-            : "none",
-          backgroundSize: "14px 14px",
-          backgroundRepeat: "no-repeat",
-          cursor: "pointer",
-          outlineColor: "var(--color-slate-medium)",
-          outlineOffset: "2px",
-          margin: 0,
+          display: "flex",
+          alignItems: "center",
+          gap: "8px",
+          marginBottom: "4px",
         }}
-      />
-
-      {/* Column 2: status dot (chromatic accent) */}
-      <span
-        aria-hidden="true"
-        data-testid="statecard-status-dot"
-        style={{
-          display: "inline-block",
-          width: "8px",
-          height: "8px",
-          borderRadius: "50%",
-          backgroundColor: visual.dotColor,
-        }}
-      />
-
-      {/* Column 3: name (mono, monospace-feel, fixed width range) */}
-      <h3
-        data-testid="statecard-name"
-        className="text-slate-dark"
-        style={{
-          fontSize: "13px",
-          lineHeight: 1.3,
-          fontWeight: 600,
-          margin: 0,
-          fontFamily: "var(--font-anthropic-mono)",
-          letterSpacing: "0",
-          overflow: "hidden",
-          textOverflow: "ellipsis",
-          whiteSpace: "nowrap",
-        }}
-        title={name}
       >
-        {name}
-      </h3>
+        <input
+          type="checkbox"
+          checked={selected}
+          onChange={(e) => onSelectChange(e.target.checked)}
+          onClick={(e) => e.stopPropagation()}
+          data-testid="statecard-checkbox"
+          aria-label={`Select ${name}`}
+          style={{
+            appearance: "none",
+            WebkitAppearance: "none",
+            MozAppearance: "none",
+            width: "13px",
+            height: "13px",
+            borderRadius: "0px",
+            border: "1px solid var(--color-slate-dark)",
+            backgroundColor: selected
+              ? "var(--color-slate-dark)"
+              : "transparent",
+            backgroundImage: selected
+              ? `url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%23faf9f5' stroke-width='2.5'><path d='M3 8.5l3.5 3.5L13 4.5'/></svg>")`
+              : "none",
+            backgroundSize: "13px 13px",
+            backgroundRepeat: "no-repeat",
+            cursor: "pointer",
+            outlineColor: "var(--color-slate-medium)",
+            outlineOffset: "2px",
+            flexShrink: 0,
+            margin: 0,
+          }}
+        />
+        <h3
+          data-testid="statecard-name"
+          className="text-slate-dark"
+          style={{
+            fontSize: "12px",
+            lineHeight: 1.3,
+            fontWeight: 600,
+            margin: 0,
+            fontFamily: "var(--font-anthropic-mono)",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+            flex: 1,
+            minWidth: 0,
+          }}
+          title={name}
+        >
+          {name}
+        </h3>
+        <span
+          aria-hidden="true"
+          data-testid="statecard-status-dot"
+          style={{
+            display: "inline-block",
+            width: "6px",
+            height: "6px",
+            borderRadius: "50%",
+            backgroundColor: visual.accentColor,
+            flexShrink: 0,
+          }}
+        />
+      </div>
 
-      {/* Column 4: description (flex-grow, truncated) */}
+      {/* Description: clamped to 2 lines */}
       <p
         data-testid="statecard-description"
         className="text-slate-light font-anthropic-sans"
         style={{
-          fontSize: "13px",
+          fontSize: "12px",
           lineHeight: 1.4,
           color: "var(--color-slate-light)",
           margin: 0,
+          marginBottom: "6px",
+          // Two-line clamp via CSS box-orient + overflow.
+          display: "-webkit-box",
+          WebkitBoxOrient: "vertical",
+          WebkitLineClamp: 2,
           overflow: "hidden",
           textOverflow: "ellipsis",
-          whiteSpace: "nowrap",
+          wordBreak: "break-word",
         }}
         title={description}
       >
         {description}
       </p>
 
-      {/* Column 5: meta (version diff / version / uninstallable) */}
+      {/* Footer: badge + meta in a single mono line */}
       <div
-        data-testid="statecard-meta"
-        className="font-anthropic-mono"
         style={{
-          fontSize: "11px",
-          lineHeight: 1.3,
-          fontFamily: "var(--font-anthropic-mono)",
-          color: "var(--color-cloud-dark)",
           display: "flex",
-          gap: "12px",
-          whiteSpace: "nowrap",
-        }}
-      >
-        {versionDiff && (
-          <span data-testid="statecard-version-diff">{versionDiff}</span>
-        )}
-        {captionVersion && (
-          <span data-testid="statecard-version">{captionVersion}</span>
-        )}
-        {uninstallable && (
-          <span data-testid="statecard-uninstallable">REMOVABLE</span>
-        )}
-      </div>
-
-      {/* Column 6: badge (uppercase mono, right-anchored) */}
-      <span
-        data-testid="statecard-badge"
-        data-status={status}
-        className="font-anthropic-mono uppercase"
-        style={{
-          fontSize: "11px",
-          lineHeight: 1.3,
+          alignItems: "baseline",
+          gap: "8px",
+          flexWrap: "wrap",
           fontFamily: "var(--font-anthropic-mono)",
-          color: visual.badgeColor,
-          backgroundColor: "transparent",
-          border: "none",
-          borderRadius: "0px",
-          padding: 0,
+          fontSize: "10px",
+          lineHeight: 1.3,
           letterSpacing: "0.04em",
-          fontWeight: 500,
-          whiteSpace: "nowrap",
         }}
       >
-        {visual.label}
-      </span>
+        <span
+          data-testid="statecard-badge"
+          data-status={status}
+          className="font-anthropic-mono uppercase"
+          style={{
+            fontSize: "10px",
+            color: visual.badgeColor,
+            backgroundColor: "transparent",
+            border: "none",
+            borderRadius: "0px",
+            padding: 0,
+            letterSpacing: "0.04em",
+            fontWeight: 500,
+          }}
+        >
+          {visual.label}
+        </span>
+        <div
+          data-testid="statecard-meta"
+          className="font-anthropic-mono"
+          style={{
+            fontSize: "10px",
+            color: "var(--color-cloud-dark)",
+            display: "flex",
+            gap: "8px",
+            flexWrap: "wrap",
+          }}
+        >
+          {versionDiff && (
+            <span data-testid="statecard-version-diff">{versionDiff}</span>
+          )}
+          {captionVersion && (
+            <span data-testid="statecard-version">{captionVersion}</span>
+          )}
+          {uninstallable && (
+            <span data-testid="statecard-uninstallable">REMOVABLE</span>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
