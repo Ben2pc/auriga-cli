@@ -1113,3 +1113,97 @@ export async function installHooks(
     );
   }
 }
+
+// --- Uninstall ----------------------------------------------------------------
+
+const HOOK_NAME_RE_STRICT = /^[a-z][a-z0-9-]*$/;
+
+/**
+ * Uninstall a single hook from project scope. v0.1 surface:
+ *   - rm `<cwd>/.claude/hooks/<name>/` directory (the install-time
+ *     destination for both project and project-local scopes).
+ *   - Strip the hook's marker from `<cwd>/.claude/settings.json` AND
+ *     `<cwd>/.claude/settings.local.json` (project + project-local share
+ *     the on-disk hook dir, so cleaning both settings files keeps users
+ *     who switched scopes from accumulating dangling registrations).
+ *
+ * Marker discovery: tries the live registry at `<cwd>` (or the npx
+ * package root if that fails) so we use the same marker the install path
+ * stamped in. If the registry can't resolve the hook (renamed / removed
+ * upstream), we fall back to a `auriga:<name>` convention — every shipped
+ * hook to date follows it, so the fallback is reliable for the common
+ * case.
+ *
+ * Idempotent contract:
+ *   - missing hook dir → skip silently
+ *   - missing settings → skip silently
+ *   - marker absent from settings → skip silently (cleanHookFromScope
+ *     already handles this; we surface it via removed=0)
+ *
+ * User scope (~/.claude/...) is intentionally NOT touched. The install
+ * path gates user-scope mutation behind an explicit prompt; symmetric
+ * here — don't silently mutate global state from a project-context
+ * uninstall request.
+ */
+export async function uninstallHook(
+  name: string,
+  opts: { cwd: string; onLog?: (line: string) => void },
+): Promise<void> {
+  if (!HOOK_NAME_RE_STRICT.test(name)) {
+    throw new Error(`uninstallHook: invalid hook name ${JSON.stringify(name)}`);
+  }
+  const cwd = path.resolve(opts.cwd);
+  const emit = (line: string): void => { opts.onLog?.(line); };
+
+  // Look up marker from the registry. If the registry is absent or the
+  // hook isn't listed, fall back to `auriga:<name>` (the shipped naming
+  // convention for every hook in this repo).
+  let marker = `auriga:${name}`;
+  try {
+    const cfg = loadHooksConfig(cwd);
+    const def = cfg.hooks.find((h) => h.name === name);
+    if (def) marker = def.marker;
+  } catch {
+    // No registry at cwd — fine, fall back to the convention.
+  }
+
+  // Build a minimal HookDef stub for cleanHookFromScope. It only reads
+  // `marker` and `name` (via resolveScope), both of which we have.
+  const stub: HookDef = {
+    name,
+    description: "",
+    runtimePlatforms: [],
+    settingsEvents: [],
+    command: 'node "$HOOK_DIR/index.mjs"',
+    files: [],
+    marker,
+  };
+
+  // Settings cleanup first — survives even if the hook dir was hand-deleted.
+  // Cover BOTH project + project-local: install can land in either,
+  // and a switched scope can leave a stale marker in the other.
+  let totalRemoved = 0;
+  for (const scope of ["project", "project-local"] as const) {
+    const r = cleanHookFromScope(stub, scope, cwd);
+    if (r.removed > 0) {
+      totalRemoved += r.removed;
+      log.ok(`${name}: removed ${r.removed} entr${r.removed === 1 ? "y" : "ies"} from ${r.settingsPath}`);
+      emit(`removed ${r.removed} entr${r.removed === 1 ? "y" : "ies"} from ${r.settingsPath}`);
+    }
+  }
+  if (totalRemoved === 0) {
+    log.skip(`${name}: no settings entries found`);
+    emit(`${name}: no settings entries found`);
+  }
+
+  // Hook directory under <cwd>/.claude/hooks/<name>/.
+  const hookDir = path.join(cwd, ".claude", "hooks", name);
+  if (fs.existsSync(hookDir)) {
+    fs.rmSync(hookDir, { recursive: true, force: true });
+    log.ok(`${name}: directory removed`);
+    emit(`removed ${hookDir}`);
+  } else {
+    log.skip(`${name}: directory not present`);
+    emit(`${name}: directory not present`);
+  }
+}

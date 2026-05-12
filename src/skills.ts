@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { checkbox, select } from "@inquirer/prompts";
-import { exec, log, withEsc } from "./utils.js";
+import { atomicWriteFile, exec, log, withEsc } from "./utils.js";
 import type { InstallOpts, SkillEntry, SkillsLock } from "./utils.js";
 
 // Curated default-on set: skills that the workflow in the root CLAUDE.md
@@ -180,4 +180,144 @@ export async function installRecommendedSkills(
     ([name]) => !WORKFLOW_SKILLS.includes(name),
   );
   await installSelected(entries, false, opts);
+}
+
+// --- Uninstall ----------------------------------------------------------------
+
+/**
+ * Detect "unknown subcommand" style failures from the upstream
+ * `npx skills` CLI so we can fall back to the manual cleanup path.
+ *
+ * Substring match instead of a strict regex: the upstream tool's error
+ * wording varies across versions (`Unknown command remove`,
+ * `unrecognized command 'remove'`, `error: invalid argument 'remove'`).
+ * We keep the filter broad so a CLI rename doesn't lock the fallback
+ * shut on the next minor release; safer to fall back on a recognized
+ * not-supported signal than to mask a different failure mode.
+ *
+ * If the upstream CLI ever stops emitting the substring `remove` in its
+ * "unsupported subcommand" path, this check will incorrectly propagate
+ * the error instead of falling back — at that point the user gets a
+ * loud failure (good), and we tighten the matcher.
+ */
+function isSkillsRemoveUnsupported(err: unknown): boolean {
+  const text = err instanceof Error
+    ? `${err.message}\n${(err as Error & { stderr?: string }).stderr ?? ""}`
+    : String(err);
+  return /unknown command|unrecognized command|invalid argument|unknown option|unsupported/i.test(text)
+    && /remove/i.test(text);
+}
+
+const SKILL_NAME_RE_STRICT = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
+
+/**
+ * Uninstall a single skill by name. Strategy:
+ *   1. Try `npx -y skills remove <name>` (the canonical path; future-proof
+ *      against upstream-internal cleanup we don't know about).
+ *   2. If the CLI doesn't support `remove`, fall back to manual cleanup:
+ *      - rm `<cwd>/.claude/skills/<name>` (Claude Code view)
+ *      - rm `<cwd>/.agents/skills/<name>` (Codex / other agents view)
+ *      - remove the entry from `<cwd>/skills-lock.json` if present
+ *
+ * Idempotent: missing files / unknown skill names are no-ops, NOT errors.
+ * A repeated uninstall must succeed silently so the SSE caller can replay
+ * the request without special-casing.
+ */
+export async function uninstallSkill(
+  name: string,
+  opts: { cwd: string; onLog?: (line: string) => void },
+): Promise<void> {
+  // Defensive: the CLI parser pre-validates skill names against the
+  // catalog before dispatch, but the server route doesn't, and we
+  // interpolate `name` into a shell command + filesystem path. Reject
+  // anything that didn't pass the install-side regex so a malformed
+  // input can't escape via either vector.
+  if (!SKILL_NAME_RE_STRICT.test(name)) {
+    throw new Error(`uninstallSkill: invalid skill name ${JSON.stringify(name)}`);
+  }
+
+  const cwd = path.resolve(opts.cwd);
+  const emit = (line: string): void => {
+    opts.onLog?.(line);
+  };
+
+  try {
+    exec(`npx -y skills remove ${name}`, { cwd });
+    log.ok(`${name}: removed via skills CLI`);
+    emit(`removed ${name} via skills CLI`);
+    return;
+  } catch (err) {
+    if (!isSkillsRemoveUnsupported(err)) {
+      throw err;
+    }
+    log.warn(`skills CLI doesn't support 'remove'; falling back to manual cleanup`);
+    emit(`skills CLI doesn't support 'remove'; falling back to manual cleanup`);
+  }
+
+  await uninstallSkillManual(name, cwd, emit);
+}
+
+/**
+ * Manual fallback used when `npx skills remove` is unavailable. Exported
+ * for test coverage (the exec-success path doesn't exercise it).
+ *
+ * Steps (each idempotent):
+ *   - rm-rf `<cwd>/.claude/skills/<name>` if present
+ *   - rm-rf `<cwd>/.agents/skills/<name>` if present
+ *   - update `<cwd>/skills-lock.json` (drop the `.skills[name]` key,
+ *     atomic write) if present and the key exists
+ */
+export async function uninstallSkillManual(
+  name: string,
+  cwd: string,
+  onLog?: (line: string) => void,
+): Promise<void> {
+  if (!SKILL_NAME_RE_STRICT.test(name)) {
+    throw new Error(`uninstallSkillManual: invalid skill name ${JSON.stringify(name)}`);
+  }
+  const emit = (line: string): void => { onLog?.(line); };
+
+  const claudeDir = path.join(cwd, ".claude", "skills", name);
+  const agentsDir = path.join(cwd, ".agents", "skills", name);
+
+  for (const [label, dir] of [
+    [".claude/skills", claudeDir] as const,
+    [".agents/skills", agentsDir] as const,
+  ]) {
+    if (fs.existsSync(dir) || fs.lstatSync(dir, { throwIfNoEntry: false })) {
+      fs.rmSync(dir, { recursive: true, force: true });
+      log.ok(`${label}/${name} removed`);
+      emit(`removed ${label}/${name}`);
+    } else {
+      log.skip(`${label}/${name} not present`);
+    }
+  }
+
+  const lockPath = path.join(cwd, "skills-lock.json");
+  if (!fs.existsSync(lockPath)) {
+    emit(`skills-lock.json not present`);
+    return;
+  }
+
+  // Read + validate so we don't silently corrupt a hand-edited lockfile.
+  // If the user damaged it before calling us, throw — the install side's
+  // contract is "lockfile is authoritative", and writing back a partial
+  // tree would amplify their damage.
+  const raw: unknown = JSON.parse(fs.readFileSync(lockPath, "utf-8"));
+  validateSkillsLock(raw);
+
+  if (!(name in raw.skills)) {
+    emit(`${name} not in skills-lock.json`);
+    return;
+  }
+
+  // Build a shallow copy so we don't mutate `raw` in case the caller
+  // holds a reference. Object spread preserves insertion order of
+  // remaining keys (deterministic test output).
+  const nextSkills = { ...raw.skills };
+  delete nextSkills[name];
+  const next = { ...raw, skills: nextSkills };
+  atomicWriteFile(lockPath, JSON.stringify(next, null, 2) + "\n");
+  log.ok(`${name} removed from skills-lock.json`);
+  emit(`removed ${name} from skills-lock.json`);
 }
