@@ -4,14 +4,6 @@ import path from "node:path";
 export interface CatalogEntry {
   name: string;
   description: string;
-  /** Build-time-baked plugin version. Set ONLY for plugin entries whose
-   *  source lives in this repo's `plugins/<name>/` directory — the scanner
-   *  uses it to surface "update-available" when the user's installed copy
-   *  is older. Absent for skill / hook entries and for external-marketplace
-   *  plugins (whose manifest lives upstream). Must be baked at build time
-   *  because `plugins/<name>/.claude-plugin/plugin.json` is NOT shipped in
-   *  the npm tarball (see `package.json` `files` field). */
-  expectedVersion?: string;
   /** Build-time-baked agent map for plugin entries. Derived from
    *  `.claude/plugins.json` ∪ `.agents/plugins/install.json` — those config
    *  files are NOT shipped in the npm tarball, so the scanner can't read
@@ -20,22 +12,14 @@ export interface CatalogEntry {
    *  Absent on skill / hook entries. */
   agents?: ("claude" | "codex")[];
   /** True for plugins whose source lives in an UPSTREAM marketplace
-   *  (skill-creator / claude-md-management / codex), not in this repo. The
-   *  scanner uses this to disable update-available reporting — those
-   *  plugins update through `claude plugins update`, not through us. UI
-   *  surfaces an EXTERNAL badge so users know where to look. */
+   *  (skill-creator / claude-md-management / codex), not in this repo.
+   *  Pure UI hint since v1.19.0 — the EXTERNAL badge tells users that
+   *  upgrades go through `claude plugins update`, not us. */
   external?: boolean;
 }
 
 export interface Catalog {
   generatedAt: string;
-  /** Workflow content version baked from `CLAUDE.md`'s `# auriga Workflow (vX.Y.Z)`
-   *  header at build time. MUST live here rather than be read at runtime
-   *  because `CLAUDE.md` is NOT in the npm tarball — `package.json` `files`
-   *  allowlists only `dist/`. Empty string when the header is unparseable;
-   *  the scanner then degrades to "trust whatever the user has" rather than
-   *  forcing phantom update-available against an empty expected value. */
-  workflowVersion: string;
   workflowSkills: CatalogEntry[];
   recommendedSkills: CatalogEntry[];
   plugins: CatalogEntry[];
