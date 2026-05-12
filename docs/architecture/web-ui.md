@@ -136,10 +136,10 @@ server 启动时锁定 `process.cwd()`，整个会话只操作这一个项目。
 | `tests/server-auth.test.ts` | 安全测试 | ~120 |
 | `tests/ui-fetch.test.ts` | 缓存 / 校验 / 重试 | ~100 |
 | `tests/server-apply.test.ts` | 集成：POST apply → SSE → 文件系统副作用 | ~200 |
-| `tests/web-ui-e2e.test.ts` | Playwright e2e + HOME 重定向脚手架 + canary | ~250 |
+| `tests/web-ui-e2e.test.ts` | Hermetic spawn-CLI e2e + HOME 重定向 + canary（plain `node:test`，无 Playwright） | ~250 |
 | `docs/design/anthropic-style-reference.md` | Anthropic 视觉系统 of record（从外部 Anthropic style reference 复制入仓，遵循 "repo as truth" 原则） | ~385（已入仓） |
 | `ui/src/styles/tokens.css` | DESIGN.md 的 `:root` CSS 变量声明 | ~80 |
-| `ui/tailwind.config.ts` | Tailwind v4 `@theme` 同步同一套 token | ~50 |
+| `ui/src/styles/index.css` | Tailwind v4 `@theme` 块 + dashboard 响应式 grid（同一套 token） | ~150 |
 
 ### 5.2 修改的现有文件
 
@@ -195,38 +195,42 @@ src/cli.ts
 
 ```ts
 export type ItemStatus = "installed" | "update-available" | "not-installed";
+export type ApplyAgent = "claude" | "codex";
+export type ApplyScope = "project" | "user";
+export type ApplyLang = "en" | "zh-CN";
 
 export interface StateReport {
+  cwd: string;                 // home-reduced project path, e.g. "~/Workspace/foo"
   workflow: WorkflowState;
   skills: SkillState[];
   recommendedSkills: SkillState[];
-  plugins: PluginState[];
+  plugins: PluginState[];      // deduped by id; dual-Agent → agents:["claude","codex"]
   hooks: HookState[];
-  warnings: StateWarning[];  // 如 "claude-cli-missing", "codex-cli-missing"
+  warnings: StateWarning[];    // 如 "claude-cli-missing", "codex-cli-missing"
 }
 
 export interface WorkflowState {
   status: ItemStatus;
-  currentVersion?: string;  // CLAUDE.md 顶部解析
-  expectedVersion: string;  // catalog
+  currentVersion?: string;     // CLAUDE.md 顶部解析
+  expectedVersion: string;     // catalog
 }
 
 export interface SkillState {
   name: string;
   description: string;
   status: ItemStatus;
-  isWorkflow: boolean;  // workflow-set vs recommended
+  isWorkflow: boolean;         // workflow-set vs recommended
   currentHash?: string;
   expectedHash: string;
 }
 
 export interface PluginState {
-  id: string;             // 形如 "auriga-go@auriga-cli"
+  id: string;                  // 形如 "auriga-go@auriga-cli"
   description: string;
-  status: ItemStatus;
-  agent: "claude" | "codex";
+  status: ItemStatus;          // 聚合：所有 agent 都装 → installed; 都没装 → not-installed; 否则 update-available
+  agents: ApplyAgent[];        // 该 plugin 在 catalog 注册的 agent 集合（dual = ["claude","codex"]）
   currentVersion?: string;
-  expectedVersion?: string;  // Claude: 上游活查；Codex: catalog
+  expectedVersion?: string;    // Claude: 上游活查；Codex: catalog
   versionSource: "upstream-live" | "catalog";
 }
 
@@ -243,13 +247,15 @@ export interface StateWarning {
   message: string;
 }
 
-export interface ApplyRequest {
-  items: Array<{
-    category: "workflow" | "skill" | "recommended-skill" | "plugin" | "hook";
-    name: string;
-    action: "install" | "update" | "uninstall";
-  }>;
+export interface ApplyItemRef {
+  category: "workflow" | "skill" | "recommended-skill" | "plugin" | "hook";
+  name: string;
+  action: "install" | "update" | "uninstall";
+  scope?: ApplyScope;          // 默认 "project"；workflow / 不支持 scope 的类目可省略
+  lang?: ApplyLang;             // 仅 workflow 类目使用；其它类目带值会被 400 拒绝
 }
+
+export interface ApplyRequest { items: ApplyItemRef[] }
 
 export type ProgressEvent =
   | { type: "item:start"; index: number; total: number; item: ApplyItemRef }
@@ -517,26 +523,28 @@ UI bundle 路径键就是 `v<package.version>`，CLI 启动时根据自身版本
 整页结构自上而下：
 
 1. **Top Bar**（surface `--color-ivory-medium`，68px 高，全宽 sticky）
-   - 左：wordmark `AURIGA-CLI`（Anthropic Sans 16/700）+ 紧跟 cwd 路径标签（Anthropic Mono 12px，`--color-cloud-dark`，长路径中段省略）
+   - 左：wordmark `AURIGA-CLI`（Anthropic Sans 16/700）+ 紧跟 cwd 路径标签
+     - cwd 标签前置 `CWD ▸` 小型 clay-border 胶囊，路径正文用 Anthropic Mono 13px / `--color-slate-dark`（早期版本用 cloud-dark 12px，对比度太弱不易被注意到，已经升级）
    - 右：marketplace 健康徽章（单个几何 dot + 文本标签，遵守 §13.4 "无 chip" 规则）+ 设置入口
 
-2. **主内容栈**（surface `--color-ivory-light`，居中 max-width 1200px）—— 类目顺序与 [§6.2 StateReport](#62-关键类型) 一致：
-   - Workflow → Skills → Recommended Skills → Plugins (Claude) → Plugins (Codex) → Hooks
-   - 段间距 `--spacing-32`；类目 header 用 Anthropic Sans 20/600（`text-heading-sm`）
-   - 类目下若干 [State Card](#135-关键组件映射) 纵向堆叠，gap 8px
+2. **Dashboard Kanban**（surface `--color-ivory-light`，居中 max-width 1440px）—— 6 列 CSS Grid：
+   - **左 5 列** = 类目（顺序与 [§6.2 StateReport](#62-关键类型) 一致）：Workflow → Skills → Recommended Skills → Plugins → Hooks
+   - **第 6 列（右 rail，320px）** = **LogPanel / OUTPUT 列**
+   - 类目列每列顶部一个 column header：类目名 + 当前 scope/lang 下拉（scope 列：Skills / Recommended / Plugins / Hooks，下拉值 = `project | user`；Workflow 列：lang 下拉 = `EN | zh-CN`）
+   - 类目列下方按 ItemStatus 排序堆叠 [State Card](#135-关键组件映射)（紧凑行，~40px 高），gap 4px
+   - **响应式**：≥1440px 6 列原状；1024–1439px 类目 5 列 + LogPanel 折到下一整行；640–1023px 类目 2 列 + LogPanel 占满；<640px 单列纵向堆叠。
 
-3. **Sticky 底部 Action Bar**（仅在有 pending 勾选时滑入，~120ms transition-transform）
-   - 左：变更摘要（如 "3 项变更：2 update / 0 install / 1 uninstall"）
-   - 右：Cancel ghost button + **Apply primary button**（asymmetric radius `0 0 8px 8px` signature；激活时整 bar 顶部包一道 `--color-clay` 1px 描边）
+3. **LogPanel / OUTPUT 列**（右 rail，替代早期设计的"Sticky 底部 Action Bar"）
+   - 列头："OUTPUT" + 当前 pending 数量徽章
+   - 中段：滚动日志缓冲（Anthropic Mono 11px），按 `ProgressEvent` 实时推。**位置感知 auto-scroll**：用户在底部 → 跟随；用户向上滚 → 不劫持
+   - **Destructive Banner**：pending 中含 uninstall 时，OUTPUT 列上方插入 `--color-accent-ember` 警示条
+   - 列脚：左 `CANCEL` ghost 按钮（pending=0 或 applying 时禁用）+ 右 `APPLY (n)` primary 按钮（destructive batch 时变 ember 色 + 标签变 "APPLY (DESTRUCTIVE)"）
+   - **Apply 前的双重确认**：workflow uninstall = 两次 `window.confirm`（spec §13.5），其它 uninstall = 一次 `window.confirm` 列出待删项；纯 install/update 不需要确认
+   - **Cancel 前的确认**：pending > 0 时弹一次 `window.confirm`，applying 时 Cancel 是 no-op（in-flight abort 待 v0.2 加 server-side `/api/cancel`）
 
-4. **SSE 日志面板**（点 Apply 后展开）
-   - 在主内容栈上方插入一个 [Feature Card (Dark)](#135-关键组件映射)（`--color-slate-dark`, 24px radius）
-   - 内容是 Anthropic Mono 流式日志，按 `ProgressEvent` 实时推
-   - `all-done` 后保留供查看，"返回"按钮收起，主内容栈重新可点
+**不出现的元素**：sidebar、mega-menu、hero band、footer chrome、decorative imagery、emoji——与 DESIGN.md "text-dominant" + §13 "三态徽章纯文字" 风格一致；早期设计中的"Sticky 底部 Action Bar"已被右侧 LogPanel 替代，Layout 仍保留 `bottomBar` 槽位作为未来通用挂载点。
 
-**不出现的元素**：sidebar、mega-menu、hero band、footer chrome、decorative imagery、emoji——与 DESIGN.md "text-dominant" + §13 "三态徽章纯文字" 风格一致。
-
-**响应式**：v0.1 仅承诺桌面（min-width 720px）。窄于 720px 时显示一句提示"请用更宽窗口"——DESIGN.md 本身也是桌面优先布局，移动端推迟到 v0.3。
+**响应式**：v0.1 桌面优先（1024px+ 体验最佳）。窄到 ~640px 仍可用（单列堆叠），但移动端 polish 推迟到 v0.3。
 
 ---
 
@@ -549,7 +557,7 @@ UI bundle 路径键就是 `v<package.version>`，CLI 启动时根据自身版本
 实现路径：
 
 - `ui/src/styles/tokens.css`：把 DESIGN.md `:root` 块的 CSS 变量全量注入
-- `ui/tailwind.config.ts`：Tailwind v4 `@theme` 同步同一套 token
+- `ui/src/styles/index.css`：Tailwind v4 `@theme` 块直接列出 token；同文件还包含 `.dashboard-grid` 响应式 grid 规则。Tailwind v4 不再需要 `tailwind.config.ts`
 
 所有组件**只允许引用 token**（`var(--color-slate-dark)`、`text-heading-sm` 等），不允许在源码里 hardcode 任何颜色 / radius / spacing 值。lint 规则可考虑加 stylelint 拒绝 hex 字面量（v0.2 候选）。
 

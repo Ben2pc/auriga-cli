@@ -1,12 +1,12 @@
-// Stub for test designer's red phase. The real implementation must
-// replace everything below the marker. Tests in tests/server-auth.test.ts
-// and tests/server.test.ts exercise contracts defined in
-// docs/architecture/web-ui.md §4.4 / §6 / §7.
+// HTTP server for the Web UI (`auriga-cli web-ui`).
 //
-// This stub returns a trivially-wrong server (every request → 200) so tests
-// compile and produce real assertion-mismatch failures (not "cannot find
-// module" fake-red failures). The implementer of Slice B should delete
-// everything below the marker line.
+// Responsibilities: token + Origin auth, /api/state scanner endpoint,
+// /api/apply (202 + SSE-progress), /api/progress (SSE with Last-Event-ID
+// resume + 200-event ring buffer), /api/shutdown (graceful drain), and
+// static asset serve from the extracted UI bundle dir.
+//
+// Public contract is anchored in docs/architecture/web-ui.md §4 (server
+// surface), §6 (data flow + types), §7 (errors).
 
 export type LogLevel = "info" | "warn" | "error";
 
@@ -88,8 +88,6 @@ export interface RunningServer {
    *  loop until "browser was closed" actually fires. */
   closed: Promise<void>;
 }
-
-// ---- IMPLEMENTATION GOES BELOW ----
 
 import { createServer } from "node:http";
 import type { IncomingMessage, Server, ServerResponse } from "node:http";
