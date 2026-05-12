@@ -1,0 +1,12 @@
+{
+  "name": "deep-review",
+  "version": "0.3.0",
+  "description": "Multi-dimensional PR review orchestrator. Dispatches parallel reviewers (spec-conformance, correctness, test-quality, docs-sync, robustness, security, ux, performance, structure, code-quality, skill-plugin-quality) and synthesizes findings into an actionable punch list. Supports project-level custom reviewers via `docs/rules/review/` and ships a `reviewer-creator` skill for scaffolding them.",
+  "author": {
+    "name": "Ben2pc",
+    "email": "pangcheng33@gmail.com"
+  },
+  "homepage": "https://github.com/Ben2pc/auriga-cli/tree/main/plugins/deep-review",
+  "repository": "https://github.com/Ben2pc/auriga-cli",
+  "license": "MIT"
+}

@@ -111,6 +111,7 @@ npx auriga-cli
 | Skill | 来源 | 说明 |
 |---|---|---|
 | claude-code-agent | [Ben2pc/g-claude-code-plugins](https://github.com/Ben2pc/g-claude-code-plugins) | 通过 Claude Code Agent SDK 把任务委派给独立 Claude Code 会话 |
+| code-simplification | [addyosmani/agent-skills](https://github.com/addyosmani/agent-skills) | 不改变行为前提下重构代码以提升可读性 —— 清掉累积的不必要复杂度 |
 | codex-agent | [Ben2pc/g-claude-code-plugins](https://github.com/Ben2pc/g-claude-code-plugins) | 委派给 Codex 会话，做跨模型覆盖 |
 | design-taste-frontend | [Leonxlnx/taste-skill](https://github.com/Leonxlnx/taste-skill) | 高阶 UI/UX 工程师 —— 度量化设计规则与严格的组件架构约束 |
 | frontend-design | [anthropics/skills](https://github.com/anthropics/skills) | 生成有辨识度、production 级的前端界面，避开常见 AI 同质化美学 |
@@ -138,7 +139,7 @@ npx -y auriga-cli install plugins --agent both --plugin auriga-git-guards
 | auriga-go | Claude Code / Codex | auriga 工作流的自动驾驶：按 `CLAUDE.md` 的 phase 做 reminder-based 导航。内置两个 skill：`auriga-go`（按 description 的自然语言触发 + `/auriga-go` slash command）和 `/goalify`（根据 spec 或当前进展 plan 出 goal，并通过 Claude Code 内置的 `/goal` 命令分发执行）。 |
 | auriga-git-guards | Claude Code / Codex | 三个 git-lifecycle guardrail + 内置 `git-workflow` skill。Hooks：`commit-reminder`（Claude Code 下 PostToolUse 匹配 `Edit` / `Write` / `MultiEdit`，Codex 下匹配 `apply_patch`（Codex 文件编辑 canonical `tool_name`），两个 runtime 都触发 —— 未提交 diff 对比 `HEAD` 超过 200 行或 8 个文件，且距上次提醒 ≥ 60 s 时，注入提醒让 Agent 在下一个语义边界 commit）、`pr-create-guard`（`gh pr create` 的 PostToolUse —— 通过 `gh pr view` 拉真实 PR body，扫 `^##` / `^###` headings 并统计 `- [ ]` / `- [x]` 注入 `additionalContext`，让 Agent 对照五要素：scope / acceptance criteria / design decisions / risks / remaining TODOs）、`pr-ready-guard`（`gh pr ready` 的 PreToolUse —— 仅按结构信号拦截：游离 `findings.md` / `progress.md` / `task_plan.md` / `docs/superpowers/specs/*.md`、`docs/specs/*.md` 内未结案的活跃 spec、未 push commits；放行时注入 body 快照）。两个 PostToolUse hook 在 Claude Code / Codex 上完全对齐；Codex 仅对 `pr-ready-guard` 的 PreToolUse `additionalContext` 信息路径 fail-open（block 路径两边一致）。 |
 | session-instructions-loader | Codex | Codex-only SessionStart 插件，注入上层目录的 `AGENTS.md` 和仓库配置的额外 instruction 文件。 |
-| deep-review | Claude Code / Codex | 来自 [Ben2pc/g-claude-code-plugins](https://github.com/Ben2pc/g-claude-code-plugins) 的多维度 PR review 编排器 —— 并行派发各维度 reviewer（spec-conformance、correctness、test-quality、docs-sync，以及条件触发的 robustness/UX/performance/structure/code-quality/skill-plugin-quality），汇总成 punch list。同包内打包了 `reviewer-creator` skill，用于在 `docs/rules/review/` 下生成项目级自定义 reviewer。承担 `CLAUDE.md` 第 10 步的正式评审职责。 |
+| deep-review | Claude Code / Codex | 多维度 PR review 编排器 —— 并行派发各维度 reviewer（spec-conformance、correctness、test-quality、docs-sync，以及条件触发的 robustness/UX/performance/structure/code-quality/skill-plugin-quality），汇总成 punch list。同包内打包了 `reviewer-creator` skill，用于在 `docs/rules/review/` 下生成项目级自定义 reviewer。承担 `CLAUDE.md` 中的正式评审职责。 |
 
 ### Hooks
 

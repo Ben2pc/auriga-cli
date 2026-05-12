@@ -461,16 +461,16 @@ describe("installPlugins — Codex target", () => {
     delete process.env.DEV;
     try {
       const packageRoot = makeCodexMarketplace();
-      // Add deep-review as an external entry pointing at upstream.
+      // Add a fictitious external plugin pointing at an upstream stub marketplace.
       writeJson(path.join(packageRoot, ".agents/plugins/install.json"), {
         plugins: [
           { name: "auriga-go", description: "Workflow autopilot" },
           {
-            name: "deep-review",
+            name: "external-stub-plugin",
             description: "Multi-dimensional PR review",
             marketplace: {
-              name: "g-claude-code-plugins",
-              source: "Ben2pc/g-claude-code-plugins",
+              name: "stub-marketplace",
+              source: "Ben2pc/stub-marketplace",
             },
           },
         ],
@@ -486,18 +486,18 @@ describe("installPlugins — Codex target", () => {
       await installPlugins(packageRoot, {
         interactive: false,
         agent: "codex",
-        selected: ["deep-review"],
+        selected: ["external-stub-plugin"],
       });
 
       // No local plugin selected → no local marketplace add. Only the
-      // external `g-claude-code-plugins` marketplace is registered.
+      // external `stub-marketplace` marketplace is registered.
       assert.deepEqual(commands, [
-        "codex plugin marketplace add https://github.com/Ben2pc/g-claude-code-plugins.git",
+        "codex plugin marketplace add https://github.com/Ben2pc/stub-marketplace.git",
       ]);
       const config = fs.readFileSync(path.join(codexHome, "config.toml"), "utf-8");
       assert.match(
         config,
-        /\[plugins\."deep-review@g-claude-code-plugins"\]\nenabled = true/,
+        /\[plugins\."external-stub-plugin@stub-marketplace"\]\nenabled = true/,
       );
       // External plugins don't drive features.plugin_hooks.
       assert.doesNotMatch(config, /plugin_hooks = true/);
@@ -516,11 +516,11 @@ describe("installPlugins — Codex target", () => {
         plugins: [
           { name: "auriga-go", description: "Workflow autopilot" },
           {
-            name: "deep-review",
+            name: "external-stub-plugin",
             description: "Multi-dimensional PR review",
             marketplace: {
-              name: "g-claude-code-plugins",
-              source: "Ben2pc/g-claude-code-plugins",
+              name: "stub-marketplace",
+              source: "Ben2pc/stub-marketplace",
             },
           },
         ],
@@ -536,18 +536,18 @@ describe("installPlugins — Codex target", () => {
       await installPlugins(packageRoot, {
         interactive: false,
         agent: "codex",
-        selected: ["auriga-go", "deep-review"],
+        selected: ["auriga-go", "external-stub-plugin"],
       });
 
       assert.deepEqual(commands, [
         "codex plugin marketplace add https://github.com/Ben2pc/auriga-cli.git",
-        "codex plugin marketplace add https://github.com/Ben2pc/g-claude-code-plugins.git",
+        "codex plugin marketplace add https://github.com/Ben2pc/stub-marketplace.git",
       ]);
       const config = fs.readFileSync(path.join(codexHome, "config.toml"), "utf-8");
       assert.match(config, /\[plugins\."auriga-go@auriga-cli"\]\nenabled = true/);
       assert.match(
         config,
-        /\[plugins\."deep-review@g-claude-code-plugins"\]\nenabled = true/,
+        /\[plugins\."external-stub-plugin@stub-marketplace"\]\nenabled = true/,
       );
       // auriga-go has hooks → plugin_hooks must flip on.
       assert.match(config, /plugin_hooks = true/);
@@ -567,14 +567,14 @@ describe("installPlugins — Codex target", () => {
       writeJson(path.join(packageRoot, ".agents/plugins/install.json"), {
         plugins: [
           {
-            name: "deep-review",
+            name: "external-stub-plugin",
             description: "Multi-dimensional PR review",
-            marketplace: { name: "g-claude-code-plugins", source: "Ben2pc/g-claude-code-plugins" },
+            marketplace: { name: "stub-marketplace", source: "Ben2pc/stub-marketplace" },
           },
           {
-            name: "claude-remote",
+            name: "another-external-stub",
             description: "Remote-control sessions",
-            marketplace: { name: "g-claude-code-plugins", source: "Ben2pc/g-claude-code-plugins" },
+            marketplace: { name: "stub-marketplace", source: "Ben2pc/stub-marketplace" },
           },
         ],
       });
@@ -589,7 +589,7 @@ describe("installPlugins — Codex target", () => {
       await installPlugins(packageRoot, {
         interactive: false,
         agent: "codex",
-        selected: ["deep-review", "claude-remote"],
+        selected: ["external-stub-plugin", "another-external-stub"],
       });
 
       const addCalls = commands.filter((c) => c.startsWith("codex plugin marketplace add"));
@@ -599,8 +599,8 @@ describe("installPlugins — Codex target", () => {
         `expected one marketplace add for shared upstream; got ${addCalls.length}: ${addCalls.join(", ")}`,
       );
       const config = fs.readFileSync(path.join(codexHome, "config.toml"), "utf-8");
-      assert.match(config, /\[plugins\."deep-review@g-claude-code-plugins"\]\nenabled = true/);
-      assert.match(config, /\[plugins\."claude-remote@g-claude-code-plugins"\]\nenabled = true/);
+      assert.match(config, /\[plugins\."external-stub-plugin@stub-marketplace"\]\nenabled = true/);
+      assert.match(config, /\[plugins\."another-external-stub@stub-marketplace"\]\nenabled = true/);
     } finally {
       if (previousDev === undefined) delete process.env.DEV;
       else process.env.DEV = previousDev;
@@ -615,9 +615,9 @@ describe("installPlugins — Codex target", () => {
       writeJson(path.join(packageRoot, ".agents/plugins/install.json"), {
         plugins: [
           {
-            name: "deep-review",
+            name: "external-stub-plugin",
             description: "Multi-dimensional PR review",
-            marketplace: { name: "g-claude-code-plugins", source: "Ben2pc/g-claude-code-plugins" },
+            marketplace: { name: "stub-marketplace", source: "Ben2pc/stub-marketplace" },
           },
         ],
       });
@@ -626,10 +626,10 @@ describe("installPlugins — Codex target", () => {
       const commands: string[] = [];
       const { installPlugins } = await importPlugins((cmd) => {
         commands.push(cmd);
-        if (cmd === "codex plugin marketplace add https://github.com/Ben2pc/g-claude-code-plugins.git") {
+        if (cmd === "codex plugin marketplace add https://github.com/Ben2pc/stub-marketplace.git") {
           const error = new Error("Command failed: codex plugin marketplace add");
           (error as Error & { stderr?: string }).stderr =
-            "Error: marketplace 'g-claude-code-plugins' is already added";
+            "Error: marketplace 'stub-marketplace' is already added";
           throw error;
         }
         return "";
@@ -638,15 +638,15 @@ describe("installPlugins — Codex target", () => {
       await installPlugins(packageRoot, {
         interactive: false,
         agent: "codex",
-        selected: ["deep-review"],
+        selected: ["external-stub-plugin"],
       });
 
       assert.deepEqual(commands, [
-        "codex plugin marketplace add https://github.com/Ben2pc/g-claude-code-plugins.git",
-        "codex plugin marketplace upgrade 'g-claude-code-plugins'",
+        "codex plugin marketplace add https://github.com/Ben2pc/stub-marketplace.git",
+        "codex plugin marketplace upgrade 'stub-marketplace'",
       ]);
       const config = fs.readFileSync(path.join(codexHome, "config.toml"), "utf-8");
-      assert.match(config, /\[plugins\."deep-review@g-claude-code-plugins"\]\nenabled = true/);
+      assert.match(config, /\[plugins\."external-stub-plugin@stub-marketplace"\]\nenabled = true/);
     } finally {
       if (previousDev === undefined) delete process.env.DEV;
       else process.env.DEV = previousDev;
@@ -666,9 +666,9 @@ describe("installPlugins — Codex target", () => {
         plugins: [
           { name: "auriga-go", description: "Workflow autopilot" },
           {
-            name: "deep-review",
+            name: "external-stub-plugin",
             description: "Multi-dimensional PR review",
-            marketplace: { name: "g-claude-code-plugins", source: "Ben2pc/g-claude-code-plugins" },
+            marketplace: { name: "stub-marketplace", source: "Ben2pc/stub-marketplace" },
           },
         ],
       });
@@ -683,17 +683,17 @@ describe("installPlugins — Codex target", () => {
       await installPlugins(packageRoot, {
         interactive: true,
         agent: "codex",
-        selected: ["auriga-go", "deep-review"],
+        selected: ["auriga-go", "external-stub-plugin"],
       });
 
       // No local marketplace add (packageRoot has no marketplace.json).
       // Only the external one runs.
       const addCalls = commands.filter((c) => c.startsWith("codex plugin marketplace add"));
       assert.deepEqual(addCalls, [
-        "codex plugin marketplace add https://github.com/Ben2pc/g-claude-code-plugins.git",
+        "codex plugin marketplace add https://github.com/Ben2pc/stub-marketplace.git",
       ]);
       const config = fs.readFileSync(path.join(codexHome, "config.toml"), "utf-8");
-      assert.match(config, /\[plugins\."deep-review@g-claude-code-plugins"\]\nenabled = true/);
+      assert.match(config, /\[plugins\."external-stub-plugin@stub-marketplace"\]\nenabled = true/);
       assert.doesNotMatch(config, /auriga-go@auriga-cli/);
     } finally {
       if (previousDev === undefined) delete process.env.DEV;

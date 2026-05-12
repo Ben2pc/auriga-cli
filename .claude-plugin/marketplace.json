@@ -28,6 +28,17 @@
       "source": "./plugins/auriga-git-guards",
       "category": "development",
       "homepage": "https://github.com/Ben2pc/auriga-cli/tree/main/plugins/auriga-git-guards"
+    },
+    {
+      "name": "deep-review",
+      "description": "Multi-dimensional PR review orchestrator. Dispatches parallel reviewers (spec-conformance, correctness, test-quality, docs-sync, robustness, security, ux, performance, structure, code-quality, skill-plugin-quality) and synthesizes findings into an actionable punch list. Supports project-level custom reviewers via `docs/rules/review/` and ships a `reviewer-creator` skill for scaffolding them.",
+      "author": {
+        "name": "Ben2pc",
+        "email": "pangcheng33@gmail.com"
+      },
+      "source": "./plugins/deep-review",
+      "category": "development",
+      "homepage": "https://github.com/Ben2pc/auriga-cli/tree/main/plugins/deep-review"
     }
   ]
 }

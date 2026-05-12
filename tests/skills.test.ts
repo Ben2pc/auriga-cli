@@ -12,14 +12,19 @@ const stub = (source: string) => ({
   computedHash: "x",
 });
 
+// Mirrors real skills-lock.json source mappings so the fixture is
+// truthful — past versions used `deep-review` as a stand-in for a
+// g-claude-code-plugins skill, which is now misleading (deep-review is
+// a plugin, not a skill, and lives in this repo). When in doubt, keep
+// names + sources aligned with skills-lock.json.
 const LOCK: SkillsLock["skills"] = {
   brainstorming: stub("obra/superpowers"),
   "systematic-debugging": stub("obra/superpowers"),
   "test-driven-development": stub("obra/superpowers"),
   "verification-before-completion": stub("obra/superpowers"),
-  "deep-review": stub("Ben2pc/g-claude-code-plugins"),
-  "test-designer": stub("Ben2pc/g-claude-code-plugins"),
-  "parallel-implementation": stub("Ben2pc/g-claude-code-plugins"),
+  "claude-code-agent": stub("Ben2pc/g-claude-code-plugins"),
+  "codex-agent": stub("Ben2pc/g-claude-code-plugins"),
+  "parallel-implementation": stub("Ben2pc/auriga-cli"),
   "planning-with-files": stub("OthmanAdi/planning-with-files"),
   "playwright-cli": stub("microsoft/playwright-cli"),
 };
@@ -59,9 +64,9 @@ describe("planSkillInstallCommands", () => {
     const batches = planSkillInstallCommands(
       [
         "brainstorming",
-        "deep-review",
+        "claude-code-agent",
         "systematic-debugging",
-        "test-designer",
+        "codex-agent",
         "planning-with-files",
       ],
       LOCK,
@@ -74,8 +79,8 @@ describe("planSkillInstallCommands", () => {
       "systematic-debugging",
     ]);
     assert.deepEqual(bySource["Ben2pc/g-claude-code-plugins"], [
-      "deep-review",
-      "test-designer",
+      "claude-code-agent",
+      "codex-agent",
     ]);
     assert.deepEqual(bySource["OthmanAdi/planning-with-files"], [
       "planning-with-files",
@@ -84,12 +89,12 @@ describe("planSkillInstallCommands", () => {
 
   test("every distinct source yields one batch", () => {
     const batches = planSkillInstallCommands(Object.keys(LOCK), LOCK, "");
-    assert.equal(batches.length, 4); // 4 distinct sources in LOCK
+    assert.equal(batches.length, 5); // 5 distinct sources in LOCK
   });
 
   test("globalFlag threads into every command", () => {
     const batches = planSkillInstallCommands(
-      ["brainstorming", "deep-review"],
+      ["brainstorming", "claude-code-agent"],
       LOCK,
       " -g",
     );

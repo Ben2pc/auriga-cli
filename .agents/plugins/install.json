@@ -14,11 +14,7 @@
     },
     {
       "name": "deep-review",
-      "description": "Multi-dimensional PR review orchestrator (parallel reviewers + punch list)",
-      "marketplace": {
-        "name": "g-claude-code-plugins",
-        "source": "Ben2pc/g-claude-code-plugins"
-      }
+      "description": "Multi-dimensional PR review orchestrator (parallel reviewers + punch list)"
     }
   ]
 }
