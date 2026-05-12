@@ -41,6 +41,7 @@ async function importMain(overrides: {
         { value: "zh-CN", label: "中文", file: "CLAUDE.zh-CN.md" },
       ],
       exec: overrides.exec ?? (() => ""),
+      execAsync: async () => "",
       fetchContentRoot: overrides.fetchContentRoot ?? (async () => process.cwd()),
       getPackageRoot: () => process.cwd(),
       isNonInteractive: overrides.isNonInteractive ?? (() => true),

@@ -116,6 +116,7 @@ async function importPlugins(
         fs.writeFileSync(filePath, content);
       }),
       exec: execImpl,
+      execAsync: async (cmd: string) => execImpl(cmd),
       fetchExtraContent: overrides.fetchExtraContent ?? (async () => {}),
       readPackageVersion: () => "0.0.0-test",
       log: {

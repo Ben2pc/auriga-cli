@@ -14,7 +14,7 @@ import {
   type CodexMarketplacePlugin,
 } from "./codex-plugin-config.js";
 import { validateMarketplaceField, type MarketplaceRef } from "./marketplace.js";
-import { atomicWriteFile, exec, fetchExtraContent, log, withEsc } from "./utils.js";
+import { atomicWriteFile, exec, execAsync, fetchExtraContent, log, withEsc } from "./utils.js";
 import type { InstallOpts, PluginAgent, PluginsConfig, PluginDef } from "./utils.js";
 
 // Plugin names and plugin-package names end up in `claude plugins ...`
@@ -670,7 +670,13 @@ export async function installPlugins(
       for (const [name, source] of marketplacesToAdd) {
         console.log(`\nAdding marketplace: ${name}...`);
         try {
-          exec(`claude plugins marketplace add ${source}`, { inherit: true });
+          const cmd = `claude plugins marketplace add ${source}`;
+          if (opts.onLog) {
+            opts.onLog(`▸ ${cmd}`, "stdout");
+            await execAsync(cmd, { onLine: opts.onLog });
+          } else {
+            exec(cmd, { inherit: true });
+          }
           log.ok(`Marketplace ${name} added`);
         } catch {
           log.error(`Failed to add marketplace: ${name}`);
@@ -681,7 +687,13 @@ export async function installPlugins(
       for (const name of marketplacesToUpdate) {
         console.log(`\nUpdating marketplace: ${name}...`);
         try {
-          exec(`claude plugins marketplace update ${name}`, { inherit: true });
+          const cmd = `claude plugins marketplace update ${name}`;
+          if (opts.onLog) {
+            opts.onLog(`▸ ${cmd}`, "stdout");
+            await execAsync(cmd, { onLine: opts.onLog });
+          } else {
+            exec(cmd, { inherit: true });
+          }
           log.ok(`Marketplace ${name} updated`);
         } catch (e) {
           // Surface the underlying error so a 6-month-out reader can tell
@@ -696,9 +708,13 @@ export async function installPlugins(
       for (const plugin of selected) {
         console.log(`\nInstalling ${plugin.name}...`);
         try {
-          exec(`claude plugins install ${plugin.package} --scope ${scope}`, {
-            inherit: true,
-          });
+          const cmd = `claude plugins install ${plugin.package} --scope ${scope}`;
+          if (opts.onLog) {
+            opts.onLog(`▸ ${cmd}`, "stdout");
+            await execAsync(cmd, { onLine: opts.onLog });
+          } else {
+            exec(cmd, { inherit: true });
+          }
           log.ok(`${plugin.name} installed`);
         } catch {
           log.error(`Failed to install: ${plugin.name}`);

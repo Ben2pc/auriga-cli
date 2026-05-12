@@ -35,6 +35,11 @@ async function importSkills(
         fs.writeFileSync(filePath, content);
       },
       exec: execImpl,
+      execAsync: async (cmd: string) => {
+        // Reuse the sync mock — for unit tests the behavioral contract
+        // (success vs thrown error) is identical between exec / execAsync.
+        return execImpl(cmd);
+      },
       readPackageVersion: () => "0.0.0-test",
       log: {
         ok: () => {},

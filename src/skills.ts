@@ -2,7 +2,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { checkbox, select } from "@inquirer/prompts";
-import { atomicWriteFile, exec, log, withEsc } from "./utils.js";
+import { atomicWriteFile, exec, execAsync, log, withEsc } from "./utils.js";
 import type { InstallOpts, SkillEntry, SkillsLock } from "./utils.js";
 
 // Curated default-on set: skills that the workflow in the root CLAUDE.md
@@ -130,7 +130,15 @@ async function installSelected(
   for (const batch of batches) {
     console.log(`\nInstalling ${batch.skills.join(", ")} from ${batch.source}...`);
     try {
-      exec(batch.command, { inherit: true });
+      if (opts.onLog) {
+        // Web UI / non-TTY path — stream stdout/stderr through the per-line
+        // callback so SSE subscribers see install progress in real time
+        // (spec §6.4).
+        opts.onLog(`▸ ${batch.command}`, "stdout");
+        await execAsync(batch.command, { onLine: opts.onLog });
+      } else {
+        exec(batch.command, { inherit: true });
+      }
       for (const name of batch.skills) log.ok(`${name}: installed`);
     } catch {
       log.error(`${batch.source}: failed to install (${batch.skills.join(", ")})`);

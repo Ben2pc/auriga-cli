@@ -98,6 +98,16 @@ export function buildDefaultApplyHandlers(
     });
   };
 
+  // Adapter from InstallOpts.onLog (stdout|stderr) → handler's onLog
+  // (info|warn|error). stderr lines surface as warnings; the SSE consumer
+  // can decide whether to render them differently.
+  const streamLog = (
+    onLog: (line: string, level: "info" | "warn" | "error") => void,
+  ) =>
+    (line: string, stream: "stdout" | "stderr"): void => {
+      onLog(line, stream === "stderr" ? "warn" : "info");
+    };
+
   const skill: ApplyHandler = async (action, name, { onLog, scope }) => {
     assertAction(action);
     const installScope = scope ?? "project";
@@ -107,6 +117,7 @@ export function buildDefaultApplyHandlers(
         cwd,
         selected: [name],
         scope: installScope,
+        onLog: streamLog(onLog),
       });
       onLog(`skill ${name} installed (${installScope})`, "info");
       return;
@@ -127,6 +138,7 @@ export function buildDefaultApplyHandlers(
         cwd,
         selected: [name],
         scope: installScope,
+        onLog: streamLog(onLog),
       });
       onLog(`recommended skill ${name} installed (${installScope})`, "info");
       return;
@@ -159,6 +171,7 @@ export function buildDefaultApplyHandlers(
             agent,
             selected: [name],
             scope: installScope,
+            onLog: streamLog(onLog),
           });
           onLog(`plugin ${name} installed (${agent}, ${installScope})`, "info");
         } else {
