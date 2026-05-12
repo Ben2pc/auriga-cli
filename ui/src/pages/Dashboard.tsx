@@ -312,10 +312,31 @@ export default function Dashboard(): JSX.Element {
   const [workflowLang, setWorkflowLang] = useState<Lang>("en");
   const [applying, setApplying] = useState(false);
 
-  // Initial state fetch.
+  // Derive the /api/state `scopes` query payload from the per-column scope
+  // pickers. The server splits skill/recommended-skill into one `skills`
+  // scope on the truth-source side (both live under
+  // <scope>/.claude/skills/), so we route the column picker for `skill` to
+  // the API's `skills` channel. `recommended-skill` would conflict if the
+  // user dragged them apart; in v0.1 we accept that limitation and let the
+  // primary skill picker win for both. Workflow stays on the server
+  // default (project) until we add a workflow scope toggle.
+  const currentScopes = useMemo(
+    () => ({
+      skills: scopeByCategory.get("skill") ?? "user",
+      plugins: scopeByCategory.get("plugin") ?? "user",
+      hooks: scopeByCategory.get("hook") ?? "user",
+    }),
+    [scopeByCategory],
+  );
+
+  // Fetch state on mount AND whenever the scope pickers change — the
+  // server returns rows scoped to the requested truth source per category,
+  // so a scope flip is effectively a per-column re-scan. Subsequent
+  // refetches keep the prior state visible (so the Apply button etc.
+  // don't disappear mid-flip); only the initial mount blocks on `loading`.
   useEffect(() => {
     let cancelled = false;
-    fetchState()
+    fetchState(currentScopes)
       .then((report) => {
         if (cancelled) return;
         setState(report);
@@ -332,7 +353,7 @@ export default function Dashboard(): JSX.Element {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [currentScopes]);
 
   // Heartbeat: ping every 5s so the server's 15s idle-exit timer stays
   // reset. Best-effort; ping() swallows transient failures.
@@ -579,7 +600,9 @@ export default function Dashboard(): JSX.Element {
               : `Last job completed · ${ev.failedCount} failed`,
           );
           // Refresh /api/state so badges reflect the new ground truth.
-          fetchState()
+          // Carry the current scope picks so the post-apply rescan reads
+          // from the same truth source the user just operated on.
+          fetchState(currentScopes)
             .then((report) => setState(report))
             .catch(() => {
               /* keep prior state; non-fatal */

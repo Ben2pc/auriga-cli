@@ -8,7 +8,9 @@
 //   skills-lock.json      — expected SHA256 for every vendored skill
 //   .claude/plugins.json  — Claude plugin entries (agent = "claude")
 //   .agents/plugins/install.json — Codex plugin entries (agent = "codex")
-//   .claude/hooks/<name>/index.mjs — runtime SHA256 = expected hash
+//   .claude/hooks/hooks.json — registers settingsEvents per hook (event /
+//                           matcher / if) used by state.ts for drift
+//                           detection in <scope>/.claude/settings.json
 //   CLAUDE.md             — `# auriga Workflow (vX.Y.Z)` provides
 //                           workflowVersion
 //
@@ -17,7 +19,6 @@
 // StateReport — items just classify as not-installed or installed
 // depending on whether the user-side data exists.
 
-import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 
@@ -34,11 +35,6 @@ async function tryReadFile(p: string): Promise<string | null> {
   }
 }
 
-async function sha256File(p: string): Promise<string> {
-  const bytes = await readFile(p);
-  return createHash("sha256").update(bytes).digest("hex");
-}
-
 interface SkillsLock {
   skills?: Record<string, { computedHash?: string }>;
 }
@@ -49,6 +45,21 @@ interface ClaudePluginsJson {
 
 interface CodexInstallJson {
   plugins?: Array<{ name?: string }>;
+}
+
+interface HookSettingsEvent {
+  event?: string;
+  matcher?: string;
+  if?: string;
+}
+
+interface HooksJsonEntry {
+  name?: string;
+  settingsEvents?: HookSettingsEvent[];
+}
+
+interface HooksJson {
+  hooks?: HooksJsonEntry[];
 }
 
 export async function buildScanCatalog(
@@ -135,25 +146,34 @@ export async function buildScanCatalog(
     plugins[entry.name] = { description: entry.description, agents };
   }
 
-  // Hooks: runtime SHA256 of each hook's index.mjs serves as the expected
-  // hash. If the file can't be read, leave the expectation empty so the
-  // hook classifies as not-installed.
+  // Hooks: the scanner reads <scope>/.claude/settings.json and matches by
+  // `_marker` (see state.ts scanHooks). Drift detection compares the
+  // registered event / matcher / if values against the hook's canonical
+  // settingsEvents[0] from .claude/hooks/hooks.json. We deliberately do NOT
+  // hash index.mjs — the user's installed index.mjs lives at <scope>/.claude/
+  // hooks/<name>/index.mjs and isn't part of the settings.json drift signal.
+  const hooksJsonPath = path.join(packageRoot, ".claude", "hooks", "hooks.json");
+  const hooksJsonRaw = await tryReadFile(hooksJsonPath);
+  const hooksJson: HooksJson = hooksJsonRaw ? JSON.parse(hooksJsonRaw) : {};
+  const settingsEventsByName = new Map<string, HookSettingsEvent>();
+  for (const h of hooksJson.hooks ?? []) {
+    if (typeof h.name === "string" && h.settingsEvents?.length) {
+      settingsEventsByName.set(h.name, h.settingsEvents[0]);
+    }
+  }
   const hooks: ScanCatalog["hooks"] = {};
   for (const entry of dist.hooks) {
-    const hookEntry = path.join(
-      packageRoot,
-      ".claude",
-      "hooks",
-      entry.name,
-      "index.mjs",
-    );
-    let expectedHash = "";
-    try {
-      expectedHash = await sha256File(hookEntry);
-    } catch {
-      /* missing or unreadable hook payload; leave hash empty */
-    }
-    hooks[entry.name] = { description: entry.description, expectedHash };
+    const ev = settingsEventsByName.get(entry.name);
+    hooks[entry.name] = {
+      description: entry.description,
+      // Empty expectedHash flips state.ts into wildcard mode — drift judged
+      // purely from the structured expected* fields below, not from a
+      // settings-entry content hash.
+      expectedHash: "",
+      ...(typeof ev?.event === "string" ? { expectedEvent: ev.event } : {}),
+      ...(typeof ev?.matcher === "string" ? { expectedMatcher: ev.matcher } : {}),
+      ...(typeof ev?.if === "string" ? { expectedIf: ev.if } : {}),
+    };
   }
 
   return {

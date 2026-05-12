@@ -96,7 +96,13 @@ import { randomBytes, timingSafeEqual } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 
-import type { ApplyAction, ApplyItemRef, ApplyRequest, ProgressEvent } from "./api-types.js";
+import type {
+  ApplyAction,
+  ApplyItemRef,
+  ApplyRequest,
+  ProgressEvent,
+  ScanScope,
+} from "./api-types.js";
 import { buildScanCatalog } from "./scan-catalog.js";
 import { scanState } from "./state.js";
 
@@ -746,7 +752,7 @@ export async function startServer(
       return;
     }
     if (pathname === "/api/state" && method === "GET") {
-      await routeState(opts.cwd, opts.packageRoot ?? opts.cwd, res);
+      await routeState(opts.cwd, opts.packageRoot ?? opts.cwd, searchParams, res);
       return;
     }
     if (pathname === "/api/apply" && method === "POST") {
@@ -884,17 +890,48 @@ export async function startServer(
 async function routeState(
   cwd: string,
   packageRoot: string,
+  searchParams: URLSearchParams,
   res: ServerResponse,
 ): Promise<void> {
   try {
     const catalog = await buildScanCatalog(packageRoot);
-    const report = await scanState(cwd, catalog);
+    const scopes = parseScopesParam(searchParams);
+    const report = await scanState(cwd, catalog, scopes ? { scopes } : {});
     sendJson(res, 200, report);
   } catch {
     // Catalog or scan blew up — return a structured 500 so the UI can show
     // a recovery banner rather than getting an HTML error page.
     sendJson(res, 500, { error: "scan-failed" });
   }
+}
+
+/**
+ * Parses the /api/state `scopes` query into a per-category map for
+ * `scanState`. The query string shape is comma-separated `category:scope`
+ * pairs, e.g. `?scopes=workflow:user,skills:project,plugins:user`. Unknown
+ * categories and unknown scope values are dropped (rather than throwing) so
+ * the scanner falls back to install defaults on garbled input — keeps the
+ * Web UI degraded-but-functional rather than 500-ing on a stale link.
+ *
+ * Returns `null` when the param is absent so the caller can omit `opts.scopes`
+ * entirely and let `scanState` apply its built-in defaults.
+ */
+function parseScopesParam(
+  searchParams: URLSearchParams,
+): { workflow?: ScanScope; skills?: ScanScope; plugins?: ScanScope; hooks?: ScanScope } | null {
+  const raw = searchParams.get("scopes");
+  if (!raw) return null;
+  const allowedCategories = new Set(["workflow", "skills", "plugins", "hooks"] as const);
+  const allowedScopes = new Set<ScanScope>(["user", "project"]);
+  const out: { workflow?: ScanScope; skills?: ScanScope; plugins?: ScanScope; hooks?: ScanScope } =
+    {};
+  for (const pair of raw.split(",")) {
+    const [cat, scope] = pair.split(":");
+    if (allowedCategories.has(cat as never) && allowedScopes.has(scope as ScanScope)) {
+      (out as Record<string, ScanScope>)[cat] = scope as ScanScope;
+    }
+  }
+  return Object.keys(out).length > 0 ? out : null;
 }
 
 // ---------------------------------------------------------------------------
