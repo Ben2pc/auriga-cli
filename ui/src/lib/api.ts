@@ -158,22 +158,14 @@ export function openProgress(
   const url = `/api/progress?${params.toString()}`;
 
   const source = new EventSource(url);
-  source.onmessage = (msg) => {
-    try {
-      const data = JSON.parse(msg.data) as ApiProgressEvent;
-      onEvent(data);
-    } catch {
-      // Ignore malformed frames; M3 will tighten this.
-    }
-  };
-  // The server also emits `event: progress` framed events — wire that name
-  // too so we don't miss them when the framing tightens.
+  // Server only emits named `event: progress` frames (see server.ts emit());
+  // the default `message` channel never fires, so we only listen on `progress`.
   source.addEventListener("progress", (e: MessageEvent) => {
     try {
       const data = JSON.parse(e.data) as ApiProgressEvent;
       onEvent(data);
     } catch {
-      // Ignore.
+      // Ignore malformed frames.
     }
   });
 

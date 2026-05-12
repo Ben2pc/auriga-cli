@@ -12,7 +12,6 @@ export type LogLevel = "info" | "warn" | "error";
 
 export interface ApplyHandlerOptions {
   onLog: (line: string, level: LogLevel) => void;
-  signal?: AbortSignal;
   /** Installer scope from the ApplyItemRef. Forwarded as-is — handlers
    *  translate into the per-installer flag (`--scope project|user`). The
    *  workflow handler ignores it (workflow has no scope concept). */

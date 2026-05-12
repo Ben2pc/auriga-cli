@@ -635,7 +635,7 @@ async function dispatchInstaller(
 }
 
 // ---------------------------------------------------------------------------
-// `ui` subcommand — boots the local Web UI server (spec §4)
+// `web-ui` subcommand — boots the local Web UI server (spec §4)
 // ---------------------------------------------------------------------------
 
 const UI_DEFAULT_PORT = 4747;
@@ -765,7 +765,8 @@ async function runUi(p: UiParsed, version: string): Promise<number> {
   const url = `http://127.0.0.1:${server.port}/?token=${token}`;
   process.stdout.write(
     `\n${highlight("auriga UI is live:")}  ${url}\n` +
-      `   (closing the browser shuts the server down after ~${Math.round(UI_HEARTBEAT_TIMEOUT_MS / 1000)}s of inactivity)\n\n`,
+      `   (closing the browser shuts the server down after ~${Math.round(UI_HEARTBEAT_TIMEOUT_MS / 1000)}s of inactivity)\n` +
+      `   Note: the URL contains a per-session token — don't paste it into chats, CI logs, or screenshots.\n\n`,
   );
   if (!p.noOpen) {
     await openBrowser(url);

@@ -48,8 +48,6 @@ export interface ScanOptions {
   readCodexPluginsDir?: () => Promise<Map<string, string>>;
 }
 
-// ---- IMPLEMENTATION GOES BELOW ----
-
 /**
  * Shorten an absolute path by replacing the user's $HOME with `~`. Avoids
  * leaking the full username in screenshots and keeps the TopBar label
@@ -76,7 +74,7 @@ export async function scanState(
 
   const workflow = scanWorkflow(projectRoot, catalog);
   const lock = readSkillsLock(projectRoot);
-  const skills = scanSkills(catalog.skills, lock, /* isWorkflowDefault */ undefined);
+  const skills = scanSkills(catalog.skills, lock);
   const recommendedSkills = scanRecommendedSkills(catalog.recommendedSkills, lock);
   const hooks = scanHooks(projectRoot, catalog.hooks);
 
@@ -100,7 +98,7 @@ export async function scanState(
     workflow,
     skills,
     recommendedSkills,
-    plugins: mergePluginsByName([...claudePlugins, ...codexPlugins]),
+    plugins: mergePluginsById([...claudePlugins, ...codexPlugins]),
     hooks,
     warnings,
   };
@@ -123,7 +121,7 @@ export async function scanState(
  * registry-pinned plugin, so this is safe; if a future divergence appears
  * we'll need a deliberate merge policy.
  */
-export function mergePluginsByName(records: PluginState[]): PluginState[] {
+export function mergePluginsById(records: PluginState[]): PluginState[] {
   const byId = new Map<string, PluginState>();
   const statusByIdPerAgent = new Map<string, ItemStatus[]>();
   for (const rec of records) {
@@ -246,7 +244,6 @@ function classifySkill(
 function scanSkills(
   catalogSkills: Catalog["skills"],
   lock: SkillsLockShape | null,
-  _unused: undefined,
 ): SkillState[] {
   const out: SkillState[] = [];
   for (const [name, entry] of Object.entries(catalogSkills)) {

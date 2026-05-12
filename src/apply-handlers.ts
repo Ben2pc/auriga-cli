@@ -1,6 +1,6 @@
 // Builds the default ApplyHandlers map that wires the Web UI's /api/apply
 // route to the real installers in workflow.ts / skills.ts / plugins.ts /
-// hooks.ts. Tests inject their own mock handlers; CLI mode (the `ui`
+// hooks.ts. Tests inject their own mock handlers; CLI mode (the `web-ui`
 // subcommand) calls `buildDefaultApplyHandlers` at boot.
 //
 // Per-item dispatch is layered on top of the existing bulk installers via
@@ -19,7 +19,7 @@
 //
 // Spec: docs/architecture/web-ui.md §6.4 (apply execution model).
 
-import type { ApplyAction } from "./api-types.js";
+import type { ApplyAction, ApplyLang } from "./api-types.js";
 import { installHook, loadHooksConfig, uninstallHook } from "./hooks.js";
 import {
   installPlugins,
@@ -48,7 +48,7 @@ export interface ApplyHandlerContext {
    *  Names not in the map default to `["claude"]` (existing CLI default). */
   pluginAgentsByName: Map<string, ("claude" | "codex")[]>;
   /** Workflow language for install. Defaults to "en". */
-  workflowLang?: string;
+  workflowLang?: ApplyLang;
 }
 
 const ALL_ACTIONS: ReadonlySet<ApplyAction> = new Set<ApplyAction>([

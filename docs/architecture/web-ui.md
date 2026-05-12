@@ -37,7 +37,7 @@
 - 安装前 preview（具体要改哪些文件 / 哪几行）
 - 截图 / 视频示例
 - 多项目切换 UI（仍是"一个 server 绑定一个 cwd"）
-- e2e 上 CI（v0.1 的 Playwright e2e 只在本地 / 发版前手工跑）
+- e2e 上 CI（v0.1 的 spawn-CLI e2e 只在本地 / 发版前手工跑）
 - 跨浏览器兼容（IE / 旧 Edge / 移动浏览器）
 - hook 自定义配置 UI（如 notify 托盘图标设置）—— 用默认值安装
 - 离线 plugin 版本对比（Codex 端依赖 catalog）
@@ -47,7 +47,7 @@
 
 - 三态 scanner 在 fixture 项目上 100% 准确（对每类目 × 三态都有单测断言）
 - 一次完整的 install + update + uninstall 流程在浏览器中可走通，过程通过 SSE 实时反馈
-- **Playwright e2e**（`npm run test:web-ui-e2e`）在**完全隔离的 HOME** 环境中通过：boot 真 server → headless Chromium 驱动真 UI → 真调用 installer → 断言 scratch 文件系统副作用 + 断言用户真实 `$HOME` 未被触碰；在本地与发版前各跑一次
+- **Hermetic spawn-CLI e2e**（`npm run test:web-ui-e2e`，plain `node:test`）在**完全隔离的 HOME** 环境中通过：HOME 重定向到 scratch 目录 → spawn 真 CLI 启 server → 调用 `/api/state` + `/api/apply` → 断言 scratch 文件系统副作用 + 断言用户真实 `$HOME` 未被触碰；在本地与发版前各跑一次。（Playwright 浏览器覆盖推迟到 v0.2）
 - 现有所有测试 (`npm test` + `npm run test:git-guards` + `npm run test:e2e`) 不回归
 - 安全测试覆盖：token 缺失 / 错误 → 401，Origin 黑名单 → 403，DNS rebinding 模拟 → 403
 
@@ -77,9 +77,9 @@ npx auriga-cli web-ui --ui-dir <p>  → 指定本地 UI 构建（开发用）
 npx auriga-cli guide            → 现有，未变
 ```
 
-`ui` 子命令启动序列：
+`web-ui` 子命令启动序列：
 
-1. `cli.ts` 解析 `ui` 子命令，调用 `runUi(opts)`
+1. `cli.ts` 解析 `web-ui` 子命令，调用 `runWebUi(opts)`
 2. 检查 `~/.cache/auriga-cli/ui-v<package.version>/` 是否存在
    - 不存在 → `src/ui-fetch.ts` 从 `https://github.com/Ben2pc/auriga-cli/releases/download/v<version>/ui-bundle.tar.gz` 下载 + SHA256 校验 + 解压
    - 存在 → 直接使用
@@ -91,7 +91,7 @@ npx auriga-cli guide            → 现有，未变
 
 ### 4.2 fallback 与错误退出
 
-`ui` 是显式触发——任何启动失败**报错退出，不偷偷降级**。错误信息附建议"试试 `npx auriga-cli`（TTY 菜单）"。
+`web-ui` 是显式触发——任何启动失败**报错退出，不偷偷降级**。错误信息附建议"试试 `npx auriga-cli`（TTY 菜单）"。
 
 唯一例外：浏览器 `open` 失败但 server 已启动 → 继续运行，打印 URL 让用户手动开。
 
@@ -145,8 +145,8 @@ server 启动时锁定 `process.cwd()`，整个会话只操作这一个项目。
 
 | 文件 | 改动 | 风险 |
 |---|---|---|
-| `src/cli.ts` | parseArgs 增 `ui` 分支；其余路径不动 | 低（新分支隔离） |
-| `src/help.ts` | 加 `ui` 子命令说明；TTY 菜单收尾打印一行提示 | 极低 |
+| `src/cli.ts` | parseArgs 增 `web-ui` 分支；其余路径不动 | 低（新分支隔离） |
+| `src/help.ts` | 加 `web-ui` 子命令说明；TTY 菜单收尾打印一行提示 | 极低 |
 | `src/workflow.ts` | 加 `uninstallWorkflow()`（删 `CLAUDE.md` + `AGENTS.md` symlink，要求二次确认 flag） | 低 |
 | `src/skills.ts` | 加 `uninstallSkill(name)`（调 `npx skills remove`，若不支持则手动删 + 改 lockfile） | 低-中（依赖外部 CLI） |
 | `src/plugins.ts` | 加 `uninstallPlugin(id, agent)`（调 `claude plugins uninstall` / `codex plugin marketplace ...`） | 中（Codex 没 uninstall 命令，待实现时确认） |
@@ -337,10 +337,10 @@ export type ProgressEvent =
 | `tests/ui-fetch.test.ts` | 缓存 hit / miss / SHA256 校验失败 / 网络重试 |
 | `tests/server-apply.test.ts` | server 集成：POST apply → SSE → scratch 文件系统副作用断言（mock 出 install 函数，纯 Node，CI 跑） |
 | `ui/tests/*.test.tsx` | Vitest + RTL：StateCard 按状态渲染、ApplyBar 勾选/汇总、错误 banner |
-| `tests/web-ui-e2e.test.ts` | **Playwright headed/headless e2e**：boot 真 server → 真 Chromium 驱动 UI → 真调用 installer → 断言 scratch 文件系统副作用。**只在本地 / 发版前手工跑**（见下方 Hermetic 保证 + CI 策略） |
+| `tests/web-ui-e2e.test.ts` | **Hermetic spawn-CLI e2e**（plain `node:test`，无 Playwright）：HOME 重定向 → spawn 真 CLI 启 server → 触 `/api/state` + `/api/apply` → 断言 scratch 文件系统副作用 + 真 `$HOME` canary。**只在本地 / 发版前手工跑**（见下方 Hermetic 保证 + CI 策略） |
 | **现有测试** | 全部保持通过（install-nontty / hooks / skills / catalog / cli-parse / e2e-install / git-guards） |
 
-### 8.1 Hermetic 保证（Playwright e2e 不污染本地环境）
+### 8.1 Hermetic 保证（spawn-CLI e2e 不污染本地环境）
 
 e2e 测试 spawn 子进程时强制重定向所有用户全局状态目录，确保对运行者真实环境零副作用：
 
@@ -374,12 +374,12 @@ const server = spawn('node', ['./dist/cli.js', 'web-ui', '--no-open', '--port', 
 | `npm test`（含 server / state / auth / ui-fetch / server-apply 单测与集成） | 每次 PR | ✅ | ✅ |
 | `cd ui && npm test`（前端单测） | release.yml build UI 前 | ✅ | ✅ |
 | `npm run test:e2e`（现有 tarball install e2e） | release 前手工 | ❌（手工） | ✅ |
-| `npm run test:web-ui-e2e`（**新增 Playwright e2e**） | **本地开发 / release 前手工** | ❌ | ✅ |
+| `npm run test:web-ui-e2e`（**新增 hermetic spawn-CLI e2e**） | **本地开发 / release 前手工** | ❌ | ✅ |
 | `npm run test:git-guards` / `:session-instructions-loader` | 每次 PR | ✅ | ✅ |
 
-**为什么 Playwright e2e 不上 CI**：Playwright binary 在 CI 容器中安装 + 跨 OS flakiness 综合成本高；server-apply.test.ts 已覆盖 SSE / 文件系统副作用契约；UI 渲染层由 Vitest + RTL 单测兜底。Playwright 的增量价值是"真 UI × 真后端 × 真用户路径"——这种价值在开发者本地按节奏跑 1-2 次即可，不必每次 PR 重跑。
+**为什么 spawn-CLI e2e 不上 CI**：跨 OS 上 `claude` / `codex` 二进制可用性不稳定，CI 跑真 installer 的 flakiness 综合成本高；server-apply.test.ts 已覆盖 SSE / 文件系统副作用契约；UI 渲染层由 Vitest + RTL 单测兜底。e2e 的增量价值是"真 server × 真后端 × 真用户路径"——这种价值在开发者本地按节奏跑 1-2 次即可，不必每次 PR 重跑。
 
-**Playwright 安装**：`ui/package.json` `devDependencies` 含 `@playwright/test`；首次跑 `npx playwright install chromium` 拉 ~80MB 浏览器到 `~/.cache/ms-playwright/`（这是本地缓存，不影响 e2e 隔离）。
+**Playwright browser overlay（v0.2 候选）**：现在的 hermetic harness 已经 spawn 真 CLI + HOME 重定向；v0.2 可以在同一套 fixture 上挂 chromium，把"真浏览器"那一层也补上。v0.1 不引入 `@playwright/test` 依赖。
 
 ---
 

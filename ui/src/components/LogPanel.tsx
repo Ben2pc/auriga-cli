@@ -20,12 +20,12 @@
 import type { JSX } from "react";
 import { useEffect, useRef, useState } from "react";
 
-export type LogLevel = "info" | "warn" | "error" | "ok" | "meta";
+export type LogLineLevel = "info" | "warn" | "error" | "ok" | "meta";
 
 export interface LogLine {
   /** Stable id for React key. Monotonic timestamp-style works fine. */
   id: string;
-  level: LogLevel;
+  level: LogLineLevel;
   text: string;
 }
 
@@ -46,7 +46,7 @@ export interface LogPanelProps {
   onCancel: () => void;
 }
 
-const LEVEL_COLOR: Record<LogLevel, string> = {
+const LEVEL_COLOR: Record<LogLineLevel, string> = {
   info: "var(--color-slate-light)",
   warn: "var(--color-clay)",
   error: "var(--color-accent-ember)",
@@ -178,11 +178,17 @@ export default function LogPanel({
         </div>
       )}
 
-      {/* Scrollable body */}
+      {/* Scrollable body — live region so screen readers announce new lines
+          as the install streams. role="log" tells the AT this is a sequential
+          log; aria-live=polite avoids interrupting the user mid-action. */}
       <div
         ref={bodyRef}
         onScroll={onScroll}
         data-testid="log-panel-body"
+        role="log"
+        aria-live="polite"
+        aria-atomic="false"
+        aria-label="Apply output log"
         className="font-anthropic-mono"
         style={{
           flex: 1,

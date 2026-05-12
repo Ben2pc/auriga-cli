@@ -83,7 +83,7 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, test } from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { mergePluginsByName, scanState } from "../src/state.js";
+import { mergePluginsById, scanState } from "../src/state.js";
 import type { Catalog, ScanOptions } from "../src/state.js";
 import type {
   HookState,
@@ -1035,10 +1035,10 @@ describe("scanState — composite full-report scenario", () => {
 });
 
 // =============================================================================
-// mergePluginsByName — dual-Agent dedup + status aggregation
+// mergePluginsById — dual-Agent dedup + status aggregation
 // =============================================================================
 
-describe("mergePluginsByName — dedup by id + aggregate status", () => {
+describe("mergePluginsById — dedup by id + aggregate status", () => {
   // Helper: build a minimal PluginState fixture.
   function p(
     id: string,
@@ -1055,7 +1055,7 @@ describe("mergePluginsByName — dedup by id + aggregate status", () => {
   }
 
   test("distinct ids are passed through unchanged", () => {
-    const out = mergePluginsByName([
+    const out = mergePluginsById([
       p("a", ["claude"], "installed"),
       p("b", ["codex"], "not-installed"),
     ]);
@@ -1067,7 +1067,7 @@ describe("mergePluginsByName — dedup by id + aggregate status", () => {
   });
 
   test("both sides installed → installed", () => {
-    const out = mergePluginsByName([
+    const out = mergePluginsById([
       p("x", ["claude"], "installed"),
       p("x", ["codex"], "installed"),
     ]);
@@ -1077,7 +1077,7 @@ describe("mergePluginsByName — dedup by id + aggregate status", () => {
   });
 
   test("both sides not-installed → not-installed", () => {
-    const out = mergePluginsByName([
+    const out = mergePluginsById([
       p("x", ["claude"], "not-installed"),
       p("x", ["codex"], "not-installed"),
     ]);
@@ -1087,7 +1087,7 @@ describe("mergePluginsByName — dedup by id + aggregate status", () => {
   });
 
   test("partial install (one side installed, other not) → update-available", () => {
-    const out = mergePluginsByName([
+    const out = mergePluginsById([
       p("x", ["claude"], "installed"),
       p("x", ["codex"], "not-installed"),
     ]);
@@ -1096,7 +1096,7 @@ describe("mergePluginsByName — dedup by id + aggregate status", () => {
   });
 
   test("any agent update-available → update-available", () => {
-    const out = mergePluginsByName([
+    const out = mergePluginsById([
       p("x", ["claude"], "update-available"),
       p("x", ["codex"], "installed"),
     ]);
@@ -1105,7 +1105,7 @@ describe("mergePluginsByName — dedup by id + aggregate status", () => {
   });
 
   test("agents union preserves order: claude before codex", () => {
-    const out = mergePluginsByName([
+    const out = mergePluginsById([
       p("x", ["codex"], "not-installed"),
       p("x", ["claude"], "installed"),
     ]);

@@ -31,7 +31,7 @@ src/
   ui-fetch.ts   — Downloads `ui-bundle.tar.gz` + `.sha256` for the current CLI version from GitHub Releases, SHA256-verifies, extracts to `~/.cache/auriga-cli/ui-v<version>/`. LRU eviction keeps last 3 versions.
 
 ui/             — Vite + React 19 + Tailwind v4 subproject. Built artifacts ship as a GitHub Release asset (ui-bundle.tar.gz) — release.yml builds + uploads on tag push. CLI lazy-fetches via ui-fetch.ts.
-                    src/components/  TopBar / Layout / StateCard / ApplyBar
+                    src/components/  TopBar / Layout / StateCard / LogPanel
                     src/pages/Dashboard.tsx
                     src/styles/tokens.css     Anthropic visual tokens (see docs/design/anthropic-style-reference.md)
                     src/styles/index.css      Tailwind v4 @theme + base
