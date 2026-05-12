@@ -457,10 +457,6 @@ export default function Dashboard(): JSX.Element {
     () => Array.from(selected.values()).some((item) => item.action === "uninstall"),
     [selected],
   );
-  const destructiveItems = useMemo(
-    () => Array.from(selected.values()).filter((i) => i.action === "uninstall"),
-    [selected],
-  );
 
   const handleCancel = useCallback(() => {
     // Two distinct modes:

@@ -231,15 +231,6 @@ async function openProgress(
   );
 }
 
-/** Parse a frame's data as a ProgressEvent. Throws if it doesn't look right. */
-function asProgressEvent(frame: SSEFrame): ProgressEvent {
-  const parsed = JSON.parse(frame.data);
-  if (!parsed || typeof parsed !== "object") {
-    throw new Error(`frame data is not an object: ${frame.data}`);
-  }
-  return parsed as ProgressEvent;
-}
-
 // ---------------------------------------------------------------------------
 // 1. Happy path — single item install (spec §6.4)
 // ---------------------------------------------------------------------------
