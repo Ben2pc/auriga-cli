@@ -1,6 +1,6 @@
 {
   "name": "deep-review",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Multi-dimensional PR review orchestrator. Dispatches parallel reviewers (spec-conformance, correctness, test-quality, docs-sync, robustness, security, ux, performance, structure, code-quality, skill-plugin-quality) and synthesizes findings into an actionable punch list. Supports project-level custom reviewers via `docs/rules/review/` and ships a `reviewer-creator` skill for scaffolding them.",
   "author": {
     "name": "Ben2pc",
