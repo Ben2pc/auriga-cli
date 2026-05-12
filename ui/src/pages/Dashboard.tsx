@@ -376,7 +376,7 @@ export default function Dashboard(): JSX.Element {
     };
   }, [currentScopes]);
 
-  // Heartbeat: ping every 5s so the server's 15s idle-exit timer stays
+  // Heartbeat: ping every 5s so the server's 2-min idle-exit timer stays
   // reset. Best-effort; ping() swallows transient failures.
   useEffect(() => {
     const id = setInterval(() => {

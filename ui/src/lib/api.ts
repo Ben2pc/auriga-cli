@@ -133,7 +133,7 @@ export async function submitApply(req: ApplyRequest): Promise<ApplyResponse> {
 
 /**
  * POST /api/ping — bumps the server-side `lastPingAt` heartbeat so the
- * 15-second idle-shutdown timer doesn't fire while the tab is open. The
+ * 2-minute idle-shutdown timer doesn't fire while the tab is open. The
  * Dashboard fires this every 5 seconds.
  *
  * Failures here are non-fatal; we deliberately don't throw because a

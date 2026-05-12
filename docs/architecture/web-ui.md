@@ -98,7 +98,7 @@ npx auriga-cli guide            → 现有，未变
 ### 4.3 生命周期
 
 - UI 每 5s POST `/api/ping`
-- server 内部维护 `lastPingAt`，> 15s 未刷新 → graceful shutdown：
+- server 内部维护 `lastPingAt`，> 120s 未刷新 → graceful shutdown：
   - 等当前 job 完成，最多再等 30s
   - 关 server，清理资源，退出码 0
 - Ctrl+C 同路径
@@ -186,7 +186,7 @@ src/cli.ts
 | `/api/state` | GET | 实时扫描 → `StateReport` |
 | `/api/apply` | POST | 提交 batch，立即返 `{ jobId }` |
 | `/api/progress?jobId=...` | GET (SSE) | 推送该 job 的逐项进度 |
-| `/api/ping` | POST | 心跳，重置 15s 退出计时器 |
+| `/api/ping` | POST | 心跳，重置 120s 退出计时器 |
 | `/api/shutdown` | POST | 主动优雅退出（best-effort） |
 
 所有 `/api/*` 校验 token + Origin。静态资源不校验（公开内容）。
@@ -319,8 +319,8 @@ scanner 按 Claude Code 实际安装位置读真值源，**支持 per-category �
 ### 6.6 心跳详情
 
 - UI 每 5s POST `/api/ping`
-- server 维护 `lastPingAt: number`（单时间戳，单 token = 单 session）；启动时初始化为当前时间，给浏览器 15s 启动窗口
-- 后台 setInterval 每 5s 检查 `Date.now() - lastPingAt > 15000`
+- server 维护 `lastPingAt: number`（单时间戳，单 token = 单 session）；启动时初始化为当前时间，给浏览器 120s 启动窗口
+- 后台 setInterval 每 ~40s 检查 `Date.now() - lastPingAt > 120000`（间隔 = `timeout/3`）
 - 触发 → 调 `gracefulShutdown()`：阻塞新 `/api/apply`，等当前 job 完，最多再等 30s 后强退
 
 ---
@@ -339,7 +339,7 @@ scanner 按 Claude Code 实际安装位置读真值源，**支持 per-category �
 | `/api/apply` 单项 | 执行中 | catch → `item:done success: false, error` 通过 SSE 推；不中断 batch |
 | `/api/apply` 全部失败 | 末尾 | `all-done failedCount: N, success: false`；HTTP 仍 200 |
 | SSE 断线 | 推流中 | client `Last-Event-ID` 重连；server 缓存最近 200 个事件 5 分钟 |
-| 心跳超时 | server 运行中 | 15s 无 ping → graceful shutdown |
+| 心跳超时 | server 运行中 | 120s 无 ping → graceful shutdown（覆盖 Chrome 后台 tab 的 throttle）|
 
 ---
 
@@ -457,7 +457,7 @@ UI bundle 路径键就是 `v<package.version>`，CLI 启动时根据自身版本
 | installer 集成方式 | A 方案：薄 wrapper + 独立 scanner（读 catalog） | 工程量最小，catalog 已是真值源；preview 推迟 |
 | Plugin 期望版本源 | Claude 走活上游，Codex 走 catalog（不对称） | Claude 体验最优，Codex 受限于其 CLI 无 `list` |
 | Apply 并发 | 串行 + 单项失败继续 | installer 撞共享文件；继续比 fail-fast 实用 |
-| 生命周期 | 浏览器心跳 + 15s 超时退出 | "关浏览器 = 关 server" 自然体验 |
+| 生命周期 | 浏览器心跳 + 120s 超时退出 | "关浏览器 = 关 server" 自然体验；超时长到能容忍 Chrome 后台 tab throttling |
 | 卸载范围 | v0.1 包含 install / update / uninstall 三动作 | UI dashboard 完整性需要 |
 | Plugins 二态/三态 | Claude 三态（CLI 离线 / 缺失时降级二态 + warning）、Codex 三态（仅对 catalog 登记项；非 catalog plugin 不展示） | 与 scanner depth = 三态目标一致 |
 | e2e 形态 | v0.1 含 **hermetic spawn-CLI 调用 + HOME 重定向 + scratch 项目** 的 e2e 套（`tests/web-ui-e2e.test.ts`，plain `node:test`，无 Playwright）；Playwright browser overlay 推迟到 v0.2，但保留实现路径——同一套 fixture 可以无成本接上 | 用户接受“模拟环境也行”的等价要求；Vitest + RTL 已覆盖 UI 渲染层，server-apply.test.ts 覆盖 SSE/文件副作用契约；Playwright 的增量价值（“真浏览器 × 真后端”）在 v0.1 的边际收益不抵其 ~80MB 浏览器依赖 + CI flakiness 成本 |
