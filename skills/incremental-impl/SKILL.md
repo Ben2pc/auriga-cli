@@ -1,6 +1,6 @@
 ---
 name: incremental-impl
-description: Decides how to implement a non-trivial code change end-to-end — estimates size (XS–XL), picks slicing strategy (vertical / horizontal sweep / Walking Skeleton / Branch by Abstraction), optionally plans parallel subagent dispatch, and enforces per-slice execution discipline (Implement → Test → Verify → Commit cycle). Use when implementing any feature or change touching more than one file, when refactoring across files, when about to write more than ~100 lines, or when building from a task breakdown. Skip only for trivial single-function edits.
+description: Plan a non-trivial code change end-to-end — size triage (XS–XL), slicing strategy, optional parallel subagent dispatch, per-slice Implement → Test → Verify → Commit discipline. Use for any multi-file change, refactor across files, cross-cutting modification (analytics sweep / i18n / library migration), or when about to write more than ~100 lines. 也用于增量实现 / 切片落地 / 按 task 推进 / 跨切面改动。Skip only for trivial XS edits and pure documentation / configuration changes.
 ---
 
 # Incremental Implementation
@@ -140,7 +140,7 @@ The main Agent dispatches parallel slices in a single message with multiple `Age
 
 ## Step 4: Execution Discipline (Per Slice)
 
-Applies to **every** slice — single-writer or dispatched.
+Applies to **every** slice that runs through the skill — single-writer or dispatched. (XS work bypasses the skill entirely per Step 1, so 4.1's cycle is reached only for S size and above.)
 
 ### 4.1 Increment Cycle
 
@@ -230,6 +230,7 @@ If a command (build, test, type check) ran successfully and the code hasn't chan
 - ❌ Mixing unrelated concerns in one commit — see `git-workflow`
 - ❌ "Cleaning up adjacent code while I'm here" — scope discipline violation (4.3)
 - ❌ Dispatched slice without anti-hardcoding guard — subagent in isolation may hardcode values or weaken tests to turn green. The main Agent's dispatch prompt should carry: "implement the general logic; do not hardcode values or weaken tests; if a test looks wrong, surface it instead of patching around it"
+- ❌ Attempting to coordinate subagents mid-flight via shared state — no current CLI runtime (Claude Code, Codex CLI, etc.) has an agent-to-agent channel; serialize through the main Agent or merge into a single-writer slice
 
 ## Relationship to other skills
 

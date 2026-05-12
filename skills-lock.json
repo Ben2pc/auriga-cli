@@ -35,7 +35,7 @@
       "source": "Ben2pc/auriga-cli",
       "sourceType": "github",
       "skillPath": "skills/incremental-impl/SKILL.md",
-      "computedHash": "1dadfcecfc9e59d9a2b58b1937d599e39136e8da0368e6b5fb44997ac98643fb"
+      "computedHash": "01e83cec826c2b9e049255199fda7908da928fa0ef722857bd8ce8a23edb3214"
     },
     "make-interfaces-feel-better": {
       "source": "jakubkrehel/make-interfaces-feel-better",

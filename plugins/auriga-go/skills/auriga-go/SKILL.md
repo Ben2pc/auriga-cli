@@ -83,7 +83,7 @@ Name the phase (in `CLAUDE.md`'s own terms) + the action or skill to invoke. Exa
 1. Size estimate: `Size: <XS|S|M|L|XL> (AC=<n>, concerns=<n>, ~<n> lines)` — the input `incremental-impl`'s Step 1 size gate keys off of (three-axis judgment from CLAUDE.md's incremental implementation phase).
 2. `test-designer` applicability: `Y/N — <one-line reason>` — the TDD-phase test-designer-applicability judgment (predicates a/b/c in the CLAUDE.md TDD phase).
 
-These exist so the **skip** decisions at those two phases are auditable. CLAUDE.md's own escape hatches ("skip the skill only for trivial XS work" for incremental-impl, the optional test-designer predicates for TDD) are legitimate; what is not legitimate is skipping silently. If either emission is missing when green-phase code lands, treat it as workflow drift on the next pass.
+These exist so the **skip** decisions at those two phases are auditable. CLAUDE.md's own escape hatches ("skip the skill only for trivial XS work and for pure documentation / configuration changes" for incremental-impl, the optional test-designer predicates for TDD) are legitimate; what is not legitimate is skipping silently. If either emission is missing when green-phase code lands, treat it as workflow drift on the next pass.
 
 ## Stop Contract
 

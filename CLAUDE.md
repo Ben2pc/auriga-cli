@@ -1,4 +1,4 @@
-# auriga Workflow (v1.6.0)
+# auriga Workflow (v1.7.0)
 
 1. Requirement Clarification: Use `brainstorming` to clarify requirements for new features. **Requirements should focus on "what to do" and acceptance criteria, not specific technical paths.** For product features, prioritize "Why" and let the implementation-stage Agent decide how.
 
@@ -12,7 +12,7 @@
 
 6. TDD: All code changes follow `test-driven-development` (sole exception defined in the Quick Development Flow section: pure docs / pure config). Write a failing test first, then minimal implementation, then regression verification. **Define testable acceptance criteria before each task** (specific features + acceptance conditions + edge cases) — don't check at the end. Invoke the `test-designer` skill when **any** of: (a) requirement spans ≥2 modules with non-obvious interactions; (b) edge cases would be hard for the implementation Agent to fairly self-test; (c) you'd otherwise skip TDD because "the implementation looks more obvious than the tests". The skill encodes **Independent Evaluation**, dispatching a context-free agent that sees only the requirement and code paths (not the implementation approach) and returns executable failing tests at highest reasoning effort.
 
-7. Incremental Implementation: During the green phase, invoke `incremental-impl` for **any non-trivial implementation work** — multi-file changes, refactors spanning files, building from a task in `task_plan.md`, cross-cutting modifications (analytics sweep, i18n pass, library migration), or when about to write more than ~100 lines. The skill (a) estimates **size** (XS–XL across three axes: acceptance criteria, distinct concerns, diff lines); (b) picks a **slicing strategy** (Vertical for new features, Horizontal sweep for cross-cutting mods, Walking Skeleton for greenfield 0→1, Branch by Abstraction for architectural migrations); (c) **conditionally** plans parallel subagent dispatch — only when L-sized AND ≥3 collision-free dispatchable slices exist, then returns a slice plan and the main Agent dispatches with parallel `Agent` calls + `isolation: "worktree"`; and (d) enforces per-slice **execution discipline** (Implement → Test → Verify → Commit cycle, simplicity, scope discipline, keep compilable between slices, rollback-friendly, risk-first execution order). Skip the skill only for trivial XS work (single function or single config edit) and pure documentation / config changes.
+7. Incremental Implementation: During the green phase, invoke `incremental-impl` for any non-trivial implementation work — multi-file changes, refactors spanning files, building from a task in `task_plan.md`, cross-cutting modifications, or when about to write more than ~100 lines. The skill owns size triage (XS–XL), slicing strategy, optional parallel subagent dispatch, and per-slice execution discipline — see the skill itself for the rules. Skip only when the skill's own size gate marks the work XS, or when the change is pure documentation / pure configuration.
 
 8. Post-coding: Before any "done / fixed / ready to commit / ready for review" judgment, run and check full verification per `verification-before-completion`. Run the affected automated tests and any needed browser, UI, or mobile interaction checks; do not rely on implementation inspection alone.
 
@@ -64,14 +64,14 @@ Choose the right level of delegation:
 | Single file fix, clear solution | Do it yourself — no subagent overhead |
 | Parallel read tasks (review, search, analysis) | In-conversation subagents, no isolation needed |
 | Single subagent writes code | In-conversation subagent, no isolation needed |
-| Multiple subagents write code | Invoke `incremental-impl` skill — its Step 3 produces a slice plan when (L size + collision-free + ≥3 dispatchable), then dispatch with `isolation: "worktree"` per plan |
+| Multiple subagents write code | Invoke `incremental-impl` — it returns a slice plan when the parallel-dispatch gates pass, then dispatch with `isolation: "worktree"` per plan |
 | Need fresh perspective with zero context pollution | Independent Agent (e.g., test design at the TDD red phase) |
 | Cross-model blind spot coverage | Independent Agent (e.g., GPT reviews Claude's code) |
 | Unsure which approach fits | `AskUserQuestion` — present options with your recommendation |
 
 In-conversation subagents share the main Agent's working directory. Key rules:
 
-- **Isolate parallel writes**: Parallel code writing **must** use `isolation: "worktree"`; single writer needs no isolation. For slicing decisions (axis, granularity, parallel-or-not, collision merging, size filtering), use the `incremental-impl` skill — its Step 2 decides axis, Step 3 handles parallel dispatch including the Iron Law (independent inputs/outputs), collision merge, and size filter. Below the dispatch threshold the skill returns "serialize" and the main Agent writes inline.
+- **Isolate parallel writes**: Parallel code writing **must** use `isolation: "worktree"`; single writer needs no isolation. Slicing decisions (axis, granularity, parallel-or-not, collision merging, size filtering) live in the `incremental-impl` skill. When its dispatch gates aren't met the skill terminates the parallel path and the main Agent writes inline.
 - **Match model and effort to task**: Pick the model (Claude sonnet/opus, or Codex flagship/mini) and effort per task. **Effort defaults: `xhigh` for coding / agentic subagent writes; `high` for design + formal review; `medium` only for short scoped lookups; `max` only when `xhigh` under-thinks.** Opus 4.7 strictly respects `low`/`medium` — under-thinking risk on complex tasks at those levels.
   - ✅ "Add input validation to `parseArgs()` in cli.ts" → sonnet @ xhigh
   - ✅ "Design the plugin dependency resolution strategy" → opus @ xhigh
