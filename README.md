@@ -11,7 +11,7 @@ This repo itself is a fully configured harness project. You can clone it to see 
 | Module | Description |
 |---|---|
 | **Workflow** | `CLAUDE.md` auriga workflow: requirement clarification -> TDD -> Review, Harness principles, Subagent usage guide |
-| **Skills** | Development process + orchestration skills — brainstorming, systematic-debugging, TDD, verification, planning, playwright, test-designer, parallel-implementation |
+| **Skills** | Development process + orchestration skills — brainstorming, systematic-debugging, TDD, verification, planning, playwright, test-designer, incremental-impl |
 | **Recommended Skills** | Optional utility skills (e.g. `codex-agent`, `claude-code-agent`) you can add on top of the workflow skills |
 | **Plugins** | Recommended Claude Code and Codex plugins — skill-creator, claude-md-management, codex, auriga-go, auriga-git-guards, session-instructions-loader, deep-review |
 | **Hooks** | Claude Code hooks: `notify` (macOS notification, focus-aware sound-only when terminal is frontmost — **opt-in**: not installed by `install --all`, requires `install hooks --hook notify`) |
@@ -91,7 +91,7 @@ Installs selected skills via `npx skills add`, targeting both Claude Code and Co
 | planning-with-files | [OthmanAdi/planning-with-files](https://github.com/OthmanAdi/planning-with-files) | File-based task planning and progress tracking |
 | playwright-cli | [microsoft/playwright-cli](https://github.com/microsoft/playwright-cli) | Browser automation and testing |
 | test-designer | [Ben2pc/auriga-cli](https://github.com/Ben2pc/auriga-cli) | Independent-Evaluation test designer for TDD red phase |
-| parallel-implementation | [Ben2pc/auriga-cli](https://github.com/Ben2pc/auriga-cli) | Slice planner for parallel multi-subagent code writing |
+| incremental-impl | [Ben2pc/auriga-cli](https://github.com/Ben2pc/auriga-cli) | Decides how to implement a non-trivial change: size, slicing strategy, optional parallel dispatch, per-slice execution discipline |
 | session-compound | [Ben2pc/auriga-cli](https://github.com/Ben2pc/auriga-cli) | Post-merge session compounder — distills the session into an interactive HTML report (timeline + token / cache / tool health + playground for skill installs / AGENTS.md edits / new-skill gaps) |
 
 **Recommended Skills (opt-in, not installed by `--all`):**

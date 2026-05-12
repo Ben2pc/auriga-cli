@@ -12,7 +12,7 @@
 
 6. TDD：所有代码改动都遵循 `test-driven-development`（唯一例外见「快速开发流程」段：纯文档、纯配置）：先写失败测试，再写最小实现，再回归验证。**每个 task 开始前明确可测试的验收标准**（具体功能点 + 验收条件 + 边界场景），不是最后才检查。满足以下**任一**条件时调用 `test-designer` skill：(a) 需求跨 ≥2 个模块且交互非显然；(b) 边界场景难以让实现 Agent 公平自测；(c) 你正想跳过 TDD，因为"实现看起来比测试更显然"。skill 内置 **Independent Evaluation**，派遣零上下文的 agent，仅接收需求描述和代码路径（不包含实现方案），以最高推理力度返回可执行的失败测试。
 
-7. 并行实现：绿灯阶段**满足以下任一条件**时才调用 `parallel-implementation`：(a) 跨多个独立模块的 **0→1 新建**——规划分层并行切片；(b) 改动涉及 **≥3 个模块**——用 `AskUserQuestion` 让用户确认后再派遣；(c) 改动涉及 **≥5 个文件且每个文件 diff >50 行**——主动建议并行。skill 返回分片计划；根据计划用并行 `Agent` 调用 + `isolation: "worktree"` 派遣。
+7. 增量实现：绿灯阶段对**任何非平凡的实现工作**调用 `incremental-impl`——多文件改动、跨文件重构、按 `task_plan.md` 中的 task 落地、跨切面修改（埋点 sweep / i18n / 库迁移）、或预计要写超过 ~100 行。skill 做四件事：(a) **估算大小**——三轴判据（acceptance criteria / 独立 concern 数 / diff 行数）得出 XS–XL 档位；(b) **选择切片策略**——新功能用 Vertical / 跨切面修改用 Horizontal sweep / 全新 0→1 用 Walking Skeleton / 架构迁移用 Branch by Abstraction；(c) **条件性**规划并行 subagent 派遣——仅当 L 档 + ≥3 个互不冲突可派遣切片时，返回切片计划，由主 Agent 用并行 `Agent` 调用 + `isolation: "worktree"` 派遣；(d) 对每个切片执行**实施纪律**——Implement → Test → Verify → Commit 循环、简洁优先、范围克制、片间保持可编译、可回滚、风险优先执行顺序。仅当 XS 级（单函数 / 单 config 改动）或纯文档 / 纯 config 变更时跳过本 skill。
 
 8. 完成编码后：任何"已完成 / 已修复 / 可以提交 / 可以进入评审"的判断前，都先按 `verification-before-completion` 运行并检查完整验证。运行受影响的自动化测试，以及必要的浏览器、界面或移动端交互检查；不要只靠阅读实现来判断完成。
 
@@ -64,14 +64,14 @@
 | 单文件修复，方案明确 | 自己做——不需要 subagent 开销 |
 | 并行只读任务（review、搜索、分析） | 对话内 subagent，无需隔离 |
 | 单个 subagent 写代码 | 对话内 subagent，无需隔离 |
-| 多个 subagent 写代码 | 调用 `parallel-implementation` skill 产出分片计划，再按计划用 `isolation: "worktree"` 派遣 |
+| 多个 subagent 写代码 | 调用 `incremental-impl` skill——其 Step 3 在（L 档 + 无冲突 + ≥3 可派遣切片）时产出分片计划，再按计划用 `isolation: "worktree"` 派遣 |
 | 需要零上下文污染的全新视角 | 独立 Agent（如 TDD 红灯阶段的测试设计） |
 | 跨模型盲区覆盖 | 独立 Agent（如 GPT review Claude 的代码） |
 | 不确定该用哪种方案 | 用 `AskUserQuestion` 询问，列出选项并给出建议 |
 
 对话内 subagent 共享主 Agent 的工作目录。核心规则：
 
-- **并行写必须隔离**：并行写代码**必须**使用 `isolation: "worktree"`；单个写者无需隔离。切片决策（怎么切、在哪会撞、什么时候不派）交给 `parallel-implementation` skill——它内置了文件归属、碰撞合并、大小过滤等过去写在这里的规则。
+- **并行写必须隔离**：并行写代码**必须**使用 `isolation: "worktree"`；单个写者无需隔离。切片决策（轴向选择、粒度、并行与否、碰撞合并、大小过滤）交给 `incremental-impl` skill——Step 2 决定轴向，Step 3 处理并行派遣，包括 Iron Law（输入输出独立）、碰撞合并、size filter。低于派遣阈值时 skill 返回 "serialize"，主 Agent 顺序写。
 - **按任务选模型和 effort**：模型（Claude sonnet / opus，或 Codex 旗舰 / mini）与 effort 按任务选。**Effort 默认值：写代码 / agentic 子任务用 `xhigh`；设计与正式评审用 `high`；只有短小、范围明确的查询才用 `medium`；只有当 `xhigh` 仍欠思考时才升 `max`。** Opus 4.7 严格遵守 `low` / `medium` 力度，复杂任务用低力度有欠思考风险。
   - ✅ "给 cli.ts 的 `parseArgs()` 加输入校验" → sonnet @ xhigh
   - ✅ "设计插件依赖解析策略" → opus @ xhigh
