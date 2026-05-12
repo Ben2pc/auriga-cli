@@ -27,6 +27,7 @@ import path from "node:path";
 import { parse as parseToml } from "smol-toml";
 
 import type {
+  ApplyAgent,
   HookState,
   ItemStatus,
   PluginState,
@@ -231,14 +232,33 @@ function dirExists(p: string): boolean {
  * registry-pinned plugin, so this is safe; if a future divergence appears
  * we'll need a deliberate merge policy.
  */
+interface PerAgentRecord {
+  agent: ApplyAgent;
+  status: ItemStatus;
+  currentVersion?: string;
+}
+
 export function mergePluginsById(records: PluginState[]): PluginState[] {
   const byId = new Map<string, PluginState>();
-  const statusByIdPerAgent = new Map<string, ItemStatus[]>();
+  // Per-agent (agent, status, version) tuples preserved across the fold so
+  // the aggregation step can emit `partial-install` + `missingAgents` when
+  // one side is installed and the other isn't, AND pick the *stale* side's
+  // currentVersion when status === "update-available" (otherwise the merge
+  // inherited Claude's version, producing the misleading `vX → vX` display
+  // in the v1.18.4 verification).
+  const perAgentByIdEntries = new Map<string, PerAgentRecord[]>();
   for (const rec of records) {
+    // Pre-merge records are per-agent: their `agents[]` array contains the
+    // single Agent this row was scanned for. The merge step below unions
+    // those into the final dual-Agent record.
+    const recAgent = rec.agents[0];
+    const perAgentEntry: PerAgentRecord | null = recAgent
+      ? { agent: recAgent, status: rec.status, currentVersion: rec.currentVersion }
+      : null;
     const existing = byId.get(rec.id);
     if (!existing) {
       byId.set(rec.id, { ...rec });
-      statusByIdPerAgent.set(rec.id, [rec.status]);
+      perAgentByIdEntries.set(rec.id, perAgentEntry ? [perAgentEntry] : []);
       continue;
     }
     // Union agents preserving order: existing first, then any new ones.
@@ -249,25 +269,56 @@ export function mergePluginsById(records: PluginState[]): PluginState[] {
         seen.add(a);
       }
     }
-    statusByIdPerAgent.get(rec.id)!.push(rec.status);
+    if (perAgentEntry) {
+      perAgentByIdEntries.get(rec.id)!.push(perAgentEntry);
+    }
   }
-  // Fold each id's per-agent status list into the aggregated status.
-  for (const [id, statuses] of statusByIdPerAgent) {
+  // Fold per-agent tuples into the aggregated status, missingAgents, and
+  // (when applicable) the corrected currentVersion.
+  for (const [id, perAgent] of perAgentByIdEntries) {
     const rec = byId.get(id);
     if (!rec) continue;
-    rec.status = aggregateStatus(statuses);
+    const aggregated = aggregateStatus(perAgent);
+    rec.status = aggregated.status;
+    if (aggregated.missingAgents && aggregated.missingAgents.length > 0) {
+      rec.missingAgents = aggregated.missingAgents;
+    } else {
+      delete rec.missingAgents;
+    }
+    // When status is update-available, surface the version of the *stale*
+    // agent (one whose own status was update-available). Otherwise we'd
+    // keep whichever agent's version was merged first — Claude's, which
+    // may already be at the expected version, producing a `vX → vX`
+    // pseudo-upgrade display.
+    if (rec.status === "update-available") {
+      const stale = perAgent.find((r) => r.status === "update-available");
+      if (stale?.currentVersion) {
+        rec.currentVersion = stale.currentVersion;
+      }
+    }
   }
   return Array.from(byId.values());
 }
 
-function aggregateStatus(statuses: ItemStatus[]): ItemStatus {
-  if (statuses.length === 0) return "not-installed";
-  if (statuses.every((s) => s === "installed")) return "installed";
-  if (statuses.every((s) => s === "not-installed")) return "not-installed";
-  // Anything else — partial install, pending updates on any agent, mixed
-  // — falls through to update-available so a single Apply backfills the
-  // missing pieces.
-  return "update-available";
+function aggregateStatus(
+  records: Array<{ agent: ApplyAgent; status: ItemStatus }>,
+): { status: ItemStatus; missingAgents?: ApplyAgent[] } {
+  if (records.length === 0) return { status: "not-installed" };
+  if (records.every((r) => r.status === "installed")) return { status: "installed" };
+  if (records.every((r) => r.status === "not-installed")) return { status: "not-installed" };
+  // Mixed. If ANY agent reports not-installed, the row is partially installed
+  // — the user-facing action is "install on the missing side". Surfaces as a
+  // distinct status from version-drift `update-available` so the UI doesn't
+  // render misleading `vX → vX` upgrades (the v1.18.4 deep-review symptom).
+  const missingAgents = records
+    .filter((r) => r.status === "not-installed")
+    .map((r) => r.agent);
+  if (missingAgents.length > 0) {
+    return { status: "partial-install", missingAgents };
+  }
+  // Otherwise version drift on at least one targeted agent — single Apply
+  // upgrades the stale side(s).
+  return { status: "update-available" };
 }
 
 // ---------------------------------------------------------------------------
@@ -280,11 +331,12 @@ function workflowPathsForScope(scope: ScanScope, projectRoot: string, home: stri
   if (scope === "user") {
     return [path.join(home, ".claude", "CLAUDE.md")];
   }
-  // Project: <proj>/CLAUDE.md preferred, .claude/CLAUDE.md as fallback.
-  return [
-    path.join(projectRoot, "CLAUDE.md"),
-    path.join(projectRoot, ".claude", "CLAUDE.md"),
-  ];
+  // Project: only `<proj>/CLAUDE.md` — the auriga workflow installer
+  // (src/workflow.ts) writes here and never to `<proj>/.claude/CLAUDE.md`.
+  // The old fallback collapsed onto `$HOME/.claude/CLAUDE.md` when
+  // projectRoot === $HOME (user runs `web-ui` from home dir), leaking
+  // user-scope content into the project-scope row.
+  return [path.join(projectRoot, "CLAUDE.md")];
 }
 
 function scanWorkflow(
@@ -327,14 +379,18 @@ function scanWorkflow(
     if (line.trim().length > 0) break;
   }
 
-  // CLAUDE.md exists but no recognizable auriga marker. Per spec degraded
-  // path: status remains "installed" (don't clobber user content on apply)
-  // and emit a workflow-unknown-version warning.
+  // CLAUDE.md exists but no recognizable auriga marker. The file is foreign
+  // — not our workflow. Report `not-installed` honestly; the install path
+  // (src/workflow.ts) already protects user content by backing it up to
+  // `CLAUDE.md.bak` before overwriting. Conflating "something exists here"
+  // with "auriga workflow installed" caused the v1.18.4 verification bug
+  // where running web-ui from `~` reported the user's `# Global`-headed
+  // `~/.claude/CLAUDE.md` as an installed workflow.
   warnings.push({
-    code: "workflow-unknown-version",
-    message: `CLAUDE.md present but no auriga-workflow header found; cannot determine installed version.`,
+    code: "workflow-foreign-claudemd",
+    message: `Foreign CLAUDE.md detected at the workflow path — no auriga-workflow header. Install will back up to CLAUDE.md.bak.`,
   });
-  return { status: "installed", expectedVersion, observedScope: scope };
+  return { status: "not-installed", expectedVersion, observedScope: scope };
 }
 
 // ---------------------------------------------------------------------------

@@ -2,7 +2,16 @@
 // (ui/). All /api/* endpoints carry token + Origin auth. See spec
 // docs/architecture/web-ui.md §6.2 for the contract these types encode.
 
-export type ItemStatus = "installed" | "update-available" | "not-installed";
+export type ItemStatus =
+  | "installed"
+  | "update-available"
+  | "not-installed"
+  /** Dual-Agent plugin where some target Agents have the plugin installed
+   *  and some don't (e.g. Claude side installed, Codex side missing). Distinct
+   *  from `update-available` because the action is "install on the missing
+   *  side", not "upgrade to a newer version". The missing agents are
+   *  enumerated in `PluginState.missingAgents`. */
+  | "partial-install";
 
 /**
  * Per-category scan scope. Each category (workflow / skills / plugins / hooks)
@@ -63,9 +72,15 @@ export interface PluginState {
    *  `agents.length === 2` the UI shows a BOTH badge and Apply installs to
    *  each agent in turn. Status is aggregated across all targeted agents:
    *  `installed` ⇔ all agents installed; `not-installed` ⇔ all not-installed;
-   *  any partial state (one side installed, other not) → `update-available`
-   *  so a single Apply backfills the missing side. */
+   *  partial state (some installed, some not) → `partial-install`; agent-
+   *  uniform version drift → `update-available`. */
   agents: ApplyAgent[];
+  /** Agents that target this plugin but don't have it installed. Populated
+   *  iff `status === "partial-install"`. Lets the UI render per-agent
+   *  ✓/✗ marks and tell the user exactly which side needs `auriga-cli`
+   *  to backfill. Always omitted for `installed` / `not-installed` /
+   *  `update-available`. */
+  missingAgents?: ApplyAgent[];
   currentVersion?: string;
   expectedVersion?: string;
   versionSource: "upstream-live" | "catalog";
@@ -99,7 +114,11 @@ export interface StateWarning {
     | "claude-code-not-installed"
     | "settings-unreadable"
     | "skill-malformed"
-    | "workflow-unknown-version";
+    /** Project-scope CLAUDE.md (or the user-scope fallback when scanning
+     *  user scope) is present but has no recognizable `# auriga Workflow (vX.Y.Z)`
+     *  header. The row reports `not-installed`; install will back up the
+     *  existing file to `CLAUDE.md.bak` and write ours. */
+    | "workflow-foreign-claudemd";
   message: string;
 }
 

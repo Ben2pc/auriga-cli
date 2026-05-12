@@ -48,6 +48,62 @@ describe("StateCard — status encoding", () => {
     expect(badge.style.color).toBe("var(--color-accent-ember)");
   });
 
+  test("partial-install renders PARTIAL badge with clay color + Missing-on caption", () => {
+    // Distinct from UPDATE — both use clay (action needed) but PARTIAL has
+    // a dedicated label and a missingAgents caption telling the user
+    // exactly which agent needs backfill. Added v1.18.5 after the v1.18.4
+    // deep-review verification showed dual-Agent half-installs surfacing
+    // as misleading "vX → vX" upgrades under update-available.
+    render(
+      <StateCard
+        {...baseProps({
+          status: "partial-install",
+          missingAgents: ["codex"],
+        })}
+      />,
+    );
+    const badge = screen.getByTestId("statecard-badge") as HTMLElement;
+    expect(badge).toHaveTextContent("PARTIAL");
+    expect(badge.style.color).toBe("var(--color-clay)");
+    const missing = screen.getByTestId("statecard-missing-agents");
+    expect(missing).toHaveTextContent("Missing on Codex");
+  });
+
+  test("Missing-on caption renders multi-agent list", () => {
+    // Defensive: if both Claude and Codex sides are missing (catalog
+    // expected dual-Agent but neither agent has the plugin enabled),
+    // render the full list. Today this state is unreachable via the
+    // (installed-on-one + missing-on-other) classifier path — but the
+    // missingAgents contract is multi-valued and the UI must not crash
+    // or truncate when both sides feed in.
+    render(
+      <StateCard
+        {...baseProps({
+          status: "partial-install",
+          missingAgents: ["claude", "codex"],
+        })}
+      />,
+    );
+    const missing = screen.getByTestId("statecard-missing-agents");
+    expect(missing).toHaveTextContent("Missing on Claude, Codex");
+  });
+
+  test("Missing-on caption does NOT render for non-partial-install statuses", () => {
+    // missingAgents is a stale field outside partial-install state. The
+    // gate `status === "partial-install"` in StateCard must hold even if
+    // a stale prop is passed (defense against caller bugs / future
+    // serializer regressions).
+    render(
+      <StateCard
+        {...baseProps({
+          status: "installed",
+          missingAgents: ["codex"],
+        })}
+      />,
+    );
+    expect(screen.queryByTestId("statecard-missing-agents")).toBeNull();
+  });
+
   test("status is encoded via the chromatic status-dot (not the row background)", () => {
     // Compact dashboard rows share a transparent background; status is
     // conveyed by the dot + badge color instead of per-row tint. Row

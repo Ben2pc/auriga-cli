@@ -26,6 +26,11 @@ export type CardStatus =
   | "installed"
   | "update-available"
   | "not-installed"
+  /** Dual-Agent plugin partially installed (some target agents have it,
+   *  some don't). Distinct from update-available so the meta row can
+   *  render "Missing on Codex" instead of a misleading "vX → vX" upgrade.
+   *  See PluginState.missingAgents for the enumeration. */
+  | "partial-install"
   | "error";
 
 export interface StateCardProps {
@@ -49,6 +54,10 @@ export interface StateCardProps {
    *  an EXTERNAL badge alongside the agent badge to signal "upgrades go
    *  through `claude plugins update`, not us". */
   external?: boolean;
+  /** Agents that target this plugin but don't have it installed — only
+   *  populated when status === "partial-install". Drives the
+   *  "Missing on Codex" footer line. */
+  missingAgents?: ("claude" | "codex")[];
 }
 
 interface StatusVisual {
@@ -76,12 +85,24 @@ const STATUS_VISUALS: Record<CardStatus, StatusVisual> = {
     badgeColor: "var(--color-slate-light)",
     accentColor: "var(--color-cloud-dark)",
   },
+  "partial-install": {
+    // Shares clay with update-available — both signal "action needed".
+    // Distinction comes from the badge label ("PARTIAL" vs "UPDATE") and
+    // the meta row ("Missing on Codex" vs "vX → vY").
+    label: "PARTIAL",
+    badgeColor: "var(--color-clay)",
+    accentColor: "var(--color-clay)",
+  },
   error: {
     label: "ERROR",
     badgeColor: "var(--color-accent-ember)",
     accentColor: "var(--color-accent-ember)",
   },
 };
+
+function capitalize(s: string): string {
+  return s.length === 0 ? s : s.charAt(0).toUpperCase() + s.slice(1);
+}
 
 function shortHash(hash: string | undefined): string | undefined {
   if (!hash) return undefined;
@@ -107,6 +128,7 @@ export default function StateCard({
   uninstallable = false,
   agents,
   external = false,
+  missingAgents,
 }: StateCardProps): JSX.Element {
   const visual = STATUS_VISUALS[status];
 
@@ -329,6 +351,13 @@ export default function StateCard({
           {versionDiff && (
             <span data-testid="statecard-version-diff">{versionDiff}</span>
           )}
+          {status === "partial-install" &&
+            missingAgents &&
+            missingAgents.length > 0 && (
+              <span data-testid="statecard-missing-agents">
+                Missing on {missingAgents.map(capitalize).join(", ")}
+              </span>
+            )}
           {captionVersion && (
             <span data-testid="statecard-version">{captionVersion}</span>
           )}

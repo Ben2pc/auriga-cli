@@ -24,7 +24,7 @@ src/
   plugins.ts    — Plugin + marketplace installation; exports `uninstallPlugin(id, agent, opts)`
   hooks.ts      — Per-hook directory copy + idempotent settings merge; exports `uninstallHook(name, opts)`
   api-types.ts  — Shared TS types between src/server.ts and ui/ (StateReport, ApplyRequest, ProgressEvent…)
-  state.ts      — `scanState(projectRoot, catalog)` — per-category three-state scanner for /api/state
+  state.ts      — `scanState(projectRoot, catalog)` — per-category scanner for /api/state (4 states: installed / update-available / not-installed / partial-install — partial-install added v1.18.5 for dual-Agent plugin half-installs)
   scan-catalog.ts — Build-time catalog → runtime ScanCatalog adapter (consumes baked workflow version + plugin agent map + plugin external flag + plugin expectedVersion from dist/catalog.json; skill expectedHash is always "" since v1.18.4 — drift moved to `npx skills update`; hooks still read .claude/hooks/hooks.json at runtime as a TODO follow-up)
   server.ts     — Local HTTP server (token + Origin auth, SSE /api/progress, static asset serve from uiDir). Boots via `npx auriga-cli web-ui`
   apply-handlers.ts — `buildDefaultApplyHandlers(ctx)` wires the bulk installers as per-item ApplyHandlers via `selected: [name]`. Web UI's CLI mode uses this; tests inject their own mocks
