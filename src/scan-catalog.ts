@@ -35,6 +35,33 @@ async function sha256SkillMd(skillsRoot: string, name: string): Promise<string> 
   }
 }
 
+/** Read `plugins/<name>/.claude-plugin/plugin.json` (or `.codex-plugin/plugin.json`
+ *  as fallback) and return the `version` field. Returns "" when no manifest
+ *  exists or the JSON is malformed — the scanner then leaves expectedVersion
+ *  unset, which means external-marketplace plugins (whose source lives
+ *  upstream, not in this repo) get the "trust installed" classification. */
+async function readPluginManifestVersion(
+  packageRoot: string,
+  name: string,
+): Promise<string> {
+  const candidates = [
+    path.join(packageRoot, "plugins", name, ".claude-plugin", "plugin.json"),
+    path.join(packageRoot, "plugins", name, ".codex-plugin", "plugin.json"),
+  ];
+  for (const p of candidates) {
+    try {
+      const raw = await readFile(p, "utf8");
+      const parsed = JSON.parse(raw) as { version?: unknown };
+      if (typeof parsed.version === "string" && parsed.version.length > 0) {
+        return parsed.version;
+      }
+    } catch {
+      /* try next candidate */
+    }
+  }
+  return "";
+}
+
 const WORKFLOW_VERSION_RE = /^#\s*auriga Workflow\s*\(v([\d.]+)\)/m;
 
 async function tryReadFile(p: string): Promise<string | null> {
@@ -145,7 +172,21 @@ export async function buildScanCatalog(
     if (claudeNames.has(entry.name)) agents.push("claude");
     if (codexNames.has(entry.name)) agents.push("codex");
     if (agents.length === 0) agents.push("claude"); // unknown defaults to claude
-    plugins[entry.name] = { description: entry.description, agents };
+
+    // Bake expectedVersion from the owned plugin's manifest. For Claude-side
+    // plugins prefer plugins/<name>/.claude-plugin/plugin.json; fall back to
+    // .codex-plugin/plugin.json for codex-only plugins (e.g.
+    // session-instructions-loader). External-marketplace plugins (skill-creator,
+    // claude-md-management, codex) have no local manifest — they install from
+    // their upstream marketplace, so we deliberately leave expectedVersion
+    // undefined. The scanner then falls through to "trust whatever is installed",
+    // which matches what the user agreed to when they registered the upstream.
+    const expectedVersion = await readPluginManifestVersion(packageRoot, entry.name);
+    plugins[entry.name] = {
+      description: entry.description,
+      agents,
+      ...(expectedVersion ? { expectedVersion } : {}),
+    };
   }
 
   // Hooks: the scanner reads <scope>/.claude/settings.json and matches by

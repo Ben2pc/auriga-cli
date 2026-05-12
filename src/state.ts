@@ -499,12 +499,20 @@ async function scanClaudePlugins(
   // claude plugins list emits ids in `<plugin>@<marketplace>` form (e.g.
   // `auriga-go@auriga-cli`). The auriga-cli catalog tracks plugins by bare
   // name. Index both forms so lookups succeed regardless of which side the
-  // suffix is on. Same trick for availables.
+  // suffix is on. Same trick for availables — note that the `--available`
+  // payload uses `pluginId` rather than `id`, so accept both as the key.
   const indexBoth = (map: Map<string, any>, item: any): void => {
-    if (!item || typeof item.id !== "string") return;
-    map.set(item.id, item);
-    const at = item.id.indexOf("@");
-    if (at > 0) map.set(item.id.slice(0, at), item);
+    if (!item || typeof item !== "object") return;
+    const key =
+      typeof item.id === "string"
+        ? item.id
+        : typeof item.pluginId === "string"
+          ? item.pluginId
+          : null;
+    if (!key) return;
+    map.set(key, item);
+    const at = key.indexOf("@");
+    if (at > 0) map.set(key.slice(0, at), item);
   };
   const installedById = new Map<string, any>();
   for (const item of payload.installed ?? []) indexBoth(installedById, item);
@@ -561,36 +569,49 @@ function classifyClaudePlugin(
   const normalizedAvailable = parseRef(typeof ref === "string" ? ref : undefined);
   const normalizedInstalled = parseRef(installedVersion);
 
-  // Fallback rules:
+  // Pick the comparison target. The marketplace-live ref wins when it's a
+  // parseable semver — that's the freshest signal. Otherwise fall back to
+  // the build-time-baked `def.expectedVersion` (populated from
+  // plugins/<name>/.claude-plugin/plugin.json by scan-catalog for owned
+  // plugins). Without the fallback, the common upgrade case is invisible:
+  // `claude plugins list --available --json` excludes already-installed
+  // plugins from `.available[]`, so for any plugin the user already has,
+  // `ref` is undefined and the scanner can't tell whether a newer version
+  // ships in the marketplace.
+  const hasLiveRef = normalizedAvailable !== null && typeof ref === "string";
+  const expectedRaw = hasLiveRef ? (ref as string) : def.expectedVersion;
+  const expectedNormalized = hasLiveRef
+    ? normalizedAvailable
+    : parseRef(def.expectedVersion);
+  const versionSource: "upstream-live" | "catalog" = hasLiveRef
+    ? "upstream-live"
+    : "catalog";
+
+  // Fallback rules (no comparable expected version, or unknown installed):
   //   - installed version "unknown" → trust it's installed.
-  //   - available.ref is a branch / non-semver → trust the installed side.
-  //   - available info is missing entirely → trust installed.
-  if (
-    installedVersion === "unknown" ||
-    normalizedAvailable === null ||
-    !available
-  ) {
+  //   - effective expected is null (branch ref + no baked version) → trust installed.
+  if (installedVersion === "unknown" || expectedNormalized === null) {
     return {
       id,
       description: def.description,
       status: "installed",
       agents: ["claude"],
       currentVersion: installedVersion,
-      expectedVersion: typeof ref === "string" ? ref : def.expectedVersion,
-      versionSource: "upstream-live",
+      expectedVersion: expectedRaw,
+      versionSource,
       observedScope: scope,
     };
   }
 
-  if (normalizedInstalled !== null && normalizedInstalled === normalizedAvailable) {
+  if (normalizedInstalled !== null && normalizedInstalled === expectedNormalized) {
     return {
       id,
       description: def.description,
       status: "installed",
       agents: ["claude"],
       currentVersion: installedVersion,
-      expectedVersion: typeof ref === "string" ? ref : undefined,
-      versionSource: "upstream-live",
+      expectedVersion: expectedRaw,
+      versionSource,
       observedScope: scope,
     };
   }
@@ -600,8 +621,8 @@ function classifyClaudePlugin(
     status: "update-available",
     agents: ["claude"],
     currentVersion: installedVersion,
-    expectedVersion: typeof ref === "string" ? ref : undefined,
-    versionSource: "upstream-live",
+    expectedVersion: expectedRaw,
+    versionSource,
     observedScope: scope,
   };
 }
@@ -996,7 +1017,13 @@ export async function defaultExecPluginList(
     execAsync(`claude plugins list --available --json`, { encoding: "utf8" }),
   ]);
   const allInstalled = parseJsonArray(installedRes.stdout);
-  const available = parseJsonArray(availableRes.stdout);
+  // `claude plugins list --available --json` returns a wrapped object
+  // `{ installed: [...], available: [...] }`, NOT a flat array. parseJsonArray
+  // alone would return `[]` and silently lose every marketplace ref → the
+  // scanner could never surface "update-available" from upstream-live data.
+  // Pull `.available` out of the wrapper; tolerate the flat-array form too
+  // in case Claude CLI's shape regresses.
+  const available = extractAvailableArray(availableRes.stdout);
   const installed = allInstalled.filter((rec) => {
     if (!rec || typeof rec !== "object") return false;
     if (rec.scope !== scope) return false;
@@ -1017,6 +1044,23 @@ function parseJsonArray(text: string): any[] {
   try {
     const parsed = JSON.parse(text);
     return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+/** Pull the available-plugins array out of `claude plugins list --available
+ *  --json`'s response. Empirically the CLI returns `{ installed, available }`;
+ *  if a future version regresses to a flat array we keep working. Returns
+ *  `[]` on malformed JSON. */
+function extractAvailableArray(text: string): any[] {
+  try {
+    const parsed = JSON.parse(text);
+    if (Array.isArray(parsed)) return parsed;
+    if (parsed && typeof parsed === "object" && Array.isArray(parsed.available)) {
+      return parsed.available;
+    }
+    return [];
   } catch {
     return [];
   }

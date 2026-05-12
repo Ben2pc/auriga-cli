@@ -744,6 +744,78 @@ describe("scanState — #14 Plugins (Claude) CLI missing degraded path", () => {
 });
 
 // ===========================================================================
+// #14c — Plugins (Claude) / baked def.expectedVersion path
+// ===========================================================================
+describe("scanState — #14c Plugins (Claude) baked expectedVersion", () => {
+  test("#14c plugins/claude: baked def.expectedVersion mismatches installed.version → update-available", async () => {
+    // rationale: `claude plugins list --available --json` deliberately omits
+    // already-installed plugins from `.available[]`, so the marketplace-live
+    // ref path can never fire for the common upgrade case. When the scanner
+    // has a baked expectedVersion from auriga-cli's own
+    // plugins/<name>/.claude-plugin/plugin.json (the canonical source for
+    // owned plugins), it MUST use that to surface "an upgrade is available".
+    // Without this path a stale local install (e.g. deep-review@0.3.0 while
+    // the marketplace ships 0.3.1) reports a misleading green "installed".
+    const home = makeScratch("home14c");
+    redirectHome(home);
+    const catalog = makeCatalog({
+      plugins: {
+        "deep-review@auriga-cli": {
+          description: "",
+          agents: ["claude"],
+          expectedVersion: "0.3.1",
+        },
+      },
+    });
+    const report = await scan(makeScratch("proj14c"), catalog, {
+      execPluginList: (async () => ({
+        installed: [{ id: "deep-review@auriga-cli", version: "0.3.0" }],
+        available: [], // CLI excludes installed plugins from .available[]
+      })) as NonNullable<ScanOptions["execPluginList"]>,
+      scopes: { plugins: "user" },
+      homeDir: home,
+      ...codexNone,
+    });
+
+    const p = report.plugins.find((x) => x.id === "deep-review@auriga-cli")!;
+    assert.equal(p.status, "update-available");
+    assert.equal(p.currentVersion, "0.3.0");
+    assert.equal(p.expectedVersion, "0.3.1");
+    assert.equal(p.versionSource, "catalog");
+  });
+
+  test("#14c plugins/claude: baked def.expectedVersion matches installed.version → installed", async () => {
+    // rationale: confirms the baked-version path doesn't false-positive
+    // when the user IS up to date with the catalog-shipped version.
+    const home = makeScratch("home14c-eq");
+    redirectHome(home);
+    const catalog = makeCatalog({
+      plugins: {
+        "deep-review@auriga-cli": {
+          description: "",
+          agents: ["claude"],
+          expectedVersion: "0.3.1",
+        },
+      },
+    });
+    const report = await scan(makeScratch("proj14c-eq"), catalog, {
+      execPluginList: (async () => ({
+        installed: [{ id: "deep-review@auriga-cli", version: "0.3.1" }],
+        available: [],
+      })) as NonNullable<ScanOptions["execPluginList"]>,
+      scopes: { plugins: "user" },
+      homeDir: home,
+      ...codexNone,
+    });
+
+    const p = report.plugins.find((x) => x.id === "deep-review@auriga-cli")!;
+    assert.equal(p.status, "installed");
+    assert.equal(p.currentVersion, "0.3.1");
+    assert.equal(p.versionSource, "catalog");
+  });
+});
+
+// ===========================================================================
 // #15 — Plugins (Codex) / unchanged behavior: still works
 // ===========================================================================
 describe("scanState — #15 Plugins (Codex) sanity (unchanged behavior)", () => {
