@@ -102,6 +102,7 @@ npx auriga-cli
 | codex-agent | [Ben2pc/g-claude-code-plugins](https://github.com/Ben2pc/g-claude-code-plugins) | 委派给 Codex 会话，做跨模型覆盖 |
 | design-taste-frontend | [Leonxlnx/taste-skill](https://github.com/Leonxlnx/taste-skill) | 高阶 UI/UX 工程师 —— 度量化设计规则与严格的组件架构约束 |
 | frontend-design | [anthropics/skills](https://github.com/anthropics/skills) | 生成有辨识度、production 级的前端界面，避开常见 AI 同质化美学 |
+| incremental-implementation | [addyosmani/agent-skills](https://github.com/addyosmani/agent-skills) | 增量交付 —— 把大改动切成可验证的小片，做一片、测一片、验一片再继续 |
 | make-interfaces-feel-better | [jakubkrehel/make-interfaces-feel-better](https://github.com/jakubkrehel/make-interfaces-feel-better) | 界面打磨原则 —— 动画、表面、排版、性能 |
 
 支持 project 和 global 两种安装范围。

@@ -102,6 +102,7 @@ Installs selected skills via `npx skills add`, targeting both Claude Code and Co
 | codex-agent | [Ben2pc/g-claude-code-plugins](https://github.com/Ben2pc/g-claude-code-plugins) | Delegate to Codex sessions for cross-model coverage |
 | design-taste-frontend | [Leonxlnx/taste-skill](https://github.com/Leonxlnx/taste-skill) | Senior UI/UX engineer with metric-based design rules and strict component architecture |
 | frontend-design | [anthropics/skills](https://github.com/anthropics/skills) | Distinctive, production-grade frontend UI generation that avoids generic AI aesthetics |
+| incremental-implementation | [addyosmani/agent-skills](https://github.com/addyosmani/agent-skills) | Thin vertical slices — implement one piece, test it, verify, then expand |
 | make-interfaces-feel-better | [jakubkrehel/make-interfaces-feel-better](https://github.com/jakubkrehel/make-interfaces-feel-better) | Polish principles — animations, surfaces, typography, performance |
 
 Supports both project and global installation scopes.
