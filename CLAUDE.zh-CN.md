@@ -1,4 +1,4 @@
-# auriga 工作流 (v1.6.0)
+# auriga 工作流 (v1.7.0)
 
 1. 需求澄清：新需求先用 `brainstorming` 澄清requirement。**requirement聚焦"做什么"和验收标准，不写具体技术路径**，如果是产品功能优先关注"Why"，让实现阶段的 Agent 自行决定怎么做。
 
@@ -12,7 +12,7 @@
 
 6. TDD：所有代码改动都遵循 `test-driven-development`（唯一例外见「快速开发流程」段：纯文档、纯配置）：先写失败测试，再写最小实现，再回归验证。**每个 task 开始前明确可测试的验收标准**（具体功能点 + 验收条件 + 边界场景），不是最后才检查。满足以下**任一**条件时调用 `test-designer` skill：(a) 需求跨 ≥2 个模块且交互非显然；(b) 边界场景难以让实现 Agent 公平自测；(c) 你正想跳过 TDD，因为"实现看起来比测试更显然"。skill 内置 **Independent Evaluation**，派遣零上下文的 agent，仅接收需求描述和代码路径（不包含实现方案），以最高推理力度返回可执行的失败测试。
 
-7. 并行实现：绿灯阶段**满足以下任一条件**时才调用 `parallel-implementation`：(a) 跨多个独立模块的 **0→1 新建**——规划分层并行切片；(b) 改动涉及 **≥3 个模块**——用 `AskUserQuestion` 让用户确认后再派遣；(c) 改动涉及 **≥5 个文件且每个文件 diff >50 行**——主动建议并行。skill 返回分片计划；根据计划用并行 `Agent` 调用 + `isolation: "worktree"` 派遣。
+7. 增量实现：绿灯阶段对任何非平凡的实现工作调用 `incremental-impl`——多文件改动、跨文件重构、落地一个已规划的 task（来源不限：内置 Plan、`planning-with-files`、`brainstorming` spec、或用户直接给的任务）、跨切面修改、或预计要写超过 ~100 行。规模判定（XS–XL）、切片策略、按需并行派遣、片间执行纪律都由 skill 自身负责——具体规则看 skill 本身。仅当 skill 的规模判定为 XS、或改动是纯文档 / 纯配置时跳过。
 
 8. 完成编码后：任何"已完成 / 已修复 / 可以提交 / 可以进入评审"的判断前，都先按 `verification-before-completion` 运行并检查完整验证。运行受影响的自动化测试，以及必要的浏览器、界面或移动端交互检查；不要只靠阅读实现来判断完成。
 
@@ -64,14 +64,14 @@
 | 单文件修复，方案明确 | 自己做——不需要 subagent 开销 |
 | 并行只读任务（review、搜索、分析） | 对话内 subagent，无需隔离 |
 | 单个 subagent 写代码 | 对话内 subagent，无需隔离 |
-| 多个 subagent 写代码 | 调用 `parallel-implementation` skill 产出分片计划，再按计划用 `isolation: "worktree"` 派遣 |
+| 多个 subagent 写代码 | 调用 `incremental-impl`——派遣门槛达标时返回分片计划，按计划用 `isolation: "worktree"` 派遣 |
 | 需要零上下文污染的全新视角 | 独立 Agent（如 TDD 红灯阶段的测试设计） |
 | 跨模型盲区覆盖 | 独立 Agent（如 GPT review Claude 的代码） |
 | 不确定该用哪种方案 | 用 `AskUserQuestion` 询问，列出选项并给出建议 |
 
 对话内 subagent 共享主 Agent 的工作目录。核心规则：
 
-- **并行写必须隔离**：并行写代码**必须**使用 `isolation: "worktree"`；单个写者无需隔离。切片决策（怎么切、在哪会撞、什么时候不派）交给 `parallel-implementation` skill——它内置了文件归属、碰撞合并、大小过滤等过去写在这里的规则。
+- **并行写必须隔离**：并行写代码**必须**使用 `isolation: "worktree"`；单个写者无需隔离。切片决策（轴向选择、粒度、并行与否、碰撞合并、大小过滤）由 `incremental-impl` skill 负责。派遣门槛未达标时 skill 终止并行路径，主 Agent 顺序写。
 - **按任务选模型和 effort**：模型（Claude sonnet / opus，或 Codex 旗舰 / mini）与 effort 按任务选。**Effort 默认值：写代码 / agentic 子任务用 `xhigh`；设计与正式评审用 `high`；只有短小、范围明确的查询才用 `medium`；只有当 `xhigh` 仍欠思考时才升 `max`。** Opus 4.7 严格遵守 `low` / `medium` 力度，复杂任务用低力度有欠思考风险。
   - ✅ "给 cli.ts 的 `parseArgs()` 加输入校验" → sonnet @ xhigh
   - ✅ "设计插件依赖解析策略" → opus @ xhigh

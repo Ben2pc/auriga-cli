@@ -41,7 +41,7 @@ describe("generateCatalog (build-time)", () => {
     // (assertion lives in the plugins block below).
     assert.deepEqual(names, [
       "brainstorming",
-      "parallel-implementation",
+      "incremental-impl",
       "planning-with-files",
       "playwright-cli",
       "session-compound",
@@ -104,12 +104,14 @@ describe("generateCatalog (build-time)", () => {
     assertEntriesShape(catalog.hooks, "hooks");
   });
 
-  test("descriptions survive YAML escaped quotes (parallel-implementation)", () => {
-    const pi = catalog.workflowSkills.find((e) => e.name === "parallel-implementation");
-    assert.ok(pi);
-    assert.match(pi.description, /parallel subagents/);
-    // parallel-implementation description contains escaped quotes: isolation: \"worktree\"
-    assert.match(pi.description, /isolation/);
+  test("descriptions survive unicode special chars (incremental-impl)", () => {
+    const e = catalog.workflowSkills.find((e) => e.name === "incremental-impl");
+    assert.ok(e);
+    // Description contains em-dashes and unicode arrows that must survive
+    // YAML parsing through the catalog generator. Regression guard for
+    // YAML special-character handling in skill descriptions.
+    assert.match(e.description, /XS–XL/);
+    assert.match(e.description, /Implement → Test → Verify → Commit/);
   });
 });
 

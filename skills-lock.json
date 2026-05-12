@@ -37,17 +37,17 @@
       "skillPath": "skills/frontend-design/SKILL.md",
       "computedHash": "063a0e6448123cd359ad0044cc46b0e490cc7964d45ef4bb9fd842bd2ffbca67"
     },
+    "incremental-impl": {
+      "source": "Ben2pc/auriga-cli",
+      "sourceType": "github",
+      "skillPath": "skills/incremental-impl/SKILL.md",
+      "computedHash": "ceee01a02db4bcaadb5b682b50c61cec085dd760fed022c14aad4c0680ea00e8"
+    },
     "make-interfaces-feel-better": {
       "source": "jakubkrehel/make-interfaces-feel-better",
       "sourceType": "github",
       "skillPath": "skills/make-interfaces-feel-better/SKILL.md",
       "computedHash": "54b6e221bbe4e2d1a8461c3f9ecabe69daf891f964e9ee5e699c323daa018f2e"
-    },
-    "parallel-implementation": {
-      "source": "Ben2pc/auriga-cli",
-      "sourceType": "github",
-      "skillPath": "skills/parallel-implementation/SKILL.md",
-      "computedHash": "c1e5fcfaf26ca8f339a724a3abc0cdf1b7ad8edcd0a5035ebd9f1933101428ab"
     },
     "planning-with-files": {
       "source": "OthmanAdi/planning-with-files",

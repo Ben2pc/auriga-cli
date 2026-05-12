@@ -24,7 +24,7 @@ const LOCK: SkillsLock["skills"] = {
   "verification-before-completion": stub("obra/superpowers"),
   "claude-code-agent": stub("Ben2pc/g-claude-code-plugins"),
   "codex-agent": stub("Ben2pc/g-claude-code-plugins"),
-  "parallel-implementation": stub("Ben2pc/auriga-cli"),
+  "incremental-impl": stub("Ben2pc/auriga-cli"),
   "planning-with-files": stub("OthmanAdi/planning-with-files"),
   "playwright-cli": stub("microsoft/playwright-cli"),
 };
