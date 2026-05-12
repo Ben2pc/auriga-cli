@@ -719,7 +719,10 @@ async function runUi(p: UiParsed, version: string): Promise<number> {
   const token = randomBytes(32).toString("hex");
 
   // 4. Bind port: try requested → otherwise 4747..4756 in sequence.
-  const ports = p.port
+  // Use `!== undefined` so `--port 0` (OS-ephemeral) is honored. `0` is
+  // falsy in JS; `p.port ? [p.port] : range` would silently fall back to
+  // the default range and break hermetic e2e isolation.
+  const ports = p.port !== undefined
     ? [p.port]
     : Array.from({ length: UI_PORT_RANGE }, (_, i) => UI_DEFAULT_PORT + i);
   let server: Awaited<ReturnType<typeof startServer>> | null = null;

@@ -6,7 +6,10 @@
 // and tests/state.test.ts for the full behavioral contract.
 
 import { createHash } from "node:crypto";
-import { execSync } from "node:child_process";
+import { exec as execCallback } from "node:child_process";
+import { promisify } from "node:util";
+
+const execAsync = promisify(execCallback);
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -592,16 +595,16 @@ export async function defaultExecPluginList(): Promise<{
   installed: any[];
   available: any[];
 }> {
-  const installedRaw = execSync("claude plugins list --json", {
-    encoding: "utf8",
-    stdio: ["ignore", "pipe", "pipe"],
-  });
-  const availableRaw = execSync("claude plugins list --available --json", {
-    encoding: "utf8",
-    stdio: ["ignore", "pipe", "pipe"],
-  });
-  const installed = parseJsonArray(installedRaw);
-  const available = parseJsonArray(availableRaw);
+  // Run both lookups in parallel via async exec so /api/state doesn't block
+  // the event loop. `claude plugins list` can take several seconds on cold
+  // marketplace fetches; sync exec would freeze heartbeats and other
+  // concurrent /api requests.
+  const [installedRes, availableRes] = await Promise.all([
+    execAsync("claude plugins list --json", { encoding: "utf8" }),
+    execAsync("claude plugins list --available --json", { encoding: "utf8" }),
+  ]);
+  const installed = parseJsonArray(installedRes.stdout);
+  const available = parseJsonArray(availableRes.stdout);
   return { installed, available };
 }
 

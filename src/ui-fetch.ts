@@ -213,12 +213,30 @@ async function findIndexHtml(root: string): Promise<string | null> {
   return null;
 }
 
-/** Built-in fetcher using Node's https client. Follows one redirect (GitHub
- *  Release assets bounce through a signed objects URL). Buffers the whole
- *  response — bundles are well under 5 MB. */
+/** Overall request timeout. A hung GitHub edge would otherwise block
+ *  `npx auriga-cli ui` before the URL line ever prints. */
+const FETCH_TIMEOUT_MS = 30_000;
+
+/** Built-in fetcher using Node's https client. Follows up to 5 redirects
+ *  (GitHub Release assets bounce through a signed objects URL). Buffers the
+ *  whole response — bundles are well under 5 MB — and hard-times-out after
+ *  FETCH_TIMEOUT_MS so a hung peer can't deadlock the CLI. */
 async function builtinHttpsFetcher(url: string): Promise<UiFetchResponse> {
   return await new Promise((resolve, reject) => {
     let redirectsLeft = 5;
+    let settled = false;
+    const finish = (err: Error | null, value?: UiFetchResponse): void => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      if (err) reject(err);
+      else resolve(value!);
+    };
+    const timer = setTimeout(() => {
+      finish(new Error(`ui bundle fetch timeout after ${FETCH_TIMEOUT_MS}ms: ${url}`));
+    }, FETCH_TIMEOUT_MS);
+    timer.unref?.();
+
     const go = (target: string): void => {
       const u = new URL(target);
       const fn = u.protocol === "http:" ? httpRequest : httpsRequest;
@@ -237,12 +255,10 @@ async function builtinHttpsFetcher(url: string): Promise<UiFetchResponse> {
         }
         const chunks: Buffer[] = [];
         res.on("data", (c: Buffer) => chunks.push(c));
-        res.on("end", () =>
-          resolve({ status, body: Buffer.concat(chunks) }),
-        );
-        res.on("error", reject);
+        res.on("end", () => finish(null, { status, body: Buffer.concat(chunks) }));
+        res.on("error", (err) => finish(err));
       });
-      req.on("error", reject);
+      req.on("error", (err) => finish(err));
       req.end();
     };
     go(url);
@@ -255,18 +271,30 @@ async function evictOldCacheDirs(
   cacheRoot: string,
   currentVersion: string,
 ): Promise<void> {
-  const all = await readdir(cacheRoot, { withFileTypes: true });
+  let all: import("node:fs").Dirent[];
+  try {
+    all = await readdir(cacheRoot, { withFileTypes: true });
+  } catch {
+    // Cache dir was already deleted by another process — nothing to evict.
+    return;
+  }
   const versionDirs = all.filter(
     (e) => e.isDirectory() && e.name.startsWith("ui-v"),
   );
   if (versionDirs.length <= CACHE_KEEP_COUNT) return;
 
-  const withMtime: Array<{ name: string; mtime: number }> = await Promise.all(
-    versionDirs.map(async (d) => {
+  // stat each dir individually; a permission/dangling entry must not block
+  // eviction of the rest. Entries that fail to stat are excluded from the
+  // keep set so they're considered fair game for removal.
+  const withMtime: Array<{ name: string; mtime: number }> = [];
+  for (const d of versionDirs) {
+    try {
       const s = await stat(path.join(cacheRoot, d.name));
-      return { name: d.name, mtime: s.mtimeMs };
-    }),
-  );
+      withMtime.push({ name: d.name, mtime: s.mtimeMs });
+    } catch {
+      withMtime.push({ name: d.name, mtime: 0 });
+    }
+  }
   withMtime.sort((a, b) => b.mtime - a.mtime); // newest first
 
   const keep = new Set<string>();
@@ -276,11 +304,14 @@ async function evictOldCacheDirs(
     keep.add(entry.name);
   }
   for (const entry of withMtime) {
-    if (!keep.has(entry.name)) {
+    if (keep.has(entry.name)) continue;
+    try {
       await rm(path.join(cacheRoot, entry.name), {
         recursive: true,
         force: true,
       });
+    } catch {
+      // Best-effort: leave the dir; next eviction round will retry.
     }
   }
 }
