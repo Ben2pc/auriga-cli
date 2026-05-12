@@ -60,10 +60,24 @@ export type ApplyCategory =
 
 export type ApplyAction = "install" | "update" | "uninstall";
 
+/**
+ * Installer scope. Carried per-item so the Web UI can mix scopes within a
+ * single apply batch.
+ *
+ * - workflow: no scope; field MUST be omitted.
+ * - skill / recommended-skill / plugin: "project" | "user". Default project.
+ * - hook: "project" | "user" for v0.1 (project-local deferred to v0.2).
+ */
+export type ApplyScope = "project" | "user";
+
 export interface ApplyItemRef {
   category: ApplyCategory;
   name: string;
   action: ApplyAction;
+  /** Installer scope. Omitted = "project" (back-compat default). The server
+   *  rejects this field for category="workflow" because workflow has no
+   *  scope concept (it's a single file at the project root). */
+  scope?: ApplyScope;
 }
 
 export interface ApplyRequest {

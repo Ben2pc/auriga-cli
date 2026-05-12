@@ -78,12 +78,20 @@ function makeKey(category: ApplyCategory, name: string): string {
 // "no sidebar/footer chrome").
 // ---------------------------------------------------------------------------
 
+type Scope = "project" | "user";
+
 function CategoryHeader({
   children,
   count,
+  scope,
+  onScopeChange,
+  scopeTestId,
 }: {
   children: string;
   count?: number;
+  scope?: Scope;
+  onScopeChange?: (next: Scope) => void;
+  scopeTestId?: string;
 }): JSX.Element {
   return (
     <h2
@@ -100,20 +108,55 @@ function CategoryHeader({
         display: "flex",
         alignItems: "baseline",
         gap: "8px",
+        justifyContent: "space-between",
       }}
     >
-      <span>{children}</span>
-      {count !== undefined && (
-        <span
-          data-testid="category-header-count"
+      <span style={{ display: "flex", alignItems: "baseline", gap: "8px" }}>
+        <span>{children}</span>
+        {count !== undefined && (
+          <span
+            data-testid="category-header-count"
+            style={{
+              color: "var(--color-cloud-light)",
+              fontSize: "11px",
+              fontWeight: 400,
+            }}
+          >
+            ({count})
+          </span>
+        )}
+      </span>
+      {scope !== undefined && onScopeChange && (
+        <select
+          data-testid={scopeTestId ?? "category-header-scope"}
+          aria-label={`${children} install scope`}
+          value={scope}
+          onChange={(e) => onScopeChange(e.target.value as Scope)}
+          className="font-anthropic-mono uppercase"
           style={{
-            color: "var(--color-cloud-light)",
-            fontSize: "11px",
-            fontWeight: 400,
+            appearance: "none",
+            WebkitAppearance: "none",
+            MozAppearance: "none",
+            backgroundColor: "transparent",
+            border: "1px solid var(--color-cloud-light)",
+            borderRadius: "0",
+            padding: "2px 18px 2px 6px",
+            fontFamily: "var(--font-anthropic-mono)",
+            fontSize: "10px",
+            letterSpacing: "0.04em",
+            color: "var(--color-slate-dark)",
+            cursor: "pointer",
+            // Inline caret marker.
+            backgroundImage:
+              "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12' fill='none' stroke='%23656762' stroke-width='1.5'><path d='M3 5l3 3 3-3'/></svg>\")",
+            backgroundRepeat: "no-repeat",
+            backgroundPosition: "right 4px center",
+            backgroundSize: "10px 10px",
           }}
         >
-          ({count})
-        </span>
+          <option value="project">PROJECT</option>
+          <option value="user">USER</option>
+        </select>
       )}
     </h2>
   );
@@ -123,6 +166,9 @@ interface CategorySectionProps {
   title: string;
   testId: string;
   count?: number;
+  scope?: Scope;
+  onScopeChange?: (next: Scope) => void;
+  scopeTestId?: string;
   children: React.ReactNode;
 }
 
@@ -130,6 +176,9 @@ function CategorySection({
   title,
   testId,
   count,
+  scope,
+  onScopeChange,
+  scopeTestId,
   children,
 }: CategorySectionProps): JSX.Element {
   return (
@@ -143,7 +192,14 @@ function CategorySection({
         minWidth: 0,
       }}
     >
-      <CategoryHeader count={count}>{title}</CategoryHeader>
+      <CategoryHeader
+        count={count}
+        scope={scope}
+        onScopeChange={onScopeChange}
+        scopeTestId={scopeTestId}
+      >
+        {title}
+      </CategoryHeader>
       <div
         data-testid={`${testId}-list`}
         style={{
@@ -164,6 +220,19 @@ function CategorySection({
 // Dashboard
 // ---------------------------------------------------------------------------
 
+// Categories that take a scope selector. workflow is excluded — it has no
+// scope concept (single file at repo root).
+type ScopableCategory = Exclude<ApplyCategory, "workflow">;
+
+function initialScopeMap(): Map<ScopableCategory, Scope> {
+  return new Map<ScopableCategory, Scope>([
+    ["skill", "project"],
+    ["recommended-skill", "project"],
+    ["plugin", "user"], // plugins default to user-scope (memory: plugin scope = user)
+    ["hook", "project"],
+  ]);
+}
+
 export default function Dashboard(): JSX.Element {
   const [state, setState] = useState<StateReport | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -173,6 +242,12 @@ export default function Dashboard(): JSX.Element {
   const [selected, setSelected] = useState<Map<string, ApplyItemRef>>(
     new Map(),
   );
+  // Per-category scope; updated by the column-header dropdown. Selected
+  // items inherit the current scope at selection time; changing the scope
+  // also re-derives the scope on already-selected items in that category.
+  const [scopeByCategory, setScopeByCategory] = useState<
+    Map<ScopableCategory, Scope>
+  >(() => initialScopeMap());
   const [applying, setApplying] = useState(false);
 
   // Initial state fetch.
@@ -208,7 +283,8 @@ export default function Dashboard(): JSX.Element {
 
   // Toggle helper passed into every StateCard. `isSelected` is the *desired*
   // next state (StateCard already flipped the bool); we use it to insert vs.
-  // delete the map entry.
+  // delete the map entry. Inherits the per-category scope from
+  // scopeByCategory at selection time.
   const toggleSelection = useCallback(
     (
       category: ApplyCategory,
@@ -220,15 +296,44 @@ export default function Dashboard(): JSX.Element {
         const next = new Map(prev);
         const key = makeKey(category, name);
         if (isSelected) {
-          next.set(key, {
+          const ref: ApplyItemRef = {
             category,
             name,
             action: deriveAction(status),
-          });
+          };
+          // workflow has no scope; other categories pick from the current
+          // column-level scope state.
+          if (category !== "workflow") {
+            ref.scope =
+              scopeByCategory.get(category as ScopableCategory) ?? "project";
+          }
+          next.set(key, ref);
         } else {
           next.delete(key);
         }
         return next;
+      });
+    },
+    [scopeByCategory],
+  );
+
+  // Update the column scope, and re-derive scope on already-selected items
+  // in that column so the apply payload matches what the user currently sees.
+  const changeScope = useCallback(
+    (category: ScopableCategory, next: Scope) => {
+      setScopeByCategory((prev) => {
+        const m = new Map(prev);
+        m.set(category, next);
+        return m;
+      });
+      setSelected((prev) => {
+        const out = new Map(prev);
+        for (const [key, ref] of out) {
+          if (ref.category === category) {
+            out.set(key, { ...ref, scope: next });
+          }
+        }
+        return out;
       });
     },
     [],
@@ -370,21 +475,29 @@ export default function Dashboard(): JSX.Element {
             skills={state.skills}
             selected={selected}
             onToggle={toggleSelection}
+            scope={scopeByCategory.get("skill") ?? "project"}
+            onScopeChange={(s) => changeScope("skill", s)}
           />
           <RecommendedSkillsSection
             recommendedSkills={state.recommendedSkills}
             selected={selected}
             onToggle={toggleSelection}
+            scope={scopeByCategory.get("recommended-skill") ?? "project"}
+            onScopeChange={(s) => changeScope("recommended-skill", s)}
           />
           <PluginsSection
             plugins={state.plugins}
             selected={selected}
             onToggle={toggleSelection}
+            scope={scopeByCategory.get("plugin") ?? "user"}
+            onScopeChange={(s) => changeScope("plugin", s)}
           />
           <HooksSection
             hooks={state.hooks}
             selected={selected}
             onToggle={toggleSelection}
+            scope={scopeByCategory.get("hook") ?? "project"}
+            onScopeChange={(s) => changeScope("hook", s)}
           />
         </div>
       </div>
@@ -438,12 +551,16 @@ interface SkillsSectionProps {
   skills: SkillState[];
   selected: Map<string, ApplyItemRef>;
   onToggle: ToggleFn;
+  scope: Scope;
+  onScopeChange: (next: Scope) => void;
 }
 
 function SkillsSection({
   skills,
   selected,
   onToggle,
+  scope,
+  onScopeChange,
 }: SkillsSectionProps): JSX.Element | null {
   if (skills.length === 0) return null;
   return (
@@ -451,6 +568,9 @@ function SkillsSection({
       title="Skills"
       testId="section-skills"
       count={skills.length}
+      scope={scope}
+      onScopeChange={onScopeChange}
+      scopeTestId="section-skills-scope"
     >
       {skills.map((skill) => {
         const key = makeKey("skill", skill.name);
@@ -477,12 +597,16 @@ interface RecommendedSkillsSectionProps {
   recommendedSkills: SkillState[];
   selected: Map<string, ApplyItemRef>;
   onToggle: ToggleFn;
+  scope: Scope;
+  onScopeChange: (next: Scope) => void;
 }
 
 function RecommendedSkillsSection({
   recommendedSkills,
   selected,
   onToggle,
+  scope,
+  onScopeChange,
 }: RecommendedSkillsSectionProps): JSX.Element | null {
   if (recommendedSkills.length === 0) return null;
   return (
@@ -490,6 +614,9 @@ function RecommendedSkillsSection({
       title="Recommended Skills"
       testId="section-recommended-skills"
       count={recommendedSkills.length}
+      scope={scope}
+      onScopeChange={onScopeChange}
+      scopeTestId="section-recommended-skills-scope"
     >
       {recommendedSkills.map((skill) => {
         const key = makeKey("recommended-skill", skill.name);
@@ -516,12 +643,16 @@ interface PluginsSectionProps {
   plugins: PluginState[];
   selected: Map<string, ApplyItemRef>;
   onToggle: ToggleFn;
+  scope: Scope;
+  onScopeChange: (next: Scope) => void;
 }
 
 function PluginsSection({
   plugins,
   selected,
   onToggle,
+  scope,
+  onScopeChange,
 }: PluginsSectionProps): JSX.Element | null {
   if (plugins.length === 0) return null;
   return (
@@ -529,6 +660,9 @@ function PluginsSection({
       title="Plugins"
       testId="section-plugins"
       count={plugins.length}
+      scope={scope}
+      onScopeChange={onScopeChange}
+      scopeTestId="section-plugins-scope"
     >
       {plugins.map((plugin) => {
         const key = makeKey("plugin", plugin.id);
@@ -555,12 +689,16 @@ interface HooksSectionProps {
   hooks: HookState[];
   selected: Map<string, ApplyItemRef>;
   onToggle: ToggleFn;
+  scope: Scope;
+  onScopeChange: (next: Scope) => void;
 }
 
 function HooksSection({
   hooks,
   selected,
   onToggle,
+  scope,
+  onScopeChange,
 }: HooksSectionProps): JSX.Element | null {
   if (hooks.length === 0) return null;
   return (
@@ -568,6 +706,9 @@ function HooksSection({
       title="Hooks"
       testId="section-hooks"
       count={hooks.length}
+      scope={scope}
+      onScopeChange={onScopeChange}
+      scopeTestId="section-hooks-scope"
     >
       {hooks.map((hook) => {
         const key = makeKey("hook", hook.name);

@@ -85,15 +85,17 @@ export function buildDefaultApplyHandlers(
     });
   };
 
-  const skill: ApplyHandler = async (action, name, { onLog }) => {
+  const skill: ApplyHandler = async (action, name, { onLog, scope }) => {
     assertAction(action);
+    const installScope = scope ?? "project";
     if (action === "install" || action === "update") {
       await installSkills(packageRoot, {
         interactive: false,
         cwd,
         selected: [name],
+        scope: installScope,
       });
-      onLog(`skill ${name} installed`, "info");
+      onLog(`skill ${name} installed (${installScope})`, "info");
       return;
     }
     await uninstallSkill(name, {
@@ -102,15 +104,17 @@ export function buildDefaultApplyHandlers(
     });
   };
 
-  const recommendedSkill: ApplyHandler = async (action, name, { onLog }) => {
+  const recommendedSkill: ApplyHandler = async (action, name, { onLog, scope }) => {
     assertAction(action);
+    const installScope = scope ?? "project";
     if (action === "install" || action === "update") {
       await installRecommendedSkills(packageRoot, {
         interactive: false,
         cwd,
         selected: [name],
+        scope: installScope,
       });
-      onLog(`recommended skill ${name} installed`, "info");
+      onLog(`recommended skill ${name} installed (${installScope})`, "info");
       return;
     }
     // Uninstall path is the same regardless of workflow vs recommended —
@@ -121,17 +125,19 @@ export function buildDefaultApplyHandlers(
     });
   };
 
-  const plugin: ApplyHandler = async (action, name, { onLog }) => {
+  const plugin: ApplyHandler = async (action, name, { onLog, scope }) => {
     assertAction(action);
     const agent = pluginAgentsByName.get(name) ?? "claude";
+    const installScope = scope ?? "project";
     if (action === "install" || action === "update") {
       await installPlugins(packageRoot, {
         interactive: false,
         cwd,
         agent,
         selected: [name],
+        scope: installScope,
       });
-      onLog(`plugin ${name} installed (${agent})`, "info");
+      onLog(`plugin ${name} installed (${agent}, ${installScope})`, "info");
       return;
     }
     await uninstallPlugin(name, agent, {
@@ -140,7 +146,7 @@ export function buildDefaultApplyHandlers(
     });
   };
 
-  const hook: ApplyHandler = async (action, name, { onLog }) => {
+  const hook: ApplyHandler = async (action, name, { onLog, scope }) => {
     assertAction(action);
     if (action === "uninstall") {
       await uninstallHook(name, {
@@ -149,8 +155,8 @@ export function buildDefaultApplyHandlers(
       });
       return;
     }
-    // install + update both run installHook with scope=project. The hook
-    // installer is idempotent — re-running == "update". Look up the
+    // install + update both run installHook with the requested scope. The
+    // hook installer is idempotent — re-running == "update". Look up the
     // HookDef in the bundled registry; unknown name → loud throw so the
     // SSE caller surfaces it as item:done success=false.
     const config = loadHooksConfig(packageRoot);
@@ -158,8 +164,10 @@ export function buildDefaultApplyHandlers(
     if (!hookDef) {
       throw new Error(`hook not found in registry: ${name}`);
     }
-    await installHook(hookDef, "project", cwd, packageRoot);
-    onLog(`hook ${name} installed`, "info");
+    // installHook takes a wider Scope union ("project"|"user"|"project-local");
+    // v0.1 only exposes "project"|"user" via the API. Cast is safe.
+    await installHook(hookDef, scope ?? "project", cwd, packageRoot);
+    onLog(`hook ${name} installed (${scope ?? "project"})`, "info");
   };
 
   return {

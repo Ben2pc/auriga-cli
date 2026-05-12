@@ -13,6 +13,10 @@ export type LogLevel = "info" | "warn" | "error";
 export interface ApplyHandlerOptions {
   onLog: (line: string, level: LogLevel) => void;
   signal?: AbortSignal;
+  /** Installer scope from the ApplyItemRef. Forwarded as-is — handlers
+   *  translate into the per-installer flag (`--scope project|user`). The
+   *  workflow handler ignores it (workflow has no scope concept). */
+  scope?: "project" | "user";
 }
 
 export type ApplyHandler = (
@@ -291,6 +295,7 @@ const VALID_CATEGORIES = new Set([
   "hook",
 ]);
 const VALID_ACTIONS = new Set(["install", "update", "uninstall"]);
+const VALID_SCOPES = new Set(["project", "user"]);
 
 function parseApplyRequest(raw: string): ApplyRequest | null {
   let parsed: unknown;
@@ -304,12 +309,19 @@ function parseApplyRequest(raw: string): ApplyRequest | null {
   if (!Array.isArray(items)) return null;
   for (const it of items) {
     if (!it || typeof it !== "object") return null;
-    const { category, name, action } = it as Record<string, unknown>;
+    const { category, name, action, scope } = it as Record<string, unknown>;
     if (typeof category !== "string" || !VALID_CATEGORIES.has(category)) {
       return null;
     }
     if (typeof name !== "string" || name.length === 0) return null;
     if (typeof action !== "string" || !VALID_ACTIONS.has(action)) return null;
+    // Scope is optional. When present it must be a known value AND must not
+    // be paired with `category === "workflow"` (workflow is a single root
+    // file with no scope concept).
+    if (scope !== undefined) {
+      if (typeof scope !== "string" || !VALID_SCOPES.has(scope)) return null;
+      if (category === "workflow") return null;
+    }
   }
   return parsed as ApplyRequest;
 }
@@ -484,6 +496,7 @@ export async function startServer(
           await handler(item.action, item.name, {
             onLog: (line, level) =>
               emit(job, { type: "item:log", index: i, line, level }),
+            scope: item.scope,
           });
           emit(job, { type: "item:done", index: i, success: true });
         } catch (err) {
