@@ -97,8 +97,6 @@ describe("StateCard — status encoding", () => {
       <StateCard
         {...baseProps({
           status: "installed",
-          // @ts-expect-error — intentional: caller shouldn't pass this here,
-          // but if they do the gate must reject it
           missingAgents: ["codex"],
         })}
       />,
