@@ -266,13 +266,29 @@ export type ProgressEvent =
 
 ### 6.3 scanner 判定逻辑
 
-| 类目 | 三态判定依据 |
+scanner 按 Claude Code 实际安装位置读真值源，**支持 per-category × per-scope（user / project）**：
+
+| 类目 | User scope 真值 | Project scope 真值 | 三态判定 |
+|---|---|---|---|
+| Workflow | `~/.claude/CLAUDE.md` | `<proj>/CLAUDE.md` 优先，回落 `<proj>/.claude/CLAUDE.md` | 文件缺失 → not-installed；解析 `# auriga Workflow (vX.Y.Z)` 头部成功且版本 = `catalog.workflowVersion` → installed；版本不同 → update-available；文件存在但无 auriga 头 → installed + `workflow-unknown-version` warning |
+| Skills / Recommended | `~/.claude/skills/<name>/SKILL.md` 文件系统 | `<proj>/.claude/skills/<name>/SKILL.md` 文件系统 | 目录缺 → not-installed；SKILL.md 不可读 → installed + `skill-malformed` warning（不影响其他 skill）；`sha256(SKILL.md bytes)` 与 catalog 期望同 → installed，不同 → update-available |
+| Plugins (Claude) | `claude plugins list --json` + 客户端按 `record.scope === "user"` 过滤 | 同命令 + 按 `record.scope === "project"` 且 `record.projectPath === <projectRoot>` 过滤 | `installed[id].version` vs `available[id].source.ref`（注意 id 双索引：CLI 用 `<plugin>@<marketplace>` 形式，catalog 用裸名）；CLI 不在 PATH → 类目降级为二态 + `claude-cli-missing` warning |
+| Plugins (Codex) | `~/.codex/config.toml` + `~/.codex/plugins/cache/<marketplace>/<plugin>/<version>/` 文件系统 | n/a — Codex 设计上 user-scope only | 不变（v0.1 即正确）|
+| Hooks | `~/.claude/settings.json` 的 `hooks.<Event>[].hooks[]` 按 `_marker` sentinel 匹配 catalog 登记的 hook | `<proj>/.claude/settings.json` 同段同匹配 | 文件缺 → not-installed（不发 warning，常见情况）；JSON 损坏 → not-installed + `settings-unreadable` warning；marker 命中但 `matcher` / `if` / event 与 catalog 不同 → update-available |
+
+**默认 scope**（与 install 默认一致）：workflow=project，skills=project，plugins=user，hooks=user。UI 每列有独立的 scope 下拉，切换即触发该列单独 refetch。
+
+**真值源迁移说明（v1.16.0 → v1.16.1）**：v1.16.0 读 auriga-cli **dev 仓库自己的清单文件**（`<cwd>/.claude/plugins.json`、`<cwd>/skills-lock.json`、`<cwd>/.claude/hooks/hooks.json`），结果用户在普通项目或 `~/` 下都看到「全 not installed」。v1.16.1 全部换成 Claude Code 实际安装位置（上表）。`claude plugins list` 不支持 `--user/--project` 旗标，scope 过滤改在客户端做。skill 的 `expectedHash` 改为 `sha256(SKILL.md bytes)` —— `skills-lock.json` 的 `computedHash`（全目录 sorted-hash）与该算法不兼容，过去比对永远不等，现在不再读 lock 文件。
+
+**降级路径汇总**：
+
+| 触发 | 行为 |
 |---|---|
-| Workflow | 读 `<cwd>/CLAUDE.md` 顶部 `# auriga Workflow (v...)` 版本号 vs `catalog.workflowVersion`。文件缺失 → not-installed；版本同 → installed；不同 → update-available |
-| Skills / Recommended | 读 `<cwd>/skills-lock.json` 里该 skill 的 `computedHash` vs `catalog.skills[name].expectedHash`。条目缺 → not-installed；hash 同 → installed；不同 → update-available |
-| Plugins (Claude) | 调 `claude plugin list --available --json` 一次。`installed[id].version` vs `parseRef(available[pluginId].source.ref)`。version "unknown" / ref 是分支 → 回落 installed。CLI 缺失 → 类目降级为二态 + warning |
-| Plugins (Codex) | 读 `~/.codex/config.toml` `[plugins.*]` → installedSet。filesystem 扫 `~/.codex/plugins/cache/<marketplace>/<plugin>/<version>/` 得 installed 版本。对比 catalog 烤入的期望版本。CLI 缺失 → 类目降级。**作用域：UI 仅展示 auriga-cli catalog 里登记的 plugins**，用户在 auriga-cli 外手动安装的 Codex plugin 不出现在 state report 里（v0.1 范围决定，不视为缺陷） |
-| Hooks | 检查 `<cwd>/.claude/hooks/hooks.json` 含该项 + 算 `<cwd>/.claude/hooks/<name>/index.mjs` SHA256 vs `catalog.hooks[name].expectedHash` |
+| 既无 `~/.claude/` 又无 `<proj>/.claude/` | 所有 user-scope 类目落 not-installed + 一次性 `claude-code-not-installed` warning |
+| `which claude` 失败 | Plugins (Claude) degraded rows + `claude-cli-missing` warning |
+| `<scope>/.claude/settings.json` 损坏 JSON | Hooks 落 not-installed + `settings-unreadable` warning |
+| Skill 目录存在但 SKILL.md 不可读 | 该 skill installed + 一次性 `skill-malformed` warning，兄弟 skill 不受影响 |
+| CLAUDE.md 存在但无 auriga 头 | installed + `workflow-unknown-version` warning |
 
 **Claude / Codex Plugins 不对称的合理性**：
 
