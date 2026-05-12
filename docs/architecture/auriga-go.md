@@ -58,6 +58,8 @@ A workflow skill that drives the Agent forward along the auriga workflow (`CLAUD
 
 Claude Code 2.1 shipped a built-in `/goal` slash command (session-scoped Stop hook + transcript-persisted state + cross-`/clear` restore) that subsumes ~90% of ship's loop mechanics — for free, in the harness, with telemetry. Maintaining a parallel implementation no longer earned its keep. The replacement is a sibling skill `/goalify` (single-prompt: plan a goal from spec/work-in-progress and dispatch `/goal`), keeping the user-facing affordance intact while the loop dynamics, persistence, and termination judgment move into the harness.
 
+> **Audit trail for two in-conversation decisions** (PR #72 deep-review surfaced these as silent resolutions worth recording): (a) the user instructed "全部删掉" for ship, then explicitly approved keeping this postmortem section so the rationale isn't lost — the runtime SKILL.md stays silent, the architecture doc keeps the memory; (b) the user framed the replacement as "用内置的 /goal", so `/goal` as the dispatch target is explicitly chosen, not a silent reading of the spec.
+
 What ship had that `/goal` does not, and what we chose to drop:
 
 - **Iteration budget + grace turn** — `/goal` has no hard cap. The replacement relies on `/goal clear` (manual) or `/goal`'s own model-judged "achieved" termination.
