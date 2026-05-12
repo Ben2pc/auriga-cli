@@ -280,11 +280,12 @@ function workflowPathsForScope(scope: ScanScope, projectRoot: string, home: stri
   if (scope === "user") {
     return [path.join(home, ".claude", "CLAUDE.md")];
   }
-  // Project: <proj>/CLAUDE.md preferred, .claude/CLAUDE.md as fallback.
-  return [
-    path.join(projectRoot, "CLAUDE.md"),
-    path.join(projectRoot, ".claude", "CLAUDE.md"),
-  ];
+  // Project: only `<proj>/CLAUDE.md` — the auriga workflow installer
+  // (src/workflow.ts) writes here and never to `<proj>/.claude/CLAUDE.md`.
+  // The old fallback collapsed onto `$HOME/.claude/CLAUDE.md` when
+  // projectRoot === $HOME (user runs `web-ui` from home dir), leaking
+  // user-scope content into the project-scope row.
+  return [path.join(projectRoot, "CLAUDE.md")];
 }
 
 function scanWorkflow(
@@ -327,14 +328,18 @@ function scanWorkflow(
     if (line.trim().length > 0) break;
   }
 
-  // CLAUDE.md exists but no recognizable auriga marker. Per spec degraded
-  // path: status remains "installed" (don't clobber user content on apply)
-  // and emit a workflow-unknown-version warning.
+  // CLAUDE.md exists but no recognizable auriga marker. The file is foreign
+  // — not our workflow. Report `not-installed` honestly; the install path
+  // (src/workflow.ts) already protects user content by backing it up to
+  // `CLAUDE.md.bak` before overwriting. Conflating "something exists here"
+  // with "auriga workflow installed" caused the v1.18.4 verification bug
+  // where running web-ui from `~` reported the user's `# Global`-headed
+  // `~/.claude/CLAUDE.md` as an installed workflow.
   warnings.push({
-    code: "workflow-unknown-version",
-    message: `CLAUDE.md present but no auriga-workflow header found; cannot determine installed version.`,
+    code: "workflow-foreign-claudemd",
+    message: `Foreign CLAUDE.md detected at the workflow path — no auriga-workflow header. Install will back up to CLAUDE.md.bak.`,
   });
-  return { status: "installed", expectedVersion, observedScope: scope };
+  return { status: "not-installed", expectedVersion, observedScope: scope };
 }
 
 // ---------------------------------------------------------------------------

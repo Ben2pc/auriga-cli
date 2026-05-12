@@ -70,15 +70,19 @@
 //     - "claude-code-not-installed"   (both ~/.claude and <proj>/.claude absent)
 //     - "settings-unreadable"         (settings.json corrupt / unreadable)
 //     - "skill-malformed"             (skill dir present but SKILL.md missing/broken)
-//     - "workflow-unknown-version"    (CLAUDE.md exists but no auriga marker)
+//     - "workflow-foreign-claudemd"   (CLAUDE.md exists but no auriga marker)
 //
 // =============================================================================
 // KEY ASSUMPTIONS (where the spec is ambiguous or silent)
 // =============================================================================
 //
 //   A1. **Workflow CLAUDE.md exists but no auriga marker** → status
-//       "installed" + warning code "workflow-unknown-version". (Per spec
-//       "降级路径" table row for "Workflow CLAUDE.md 存在但没识别到 auriga 标记".)
+//       "not-installed" + warning code "workflow-foreign-claudemd". The file
+//       is foreign content, not an installed auriga workflow. Install path
+//       (src/workflow.ts) protects user content via CLAUDE.md.bak backup,
+//       so the scanner can report not-installed honestly. (Revised in v1.18.5
+//       — pre-v1.18.5 the row was conflated as "installed + workflow-unknown-
+//       version warning" which caused the $HOME-as-projectRoot bug.)
 //
 //   A2. **Skills via filesystem**: each row's `currentHash` is the SHA256 of
 //       the SKILL.md file bytes. The catalog row's `expectedHash` is the
@@ -413,12 +417,18 @@ describe("scanState — #4 Workflow / project scope happy path", () => {
 });
 
 // ===========================================================================
-// #5 — Workflow / project scope: fallback to <proj>/.claude/CLAUDE.md
+// #5 — Workflow / project scope: does NOT fall back to .claude/CLAUDE.md
 // ===========================================================================
-describe("scanState — #5 Workflow / project scope fallback to .claude/CLAUDE.md", () => {
-  test("#5 workflow/project falls back to <proj>/.claude/CLAUDE.md when root absent", async () => {
-    // rationale: catches scanner only checking <proj>/CLAUDE.md and missing
-    // the .claude/ subdir installer convention
+describe("scanState — #5 Workflow / project scope no .claude/CLAUDE.md fallback", () => {
+  test("#5 workflow/project does NOT fall back to <proj>/.claude/CLAUDE.md", async () => {
+    // rationale: the v1.18.4 verification (running web-ui from $HOME) showed
+    // the old fallback collapsing project-scope onto user-scope when
+    // projectRoot === $HOME — `<proj>/.claude/CLAUDE.md` and
+    // `$HOME/.claude/CLAUDE.md` are the same file. The auriga installer
+    // (src/workflow.ts) writes ONLY to `<proj>/CLAUDE.md`; there was never
+    // a real installer convention placing the workflow under `.claude/`.
+    // (Pre-v1.18.5 this test asserted the opposite — that the fallback
+    // worked. It was documenting a bug.)
     const home = makeScratch("home5");
     redirectHome(home);
     const proj = makeScratch("proj5");
@@ -430,19 +440,22 @@ describe("scanState — #5 Workflow / project scope fallback to .claude/CLAUDE.m
       homeDir: home,
     });
 
-    assert.equal(report.workflow.status, "installed");
-    assert.equal((report.workflow as any).observedScope, "project");
-    assert.equal(report.workflow.currentVersion, "1.6.0");
+    assert.equal(report.workflow.status, "not-installed", "must not pick up the .claude/ subdir file");
+    assert.equal(report.workflow.currentVersion, undefined);
   });
 });
 
 // ===========================================================================
-// #6 — Workflow / unknown version (no auriga marker)
+// #6 — Workflow / foreign CLAUDE.md (file exists, no auriga marker)
 // ===========================================================================
-describe("scanState — #6 Workflow unknown version warning", () => {
-  test("#6 workflow file exists but no auriga marker → installed + workflow-unknown-version warning", async () => {
-    // rationale: catches scanner classifying unmarked CLAUDE.md as
-    // not-installed (would clobber user's existing custom workflow on apply)
+describe("scanState — #6 Workflow foreign-CLAUDE.md", () => {
+  test("#6 workflow file exists but no auriga marker → not-installed + workflow-foreign-claudemd warning", async () => {
+    // rationale: a CLAUDE.md without our header is foreign content, not
+    // an installed auriga workflow. The v1.18.4 verification (running
+    // web-ui from $HOME) showed the user's `# Global`-headed
+    // ~/.claude/CLAUDE.md was being reported as `installed`, which is
+    // wrong. Install path protects user content via CLAUDE.md.bak backup
+    // — the scanner can honestly report `not-installed`.
     const home = makeScratch("home6");
     redirectHome(home);
     const proj = makeScratch("proj6");
@@ -453,13 +466,14 @@ describe("scanState — #6 Workflow unknown version warning", () => {
       homeDir: home,
     });
 
-    assert.equal(report.workflow.status, "installed", "must NOT silently reinstall over user content");
+    assert.equal(report.workflow.status, "not-installed", "foreign CLAUDE.md is not our workflow");
     assert.equal(report.workflow.currentVersion, undefined);
     assert.ok(
-      report.warnings.some((w: StateWarning) => (w.code as string) === "workflow-unknown-version"),
-      "must emit workflow-unknown-version warning",
+      report.warnings.some((w: StateWarning) => (w.code as string) === "workflow-foreign-claudemd"),
+      "must emit workflow-foreign-claudemd warning",
     );
   });
+
 });
 
 // ===========================================================================
