@@ -476,3 +476,141 @@ describe("Dashboard — apply submission carries derived action per status", () 
     });
   }
 });
+
+// ---------------------------------------------------------------------------
+// Scope / lang re-derivation on already-selected items
+// ---------------------------------------------------------------------------
+//
+// When a user toggles a card and THEN switches the column's scope / language
+// picker, Dashboard must rewrite the scope/lang on already-selected items in
+// that column so the apply payload matches what the UI now shows.
+// Verified at the network boundary (POST body).
+
+describe("Dashboard — changeScope re-derives already-selected items", () => {
+  test("switching skill scope to 'project' updates pending skill items", async () => {
+    const calls: Array<{ url: string; init?: RequestInit }> = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((url: string, init?: RequestInit) => {
+        calls.push({ url, init });
+        if (url.includes("/api/state")) {
+          return Promise.resolve(jsonResponse(makeReport()));
+        }
+        if (url.includes("/api/apply")) {
+          return Promise.resolve(jsonResponse({ jobId: "x" }, 202));
+        }
+        return Promise.resolve(jsonResponse({ ok: true }));
+      }),
+    );
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+
+    render(<Dashboard />);
+    await waitFor(() =>
+      expect(screen.getByTestId("dashboard-root")).toBeInTheDocument(),
+    );
+
+    // Pick the first skill card (from the Skills section, not Workflow).
+    const skillsSection = screen.getByTestId("section-skills");
+    const skillCard = skillsSection.querySelector(
+      '[data-testid="statecard"]',
+    ) as HTMLElement;
+    fireEvent.click(
+      skillCard.querySelector(
+        '[data-testid="statecard-checkbox"]',
+      ) as HTMLInputElement,
+    );
+
+    // Change the skill column's scope dropdown to project.
+    const skillScope = skillsSection.querySelector(
+      "select",
+    ) as HTMLSelectElement;
+    expect(skillScope).toBeTruthy();
+    fireEvent.change(skillScope, { target: { value: "project" } });
+
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("log-panel-apply"));
+    });
+
+    const applyCall = calls.find((c) => c.url.includes("/api/apply"));
+    expect(applyCall).toBeDefined();
+    const body = JSON.parse(applyCall!.init!.body as string) as {
+      items: Array<{ category: string; scope?: string }>;
+    };
+    const skillItem = body.items.find((i) => i.category === "skill");
+    expect(skillItem).toBeDefined();
+    expect(skillItem!.scope).toBe("project");
+  });
+});
+
+describe("Dashboard — changeWorkflowLang re-derives already-selected workflow", () => {
+  test("switching workflow lang to 'zh-CN' updates the pending workflow item", async () => {
+    const calls: Array<{ url: string; init?: RequestInit }> = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((url: string, init?: RequestInit) => {
+        calls.push({ url, init });
+        if (url.includes("/api/state")) {
+          // Use update-available so the action becomes "update" → carries
+          // lang. (Workflow uninstall would skip the lang field.)
+          return Promise.resolve(
+            jsonResponse(
+              makeReport({
+                workflow: {
+                  status: "update-available",
+                  currentVersion: "1.5.0",
+                  expectedVersion: "1.6.0",
+                },
+              }),
+            ),
+          );
+        }
+        if (url.includes("/api/apply")) {
+          return Promise.resolve(jsonResponse({ jobId: "x" }, 202));
+        }
+        return Promise.resolve(jsonResponse({ ok: true }));
+      }),
+    );
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+
+    render(<Dashboard />);
+    await waitFor(() =>
+      expect(screen.getByTestId("dashboard-root")).toBeInTheDocument(),
+    );
+
+    // Toggle the workflow card. It's the singleton card under the
+    // section-workflow container, named "CLAUDE.md workflow" — locate it
+    // by aria-label via getByLabelText against the case-insensitive name.
+    const workflowSection = screen.getByTestId("section-workflow");
+    const workflowCard = workflowSection.querySelector(
+      '[data-testid="statecard"]',
+    ) as HTMLElement;
+    expect(workflowCard).toBeTruthy();
+    fireEvent.click(
+      workflowCard.querySelector(
+        '[data-testid="statecard-checkbox"]',
+      ) as HTMLInputElement,
+    );
+
+    // Find the workflow column's lang dropdown. The selector is unique
+    // to that column (`en` / `zh-CN` options).
+    const dropdowns = screen.getAllByRole("combobox") as HTMLSelectElement[];
+    const langDropdown = dropdowns.find((s) =>
+      Array.from(s.options).some((o) => o.value === "zh-CN"),
+    );
+    expect(langDropdown).toBeDefined();
+    fireEvent.change(langDropdown!, { target: { value: "zh-CN" } });
+
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("log-panel-apply"));
+    });
+
+    const applyCall = calls.find((c) => c.url.includes("/api/apply"));
+    expect(applyCall).toBeDefined();
+    const body = JSON.parse(applyCall!.init!.body as string) as {
+      items: Array<{ category: string; lang?: string }>;
+    };
+    const wf = body.items.find((i) => i.category === "workflow");
+    expect(wf).toBeDefined();
+    expect(wf!.lang).toBe("zh-CN");
+  });
+});
