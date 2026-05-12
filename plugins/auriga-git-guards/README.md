@@ -74,7 +74,7 @@ node tests/pr-create-guard.test.mjs    # smoke tests
 node tests/pr-ready-guard.test.mjs     # smoke tests
 ```
 
-Tests live at the repo root `tests/` directory (shared with the rest of auriga-cli) rather than inside the plugin folder, matching the convention used by `tests/ship-loop.test.sh` for the `auriga-go` plugin.
+Tests live at the repo root `tests/` directory (shared with the rest of auriga-cli) rather than inside the plugin folder, so plugin-only assets that ship to users stay self-contained while dev-only smoke tests remain at the repo level.
 
 ## Limits
 

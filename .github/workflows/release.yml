@@ -68,15 +68,12 @@ jobs:
         # dist/ before tests run, so no separate Build step is needed.
         run: npm test
 
-      - name: Ship-loop tests
-        run: bash tests/ship-loop.test.sh
-
       - name: Git-guards plugin smoke tests
         # Plain Node smoke tests for plugins/auriga-git-guards/scripts/*.mjs.
         # Not part of `npm test` (different runner — hand-rolled assertion
-        # loops, not node:test). Ship-loop is the precedent: plugin script
-        # tests get their own Release-CI step so future regressions in
-        # plugin scripts can't pass tag-push CI.
+        # loops, not node:test). Plugin script tests get their own
+        # Release-CI step so future regressions in plugin scripts can't
+        # pass tag-push CI.
         run: npm run test:git-guards
 
       - name: E2E install tests

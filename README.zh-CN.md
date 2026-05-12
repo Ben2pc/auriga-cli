@@ -123,7 +123,7 @@ npx -y auriga-cli install plugins --agent both --plugin auriga-git-guards
 | skill-creator | Claude Code | 创建和管理自定义 skills |
 | claude-md-management | Claude Code | 审计和改进 CLAUDE.md |
 | codex | Claude Code | Codex 跨模型协作 |
-| auriga-go | Claude Code / Codex | auriga 工作流的自动驾驶：按 `CLAUDE.md` 的 phase 做 reminder-based 导航；包含 Experimental 的 hook-backed `ship` 模式。内置一个 skill（按 description 的自然语言触发 + `/auriga-go` slash command）和一个 plugin 层面的 Stop hook。 |
+| auriga-go | Claude Code / Codex | auriga 工作流的自动驾驶：按 `CLAUDE.md` 的 phase 做 reminder-based 导航。内置两个 skill：`auriga-go`（按 description 的自然语言触发 + `/auriga-go` slash command）和 `/goalify`（根据 spec 或当前进展 plan 出 goal，并通过 Claude Code 内置的 `/goal` 命令分发执行）。 |
 | auriga-git-guards | Claude Code / Codex | 三个 git-lifecycle guardrail + 内置 `git-workflow` skill。Hooks：`commit-reminder`（Claude Code 下 PostToolUse 匹配 `Edit` / `Write` / `MultiEdit`，Codex 下匹配 `apply_patch`（Codex 文件编辑 canonical `tool_name`），两个 runtime 都触发 —— 未提交 diff 对比 `HEAD` 超过 200 行或 8 个文件，且距上次提醒 ≥ 60 s 时，注入提醒让 Agent 在下一个语义边界 commit）、`pr-create-guard`（`gh pr create` 的 PostToolUse —— 通过 `gh pr view` 拉真实 PR body，扫 `^##` / `^###` headings 并统计 `- [ ]` / `- [x]` 注入 `additionalContext`，让 Agent 对照五要素：scope / acceptance criteria / design decisions / risks / remaining TODOs）、`pr-ready-guard`（`gh pr ready` 的 PreToolUse —— 仅按结构信号拦截：游离 `findings.md` / `progress.md` / `task_plan.md` / `docs/superpowers/specs/*.md`、`docs/specs/*.md` 内未结案的活跃 spec、未 push commits；放行时注入 body 快照）。两个 PostToolUse hook 在 Claude Code / Codex 上完全对齐；Codex 仅对 `pr-ready-guard` 的 PreToolUse `additionalContext` 信息路径 fail-open（block 路径两边一致）。 |
 | session-instructions-loader | Codex | Codex-only SessionStart 插件，注入上层目录的 `AGENTS.md` 和仓库配置的额外 instruction 文件。 |
 | deep-review | Claude Code / Codex | 来自 [Ben2pc/g-claude-code-plugins](https://github.com/Ben2pc/g-claude-code-plugins) 的多维度 PR review 编排器 —— 并行派发各维度 reviewer（spec-conformance、correctness、test-quality、docs-sync，以及条件触发的 robustness/UX/performance/structure/code-quality/skill-plugin-quality），汇总成 punch list。同包内打包了 `reviewer-creator` skill，用于在 `docs/rules/review/` 下生成项目级自定义 reviewer。承担 `CLAUDE.md` 第 10 步的正式评审职责。 |
@@ -154,7 +154,6 @@ npx -y auriga-cli install plugins --agent both --plugin auriga-git-guards
 ## 开发
 
 - `npm test` —— 单元/集成测试（亚秒）
-- `bash tests/ship-loop.test.sh` —— ship-loop Stop hook 测试（bash）
 - `npm run test:e2e` —— 完整的 tarball 安装 e2e 套件（~90-120s）。`npm pack` 打出真实 tarball，装到临时项目，对着 GitHub 上当前 HEAD SHA 对应的 content 跑 `auriga-cli install`。预检用 `git branch -r --contains HEAD`，纯本地、不发网络请求，因此 **HEAD 必须能被任何本地 remote ref 追溯到**（`git push` 成功时会同步更新本地 remote ref；如果是别人推的，先 `git fetch`）。`plugins` 和 `--all` 场景还要求 `claude` CLI 已在 PATH，否则这两条会优雅跳过。
 
 ## License

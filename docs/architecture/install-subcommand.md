@@ -583,7 +583,6 @@ README 更新：
 ### 现有
 
 - `tests/hooks.test.ts`：签名改动后更新 caller（install 函数加了 `opts` 参数）
-- `tests/ship-loop.test.sh`：不受影响
 
 ### 验证口径
 
