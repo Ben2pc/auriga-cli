@@ -70,11 +70,23 @@ export function buildDefaultApplyHandlers(
   const { packageRoot, cwd, pluginAgentsByName } = ctx;
   const lang = ctx.workflowLang ?? "en";
 
-  const workflow: ApplyHandler = async (action, _name, { onLog }) => {
+  const workflow: ApplyHandler = async (
+    action,
+    _name,
+    { onLog, lang: requestedLang },
+  ) => {
     assertAction(action);
+    // Per-item lang overrides the ctx default (the UI now drives this via
+    // the Workflow column's EN/ZH-CN picker). Falls back to ctx lang for
+    // CLI-mode callers that don't pass it.
+    const installLang = requestedLang ?? lang;
     if (action === "install" || action === "update") {
-      await installWorkflow(packageRoot, { interactive: false, cwd, lang });
-      onLog("workflow installed", "info");
+      await installWorkflow(packageRoot, {
+        interactive: false,
+        cwd,
+        lang: installLang,
+      });
+      onLog(`workflow installed (${installLang})`, "info");
       return;
     }
     // uninstall

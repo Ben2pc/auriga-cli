@@ -81,6 +81,38 @@ function makeKey(category: ApplyCategory, name: string): string {
 // ---------------------------------------------------------------------------
 
 type Scope = "project" | "user";
+type Lang = "en" | "zh-CN";
+
+// Restrained clay-accented dropdown. Used for both the per-column scope
+// picker (project|user) and the Workflow column's CLAUDE.md language
+// picker. Centralized so the two pickers stay visually identical — they
+// are the only two interactive controls in the column headers, and
+// drifting their styles is the kind of small entropy that erodes the
+// dashboard's read-rhythm.
+const DROPDOWN_STYLE = {
+  appearance: "none" as const,
+  WebkitAppearance: "none" as const,
+  MozAppearance: "none" as const,
+  backgroundColor: "var(--color-ivory-medium)",
+  border: "1px solid var(--color-clay)",
+  borderRadius: "0",
+  padding: "2px 20px 2px 8px",
+  fontFamily: "var(--font-anthropic-mono)",
+  fontSize: "10px",
+  letterSpacing: "0.04em",
+  fontWeight: 600,
+  color: "var(--color-clay)",
+  cursor: "pointer",
+  backgroundImage:
+    "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12' fill='none' stroke='%23d97757' stroke-width='1.75'><path d='M3 5l3 3 3-3'/></svg>\")",
+  backgroundRepeat: "no-repeat" as const,
+  backgroundPosition: "right 4px center",
+  backgroundSize: "10px 10px",
+};
+const DROPDOWN_OPTION_STYLE = {
+  color: "var(--color-slate-dark)",
+  backgroundColor: "var(--color-ivory-light)",
+};
 
 function CategoryHeader({
   children,
@@ -88,12 +120,18 @@ function CategoryHeader({
   scope,
   onScopeChange,
   scopeTestId,
+  lang,
+  onLangChange,
+  langTestId,
 }: {
   children: string;
   count?: number;
   scope?: Scope;
   onScopeChange?: (next: Scope) => void;
   scopeTestId?: string;
+  lang?: Lang;
+  onLangChange?: (next: Lang) => void;
+  langTestId?: string;
 }): JSX.Element {
   return (
     <h2
@@ -135,29 +173,31 @@ function CategoryHeader({
           value={scope}
           onChange={(e) => onScopeChange(e.target.value as Scope)}
           className="font-anthropic-mono uppercase"
-          style={{
-            appearance: "none",
-            WebkitAppearance: "none",
-            MozAppearance: "none",
-            backgroundColor: "transparent",
-            border: "1px solid var(--color-cloud-light)",
-            borderRadius: "0",
-            padding: "2px 18px 2px 6px",
-            fontFamily: "var(--font-anthropic-mono)",
-            fontSize: "10px",
-            letterSpacing: "0.04em",
-            color: "var(--color-slate-dark)",
-            cursor: "pointer",
-            // Inline caret marker.
-            backgroundImage:
-              "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12' fill='none' stroke='%23656762' stroke-width='1.5'><path d='M3 5l3 3 3-3'/></svg>\")",
-            backgroundRepeat: "no-repeat",
-            backgroundPosition: "right 4px center",
-            backgroundSize: "10px 10px",
-          }}
+          style={DROPDOWN_STYLE}
         >
-          <option value="project">PROJECT</option>
-          <option value="user">USER</option>
+          <option value="project" style={DROPDOWN_OPTION_STYLE}>
+            PROJECT
+          </option>
+          <option value="user" style={DROPDOWN_OPTION_STYLE}>
+            USER
+          </option>
+        </select>
+      )}
+      {lang !== undefined && onLangChange && (
+        <select
+          data-testid={langTestId ?? "category-header-lang"}
+          aria-label={`${children} language`}
+          value={lang}
+          onChange={(e) => onLangChange(e.target.value as Lang)}
+          className="font-anthropic-mono uppercase"
+          style={DROPDOWN_STYLE}
+        >
+          <option value="en" style={DROPDOWN_OPTION_STYLE}>
+            EN
+          </option>
+          <option value="zh-CN" style={DROPDOWN_OPTION_STYLE}>
+            ZH-CN
+          </option>
         </select>
       )}
     </h2>
@@ -171,6 +211,9 @@ interface CategorySectionProps {
   scope?: Scope;
   onScopeChange?: (next: Scope) => void;
   scopeTestId?: string;
+  lang?: Lang;
+  onLangChange?: (next: Lang) => void;
+  langTestId?: string;
   children: React.ReactNode;
 }
 
@@ -181,6 +224,9 @@ function CategorySection({
   scope,
   onScopeChange,
   scopeTestId,
+  lang,
+  onLangChange,
+  langTestId,
   children,
 }: CategorySectionProps): JSX.Element {
   return (
@@ -199,6 +245,9 @@ function CategorySection({
         scope={scope}
         onScopeChange={onScopeChange}
         scopeTestId={scopeTestId}
+        lang={lang}
+        onLangChange={onLangChange}
+        langTestId={langTestId}
       >
         {title}
       </CategoryHeader>
@@ -227,11 +276,15 @@ function CategorySection({
 type ScopableCategory = Exclude<ApplyCategory, "workflow">;
 
 function initialScopeMap(): Map<ScopableCategory, Scope> {
+  // Default everything to USER. Rationale: a user-level install reaches
+  // every project the user opens, which is what most engineers want by
+  // default; PROJECT is the deliberate opt-in for repo-local pinning.
+  // Matches `claude plugins install`'s own default scope.
   return new Map<ScopableCategory, Scope>([
-    ["skill", "project"],
-    ["recommended-skill", "project"],
-    ["plugin", "user"], // plugins default to user-scope (memory: plugin scope = user)
-    ["hook", "project"],
+    ["skill", "user"],
+    ["recommended-skill", "user"],
+    ["plugin", "user"],
+    ["hook", "user"],
   ]);
 }
 
@@ -250,6 +303,9 @@ export default function Dashboard(): JSX.Element {
   const [scopeByCategory, setScopeByCategory] = useState<
     Map<ScopableCategory, Scope>
   >(() => initialScopeMap());
+  // CLAUDE.md language picker. Workflow is a singleton, so we keep this
+  // as a flat top-level state rather than per-category map.
+  const [workflowLang, setWorkflowLang] = useState<Lang>("en");
   const [applying, setApplying] = useState(false);
 
   // Initial state fetch.
@@ -307,7 +363,10 @@ export default function Dashboard(): JSX.Element {
           // column-level scope state.
           if (category !== "workflow") {
             ref.scope =
-              scopeByCategory.get(category as ScopableCategory) ?? "project";
+              scopeByCategory.get(category as ScopableCategory) ?? "user";
+          } else {
+            // Workflow inherits the current language picker selection.
+            ref.lang = workflowLang;
           }
           next.set(key, ref);
         } else {
@@ -316,7 +375,7 @@ export default function Dashboard(): JSX.Element {
         return next;
       });
     },
-    [scopeByCategory],
+    [scopeByCategory, workflowLang],
   );
 
   // Update the column scope, and re-derive scope on already-selected items
@@ -340,6 +399,22 @@ export default function Dashboard(): JSX.Element {
     },
     [],
   );
+
+  // Same pattern as changeScope, but for the Workflow column's CLAUDE.md
+  // language picker. Re-derives lang on the (singleton) workflow selection
+  // if it's already in the apply queue.
+  const changeWorkflowLang = useCallback((next: Lang) => {
+    setWorkflowLang(next);
+    setSelected((prev) => {
+      const out = new Map(prev);
+      for (const [key, ref] of out) {
+        if (ref.category === "workflow") {
+          out.set(key, { ...ref, lang: next });
+        }
+      }
+      return out;
+    });
+  }, []);
 
   // ---- Log buffer state ----
   const [logLines, setLogLines] = useState<LogLine[]>([]);
@@ -446,10 +521,9 @@ export default function Dashboard(): JSX.Element {
     }
   }, [selected, appendLog, formatProgressEvent]);
 
-  // Resolve the cwd label for the top bar. The server doesn't echo cwd in
-  // the state report yet, so we fall back to a placeholder; M3+ will surface
-  // it. Using a generic label avoids leaking a hard-coded path.
-  const cwdLabel = "current project";
+  // cwd surfaced by the server (home-reduced, e.g. `~/Workspace/foo`). Falls
+  // back to a generic label until /api/state lands.
+  const cwdLabel = state?.cwd ?? "current project";
 
   // Marketplace status: a `marketplace-offline` warning lands in
   // state.warnings; otherwise treat as online. "unknown" while loading.
@@ -539,19 +613,21 @@ export default function Dashboard(): JSX.Element {
             workflow={state.workflow}
             selected={selected}
             onToggle={toggleSelection}
+            lang={workflowLang}
+            onLangChange={changeWorkflowLang}
           />
           <SkillsSection
             skills={state.skills}
             selected={selected}
             onToggle={toggleSelection}
-            scope={scopeByCategory.get("skill") ?? "project"}
+            scope={scopeByCategory.get("skill") ?? "user"}
             onScopeChange={(s) => changeScope("skill", s)}
           />
           <RecommendedSkillsSection
             recommendedSkills={state.recommendedSkills}
             selected={selected}
             onToggle={toggleSelection}
-            scope={scopeByCategory.get("recommended-skill") ?? "project"}
+            scope={scopeByCategory.get("recommended-skill") ?? "user"}
             onScopeChange={(s) => changeScope("recommended-skill", s)}
           />
           <PluginsSection
@@ -565,7 +641,7 @@ export default function Dashboard(): JSX.Element {
             hooks={state.hooks}
             selected={selected}
             onToggle={toggleSelection}
-            scope={scopeByCategory.get("hook") ?? "project"}
+            scope={scopeByCategory.get("hook") ?? "user"}
             onScopeChange={(s) => changeScope("hook", s)}
           />
           <LogPanel
@@ -599,16 +675,27 @@ interface WorkflowSectionProps {
   workflow: WorkflowState;
   selected: Map<string, ApplyItemRef>;
   onToggle: ToggleFn;
+  lang: Lang;
+  onLangChange: (next: Lang) => void;
 }
 
 function WorkflowSection({
   workflow,
   selected,
   onToggle,
+  lang,
+  onLangChange,
 }: WorkflowSectionProps): JSX.Element {
   const key = makeKey("workflow", "workflow");
   return (
-    <CategorySection title="Workflow" testId="section-workflow" count={1}>
+    <CategorySection
+      title="Workflow"
+      testId="section-workflow"
+      count={1}
+      lang={lang}
+      onLangChange={onLangChange}
+      langTestId="section-workflow-lang"
+    >
       <StateCard
         name="CLAUDE.md workflow"
         description="The auriga workflow template installed at the repo root."

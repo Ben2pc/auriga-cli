@@ -162,6 +162,7 @@ describe("GET /api/state (spec §6.1)", () => {
       const body = (await res.json()) as Record<string, unknown>;
       // Required top-level keys per api-types.ts StateReport.
       for (const key of [
+        "cwd",
         "workflow",
         "skills",
         "recommendedSkills",
@@ -171,6 +172,11 @@ describe("GET /api/state (spec §6.1)", () => {
       ]) {
         assert.ok(key in body, `StateReport missing key: ${key}`);
       }
+      assert.equal(typeof body.cwd, "string");
+      assert.ok(
+        (body.cwd as string).length > 0,
+        "StateReport.cwd must be a non-empty string",
+      );
       assert.ok(Array.isArray(body.skills));
       assert.ok(Array.isArray(body.recommendedSkills));
       assert.ok(Array.isArray(body.plugins));

@@ -3,11 +3,13 @@
 // Maps to docs/architecture/web-ui.md §12.1 "Top Bar" and DESIGN.md
 // §"Top Navigation Bar". Surface --color-ivory-medium, 68px tall, sticky.
 //
-// - Left: AURIGA-CLI wordmark (Anthropic Sans 16/700, slate-dark) + cwd label
-//   (Anthropic Mono 12/400, cloud-dark). Long cwd paths (>60 chars) are
-//   middle-truncated to keep both the project name suffix and the leading
-//   "/Users/.../" hint visible; full path lives on the title attribute for
-//   hover-tooltip + screen reader.
+// - Left: AURIGA-CLI wordmark (Anthropic Sans 16/700, slate-dark) + a clay
+//   "CWD ▸" pill marker + the cwd path (Anthropic Mono 13/500, slate-dark).
+//   The clay marker exists so the path doesn't blend into the wordmark —
+//   users need to know at-a-glance which project they're operating on. Long
+//   cwd paths (>60 chars) are middle-truncated to keep both the project
+//   suffix and the leading "/Users/.../" hint visible; full path lives on
+//   the title attribute for hover-tooltip + screen reader.
 // - Right: marketplace status (single geometric dot + uppercase text label,
 //   §13.4 "no chip" rule — pure text + a colored dot, no pill background).
 //
@@ -73,7 +75,7 @@ export default function TopBar({
       }}
     >
       <div className="mx-auto flex h-full max-w-[1440px] items-center justify-between px-32">
-        {/* Left: wordmark + cwd */}
+        {/* Left: wordmark + cwd cluster */}
         <div className="flex items-center gap-16 min-w-0">
           <span
             data-testid="topbar-wordmark"
@@ -82,22 +84,46 @@ export default function TopBar({
               fontSize: "16px",
               fontWeight: 700,
               letterSpacing: "-0.002em",
+              flexShrink: 0,
             }}
           >
             AURIGA-CLI
           </span>
-          <span
-            data-testid="topbar-cwd"
-            title={isTruncated ? cwd : undefined}
-            className="font-anthropic-mono text-cloud-dark truncate"
-            style={{
-              fontSize: "12px",
-              lineHeight: 1.3,
-              fontFamily: "var(--font-anthropic-mono)",
-            }}
+          <div
+            className="flex items-center gap-8 min-w-0"
+            style={{ minWidth: 0 }}
           >
-            {truncated}
-          </span>
+            <span
+              data-testid="topbar-cwd-marker"
+              aria-hidden="true"
+              className="font-anthropic-mono uppercase"
+              style={{
+                fontSize: "10px",
+                fontFamily: "var(--font-anthropic-mono)",
+                fontWeight: 600,
+                letterSpacing: "0.08em",
+                color: "var(--color-clay)",
+                border: "1px solid var(--color-clay)",
+                padding: "1px 6px",
+                flexShrink: 0,
+              }}
+            >
+              CWD ▸
+            </span>
+            <span
+              data-testid="topbar-cwd"
+              title={isTruncated ? cwd : undefined}
+              className="font-anthropic-mono text-slate-dark truncate"
+              style={{
+                fontSize: "13px",
+                lineHeight: 1.3,
+                fontFamily: "var(--font-anthropic-mono)",
+                fontWeight: 500,
+              }}
+            >
+              {truncated}
+            </span>
+          </div>
         </div>
 
         {/* Right: marketplace status (dot + label) */}

@@ -36,6 +36,7 @@ import type { StateReport } from "../../src/api-types";
 
 function makeReport(overrides: Partial<StateReport> = {}): StateReport {
   return {
+    cwd: "~/Workspace/test-project",
     workflow: {
       status: "installed",
       currentVersion: "1.6.0",
@@ -287,6 +288,33 @@ describe("Dashboard — selection drives the LogPanel Apply button", () => {
       ).toBe(true),
     );
     expect(screen.queryByTestId("log-panel-pending-count")).toBeNull();
+  });
+});
+
+describe("Dashboard — TopBar cwd label", () => {
+  beforeEach(() => {
+    if (typeof window !== "undefined") {
+      window.sessionStorage.clear();
+    }
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  test("renders the cwd returned by /api/state in the top bar", async () => {
+    stubFetch((url) =>
+      url.includes("/api/state")
+        ? jsonResponse(makeReport({ cwd: "~/Workspace/auriga-ui-demo" }))
+        : jsonResponse({ ok: true }),
+    );
+    render(<Dashboard />);
+    await waitFor(() =>
+      expect(screen.getByTestId("dashboard-root")).toBeInTheDocument(),
+    );
+    expect(screen.getByTestId("topbar-cwd").textContent).toBe(
+      "~/Workspace/auriga-ui-demo",
+    );
   });
 });
 

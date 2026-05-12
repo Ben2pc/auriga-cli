@@ -255,7 +255,7 @@ describe("web UI e2e (spec §8.1 hermetic guarantee)", () => {
       },
       body: JSON.stringify({
         items: [
-          { category: "workflow", name: "default", action: "install" },
+          { category: "workflow", name: "workflow", action: "install" },
         ],
       }),
     });

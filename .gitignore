@@ -7,3 +7,5 @@ dist-test/
 .claude/auriga-go-ship.local.md
 ui/node_modules/
 ui/dist/
+ui/.playwright-cli/
+.playwright-cli/

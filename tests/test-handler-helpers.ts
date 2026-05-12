@@ -25,6 +25,7 @@ export interface ApplyHandlerOptions {
   onLog: (line: string, level: LogLevel) => void;
   signal?: AbortSignal;
   scope?: "project" | "user";
+  lang?: "en" | "zh-CN";
 }
 
 export type ApplyHandler = (

@@ -697,7 +697,11 @@ async function runUi(p: UiParsed, version: string): Promise<number> {
   }
 
   const applyCatalog = {
-    workflow: new Set<string>(["default"]),
+    // Workflow is a singleton (one CLAUDE.md per project); we pick the
+    // sentinel name "workflow" to match what the Web UI's Dashboard sends
+    // and to remain semantically self-describing. The handler ignores the
+    // name argument either way.
+    workflow: new Set<string>(["workflow"]),
     skill: new Set<string>(Object.keys(scanCatalog.skills)),
     "recommended-skill": new Set<string>(
       Object.keys(scanCatalog.recommendedSkills),

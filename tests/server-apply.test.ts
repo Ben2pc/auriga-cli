@@ -504,6 +504,115 @@ describe("POST /api/apply — validation", () => {
     const body = (await res.json()) as { error?: unknown };
     assert.equal(typeof body.error, "string");
   });
+
+  test("boundary: items[].lang on a non-workflow category → 400", async (t) => {
+    // Lang is workflow-only. Pairing it with skill/plugin/hook is a client
+    // bug and must be rejected loudly so the UI doesn't silently install
+    // the wrong asset variant.
+    const ctx = await bootApplyServer();
+    t.after(() => ctx.close());
+    const res = await postApply(ctx.baseUrl, ctx.token, {
+      items: [{ category: "skill", name: "alpha", action: "install", lang: "en" }],
+    });
+    assert.equal(res.status, 400);
+  });
+
+  test("boundary: items[].lang with an unknown value → 400", async (t) => {
+    const ctx = await bootApplyServer();
+    t.after(() => ctx.close());
+    const res = await postApply(ctx.baseUrl, ctx.token, {
+      items: [
+        { category: "workflow", name: "default-workflow", action: "install", lang: "ja" },
+      ],
+    });
+    assert.equal(res.status, 400);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 9b. Workflow lang forwarded into the handler opts (spec §6.4)
+// ---------------------------------------------------------------------------
+
+describe("POST /api/apply — workflow lang forwarded to handler", () => {
+  test("workflow.lang reaches ApplyHandlerOptions.lang verbatim", async (t) => {
+    let receivedLang: string | undefined = undefined;
+    const recordingWorkflowHandler: ApplyHandler = async (
+      _action,
+      _name,
+      opts,
+    ) => {
+      receivedLang = opts.lang;
+    };
+    const handlers = uniformHandlers(successHandler());
+    handlers.workflow = recordingWorkflowHandler;
+
+    const ctx = await bootApplyServer({ handlers });
+    t.after(() => ctx.close());
+
+    const res = await postApply(ctx.baseUrl, ctx.token, {
+      items: [
+        {
+          category: "workflow",
+          name: "default-workflow",
+          action: "install",
+          lang: "zh-CN",
+        },
+      ],
+    });
+    assert.equal(res.status, 202);
+    const { jobId } = (await res.json()) as { jobId: string };
+
+    // Drain SSE until the all-done frame so we know the handler ran.
+    const progRes = await fetch(
+      `${ctx.baseUrl}/api/progress?jobId=${jobId}`,
+      { headers: { Authorization: `Bearer ${ctx.token}` } },
+    );
+    await readSSEUntil(progRes, (_frame, parsed) => {
+      return (
+        parsed !== null &&
+        typeof parsed === "object" &&
+        (parsed as { type?: string }).type === "all-done"
+      );
+    });
+    assert.equal(receivedLang, "zh-CN");
+  });
+
+  test("workflow with no lang → handler receives undefined (back-compat default)", async (t) => {
+    let receivedLang: string | undefined = "sentinel";
+    const recordingWorkflowHandler: ApplyHandler = async (
+      _action,
+      _name,
+      opts,
+    ) => {
+      receivedLang = opts.lang;
+    };
+    const handlers = uniformHandlers(successHandler());
+    handlers.workflow = recordingWorkflowHandler;
+
+    const ctx = await bootApplyServer({ handlers });
+    t.after(() => ctx.close());
+
+    const res = await postApply(ctx.baseUrl, ctx.token, {
+      items: [
+        { category: "workflow", name: "default-workflow", action: "install" },
+      ],
+    });
+    assert.equal(res.status, 202);
+    const { jobId } = (await res.json()) as { jobId: string };
+
+    const progRes = await fetch(
+      `${ctx.baseUrl}/api/progress?jobId=${jobId}`,
+      { headers: { Authorization: `Bearer ${ctx.token}` } },
+    );
+    await readSSEUntil(progRes, (_frame, parsed) => {
+      return (
+        parsed !== null &&
+        typeof parsed === "object" &&
+        (parsed as { type?: string }).type === "all-done"
+      );
+    });
+    assert.equal(receivedLang, undefined);
+  });
 });
 
 // ---------------------------------------------------------------------------

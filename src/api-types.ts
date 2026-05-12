@@ -5,6 +5,11 @@
 export type ItemStatus = "installed" | "update-available" | "not-installed";
 
 export interface StateReport {
+  /** Absolute path to the project the server was launched against. Surfaced
+   *  in the UI's top bar so users know where Apply will write project-scope
+   *  changes. The path may be redacted (e.g. `~/...` home expansion) but the
+   *  contract is "human-readable identifier for the current cwd". */
+  cwd: string;
   workflow: WorkflowState;
   skills: SkillState[];
   recommendedSkills: SkillState[];
@@ -70,6 +75,17 @@ export type ApplyAction = "install" | "update" | "uninstall";
  */
 export type ApplyScope = "project" | "user";
 
+/**
+ * Workflow CLAUDE.md language variant.
+ *
+ * - "en":    English CLAUDE.md (the default).
+ * - "zh-CN": Simplified Chinese CLAUDE.md (the localized variant).
+ *
+ * Only meaningful for `category === "workflow"`; rejected for other
+ * categories so the API surface stays explicit.
+ */
+export type ApplyLang = "en" | "zh-CN";
+
 export interface ApplyItemRef {
   category: ApplyCategory;
   name: string;
@@ -78,6 +94,10 @@ export interface ApplyItemRef {
    *  rejects this field for category="workflow" because workflow has no
    *  scope concept (it's a single file at the project root). */
   scope?: ApplyScope;
+  /** Workflow CLAUDE.md language variant. Omitted = "en" (back-compat
+   *  default). The server rejects this field for any non-workflow
+   *  category. */
+  lang?: ApplyLang;
 }
 
 export interface ApplyRequest {

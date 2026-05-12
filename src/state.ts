@@ -48,6 +48,23 @@ export interface ScanOptions {
 
 // ---- IMPLEMENTATION GOES BELOW ----
 
+/**
+ * Shorten an absolute path by replacing the user's $HOME with `~`. Avoids
+ * leaking the full username in screenshots and keeps the TopBar label
+ * readable. Falls back to the original path when HOME is unset or the path
+ * doesn't sit under it.
+ */
+function homeReducedPath(p: string): string {
+  const home = os.homedir();
+  if (!home) return p;
+  if (p === home) return "~";
+  // Use path-segment boundary so /Users/pangcheng-foo is NOT matched.
+  if (p.startsWith(home + path.sep)) {
+    return "~" + p.slice(home.length);
+  }
+  return p;
+}
+
 export async function scanState(
   projectRoot: string,
   catalog: Catalog,
@@ -77,6 +94,7 @@ export async function scanState(
   );
 
   return {
+    cwd: homeReducedPath(projectRoot),
     workflow,
     skills,
     recommendedSkills,
