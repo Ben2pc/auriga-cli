@@ -1,6 +1,6 @@
 ---
 name: incremental-impl
-description: Plan a non-trivial code change end-to-end — size triage (XS–XL), slicing strategy, optional parallel subagent dispatch, per-slice Implement → Test → Verify → Commit discipline. Use for any multi-file change, refactor across files, cross-cutting modification (analytics sweep / i18n / library migration), or when about to write more than ~100 lines. 也用于增量实现 / 切片落地 / 按 task 推进 / 跨切面改动。Skip only for trivial XS edits and pure documentation / configuration changes.
+description: Plan a non-trivial code change end-to-end — size triage (XS–XL), slicing strategy, optional parallel subagent dispatch, per-slice Implement → Test → Verify → Commit discipline. Use for any multi-file change, refactor across files, executing a planned task from any planning source, cross-cutting modification (analytics sweep / i18n / library migration), or when about to write more than ~100 lines. 也用于增量实现 / 切片落地 / 推进已规划任务 / 跨切面改动。Skip only for trivial XS edits and pure documentation / configuration changes.
 ---
 
 # Incremental Implementation
@@ -14,7 +14,7 @@ Invoke for **any non-trivial implementation work**:
 - Multi-file feature implementation
 - Refactoring spanning multiple files
 - About to write more than ~100 lines
-- Building from a task in a plan / task_plan.md
+- Executing a planned task (from any planning source — see Inputs)
 - Cross-cutting changes (analytics sweep, i18n pass, library migration)
 
 **Skip only for:**
@@ -24,7 +24,7 @@ Invoke for **any non-trivial implementation work**:
 
 ## Inputs
 
-- A task or spec (from `planning-with-files` task_plan, from `brainstorming` output, or directly from the user)
+- A task or spec from any planning source — built-in Plan, `planning-with-files`'s `task_plan.md`, a `brainstorming` spec under `docs/specs/`, or a task description from the user. The skill is agnostic to how the task was produced.
 - Acceptance criteria — what "done" looks like for this slice of work
 
 If acceptance criteria are missing or vague, return control to planning before continuing. Implementation needs a target.
@@ -234,8 +234,7 @@ If a command (build, test, type check) ran successfully and the code hasn't chan
 
 ## Relationship to other skills
 
-- `planning-with-files` — supplies the task / spec / acceptance criteria this skill consumes
-- `brainstorming` — alternative upstream source for requirements
+- Upstream planning sources (any of) — built-in Plan, `planning-with-files`, `brainstorming`, or a direct user-given task; this skill is agnostic to the source
 - `test-driven-development` — governs the red→green cycle within Step 4.1
 - `test-designer` — may produce the failing tests this skill's green phase satisfies
 - `systematic-debugging` — runs if any slice's result breaks regression
