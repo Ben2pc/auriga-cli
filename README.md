@@ -113,7 +113,9 @@ Installs selected skills via `npx skills add`, targeting both Claude Code and Co
 | claude-code-agent | [Ben2pc/g-claude-code-plugins](https://github.com/Ben2pc/g-claude-code-plugins) | Delegate coding, review, diagnosis, and planning to standalone Claude Code sessions |
 | code-simplification | [addyosmani/agent-skills](https://github.com/addyosmani/agent-skills) | Refactor for clarity without changing behavior — trim accumulated complexity |
 | codex-agent | [Ben2pc/g-claude-code-plugins](https://github.com/Ben2pc/g-claude-code-plugins) | Delegate to Codex sessions for cross-model coverage |
+| deprecation-and-migration | [addyosmani/agent-skills](https://github.com/addyosmani/agent-skills) | Sunset, replace, or migrate legacy code — deprecation discipline |
 | design-taste-frontend | [Leonxlnx/taste-skill](https://github.com/Leonxlnx/taste-skill) | Senior UI/UX engineer with metric-based design rules and strict component architecture |
+| documentation-and-adrs | [addyosmani/agent-skills](https://github.com/addyosmani/agent-skills) | Record architectural decisions and the *why* — context for future engineers / agents |
 | frontend-design | [anthropics/skills](https://github.com/anthropics/skills) | Distinctive, production-grade frontend UI generation that avoids generic AI aesthetics |
 | make-interfaces-feel-better | [jakubkrehel/make-interfaces-feel-better](https://github.com/jakubkrehel/make-interfaces-feel-better) | Polish principles — animations, surfaces, typography, performance |
 
