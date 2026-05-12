@@ -1,7 +1,7 @@
 ---
 name: auriga-go
-description: Drives the project's CLAUDE.md development workflow forward one or many phases. Trigger when the user invokes `/auriga-go`, uses a phrase explicitly naming the workflow ("按照工作流继续", "按工作流走", "drive the workflow", "workflow autopilot", "where are we in the workflow", "我们的 workflow 走到哪了"), resumes after `/clear`, or workflow drift is visible (commits on main, no Draft PR, missing branch prefix). NOT for plain "继续" / "continue" / "next" / "下一步" / "what's next" (those mean the current task, not workflow navigation), single-question lookups, one-off git commands, or exploratory discussion. Experimental `ship` mode drives spec → PR Ready autonomously (see references/ship.md).
-argument-hint: "[step|auto|ship] [max-iter]"
+description: Drives the project's CLAUDE.md development workflow forward one or many phases. Trigger when the user invokes `/auriga-go`, uses a phrase explicitly naming the workflow ("按照工作流继续", "按工作流走", "drive the workflow", "workflow autopilot", "where are we in the workflow", "我们的 workflow 走到哪了"), resumes after `/clear`, or workflow drift is visible (commits on main, no Draft PR, missing branch prefix). NOT for plain "继续" / "continue" / "next" / "下一步" / "what's next" (those mean the current task, not workflow navigation), single-question lookups, one-off git commands, or exploratory discussion.
+argument-hint: "[step|auto]"
 ---
 
 # auriga-go — Workflow Autopilot
@@ -29,26 +29,21 @@ Inspect state, identify the next workflow step, drive forward. Reminder-based: t
 |---|---|
 | `step` | One workflow step → return |
 | `auto` (default) | Loop steps until a hard stop |
-| `ship` (Experimental) | Loop until Draft → Ready. Hook-backed, default `max-iter` 30. Every exit posts a PR comment. **Read `references/ship.md` before invoking.** |
 
 ## Arguments
 
-Invocation: `/auriga-go [mode] [ship-max-iter]` or natural-language trigger.
+Invocation: `/auriga-go [mode]` or natural-language trigger.
 
 Parse `$ARGUMENTS`:
 
 - Empty → `auto`
-- First token is `step` / `auto` / `ship` → use as mode
-- Integer after `ship` → override `max-iter` (ignored for step/auto)
+- First token is `step` / `auto` → use as mode
 - Natural-language text with no mode keyword → `auto`, text as task context
-- NL mentioning "ship" / "跑到 Ready" / "到 Ready for Review" → **confirm with user before entering `ship`**
 
 | User types | `$ARGUMENTS` | Resolved |
 |---|---|---|
 | `/auriga-go` | (empty) | auto |
 | `/auriga-go step` | `step` | step |
-| `/auriga-go ship` | `ship` | ship, max-iter=30 |
-| `/auriga-go ship 50` | `ship 50` | ship, max-iter=50 |
 | `按照工作流继续` | `按照工作流继续` | auto |
 
 ## Algorithm (step + auto)
@@ -78,8 +73,6 @@ Match current state to a phase in `CLAUDE.md`; pick the earliest unfinished phas
 ### Record the step
 
 Use your Agent's native task/todo tool. If the Agent has none, announce in natural language ("Working on TDD phase — writing the failing test for X") before the first tool call. Never silently begin.
-
-**ship mode additionally requires**: every exit — Ready or Blocked — posts a decisions/review-points PR comment, then emits `<ship-done>Ready</ship-done>` or `<ship-done>Blocked</ship-done>` (exactly one) as the final assistant text. Ready has four terminal conditions (tests pass + deep-review empty + Ready PR comment posted + Draft→Ready flipped). See `references/ship.md` for the full contract, templates, and grace-turn mechanics.
 
 ### Recommend next action
 
@@ -119,10 +112,6 @@ Inferred position: <phase>. Next action: <action>. Proceed?
 ```
 
 Skip if source 1 was sufficient.
-
-## Ship mode
-
-Hook-backed loop bundled with this skill. State file, completion markers, strict defaults, Ready/Blocked PR-comment templates, and grace-turn mechanics all live in `references/ship.md`. Do not enter ship via natural-language trigger without user confirmation.
 
 ## Anti-patterns
 

@@ -1,7 +1,7 @@
 {
   "name": "auriga-go",
-  "version": "1.0.0",
-  "description": "Workflow autopilot for the auriga workflow. Reminder-based navigation across CLAUDE.md's phases, with an Experimental hook-backed ship mode that drives a small-scope spec to PR Ready.",
+  "version": "1.1.0",
+  "description": "Workflow autopilot for the auriga workflow. Reminder-based navigation across CLAUDE.md's phases. Bundles a /goalify skill that plans an autonomous goal from a spec or work-in-progress and dispatches it via Claude Code's built-in /goal command.",
   "author": {
     "name": "Ben2pc",
     "email": "pangcheng33@gmail.com",
@@ -17,11 +17,10 @@
     "codex"
   ],
   "skills": "./skills/",
-  "hooks": "./hooks/hooks.json",
   "interface": {
     "displayName": "auriga-go",
     "shortDescription": "Workflow autopilot for the auriga workflow",
-    "longDescription": "Drives the auriga workflow forward by reading CLAUDE.md, identifying the next phase, and instructing the main Agent which skill or workflow step to run next. Includes an Experimental hook-backed ship mode for driving small scopes to PR Ready.",
+    "longDescription": "Drives the auriga workflow forward by reading CLAUDE.md, identifying the next phase, and instructing the main Agent which skill or workflow step to run next. Bundles a /goalify skill that plans an autonomous goal from a spec or work-in-progress and dispatches it via Claude Code's built-in /goal command.",
     "developerName": "Ben2pc",
     "category": "Productivity",
     "capabilities": [
