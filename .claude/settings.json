@@ -5,7 +5,7 @@
     "codex@openai-codex": true,
     "auriga-go@auriga-cli": true,
     "auriga-git-guards@auriga-cli": true,
-    "deep-review@g-claude-code-plugins": true
+    "deep-review@auriga-cli": true
   },
   "hooks": {
     "Notification": [
