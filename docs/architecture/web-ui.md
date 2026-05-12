@@ -194,7 +194,7 @@ src/cli.ts
 ### 6.2 关键类型（`src/api-types.ts`）
 
 ```ts
-export type ItemStatus = "installed" | "update-available" | "not-installed";
+export type ItemStatus = "installed" | "update-available" | "not-installed" | "partial-install";  // v1.18.5 起加 partial-install：dual-Agent plugin 某 agent 装了某 agent 没装
 export type ApplyAgent = "claude" | "codex";
 export type ApplyScope = "project" | "user";
 export type ApplyLang = "en" | "zh-CN";
@@ -227,8 +227,9 @@ export interface SkillState {
 export interface PluginState {
   id: string;                  // 形如 "auriga-go@auriga-cli"
   description: string;
-  status: ItemStatus;          // 聚合：所有 agent 都装 → installed; 都没装 → not-installed; 否则 update-available
+  status: ItemStatus;          // 聚合：所有 agent 都装 → installed; 都没装 → not-installed; 某 agent 装了某 agent 没装 → partial-install; agent-uniform 版本漂移 → update-available。partial-install 时 update-available 时 currentVersion 选 stale 那一侧
   agents: ApplyAgent[];        // 该 plugin 在 catalog 注册的 agent 集合（dual = ["claude","codex"]）
+  missingAgents?: ApplyAgent[]; // 仅 status === "partial-install" 时 populate，列出没装的 agent，驱动 UI per-agent ✓/✗ 渲染
   currentVersion?: string;
   expectedVersion?: string;    // Claude: 上游活查；Codex: catalog
   versionSource: "upstream-live" | "catalog";
@@ -243,7 +244,14 @@ export interface HookState {
 }
 
 export interface StateWarning {
-  code: "claude-cli-missing" | "codex-cli-missing" | "marketplace-offline";
+  code:
+    | "claude-cli-missing"
+    | "codex-cli-missing"
+    | "marketplace-offline"
+    | "claude-code-not-installed"
+    | "settings-unreadable"
+    | "skill-malformed"
+    | "workflow-foreign-claudemd";  // v1.18.5 起；老名 "workflow-unknown-version" 在那一版重命名
   message: string;
 }
 
@@ -270,7 +278,7 @@ scanner 按 Claude Code 实际安装位置读真值源，**支持 per-category �
 
 | 类目 | User scope 真值 | Project scope 真值 | 三态判定 |
 |---|---|---|---|
-| Workflow | `~/.claude/CLAUDE.md` | `<proj>/CLAUDE.md` 优先，回落 `<proj>/.claude/CLAUDE.md` | 文件缺失 → not-installed；解析 `# auriga Workflow (vX.Y.Z)` 头部成功且版本 = `catalog.workflowVersion` → installed；版本不同 → update-available；文件存在但无 auriga 头 → installed + `workflow-unknown-version` warning |
+| Workflow | `~/.claude/CLAUDE.md` | `<proj>/CLAUDE.md`（v1.18.5 起仅这一路径——撤掉 `.claude/CLAUDE.md` 回落，原回落在 `projectRoot === $HOME` 时坍塌到 user-scope） | 文件缺失 → not-installed；解析 `# auriga Workflow (vX.Y.Z)` 头部成功且版本 = `catalog.workflowVersion` → installed；版本不同 → update-available；文件存在但无 auriga 头 → **not-installed** + `workflow-foreign-claudemd` warning（v1.18.5 起，install 路径用 `CLAUDE.md.bak` 保护用户内容；老版本错把 foreign 文件当 installed） |
 | Skills / Recommended | `~/.claude/skills/<name>/SKILL.md` 文件系统 | `<proj>/.claude/skills/<name>/SKILL.md` 文件系统 | 目录缺 → not-installed；SKILL.md 不可读 → installed + `skill-malformed` warning（不影响其他 skill）；SKILL.md 存在 → installed。**不再做内容 drift 比对** —— 自 v1.18.4 起 skill 升级走 `npx skills update --project`（直接对每个 skill 的上游 HEAD 比对），catalog 烤的 hash 顶多是 stale 快照、再做比对反而误导 |
 | Plugins (Claude) | `claude plugins list --json` + 客户端按 `record.scope === "user"` 过滤 | 同命令 + 按 `record.scope === "project"` 且 `record.projectPath === <projectRoot>` 过滤 | `installed[id].version` vs `available[id].source.ref`（注意 id 双索引：CLI 用 `<plugin>@<marketplace>` 形式，catalog 用裸名）；CLI 不在 PATH → 类目降级为二态 + `claude-cli-missing` warning |
 | Plugins (Codex) | `~/.codex/config.toml` + `~/.codex/plugins/cache/<marketplace>/<plugin>/<version>/` 文件系统 | n/a — Codex 设计上 user-scope only | 不变（v0.1 即正确）|
@@ -306,7 +314,8 @@ trade-off：用 (C) 意味着想暴露新 plugin 版本必须重发 auriga-cli�
 | `which claude` 失败 | Plugins (Claude) degraded rows + `claude-cli-missing` warning |
 | `<scope>/.claude/settings.json` 损坏 JSON | Hooks 落 not-installed + `settings-unreadable` warning |
 | Skill 目录存在但 SKILL.md 不可读 | 该 skill installed + 一次性 `skill-malformed` warning，兄弟 skill 不受影响 |
-| CLAUDE.md 存在但无 auriga 头 | installed + `workflow-unknown-version` warning |
+| CLAUDE.md 存在但无 auriga 头 | not-installed + `workflow-foreign-claudemd` warning（v1.18.5 起；老版本错报 installed 把 `~/` 当 projectRoot 时尤其有问题） |
+| Dual-Agent plugin 一边装一边没装 | partial-install + `missingAgents: [<missing-agent>]`（v1.18.5 起；老版本错报 update-available 显示 "vX → vX" 假升级） |
 
 **Claude / Codex Plugins 不对称的合理性**：
 
@@ -628,8 +637,9 @@ DESIGN.md：「metadata labels are pure text with no chip/pill/capsule treatment
 | 状态 | 徽章文字（Anthropic Mono 12px，uppercase） | 颜色 token | 卡片背景 token |
 |---|---|---|---|
 | 已装 | `INSTALLED` | `--color-cloud-dark` (#87867f) | `--color-ivory-light` (持平页面) |
-| 可更新 | `UPDATE AVAILABLE` | `--color-clay` (#d97757，仅这里出现) | `--color-ivory-medium` (#f0eee6，"浮起") |
-| 未装 | `NOT INSTALLED` | `--color-cloud-medium` (#b0aea5，更弱) | `--color-ivory-light` (持平) |
+| 可更新 | `UPDATE` | `--color-clay` (#d97757) | `--color-ivory-medium` (#f0eee6，"浮起") |
+| 部分装 | `PARTIAL` | `--color-clay` (#d97757，与 UPDATE 同色——label 区分；副 caption 显示 "Missing on \<agent\>") | `--color-ivory-medium` |
+| 未装 | `NOT INSTALLED` | `--color-slate-light` (#5e5d59，v1.18.4 起从 cloud-medium 提升过 WCAG AA) | `--color-ivory-light` (持平) |
 | 错误 | `ERROR` | `--color-accent-ember` (#c6613f) | `--color-ivory-medium` |
 
 ### 13.5 关键组件映射

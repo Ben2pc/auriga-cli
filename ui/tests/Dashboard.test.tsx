@@ -79,6 +79,18 @@ function makeReport(overrides: Partial<StateReport> = {}): StateReport {
         expectedVersion: "1.0.0",
         versionSource: "catalog",
       },
+      {
+        // Dual-Agent plugin with Codex side missing; drives the
+        // partial-install action-derivation test case below.
+        id: "deep-review@auriga-cli",
+        description: "Multi-dimensional PR review",
+        status: "partial-install",
+        agents: ["claude", "codex"],
+        missingAgents: ["codex"],
+        currentVersion: "0.3.1",
+        expectedVersion: "0.3.1",
+        versionSource: "catalog",
+      },
     ],
     hooks: [
       {
@@ -168,8 +180,8 @@ describe("Dashboard — mount + fetch lifecycle", () => {
     expect(screen.getByTestId("section-plugins")).toBeInTheDocument();
     expect(screen.getByTestId("section-hooks")).toBeInTheDocument();
 
-    // The fixture has 1 workflow + 2 skills + 1 rec + 1 plugin + 1 hook = 6 cards.
-    expect(screen.getAllByTestId("statecard")).toHaveLength(6);
+    // The fixture has 1 workflow + 2 skills + 1 rec + 2 plugins + 1 hook = 7 cards.
+    expect(screen.getAllByTestId("statecard")).toHaveLength(7);
   });
 
   test("fetch failure (500) renders an error banner instead of categories", async () => {
@@ -388,7 +400,7 @@ describe("Dashboard — apply submission carries derived action per status", () 
 
   type DerivedCase = {
     label: string;
-    status: "update-available" | "not-installed" | "installed";
+    status: "update-available" | "not-installed" | "installed" | "partial-install";
     expectedAction: "update" | "install" | "uninstall";
   };
 
@@ -410,6 +422,14 @@ describe("Dashboard — apply submission carries derived action per status", () 
       label: "installed → action='uninstall'",
       status: "installed",
       expectedAction: "uninstall",
+    },
+    {
+      // Added v1.18.5: dual-Agent plugin half-installs derive "install" so a
+      // single Apply backfills the missing agent. Apply path calls install on
+      // every targeted agent; the already-installed side becomes a CLI no-op.
+      label: "partial-install → action='install'",
+      status: "partial-install",
+      expectedAction: "install",
     },
   ];
 
