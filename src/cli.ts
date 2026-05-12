@@ -57,7 +57,7 @@ export type ParsedArgs =
   | { command: "version" }
   | { command: "guide" }
   | { command: "install"; install: InstallParsed }
-  | { command: "ui"; ui: UiParsed };
+  | { command: "web-ui"; ui: UiParsed };
 
 const CATEGORY_SET = new Set<CategoryName>(CATEGORY_NAMES);
 
@@ -145,9 +145,9 @@ export function parseArgs(argv: string[]): ParsedArgs {
     }
     return { command: "guide" };
   }
-  if (head === "ui") {
+  if (head === "web-ui") {
     try {
-      return { command: "ui", ui: parseUi(argv.slice(1)) };
+      return { command: "web-ui", ui: parseUi(argv.slice(1)) };
     } catch (e) {
       if (e instanceof PerTypeHelpRequest) return { command: "help" };
       throw e;
@@ -200,7 +200,7 @@ function parseUi(argv: string[]): UiParsed {
       i += 1;
       continue;
     }
-    parseErr(`unknown argument '${t}' for 'ui'. Run 'npx auriga-cli --help' for usage.`);
+    parseErr(`unknown argument '${t}' for 'web-ui'. Run 'npx auriga-cli --help' for usage.`);
   }
   return out;
 }
@@ -438,7 +438,7 @@ export async function main(argv: string[]): Promise<number> {
     return 0;
   }
 
-  if (parsed.command === "ui") {
+  if (parsed.command === "web-ui") {
     return runUi(parsed.ui, version);
   }
 

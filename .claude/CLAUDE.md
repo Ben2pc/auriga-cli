@@ -26,7 +26,7 @@ src/
   api-types.ts  — Shared TS types between src/server.ts and ui/ (StateReport, ApplyRequest, ProgressEvent…)
   state.ts      — `scanState(projectRoot, catalog)` — per-category three-state scanner for /api/state
   scan-catalog.ts — Build-time catalog → runtime ScanCatalog adapter (workflow version, skill hashes, plugin agent map, hook hashes)
-  server.ts     — Local HTTP server (token + Origin auth, SSE /api/progress, static asset serve from uiDir). Boots via `npx auriga-cli ui`
+  server.ts     — Local HTTP server (token + Origin auth, SSE /api/progress, static asset serve from uiDir). Boots via `npx auriga-cli web-ui`
   apply-handlers.ts — `buildDefaultApplyHandlers(ctx)` wires the bulk installers as per-item ApplyHandlers via `selected: [name]`. Web UI's CLI mode uses this; tests inject their own mocks
   ui-fetch.ts   — Downloads `ui-bundle.tar.gz` + `.sha256` for the current CLI version from GitHub Releases, SHA256-verifies, extracts to `~/.cache/auriga-cli/ui-v<version>/`. LRU eviction keeps last 3 versions.
 
@@ -38,7 +38,7 @@ ui/             — Vite + React 19 + Tailwind v4 subproject. Built artifacts sh
                     src/lib/api.ts            fetch wrapper (token from URL ?token=)
                     vite.config.ts            dev proxy /api → http://127.0.0.1:4747 (changeOrigin: false)
 
-tests/web-ui-e2e.test.ts — Hermetic end-to-end harness for `npx auriga-cli ui`. Spawns the real CLI in a HOME-redirected scratch dir, hits /api/state + /api/apply, asserts filesystem side effects in scratch and verifies the real $HOME stays untouched (canary). Not part of `npm test` — invoke via `npm run test:web-ui-e2e`.
+tests/web-ui-e2e.test.ts — Hermetic end-to-end harness for `npx auriga-cli web-ui`. Spawns the real CLI in a HOME-redirected scratch dir, hits /api/state + /api/apply, asserts filesystem side effects in scratch and verifies the real $HOME stays untouched (canary). Not part of `npm test` — invoke via `npm run test:web-ui-e2e`.
 
 .claude/hooks/
   hooks.json    — Hook registry (parallels .claude/plugins.json)

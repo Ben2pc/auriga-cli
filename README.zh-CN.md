@@ -55,7 +55,7 @@ npx -y auriga-cli --help                     # 完整 catalog + flag 说明
 如果想在浏览器里看到“已装 / 可更新 / 未装”全景并一键 apply，跑：
 
 ```bash
-npx auriga-cli ui
+npx auriga-cli web-ui
 ```
 
 它会在 `127.0.0.1` 起一个本地 server、自动开浏览器，扫描当前项目并展示 5 个分类的状态。勾选要安装/更新/卸载的项目后点 Apply，SSE 实时回传执行进度。关浏览器后约 15 秒 server 自动退出。

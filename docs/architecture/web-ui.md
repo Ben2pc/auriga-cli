@@ -24,7 +24,7 @@
 
 ### 2.1 v0.1 目标
 
-1. 通过 `npx auriga-cli ui` 子命令启动本地 server + 自动开浏览器
+1. 通过 `npx auriga-cli web-ui` 子命令启动本地 server + 自动开浏览器
 2. UI 默认按 5 个类目（Workflow / Skills / Recommended Skills / Plugins / Hooks）平铺展示，每项三态徽章 + 描述
 3. 用户能勾选 N 项 × M 动作 → 一次提交批量执行 → SSE 流式回显逐项进度
 4. 现有 TTY 菜单零回归（`npx auriga-cli` 不带参数行为完全不变）
@@ -58,9 +58,9 @@
 | 角色 | 故事 |
 |---|---|
 | 老用户（工程师） | 跑 `npx auriga-cli` 走熟悉的 TTY 菜单，零学习成本 |
-| 新用户（工程师） | 跑 `npx auriga-cli ui` 在浏览器里一目了然看到推荐项和已装项 |
-| 非工程师 | 同事告诉他"在项目目录跑 `npx auriga-cli ui`"，他在浏览器里勾选预设项 → 点确认 → 看完成提示 |
-| 维护者 | 几个月没更新过的项目，跑 `auriga-cli ui` 一眼看到 5 个"可更新" → 批量勾选 → 一键升级 |
+| 新用户（工程师） | 跑 `npx auriga-cli web-ui` 在浏览器里一目了然看到推荐项和已装项 |
+| 非工程师 | 同事告诉他"在项目目录跑 `npx auriga-cli web-ui`"，他在浏览器里勾选预设项 → 点确认 → 看完成提示 |
+| 维护者 | 几个月没更新过的项目，跑 `auriga-cli web-ui` 一眼看到 5 个"可更新" → 批量勾选 → 一键升级 |
 
 ---
 
@@ -70,10 +70,10 @@
 
 ```
 npx auriga-cli                  → TTY 菜单（现有，未变）
-npx auriga-cli ui               → Web UI（新增）
-npx auriga-cli ui --port 5050   → 显式端口
-npx auriga-cli ui --no-open     → 启 server 但不自动开浏览器
-npx auriga-cli ui --ui-dir <p>  → 指定本地 UI 构建（开发用）
+npx auriga-cli web-ui               → Web UI（新增）
+npx auriga-cli web-ui --port 5050   → 显式端口
+npx auriga-cli web-ui --no-open     → 启 server 但不自动开浏览器
+npx auriga-cli web-ui --ui-dir <p>  → 指定本地 UI 构建（开发用）
 npx auriga-cli guide            → 现有，未变
 ```
 
@@ -116,7 +116,7 @@ npx auriga-cli guide            → 现有，未变
 
 ### 4.5 项目作用域
 
-server 启动时锁定 `process.cwd()`，整个会话只操作这一个项目。多项目 = 多次 `npx auriga-cli ui`（多端口 / 多浏览器标签）。v0.1 不做项目切换 UI。
+server 启动时锁定 `process.cwd()`，整个会话只操作这一个项目。多项目 = 多次 `npx auriga-cli web-ui`（多端口 / 多浏览器标签）。v0.1 不做项目切换 UI。
 
 ---
 
@@ -167,7 +167,7 @@ src/server.ts
    └─ src/utils.ts (现有)
 
 src/cli.ts
-   ├─ "ui" 子命令 → src/ui-fetch.ts → src/server.ts
+   ├─ "web-ui" 子命令 → src/ui-fetch.ts → src/server.ts
    └─ 默认 → 现有 TTY 路径（未变）
 ```
 
@@ -343,7 +343,7 @@ const scratch = await mkdtemp(path.join(os.tmpdir(), 'auriga-web-e2e-'));
 const fakeHome = path.join(scratch, '.home');
 const projectDir = path.join(scratch, 'project');
 
-const server = spawn('node', ['./dist/cli.js', 'ui', '--no-open', '--port', '4848'], {
+const server = spawn('node', ['./dist/cli.js', 'web-ui', '--no-open', '--port', '4848'], {
   cwd: projectDir,
   env: {
     ...process.env,

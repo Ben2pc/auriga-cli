@@ -214,7 +214,7 @@ async function findIndexHtml(root: string): Promise<string | null> {
 }
 
 /** Overall request timeout. A hung GitHub edge would otherwise block
- *  `npx auriga-cli ui` before the URL line ever prints. */
+ *  `npx auriga-cli web-ui` before the URL line ever prints. */
 const FETCH_TIMEOUT_MS = 30_000;
 
 /** Built-in fetcher using Node's https client. Follows up to 5 redirects

@@ -55,7 +55,7 @@ Exit codes: `0` success, `1` fatal (precheck / parse / fetch), `2` partial succe
 For a browser-based view of what's installed and one-click apply, run:
 
 ```bash
-npx auriga-cli ui
+npx auriga-cli web-ui
 ```
 
 This boots a local server on `127.0.0.1`, opens your default browser, and serves a dashboard that scans the current project, shows each module's status (installed / update-available / not-installed), and applies install / update / uninstall in a queue with live SSE progress. The server shuts down on its own ~15 s after the browser closes.

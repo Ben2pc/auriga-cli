@@ -1,6 +1,6 @@
 // tests/web-ui-e2e.test.ts
 //
-// Hermetic end-to-end test for the `npx auriga-cli ui` flow. Spawns the
+// Hermetic end-to-end test for the `npx auriga-cli web-ui` flow. Spawns the
 // CLI as a child process with HOME / XDG redirected to a scratch dir so
 // the run cannot touch the developer's real cache / config / plugins.
 // Verifies:
@@ -93,7 +93,7 @@ async function bootCli(): Promise<ScratchEnv> {
     process.execPath,
     [
       path.join(REPO_ROOT, "dist", "cli.js"),
-      "ui",
+      "web-ui",
       "--ui-dir",
       uiDir,
       "--no-open",
