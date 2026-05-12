@@ -5,3 +5,5 @@ dist-test/
 .claude/settings.local.json
 .claude/worktrees/
 .claude/auriga-go-ship.local.md
+ui/node_modules/
+ui/dist/
