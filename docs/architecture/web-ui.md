@@ -10,11 +10,11 @@
 
 为 `npx auriga-cli` 增加一个 **本地 Web UI**，作为现有 TTY 菜单的并行入口，提供：
 
-- **状态可见性**：扫用户项目得出每项 workflow / skill / plugin / hook 的"已装 / 可更新 / 未装"三态——这是现 CLI 完全没有的能力
-- **批量操作**：勾选 + 一键 install / update / uninstall，SSE 实时进度
+- **状态可见性**：扫用户项目得出每项 workflow / skill / plugin / hook 的"已装 / 未装 / 部分装（dual-Agent 半装）"三态——这是现 CLI 完全没有的能力
+- **批量操作**：勾选 + 一键 install / uninstall，SSE 实时进度。重装等价于升级（每个 installer 都是幂等覆写），所以 v1.19.0 起不再有单独的 "update" 动作
 - **更友好的呈现**：图标、描述、tooltip，对非工程师也能用
 
-本期 **v0.1 = MVP**，覆盖 install / update / uninstall 三动作 + 三态 scanner + 基础 UI。后续 v0.2 / v0.3 再加 preset、搜索、preview 等。
+本期 **v0.1 = MVP**，覆盖 install / uninstall 两动作 + 三态 scanner + 基础 UI。v1.19.0 起 scanner 改为 presence-only（不再做版本/hash 对比 → 不再产 update-available），相关历史决策迁档到 `docs/worklog/`。后续 v0.2 / v0.3 再加 preset、搜索、preview 等。
 
 **视觉系统**：UI 遵循 Anthropic 自家的"温白纸面 + 单一陶土橙强调"风格——温白页面（ivory #faf9f5）+ 近黑文本（slate #141413）+ 单一 Clay (#d97757) 强调，零阴影 / 零渐变 / 用背景对比制造层次。完整 token 表见 [`docs/design/anthropic-style-reference.md`](../design/anthropic-style-reference.md)（已入仓）。前端实现的最后一公里 polish 强制走 `make-interfaces-feel-better` skill。详见 [§13 视觉风格](#13-视觉风格与-ui-polish)。
 
@@ -194,7 +194,7 @@ src/cli.ts
 ### 6.2 关键类型（`src/api-types.ts`）
 
 ```ts
-export type ItemStatus = "installed" | "update-available" | "not-installed" | "partial-install";  // v1.18.5 起加 partial-install：dual-Agent plugin 某 agent 装了某 agent 没装
+export type ItemStatus = "installed" | "not-installed" | "partial-install";  // partial-install: dual-Agent plugin 某 agent 装了某 agent 没装
 export type ApplyAgent = "claude" | "codex";
 export type ApplyScope = "project" | "user";
 export type ApplyLang = "en" | "zh-CN";
@@ -211,8 +211,6 @@ export interface StateReport {
 
 export interface WorkflowState {
   status: ItemStatus;
-  currentVersion?: string;     // CLAUDE.md 顶部解析
-  expectedVersion: string;     // catalog
 }
 
 export interface SkillState {
@@ -220,27 +218,21 @@ export interface SkillState {
   description: string;
   status: ItemStatus;
   isWorkflow: boolean;         // workflow-set vs recommended
-  currentHash?: string;
-  expectedHash: string;        // v1.18.4 起恒为 ""（通配符）：drift 移交 npx skills update
 }
 
 export interface PluginState {
   id: string;                  // 形如 "auriga-go@auriga-cli"
   description: string;
-  status: ItemStatus;          // 聚合：所有 agent 都装 → installed; 都没装 → not-installed; 某 agent 装了某 agent 没装 → partial-install; agent-uniform 版本漂移 → update-available。partial-install 时 update-available 时 currentVersion 选 stale 那一侧
+  status: ItemStatus;          // 聚合：所有 agent 都装 → installed; 都没装 → not-installed; 某 agent 装了某 agent 没装 → partial-install
   agents: ApplyAgent[];        // 该 plugin 在 catalog 注册的 agent 集合（dual = ["claude","codex"]）
   missingAgents?: ApplyAgent[]; // 仅 status === "partial-install" 时 populate，列出没装的 agent，驱动 UI per-agent ✓/✗ 渲染
-  currentVersion?: string;
-  expectedVersion?: string;    // Claude: 上游活查；Codex: catalog
-  versionSource: "upstream-live" | "catalog";
+  external?: boolean;          // upstream marketplace 拥有（skill-creator / claude-md-management / codex）。纯 UI 提示：EXTERNAL badge 告诉用户升级走 `claude plugins update`，不走 auriga-cli
 }
 
 export interface HookState {
   name: string;
   description: string;
   status: ItemStatus;
-  currentHash?: string;
-  expectedHash: string;
 }
 
 export interface StateWarning {
@@ -251,14 +243,14 @@ export interface StateWarning {
     | "claude-code-not-installed"
     | "settings-unreadable"
     | "skill-malformed"
-    | "workflow-foreign-claudemd";  // v1.18.5 起；老名 "workflow-unknown-version" 在那一版重命名
+    | "workflow-foreign-claudemd";
   message: string;
 }
 
 export interface ApplyItemRef {
   category: "workflow" | "skill" | "recommended-skill" | "plugin" | "hook";
   name: string;
-  action: "install" | "update" | "uninstall";
+  action: "install" | "uninstall";  // v1.19.0 起去掉 "update"——re-install 是 update 路径
   scope?: ApplyScope;          // 默认 "project"；workflow / 不支持 scope 的类目可省略
   lang?: ApplyLang;             // 仅 workflow 类目使用；其它类目带值会被 400 拒绝
 }
@@ -278,33 +270,15 @@ scanner 按 Claude Code 实际安装位置读真值源，**支持 per-category �
 
 | 类目 | User scope 真值 | Project scope 真值 | 三态判定 |
 |---|---|---|---|
-| Workflow | `~/.claude/CLAUDE.md` | `<proj>/CLAUDE.md`（v1.18.5 起仅这一路径——撤掉 `.claude/CLAUDE.md` 回落，原回落在 `projectRoot === $HOME` 时坍塌到 user-scope） | 文件缺失 → not-installed；解析 `# auriga Workflow (vX.Y.Z)` 头部成功且版本 = `catalog.workflowVersion` → installed；版本不同 → update-available；文件存在但无 auriga 头 → **not-installed** + `workflow-foreign-claudemd` warning（v1.18.5 起，install 路径用 `CLAUDE.md.bak` 保护用户内容；老版本错把 foreign 文件当 installed） |
-| Skills / Recommended | `~/.claude/skills/<name>/SKILL.md` 文件系统 | `<proj>/.claude/skills/<name>/SKILL.md` 文件系统 | 目录缺 → not-installed；SKILL.md 不可读 → installed + `skill-malformed` warning（不影响其他 skill）；SKILL.md 存在 → installed。**不再做内容 drift 比对** —— 自 v1.18.4 起 skill 升级走 `npx skills update --project`（直接对每个 skill 的上游 HEAD 比对），catalog 烤的 hash 顶多是 stale 快照、再做比对反而误导 |
-| Plugins (Claude) | `claude plugins list --json` + 客户端按 `record.scope === "user"` 过滤 | 同命令 + 按 `record.scope === "project"` 且 `record.projectPath === <projectRoot>` 过滤 | `installed[id].version` vs `available[id].source.ref`（注意 id 双索引：CLI 用 `<plugin>@<marketplace>` 形式，catalog 用裸名）；CLI 不在 PATH → 类目降级为二态 + `claude-cli-missing` warning |
-| Plugins (Codex) | `~/.codex/config.toml` + `~/.codex/plugins/cache/<marketplace>/<plugin>/<version>/` 文件系统 | n/a — Codex 设计上 user-scope only | 不变（v0.1 即正确）|
-| Hooks | `~/.claude/settings.json` 的 `hooks.<Event>[].hooks[]` 按 `_marker` sentinel 匹配 catalog 登记的 hook | `<proj>/.claude/settings.json` 同段同匹配 | 文件缺 → not-installed（不发 warning，常见情况）；JSON 损坏 → not-installed + `settings-unreadable` warning；marker 命中但 `matcher` / `if` / event 与 catalog 不同 → update-available |
+| Workflow | `~/.claude/CLAUDE.md` | `<proj>/CLAUDE.md`（v1.18.5 起仅这一路径——撤掉 `.claude/CLAUDE.md` 回落，原回落在 `projectRoot === $HOME` 时坍塌到 user-scope） | 文件缺失 → not-installed；解析到 `# auriga Workflow (vX.Y.Z)` 头部 → installed（v1.19.0 起不再做版本比对——re-install 是 update 路径）；文件存在但无 auriga 头 → **not-installed** + `workflow-foreign-claudemd` warning（install 路径用 `CLAUDE.md.bak` 保护用户内容，且 v1.19.0 起 backup-once，不会覆盖原始 .bak） |
+| Skills / Recommended | `~/.claude/skills/<name>/SKILL.md` 文件系统 | `<proj>/.claude/skills/<name>/SKILL.md` 文件系统 | 目录缺 → not-installed；SKILL.md 不可读 → installed + `skill-malformed` warning（不影响其他 skill）；SKILL.md 存在 → installed。Scanner 是 presence-only，内容 drift 不做比对（v1.19.0 起；前期通过 `npx skills update --project` 直接对每个 skill 的上游 HEAD 比对，本扫描器只判存在性） |
+| Plugins (Claude) | `claude plugins list --json` + 客户端按 `record.scope === "user"` 过滤 | 同命令 + 按 `record.scope === "project"` 且 `record.projectPath === <projectRoot>` 过滤 | `installed[id].version` 存在 → installed（id 双索引：CLI 用 `<plugin>@<marketplace>` 形式，catalog 用裸名）；CLI 不在 PATH → 类目降级 + `claude-cli-missing` warning |
+| Plugins (Codex) | `~/.codex/config.toml` 启用项 + `~/.codex/plugins/cache/<marketplace>/<plugin>/<version>/` 存在 → installed | n/a — Codex 设计上 user-scope only | 不做版本比对 |
+| Hooks | `~/.claude/settings.json` 的 `hooks.<Event>[].hooks[]` 按 `_marker` sentinel 匹配 catalog 登记的 hook | `<proj>/.claude/settings.json` 同段同匹配 | 文件缺 → not-installed（不发 warning）；JSON 损坏 → not-installed + `settings-unreadable` warning；marker 命中 → installed（v1.19.0 起不再检测 matcher / if / event drift——re-install 是修复路径） |
 
 **默认 scope**（与 install 默认一致）：workflow=project，skills=project，plugins=user，hooks=user。UI 每列有独立的 scope 下拉，切换即触发该列单独 refetch。
 
-**真值源迁移说明（v1.16.0 → v1.16.1）**：v1.16.0 读 auriga-cli **dev 仓库自己的清单文件**（`<cwd>/.claude/plugins.json`、`<cwd>/skills-lock.json`、`<cwd>/.claude/hooks/hooks.json`），结果用户在普通项目或 `~/` 下都看到「全 not installed」。v1.16.1 全部换成 Claude Code 实际安装位置（上表）。`claude plugins list` 不支持 `--user/--project` 旗标，scope 过滤改在客户端做。skill 的 `expectedHash` 当时改为 `sha256(SKILL.md bytes)` —— `skills-lock.json` 的 `computedHash`（全目录 sorted-hash）与该算法不兼容，过去比对永远不等，现在不再读 lock 文件。
-
-**v1.18.4 后续修订**：v1.16.1 之前的 skill drift 检测**已撤销**——scan-catalog 现在所有 skill 都设 `expectedHash: ""` 通配符，scanner 退化为「SKILL.md 存在 → installed，缺失 → not-installed」二态。原因：`npx skills update --project` 已经直接对每个 skill 上游 HEAD 做比对，我们的 catalog 烤焙的 hash 顶多是发版瞬间的快照，再做 drift 比对反而把"用户已手动升级到最新"误判成"漂移了"。同 PR 把 plugin `agents` map / `external` 标志 / workflow version 全部 build 时烤进 `dist/catalog.json` —— 因为 `package.json` `files` 字段只 ship `dist/`，runtime 读 `.claude/plugins.json` / `.agents/plugins/install.json` / `CLAUDE.md` 在 npm 装好后都拿空（dev 环境 packageRoot=repoRoot 才能撑住，掩盖了 bug）。配套 `tests/tarball-shape.test.ts` 元 regression 在 CI 守这个契约。
-
-**Plugin 期望版本号的真值源选择（v1.18.2 → v1.18.3）**：scanner 判 `update-available` 需要"上游应该是几号版本"。三个候选源：
-
-| 源 | 含义 | 用 / 不用的原因 |
-|---|---|---|
-| (A) `~/.claude/plugins/marketplaces/<marketplace>/plugins/<name>/.claude-plugin/plugin.json` | Claude Code 本地缓存的 marketplace 镜像 | **不用**：stale，需要用户手动 `claude plugins update <marketplace>` 才会刷新，UI 没法告诉用户「你的缓存过期了」 |
-| (B) `claude plugins list --available --json` 的 `.available[]` | Claude CLI 给的 "marketplace 当前可用列表" | **只用于 fresh-install 场景**：CLI 故意把已装 plugin 从 `.available[]` 排除，所以已装升级永远查不到。`available[i].source.ref` 在能拿到时优先（最 fresh），拿不到才退到 (C) |
-| (C) auriga-cli 自己 `dist/catalog.json` 里 `plugins[i].expectedVersion` | build 时从 `plugins/<name>/.claude-plugin/plugin.json` 烤入 | **owned in-tree plugins 的主源**：auriga-go / auriga-git-guards / deep-review / session-instructions-loader 都是本仓库 owned，它们的 `plugin.json` 就是权威版本号。用户跑 `npm i auriga-cli@latest` 即刻同步 |
-
-外部 marketplace plugin（skill-creator、claude-md-management、codex 这类 upstream 不在本仓库的）**不烤** `expectedVersion`：钉版本会让我们追不上 upstream 的发版节奏，每次 upstream bump 都误报 update。scanner 在 `expectedVersion` 缺失时退化为「信任已装」，符合"我们不发版你自己管"的契约。
-
-trade-off：用 (C) 意味着想暴露新 plugin 版本必须重发 auriga-cli。可接受 —— 自家 plugin 的 bump 总会跟 auriga-cli 的 release 走（修 plugin 就 bump auriga-cli 即可）。
-
-`classifyClaudePlugin` 优先级：`available[].source.ref` 可解析 semver → 用 (B)，`versionSource: "upstream-live"`；否则用 (C) baked `expectedVersion`，`versionSource: "catalog"`。两个值都拿不到 → 信任已装。
-
-**v1.18.2 的常见误区（建议避免）**：版本号读取必须在 **build 时**入 `dist/catalog.json`，不能在 runtime 读 `packageRoot/plugins/<name>/plugin.json`。`package.json` `files` 字段只 ship `dist/`，runtime 读 `plugins/` 会在 npm 装好后静默拿空。dev 环境（`packageRoot === repoRoot`）能跑通是巧合，会掩盖这个 bug 直到打 tarball 发出去。该规则记录在 [.claude/CLAUDE.md → Principles](../.claude/CLAUDE.md#principles)。
+**历史决策迁档（v1.16.0 → v1.18.5）**：v1.16.0 → v1.16.1 真值源迁移、v1.18.4 skill drift 撤销 + catalog bake、v1.18.2 → v1.18.3 plugin 期望版本号真值源选择（三选一权衡 + `versionSource` 字段）等围绕"判 update-available 应该信任哪份版本号"的历史决策，全部在 v1.19.0 deprecate update-available surface 时变得不再适用。原始决策记录归档到 [`docs/worklog/worklog-2026-05-13-refactor-drop-update-status/web-ui-history.md`](../worklog/worklog-2026-05-13-refactor-drop-update-status/web-ui-history.md)。
 
 **降级路径汇总**：
 
@@ -314,14 +288,13 @@ trade-off：用 (C) 意味着想暴露新 plugin 版本必须重发 auriga-cli�
 | `which claude` 失败 | Plugins (Claude) degraded rows + `claude-cli-missing` warning |
 | `<scope>/.claude/settings.json` 损坏 JSON | Hooks 落 not-installed + `settings-unreadable` warning |
 | Skill 目录存在但 SKILL.md 不可读 | 该 skill installed + 一次性 `skill-malformed` warning，兄弟 skill 不受影响 |
-| CLAUDE.md 存在但无 auriga 头 | not-installed + `workflow-foreign-claudemd` warning（v1.18.5 起；老版本错报 installed 把 `~/` 当 projectRoot 时尤其有问题） |
-| Dual-Agent plugin 一边装一边没装 | partial-install + `missingAgents: [<missing-agent>]`（v1.18.5 起；老版本错报 update-available 显示 "vX → vX" 假升级） |
+| CLAUDE.md 存在但无 auriga 头 | not-installed + `workflow-foreign-claudemd` warning |
+| Dual-Agent plugin 一边装一边没装 | partial-install + `missingAgents: [<missing-agent>]` |
 
 **Claude / Codex Plugins 不对称的合理性**：
 
-- Claude CLI 提供 `--available` 模式直接活查上游，精度最高；离线 / CLI 缺失时降级
-- Codex CLI 没有 `list` 子命令，只能靠 filesystem + auriga-cli catalog；catalog 在 CLI 发版时烤入，对 auriga-cli-owned plugins（auriga-go 等）足够精确，对外部 plugins 精度取决于 CLI 新鲜度
-- 该 trade-off 已记录在 [10.1 决策日志](#101-决策日志)
+- Claude CLI 提供 `plugins list --json` 直接拿到本地安装清单；Codex CLI 没有等价命令，只能靠 filesystem 推断
+- 两侧的 presence 判定结果交给 `mergePluginsById` 合成最终 `agents` 数组 + status / missingAgents 输出
 
 ### 6.4 Apply 执行模型
 
@@ -482,10 +455,10 @@ UI bundle 路径键就是 `v<package.version>`，CLI 启动时根据自身版本
 | 前端栈 | React + Vite + Tailwind | 生态最熟，Agent 写 React UI 质量最高 |
 | 仓库布局 | 同仓库 `ui/` 子目录，不用 npm workspaces | 简单优先 |
 | installer 集成方式 | A 方案：薄 wrapper + 独立 scanner（读 catalog） | 工程量最小，catalog 已是真值源；preview 推迟 |
-| Plugin 期望版本源 | Claude 走活上游，Codex 走 catalog（不对称） | Claude 体验最优，Codex 受限于其 CLI 无 `list` |
+| Plugin 期望版本源 | n/a（v1.19.0 起不再做版本对比；re-install 是 update 路径） | 看 [worklog/refactor-drop-update-status](../worklog/worklog-2026-05-13-refactor-drop-update-status/web-ui-history.md) 的 trade-off 记录 |
 | Apply 并发 | 串行 + 单项失败继续 | installer 撞共享文件；继续比 fail-fast 实用 |
 | 生命周期 | 浏览器心跳 + 120s 超时退出 | "关浏览器 = 关 server" 自然体验；超时长到能容忍 Chrome 后台 tab throttling |
-| 卸载范围 | v0.1 包含 install / update / uninstall 三动作 | UI dashboard 完整性需要 |
+| 卸载范围 | v0.1 包含 install / uninstall 两动作（v1.19.0 起去掉 update——re-install 是 update 路径） | UI dashboard 完整性需要；installer 都幂等覆写，单独的 update 动作和 install 没有行为差异 |
 | Plugins 二态/三态 | Claude 三态（CLI 离线 / 缺失时降级二态 + warning）、Codex 三态（仅对 catalog 登记项；非 catalog plugin 不展示） | 与 scanner depth = 三态目标一致 |
 | e2e 形态 | v0.1 含 **hermetic spawn-CLI 调用 + HOME 重定向 + scratch 项目** 的 e2e 套（`tests/web-ui-e2e.test.ts`，plain `node:test`，无 Playwright）；Playwright browser overlay 推迟到 v0.2，但保留实现路径——同一套 fixture 可以无成本接上 | 用户接受“模拟环境也行”的等价要求；Vitest + RTL 已覆盖 UI 渲染层，server-apply.test.ts 覆盖 SSE/文件副作用契约；Playwright 的增量价值（“真浏览器 × 真后端”）在 v0.1 的边际收益不抵其 ~80MB 浏览器依赖 + CI flakiness 成本 |
 | 视觉系统 | 复用 Anthropic 自家"温白 + Clay 强调"风格的全套 token；DESIGN.md 入仓；强制 polish 阶段调 `make-interfaces-feel-better` skill | 视觉品质是非工程师用户的关键体验差距；现成且自洽的 token 系统避免新造车；polish skill 把"hover/focus/empty/error"这类容易漏的细节按方法论补齐 |
@@ -637,8 +610,7 @@ DESIGN.md：「metadata labels are pure text with no chip/pill/capsule treatment
 | 状态 | 徽章文字（Anthropic Mono 12px，uppercase） | 颜色 token | 卡片背景 token |
 |---|---|---|---|
 | 已装 | `INSTALLED` | `--color-cloud-dark` (#87867f) | `--color-ivory-light` (持平页面) |
-| 可更新 | `UPDATE` | `--color-clay` (#d97757) | `--color-ivory-medium` (#f0eee6，"浮起") |
-| 部分装 | `PARTIAL` | `--color-clay` (#d97757，与 UPDATE 同色——label 区分；副 caption 显示 "Missing on \<agent\>") | `--color-ivory-medium` |
+| 部分装 | `PARTIAL` | `--color-clay` (#d97757) | `--color-ivory-medium` (#f0eee6，"浮起") |
 | 未装 | `NOT INSTALLED` | `--color-slate-light` (#5e5d59，v1.18.4 起从 cloud-medium 提升过 WCAG AA) | `--color-ivory-light` (持平) |
 | 错误 | `ERROR` | `--color-accent-ember` (#c6613f) | `--color-ivory-medium` |
 
@@ -664,5 +636,5 @@ M6 阶段独立调 `make-interfaces-feel-better` skill，覆盖：
 - **极端场景**：长 item 名（CSS truncate + tooltip）、多 hook 滚动、离线 banner 与错误叠加
 - **打印 / 高对比无障碍**：DESIGN.md 本身高对比，但 polish 阶段验证一遍
 
-polish 完毕的验收：随机 3 个 fixture 项目走完 install + update + uninstall，所有交互在 hover / focus / loading / error 任一状态下都不出现 token 外的视觉元素，且 100% 通过键盘可达。
+polish 完毕的验收：随机 3 个 fixture 项目走完 install + uninstall，所有交互在 hover / focus / loading / error 任一状态下都不出现 token 外的视觉元素，且 100% 通过键盘可达。
 
