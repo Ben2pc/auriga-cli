@@ -113,7 +113,9 @@ npx auriga-cli
 | claude-code-agent | [Ben2pc/g-claude-code-plugins](https://github.com/Ben2pc/g-claude-code-plugins) | 通过 Claude Code Agent SDK 把任务委派给独立 Claude Code 会话 |
 | code-simplification | [addyosmani/agent-skills](https://github.com/addyosmani/agent-skills) | 不改变行为前提下重构代码以提升可读性 —— 清掉累积的不必要复杂度 |
 | codex-agent | [Ben2pc/g-claude-code-plugins](https://github.com/Ben2pc/g-claude-code-plugins) | 委派给 Codex 会话，做跨模型覆盖 |
+| deprecation-and-migration | [addyosmani/agent-skills](https://github.com/addyosmani/agent-skills) | 废弃与迁移流程 —— 安全地下线、替换或迁移遗留代码 |
 | design-taste-frontend | [Leonxlnx/taste-skill](https://github.com/Leonxlnx/taste-skill) | 高阶 UI/UX 工程师 —— 度量化设计规则与严格的组件架构约束 |
+| documentation-and-adrs | [addyosmani/agent-skills](https://github.com/addyosmani/agent-skills) | 记录架构决策与"为什么" —— 为后来的工程师和 Agent 沉淀上下文 |
 | frontend-design | [anthropics/skills](https://github.com/anthropics/skills) | 生成有辨识度、production 级的前端界面，避开常见 AI 同质化美学 |
 | make-interfaces-feel-better | [jakubkrehel/make-interfaces-feel-better](https://github.com/jakubkrehel/make-interfaces-feel-better) | 界面打磨原则 —— 动画、表面、排版、性能 |
 
