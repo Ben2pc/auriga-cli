@@ -18,6 +18,7 @@ import { parse as parseToml } from "smol-toml";
 
 import type {
   HookState,
+  ItemStatus,
   PluginState,
   SkillState,
   StateReport,
@@ -33,7 +34,8 @@ export interface Catalog {
     string,
     {
       description: string;
-      agent: "claude" | "codex";
+      /** Agents this plugin can install into. Length 1 or 2. */
+      agents: ("claude" | "codex")[];
       expectedVersion?: string;
     }
   >;
@@ -98,10 +100,67 @@ export async function scanState(
     workflow,
     skills,
     recommendedSkills,
-    plugins: [...claudePlugins, ...codexPlugins],
+    plugins: mergePluginsByName([...claudePlugins, ...codexPlugins]),
     hooks,
     warnings,
   };
+}
+
+/**
+ * Dedupe plugins by `id`, merging dual-Agent records into a single
+ * multi-agent row. Aggregation rules:
+ *
+ *   agents:  union of all agent arrays for this id (claude before codex).
+ *   status:  installed     ⇔ every agent's record is installed
+ *            not-installed ⇔ every agent's record is not-installed
+ *            otherwise     → update-available (partial install or any agent
+ *                            with a pending update). One Apply covers all
+ *                            gaps because the handler iterates `agents`.
+ *
+ * Non-status fields (description, currentVersion, expectedVersion,
+ * versionSource) come from the first record we see. Today both sides report
+ * the same description (catalog-driven) and the same versions for any
+ * registry-pinned plugin, so this is safe; if a future divergence appears
+ * we'll need a deliberate merge policy.
+ */
+export function mergePluginsByName(records: PluginState[]): PluginState[] {
+  const byId = new Map<string, PluginState>();
+  const statusByIdPerAgent = new Map<string, ItemStatus[]>();
+  for (const rec of records) {
+    const existing = byId.get(rec.id);
+    if (!existing) {
+      byId.set(rec.id, { ...rec });
+      statusByIdPerAgent.set(rec.id, [rec.status]);
+      continue;
+    }
+    // Union agents preserving order: existing first, then any new ones.
+    const seen = new Set(existing.agents);
+    for (const a of rec.agents) {
+      if (!seen.has(a)) {
+        existing.agents = [...existing.agents, a];
+        seen.add(a);
+      }
+    }
+    statusByIdPerAgent.get(rec.id)!.push(rec.status);
+  }
+  // Fold each id's per-agent status list into the aggregated status.
+  for (const [id, statuses] of statusByIdPerAgent) {
+    const rec = byId.get(id);
+    if (!rec) continue;
+    rec.status = aggregateStatus(statuses);
+  }
+  return Array.from(byId.values());
+}
+
+function aggregateStatus(statuses: ItemStatus[]): ItemStatus {
+  if (statuses.length === 0) return "not-installed";
+  if (statuses.every((s) => s === "installed")) return "installed";
+  if (statuses.every((s) => s === "not-installed")) return "not-installed";
+  // Anything else — partial install, pending updates on any agent, mixed
+  // — falls through to update-available so a single Apply backfills the
+  // missing pieces. This is the boundary the user asked for: "一边装一边
+  // 没装" surfaces as a yellow UPDATE pill rather than a misleading green.
+  return "update-available";
 }
 
 // ---------------------------------------------------------------------------
@@ -231,7 +290,9 @@ function filterPluginsByAgent(
   catalogPlugins: Catalog["plugins"],
   agent: "claude" | "codex",
 ): Array<[string, Catalog["plugins"][string]]> {
-  return Object.entries(catalogPlugins).filter(([, def]) => def.agent === agent);
+  return Object.entries(catalogPlugins).filter(([, def]) =>
+    def.agents.includes(agent),
+  );
 }
 
 /** Normalize a version ref: "v1.2.3" → "1.2.3", "1.2.3" → "1.2.3".
@@ -300,7 +361,7 @@ function degradedClaudeRow(
     id,
     description: def.description,
     status: "not-installed",
-    agent: "claude",
+    agents: ["claude"],
     expectedVersion: def.expectedVersion,
     versionSource: "upstream-live",
   };
@@ -318,7 +379,7 @@ function classifyClaudePlugin(
       id,
       description: def.description,
       status: "not-installed",
-      agent: "claude",
+      agents: ["claude"],
       expectedVersion:
         typeof available?.source?.ref === "string" ? available.source.ref : def.expectedVersion,
       versionSource: "upstream-live",
@@ -343,7 +404,7 @@ function classifyClaudePlugin(
       id,
       description: def.description,
       status: "installed",
-      agent: "claude",
+      agents: ["claude"],
       currentVersion: installedVersion,
       expectedVersion: typeof ref === "string" ? ref : def.expectedVersion,
       versionSource: "upstream-live",
@@ -356,7 +417,7 @@ function classifyClaudePlugin(
       id,
       description: def.description,
       status: "installed",
-      agent: "claude",
+      agents: ["claude"],
       currentVersion: installedVersion,
       expectedVersion: typeof ref === "string" ? ref : undefined,
       versionSource: "upstream-live",
@@ -366,7 +427,7 @@ function classifyClaudePlugin(
     id,
     description: def.description,
     status: "update-available",
-    agent: "claude",
+    agents: ["claude"],
     currentVersion: installedVersion,
     expectedVersion: typeof ref === "string" ? ref : undefined,
     versionSource: "upstream-live",
@@ -439,7 +500,7 @@ function degradedCodexRow(
     id,
     description: def.description,
     status: "not-installed",
-    agent: "codex",
+    agents: ["codex"],
     expectedVersion: def.expectedVersion,
     versionSource: "catalog",
   };
@@ -458,7 +519,7 @@ function classifyCodexPlugin(
       id,
       description: def.description,
       status: "not-installed",
-      agent: "codex",
+      agents: ["codex"],
       expectedVersion,
       versionSource: "catalog",
     };
@@ -470,7 +531,7 @@ function classifyCodexPlugin(
       id,
       description: def.description,
       status: "not-installed",
-      agent: "codex",
+      agents: ["codex"],
       expectedVersion,
       versionSource: "catalog",
     };
@@ -482,7 +543,7 @@ function classifyCodexPlugin(
       id,
       description: def.description,
       status: "installed",
-      agent: "codex",
+      agents: ["codex"],
       currentVersion: fsVersion,
       expectedVersion,
       versionSource: "catalog",
@@ -492,7 +553,7 @@ function classifyCodexPlugin(
     id,
     description: def.description,
     status: "update-available",
-    agent: "codex",
+    agents: ["codex"],
     currentVersion: fsVersion,
     expectedVersion,
     versionSource: "catalog",

@@ -74,7 +74,7 @@ function makeReport(overrides: Partial<StateReport> = {}): StateReport {
         id: "auriga-go@auriga-cli",
         description: "Workflow autopilot",
         status: "installed",
-        agent: "claude",
+        agents: ["claude"],
         currentVersion: "1.0.0",
         expectedVersion: "1.0.0",
         versionSource: "catalog",

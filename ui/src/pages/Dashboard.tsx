@@ -842,6 +842,7 @@ function PluginsSection({
             onSelectChange={(isSel) =>
               onToggle("plugin", plugin.id, plugin.status, isSel)
             }
+            agents={plugin.agents}
           />
         );
       })}

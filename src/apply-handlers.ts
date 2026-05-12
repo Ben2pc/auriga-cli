@@ -41,11 +41,12 @@ export interface ApplyHandlerContext {
   packageRoot: string;
   /** Target project directory. Installers write here. */
   cwd: string;
-  /** Resolves plugin name → "claude" | "codex" so uninstall + install know
-   *  which agent's marketplace to use. Built at boot from the same scan
-   *  catalog the /api/state route uses. Names not in the map default to
-   *  "claude" (existing CLI default). */
-  pluginAgentsByName: Map<string, "claude" | "codex">;
+  /** Resolves plugin name → the list of agents this plugin can install
+   *  into. Built at boot from the same scan catalog the /api/state route
+   *  uses. dual-Agent plugins (e.g. `auriga-go`) yield `["claude","codex"]`
+   *  and the handler iterates the list, installing to each agent in turn.
+   *  Names not in the map default to `["claude"]` (existing CLI default). */
+  pluginAgentsByName: Map<string, ("claude" | "codex")[]>;
   /** Workflow language for install. Defaults to "en". */
   workflowLang?: string;
 }
@@ -139,23 +140,28 @@ export function buildDefaultApplyHandlers(
 
   const plugin: ApplyHandler = async (action, name, { onLog, scope }) => {
     assertAction(action);
-    const agent = pluginAgentsByName.get(name) ?? "claude";
+    const agents = pluginAgentsByName.get(name) ?? ["claude"];
     const installScope = scope ?? "project";
-    if (action === "install" || action === "update") {
-      await installPlugins(packageRoot, {
-        interactive: false,
-        cwd,
-        agent,
-        selected: [name],
-        scope: installScope,
-      });
-      onLog(`plugin ${name} installed (${agent}, ${installScope})`, "info");
-      return;
+    // dual-Agent plugins (length === 2) install into each agent in turn.
+    // Order is the order the scanner emitted, which is "claude" before
+    // "codex" — matches the Web UI's data-flow expectation.
+    for (const agent of agents) {
+      if (action === "install" || action === "update") {
+        await installPlugins(packageRoot, {
+          interactive: false,
+          cwd,
+          agent,
+          selected: [name],
+          scope: installScope,
+        });
+        onLog(`plugin ${name} installed (${agent}, ${installScope})`, "info");
+      } else {
+        await uninstallPlugin(name, agent, {
+          cwd,
+          onLog: (line) => onLog(`[${agent}] ${line}`, "info"),
+        });
+      }
     }
-    await uninstallPlugin(name, agent, {
-      cwd,
-      onLog: (line) => onLog(line, "info"),
-    });
   };
 
   const hook: ApplyHandler = async (action, name, { onLog, scope }) => {

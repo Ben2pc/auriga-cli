@@ -709,9 +709,9 @@ async function runUi(p: UiParsed, version: string): Promise<number> {
     plugin: new Set<string>(Object.keys(scanCatalog.plugins)),
     hook: new Set<string>(Object.keys(scanCatalog.hooks)),
   };
-  const pluginAgentsByName = new Map<string, "claude" | "codex">();
+  const pluginAgentsByName = new Map<string, ("claude" | "codex")[]>();
   for (const [name, def] of Object.entries(scanCatalog.plugins)) {
-    pluginAgentsByName.set(name, def.agent);
+    pluginAgentsByName.set(name, def.agents);
   }
   const applyHandlers = buildDefaultApplyHandlers({
     packageRoot,

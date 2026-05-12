@@ -252,6 +252,34 @@ describe("StateCard — version metadata", () => {
   });
 });
 
+describe("StateCard — agents badge", () => {
+  test("no agents prop → no badge rendered", () => {
+    render(<StateCard {...baseProps()} />);
+    expect(screen.queryByTestId("statecard-agents")).toBeNull();
+  });
+
+  test("single-agent claude → CLAUDE label", () => {
+    render(<StateCard {...baseProps({ agents: ["claude"] })} />);
+    const badge = screen.getByTestId("statecard-agents");
+    expect(badge.textContent).toBe("CLAUDE");
+    expect(badge.getAttribute("data-agents")).toBe("claude");
+  });
+
+  test("single-agent codex → CODEX label", () => {
+    render(<StateCard {...baseProps({ agents: ["codex"] })} />);
+    const badge = screen.getByTestId("statecard-agents");
+    expect(badge.textContent).toBe("CODEX");
+    expect(badge.getAttribute("data-agents")).toBe("codex");
+  });
+
+  test("dual-Agent plugin (both claude + codex) → BOTH label", () => {
+    render(<StateCard {...baseProps({ agents: ["claude", "codex"] })} />);
+    const badge = screen.getByTestId("statecard-agents");
+    expect(badge.textContent).toBe("BOTH");
+    expect(badge.getAttribute("data-agents")).toBe("claude,codex");
+  });
+});
+
 describe("StateCard — long content handling", () => {
   test("a very long description clamps to 2 lines with ellipsis", () => {
     // Kanban cell uses a 2-line line-clamp (overflow hidden + webkit-box +

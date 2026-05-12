@@ -39,6 +39,12 @@ export interface StateCardProps {
   selected: boolean;
   onSelectChange: (selected: boolean) => void;
   uninstallable?: boolean;
+  /** Optional Agent runtimes this item installs into. Only meaningful for
+   *  plugins today. When set with one entry the badge reads CLAUDE or
+   *  CODEX; with two entries it reads BOTH. Omitted = no badge (the card
+   *  doesn't belong to a category where agent split is meaningful, e.g.
+   *  workflow / skill / hook). */
+  agents?: ("claude" | "codex")[];
 }
 
 interface StatusVisual {
@@ -75,6 +81,12 @@ function shortHash(hash: string | undefined): string | undefined {
   return hash.slice(0, 8);
 }
 
+function agentLabel(agents: ("claude" | "codex")[] | undefined): string | null {
+  if (!agents || agents.length === 0) return null;
+  if (agents.length === 2) return "BOTH";
+  return agents[0].toUpperCase();
+}
+
 export default function StateCard({
   name,
   description,
@@ -86,6 +98,7 @@ export default function StateCard({
   selected,
   onSelectChange,
   uninstallable = false,
+  agents,
 }: StateCardProps): JSX.Element {
   const visual = STATUS_VISUALS[status];
 
@@ -300,6 +313,9 @@ export default function StateCard({
             display: "flex",
             gap: "8px",
             flexWrap: "wrap",
+            alignItems: "baseline",
+            flex: 1,
+            justifyContent: "flex-end",
           }}
         >
           {versionDiff && (
@@ -310,6 +326,23 @@ export default function StateCard({
           )}
           {uninstallable && (
             <span data-testid="statecard-uninstallable">REMOVABLE</span>
+          )}
+          {agentLabel(agents) && (
+            <span
+              data-testid="statecard-agents"
+              data-agents={(agents ?? []).join(",")}
+              className="font-anthropic-mono uppercase"
+              style={{
+                color: "var(--color-clay)",
+                border: "1px solid var(--color-clay)",
+                padding: "0 4px",
+                letterSpacing: "0.04em",
+                fontWeight: 600,
+                lineHeight: "14px",
+              }}
+            >
+              {agentLabel(agents)}
+            </span>
           )}
         </div>
       </div>

@@ -124,12 +124,15 @@ export async function buildScanCatalog(
   }
 
   for (const entry of dist.plugins) {
-    const agent: "claude" | "codex" = claudeNames.has(entry.name)
-      ? "claude"
-      : codexNames.has(entry.name)
-        ? "codex"
-        : "claude"; // default
-    plugins[entry.name] = { description: entry.description, agent };
+    // Collect every agent that registers this plugin. A plugin can ship in
+    // both registries (cross-agent plugins like auriga-go); we emit it as
+    // a single multi-agent record so the UI shows one row + BOTH badge and
+    // Apply installs to each side.
+    const agents: ("claude" | "codex")[] = [];
+    if (claudeNames.has(entry.name)) agents.push("claude");
+    if (codexNames.has(entry.name)) agents.push("codex");
+    if (agents.length === 0) agents.push("claude"); // unknown defaults to claude
+    plugins[entry.name] = { description: entry.description, agents };
   }
 
   // Hooks: runtime SHA256 of each hook's index.mjs serves as the expected

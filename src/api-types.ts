@@ -33,11 +33,20 @@ export interface SkillState {
   expectedHash: string;
 }
 
+export type ApplyAgent = "claude" | "codex";
+
 export interface PluginState {
   id: string;
   description: string;
   status: ItemStatus;
-  agent: "claude" | "codex";
+  /** Which Agent runtimes this plugin can install into. Most plugins target
+   *  a single agent; dual-Agent plugins (e.g. auriga-go) have both. When
+   *  `agents.length === 2` the UI shows a BOTH badge and Apply installs to
+   *  each agent in turn. Status is aggregated across all targeted agents:
+   *  `installed` ⇔ all agents installed; `not-installed` ⇔ all not-installed;
+   *  any partial state (one side installed, other not) → `update-available`
+   *  so a single Apply backfills the missing side. */
+  agents: ApplyAgent[];
   currentVersion?: string;
   expectedVersion?: string;
   versionSource: "upstream-live" | "catalog";

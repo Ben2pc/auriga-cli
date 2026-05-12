@@ -83,7 +83,7 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, test } from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { scanState } from "../src/state.js";
+import { mergePluginsByName, scanState } from "../src/state.js";
 import type { Catalog, ScanOptions } from "../src/state.js";
 import type {
   HookState,
@@ -394,7 +394,7 @@ describe("scanState — Claude plugins tri-state + ref normalization", () => {
       plugins: {
         "missing-x@auriga-cli": {
           description: "",
-          agent: "claude",
+          agents: ["claude"],
         },
       },
     });
@@ -403,13 +403,13 @@ describe("scanState — Claude plugins tri-state + ref normalization", () => {
     });
     const p = report.plugins.find((x) => x.id === "missing-x@auriga-cli")!;
     assert.equal(p.status, "not-installed");
-    assert.equal(p.agent, "claude");
+    assert.deepEqual(p.agents, ["claude"]);
   });
 
   test("installed.version === parseRef(available.source.ref) → installed (spec §6.3)", async () => {
     const catalog = makeCatalog({
       plugins: {
-        "auriga-go@auriga-cli": { description: "", agent: "claude" },
+        "auriga-go@auriga-cli": { description: "", agents: ["claude"] },
       },
     });
     const report = await scanState(makeScratch("p-eq"), catalog, {
@@ -431,7 +431,7 @@ describe("scanState — Claude plugins tri-state + ref normalization", () => {
     // false-positive update prompts for every plugin whose installer
     // strips the prefix.
     const catalog = makeCatalog({
-      plugins: { "auriga-go@auriga-cli": { description: "", agent: "claude" } },
+      plugins: { "auriga-go@auriga-cli": { description: "", agents: ["claude"] } },
     });
     const report = await scanState(makeScratch("p-norm"), catalog, {
       execPluginList: mockExec({
@@ -447,7 +447,7 @@ describe("scanState — Claude plugins tri-state + ref normalization", () => {
 
   test("installed.version differs from parseRef(ref) → update-available (spec §6.3)", async () => {
     const catalog = makeCatalog({
-      plugins: { "auriga-go@auriga-cli": { description: "", agent: "claude" } },
+      plugins: { "auriga-go@auriga-cli": { description: "", agents: ["claude"] } },
     });
     const report = await scanState(makeScratch("p-diff"), catalog, {
       execPluginList: mockExec({
@@ -468,7 +468,7 @@ describe("scanState — Claude plugins tri-state + ref normalization", () => {
     // install), do NOT show "update-available" — that would push users into
     // a reinstall loop. Treat as "we trust it's installed, just can't verify".
     const catalog = makeCatalog({
-      plugins: { "auriga-go@auriga-cli": { description: "", agent: "claude" } },
+      plugins: { "auriga-go@auriga-cli": { description: "", agents: ["claude"] } },
     });
     const report = await scanState(makeScratch("p-unknown"), catalog, {
       execPluginList: mockExec({
@@ -486,7 +486,7 @@ describe("scanState — Claude plugins tri-state + ref normalization", () => {
     // Marketplaces pinned to a moving target ("main", "HEAD") cannot be
     // version-compared. Treat as installed rather than perpetual update.
     const catalog = makeCatalog({
-      plugins: { "auriga-go@auriga-cli": { description: "", agent: "claude" } },
+      plugins: { "auriga-go@auriga-cli": { description: "", agents: ["claude"] } },
     });
     const report = await scanState(makeScratch("p-branch"), catalog, {
       execPluginList: mockExec({
@@ -502,7 +502,7 @@ describe("scanState — Claude plugins tri-state + ref normalization", () => {
 
   test("execPluginList not injected + catalog has claude plugin → degraded + warning (spec §6.3)", async () => {
     const catalog = makeCatalog({
-      plugins: { "auriga-go@auriga-cli": { description: "", agent: "claude" } },
+      plugins: { "auriga-go@auriga-cli": { description: "", agents: ["claude"] } },
     });
     const report = await scanState(makeScratch("p-no-cli"), catalog);
     // Warning code is fixed by the StateWarning union; assert it surfaces.
@@ -512,14 +512,14 @@ describe("scanState — Claude plugins tri-state + ref normalization", () => {
     );
     // Category is degraded to binary: every plugin reports either installed
     // or not-installed, never update-available (since we can't compare).
-    for (const p of report.plugins.filter((x) => x.agent === "claude")) {
+    for (const p of report.plugins.filter((x) => x.agents.includes("claude"))) {
       assert.notEqual(p.status, "update-available", "no update-available in degraded mode");
     }
   });
 
   test("execPluginList throws → degraded + warning, no crash (spec §6.3)", async () => {
     const catalog = makeCatalog({
-      plugins: { "auriga-go@auriga-cli": { description: "", agent: "claude" } },
+      plugins: { "auriga-go@auriga-cli": { description: "", agents: ["claude"] } },
     });
     let report: StateReport;
     await assert.doesNotReject(async () => {
@@ -549,9 +549,9 @@ describe("scanState — Claude plugins tri-state + ref normalization", () => {
     const payload = JSON.parse(fs.readFileSync(fixturePath, "utf8"));
     const catalog = makeCatalog({
       plugins: {
-        "good-a@auriga-cli": { description: "", agent: "claude" },
-        "good-b@auriga-cli": { description: "", agent: "claude" },
-        "broken-c@auriga-cli": { description: "", agent: "claude" },
+        "good-a@auriga-cli": { description: "", agents: ["claude"] },
+        "good-b@auriga-cli": { description: "", agents: ["claude"] },
+        "broken-c@auriga-cli": { description: "", agents: ["claude"] },
       },
     });
     const report = await scanState(makeScratch("p-iso"), catalog, {
@@ -581,7 +581,7 @@ describe("scanState — Codex plugins tri-state", () => {
       plugins: {
         "auriga-go@auriga-cli": {
           description: "",
-          agent: "codex",
+          agents: ["codex"],
           expectedVersion: "1.0.0",
         },
       },
@@ -592,7 +592,7 @@ describe("scanState — Codex plugins tri-state", () => {
     });
     const p = report.plugins.find((x) => x.id === "auriga-go@auriga-cli")!;
     assert.equal(p.status, "not-installed");
-    assert.equal(p.agent, "codex");
+    assert.deepEqual(p.agents, ["codex"]);
   });
 
   test("toml enables + fs version matches catalog → installed (spec §6.3)", async () => {
@@ -600,7 +600,7 @@ describe("scanState — Codex plugins tri-state", () => {
       plugins: {
         "auriga-go@auriga-cli": {
           description: "",
-          agent: "codex",
+          agents: ["codex"],
           expectedVersion: "1.0.0",
         },
       },
@@ -623,7 +623,7 @@ describe("scanState — Codex plugins tri-state", () => {
       plugins: {
         "auriga-go@auriga-cli": {
           description: "",
-          agent: "codex",
+          agents: ["codex"],
           expectedVersion: "2.0.0",
         },
       },
@@ -645,7 +645,7 @@ describe("scanState — Codex plugins tri-state", () => {
       plugins: {
         "auriga-go@auriga-cli": {
           description: "",
-          agent: "codex",
+          agents: ["codex"],
           expectedVersion: "1.0.0",
         },
       },
@@ -680,7 +680,7 @@ describe("scanState — Codex plugins tri-state", () => {
       plugins: {
         "auriga-go@auriga-cli": {
           description: "",
-          agent: "codex",
+          agents: ["codex"],
           expectedVersion: "1.0.0",
         },
       },
@@ -707,7 +707,7 @@ describe("scanState — Codex plugins tri-state", () => {
       plugins: {
         "auriga-go@auriga-cli": {
           description: "",
-          agent: "codex",
+          agents: ["codex"],
           expectedVersion: "1.0.0",
         },
       },
@@ -863,7 +863,10 @@ describe("scanState — property assertions across full reports", () => {
       }
       for (const p of r.plugins) {
         assert.ok(VALID_STATUS.has(p.status));
-        assert.ok(p.agent === "claude" || p.agent === "codex");
+        assert.ok(Array.isArray(p.agents) && p.agents.length > 0);
+        for (const a of p.agents) {
+          assert.ok(a === "claude" || a === "codex");
+        }
       }
       for (const h of r.hooks) {
         assert.ok(VALID_STATUS.has(h.status));
@@ -893,7 +896,7 @@ describe("scanState — property assertions across full reports", () => {
           isWorkflow: true,
         },
       },
-      plugins: { "auriga-go@auriga-cli": { description: "", agent: "claude" } },
+      plugins: { "auriga-go@auriga-cli": { description: "", agents: ["claude"] } },
     });
     const opts: ScanOptions = {
       execPluginList: mockExec({
@@ -984,10 +987,10 @@ describe("scanState — composite full-report scenario", () => {
         },
       },
       plugins: {
-        "auriga-go@auriga-cli": { description: "Claude plugin", agent: "claude" },
+        "auriga-go@auriga-cli": { description: "Claude plugin", agents: ["claude"] },
         "codex-thing@auriga-cli": {
           description: "Codex plugin",
-          agent: "codex",
+          agents: ["codex"],
           expectedVersion: "1.0.0",
         },
       },
@@ -1012,11 +1015,11 @@ describe("scanState — composite full-report scenario", () => {
 
     const cp = report.plugins.find((p) => p.id === "auriga-go@auriga-cli")!;
     assert.equal(cp.status, "update-available");
-    assert.equal(cp.agent, "claude");
+    assert.deepEqual(cp.agents, ["claude"]);
 
     const xp = report.plugins.find((p) => p.id === "codex-thing@auriga-cli")!;
     assert.equal(xp.status, "not-installed");
-    assert.equal(xp.agent, "codex");
+    assert.deepEqual(xp.agents, ["codex"]);
 
     const hk = report.hooks.find((h) => h.name === "notify")!;
     assert.equal(hk.status, "installed");
@@ -1030,3 +1033,85 @@ describe("scanState — composite full-report scenario", () => {
     );
   });
 });
+
+// =============================================================================
+// mergePluginsByName — dual-Agent dedup + status aggregation
+// =============================================================================
+
+describe("mergePluginsByName — dedup by id + aggregate status", () => {
+  // Helper: build a minimal PluginState fixture.
+  function p(
+    id: string,
+    agents: ("claude" | "codex")[],
+    status: "installed" | "update-available" | "not-installed",
+  ): PluginState {
+    return {
+      id,
+      description: "",
+      status,
+      agents,
+      versionSource: "upstream-live",
+    };
+  }
+
+  test("distinct ids are passed through unchanged", () => {
+    const out = mergePluginsByName([
+      p("a", ["claude"], "installed"),
+      p("b", ["codex"], "not-installed"),
+    ]);
+    assert.equal(out.length, 2);
+    assert.equal(out[0].id, "a");
+    assert.deepEqual(out[0].agents, ["claude"]);
+    assert.equal(out[1].id, "b");
+    assert.deepEqual(out[1].agents, ["codex"]);
+  });
+
+  test("both sides installed → installed", () => {
+    const out = mergePluginsByName([
+      p("x", ["claude"], "installed"),
+      p("x", ["codex"], "installed"),
+    ]);
+    assert.equal(out.length, 1);
+    assert.equal(out[0].status, "installed");
+    assert.deepEqual(out[0].agents, ["claude", "codex"]);
+  });
+
+  test("both sides not-installed → not-installed", () => {
+    const out = mergePluginsByName([
+      p("x", ["claude"], "not-installed"),
+      p("x", ["codex"], "not-installed"),
+    ]);
+    assert.equal(out.length, 1);
+    assert.equal(out[0].status, "not-installed");
+    assert.deepEqual(out[0].agents, ["claude", "codex"]);
+  });
+
+  test("partial install (one side installed, other not) → update-available", () => {
+    const out = mergePluginsByName([
+      p("x", ["claude"], "installed"),
+      p("x", ["codex"], "not-installed"),
+    ]);
+    assert.equal(out.length, 1);
+    assert.equal(out[0].status, "update-available");
+  });
+
+  test("any agent update-available → update-available", () => {
+    const out = mergePluginsByName([
+      p("x", ["claude"], "update-available"),
+      p("x", ["codex"], "installed"),
+    ]);
+    assert.equal(out.length, 1);
+    assert.equal(out[0].status, "update-available");
+  });
+
+  test("agents union preserves order: claude before codex", () => {
+    const out = mergePluginsByName([
+      p("x", ["codex"], "not-installed"),
+      p("x", ["claude"], "installed"),
+    ]);
+    assert.equal(out.length, 1);
+    // First record's agents come first; we don't reorder.
+    assert.deepEqual(out[0].agents, ["codex", "claude"]);
+  });
+});
+
