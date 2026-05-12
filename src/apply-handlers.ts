@@ -17,6 +17,10 @@
 //   hook:               installHook(hookDef, "project",…)│  needs HookDef
 //   hook:               uninstallHook(name, …)           │
 //
+// v1.19.0 dropped the "update" action — every installer is idempotent and
+// overwriting, so re-running install IS the update path. Apply receives
+// "install" or "uninstall" only.
+//
 // Spec: docs/architecture/web-ui.md §6.4 (apply execution model).
 
 import type { ApplyAction, ApplyLang } from "./api-types.js";
@@ -53,7 +57,6 @@ export interface ApplyHandlerContext {
 
 const ALL_ACTIONS: ReadonlySet<ApplyAction> = new Set<ApplyAction>([
   "install",
-  "update",
   "uninstall",
 ]);
 
@@ -81,7 +84,7 @@ export function buildDefaultApplyHandlers(
     // the Workflow column's EN/ZH-CN picker). Falls back to ctx lang for
     // CLI-mode callers that don't pass it.
     const installLang = requestedLang ?? lang;
-    if (action === "install" || action === "update") {
+    if (action === "install") {
       await installWorkflow(packageRoot, {
         interactive: false,
         cwd,
@@ -111,7 +114,7 @@ export function buildDefaultApplyHandlers(
   const skill: ApplyHandler = async (action, name, { onLog, scope }) => {
     assertAction(action);
     const installScope = scope ?? "project";
-    if (action === "install" || action === "update") {
+    if (action === "install") {
       await installSkills(packageRoot, {
         interactive: false,
         cwd,
@@ -132,7 +135,7 @@ export function buildDefaultApplyHandlers(
   const recommendedSkill: ApplyHandler = async (action, name, { onLog, scope }) => {
     assertAction(action);
     const installScope = scope ?? "project";
-    if (action === "install" || action === "update") {
+    if (action === "install") {
       await installRecommendedSkills(packageRoot, {
         interactive: false,
         cwd,
@@ -164,7 +167,7 @@ export function buildDefaultApplyHandlers(
     const failures: Array<{ agent: string; error: Error }> = [];
     for (const agent of agents) {
       try {
-        if (action === "install" || action === "update") {
+        if (action === "install") {
           await installPlugins(packageRoot, {
             interactive: false,
             cwd,

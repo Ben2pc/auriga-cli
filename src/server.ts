@@ -306,7 +306,7 @@ const VALID_CATEGORIES = new Set([
   "plugin",
   "hook",
 ]);
-const VALID_ACTIONS = new Set(["install", "update", "uninstall"]);
+const VALID_ACTIONS = new Set(["install", "uninstall"]);
 const VALID_SCOPES = new Set(["project", "user"]);
 const VALID_LANGS = new Set(["en", "zh-CN"]);
 
