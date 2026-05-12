@@ -280,6 +280,22 @@ scanner 按 Claude Code 实际安装位置读真值源，**支持 per-category �
 
 **真值源迁移说明（v1.16.0 → v1.16.1）**：v1.16.0 读 auriga-cli **dev 仓库自己的清单文件**（`<cwd>/.claude/plugins.json`、`<cwd>/skills-lock.json`、`<cwd>/.claude/hooks/hooks.json`），结果用户在普通项目或 `~/` 下都看到「全 not installed」。v1.16.1 全部换成 Claude Code 实际安装位置（上表）。`claude plugins list` 不支持 `--user/--project` 旗标，scope 过滤改在客户端做。skill 的 `expectedHash` 改为 `sha256(SKILL.md bytes)` —— `skills-lock.json` 的 `computedHash`（全目录 sorted-hash）与该算法不兼容，过去比对永远不等，现在不再读 lock 文件。
 
+**Plugin 期望版本号的真值源选择（v1.18.2 → v1.18.3）**：scanner 判 `update-available` 需要"上游应该是几号版本"。三个候选源：
+
+| 源 | 含义 | 用 / 不用的原因 |
+|---|---|---|
+| (A) `~/.claude/plugins/marketplaces/<marketplace>/plugins/<name>/.claude-plugin/plugin.json` | Claude Code 本地缓存的 marketplace 镜像 | **不用**：stale，需要用户手动 `claude plugins update <marketplace>` 才会刷新，UI 没法告诉用户「你的缓存过期了」 |
+| (B) `claude plugins list --available --json` 的 `.available[]` | Claude CLI 给的 "marketplace 当前可用列表" | **只用于 fresh-install 场景**：CLI 故意把已装 plugin 从 `.available[]` 排除，所以已装升级永远查不到。`available[i].source.ref` 在能拿到时优先（最 fresh），拿不到才退到 (C) |
+| (C) auriga-cli 自己 `dist/catalog.json` 里 `plugins[i].expectedVersion` | build 时从 `plugins/<name>/.claude-plugin/plugin.json` 烤入 | **owned in-tree plugins 的主源**：auriga-go / auriga-git-guards / deep-review / session-instructions-loader 都是本仓库 owned，它们的 `plugin.json` 就是权威版本号。用户跑 `npm i auriga-cli@latest` 即刻同步 |
+
+外部 marketplace plugin（skill-creator、claude-md-management、codex 这类 upstream 不在本仓库的）**不烤** `expectedVersion`：钉版本会让我们追不上 upstream 的发版节奏，每次 upstream bump 都误报 update。scanner 在 `expectedVersion` 缺失时退化为「信任已装」，符合"我们不发版你自己管"的契约。
+
+trade-off：用 (C) 意味着想暴露新 plugin 版本必须重发 auriga-cli。可接受 —— 自家 plugin 的 bump 总会跟 auriga-cli 的 release 走（修 plugin 就 bump auriga-cli 即可）。
+
+`classifyClaudePlugin` 优先级：`available[].source.ref` 可解析 semver → 用 (B)，`versionSource: "upstream-live"`；否则用 (C) baked `expectedVersion`，`versionSource: "catalog"`。两个值都拿不到 → 信任已装。
+
+**v1.18.2 的常见误区（建议避免）**：版本号读取必须在 **build 时**入 `dist/catalog.json`，不能在 runtime 读 `packageRoot/plugins/<name>/plugin.json`。`package.json` `files` 字段只 ship `dist/`，runtime 读 `plugins/` 会在 npm 装好后静默拿空。dev 环境（`packageRoot === repoRoot`）能跑通是巧合，会掩盖这个 bug 直到打 tarball 发出去。该规则记录在 [.claude/CLAUDE.md → Principles](../.claude/CLAUDE.md#principles)。
+
 **降级路径汇总**：
 
 | 触发 | 行为 |
