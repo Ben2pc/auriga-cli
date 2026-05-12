@@ -113,6 +113,7 @@ export function buildDefaultApplyHandlers(
     }
     await uninstallSkill(name, {
       cwd,
+      scope: installScope,
       onLog: (line) => onLog(line, "info"),
     });
   };
@@ -134,6 +135,7 @@ export function buildDefaultApplyHandlers(
     // both live in skills-lock.json + .claude/skills/<name>.
     await uninstallSkill(name, {
       cwd,
+      scope: installScope,
       onLog: (line) => onLog(line, "info"),
     });
   };
@@ -143,32 +145,53 @@ export function buildDefaultApplyHandlers(
     const agents = pluginAgentsByName.get(name) ?? ["claude"];
     const installScope = scope ?? "project";
     // dual-Agent plugins (length === 2) install into each agent in turn.
-    // Order is the order the scanner emitted, which is "claude" before
-    // "codex" — matches the Web UI's data-flow expectation.
+    // Per-agent try/catch: if Claude install fails, still try Codex so
+    // partial coverage is visible to the user. Failures are aggregated
+    // and thrown at the end → SSE marks the item failed but onLog
+    // shows both agent outcomes.
+    const failures: Array<{ agent: string; error: Error }> = [];
     for (const agent of agents) {
-      if (action === "install" || action === "update") {
-        await installPlugins(packageRoot, {
-          interactive: false,
-          cwd,
-          agent,
-          selected: [name],
-          scope: installScope,
-        });
-        onLog(`plugin ${name} installed (${agent}, ${installScope})`, "info");
-      } else {
-        await uninstallPlugin(name, agent, {
-          cwd,
-          onLog: (line) => onLog(`[${agent}] ${line}`, "info"),
-        });
+      try {
+        if (action === "install" || action === "update") {
+          await installPlugins(packageRoot, {
+            interactive: false,
+            cwd,
+            agent,
+            selected: [name],
+            scope: installScope,
+          });
+          onLog(`plugin ${name} installed (${agent}, ${installScope})`, "info");
+        } else {
+          await uninstallPlugin(name, agent, {
+            cwd,
+            onLog: (line) => onLog(`[${agent}] ${line}`, "info"),
+          });
+          onLog(`plugin ${name} uninstalled (${agent})`, "info");
+        }
+      } catch (err) {
+        const error = err instanceof Error ? err : new Error(String(err));
+        failures.push({ agent, error });
+        onLog(
+          `plugin ${name} ${action} failed (${agent}): ${error.message}`,
+          "error",
+        );
       }
+    }
+    if (failures.length > 0) {
+      const summary = failures
+        .map((f) => `${f.agent}: ${f.error.message}`)
+        .join("; ");
+      throw new Error(`plugin ${name} ${action} failed for ${failures.length} agent(s) — ${summary}`);
     }
   };
 
   const hook: ApplyHandler = async (action, name, { onLog, scope }) => {
     assertAction(action);
+    const installScope = scope ?? "project";
     if (action === "uninstall") {
       await uninstallHook(name, {
         cwd,
+        scope: installScope,
         onLog: (line) => onLog(line, "info"),
       });
       return;

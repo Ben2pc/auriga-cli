@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { checkbox, select } from "@inquirer/prompts";
 import { atomicWriteFile, exec, log, withEsc } from "./utils.js";
@@ -225,7 +226,11 @@ const SKILL_NAME_RE_STRICT = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
  */
 export async function uninstallSkill(
   name: string,
-  opts: { cwd: string; onLog?: (line: string) => void },
+  opts: {
+    cwd: string;
+    scope?: "project" | "user";
+    onLog?: (line: string) => void;
+  },
 ): Promise<void> {
   // Defensive: the CLI parser pre-validates skill names against the
   // catalog before dispatch, but the server route doesn't, and we
@@ -237,12 +242,16 @@ export async function uninstallSkill(
   }
 
   const cwd = path.resolve(opts.cwd);
+  const scope = opts.scope ?? "project";
+  // Install side maps outer `user` → internal `-g` (global). Mirror that
+  // on remove so user-scope skills aren't silently no-op'd.
+  const globalFlag = scope === "user" ? " -g" : "";
   const emit = (line: string): void => {
     opts.onLog?.(line);
   };
 
   try {
-    exec(`npx -y skills remove ${name}`, { cwd });
+    exec(`npx -y skills remove ${name}${globalFlag}`, { cwd });
     log.ok(`${name}: removed via skills CLI`);
     emit(`removed ${name} via skills CLI`);
     return;
@@ -254,7 +263,7 @@ export async function uninstallSkill(
     emit(`skills CLI doesn't support 'remove'; falling back to manual cleanup`);
   }
 
-  await uninstallSkillManual(name, cwd, emit);
+  await uninstallSkillManual(name, cwd, emit, scope);
 }
 
 /**
@@ -271,14 +280,19 @@ export async function uninstallSkillManual(
   name: string,
   cwd: string,
   onLog?: (line: string) => void,
+  scope: "project" | "user" = "project",
 ): Promise<void> {
   if (!SKILL_NAME_RE_STRICT.test(name)) {
     throw new Error(`uninstallSkillManual: invalid skill name ${JSON.stringify(name)}`);
   }
   const emit = (line: string): void => { onLog?.(line); };
 
-  const claudeDir = path.join(cwd, ".claude", "skills", name);
-  const agentsDir = path.join(cwd, ".agents", "skills", name);
+  // User scope cleans `~/.claude/skills/<name>` + `~/.agents/skills/<name>`.
+  // Project scope cleans `<cwd>/.claude/...` + `<cwd>/.agents/...`.
+  // The lockfile is per-project; user-scope uninstall never mutates it.
+  const baseDir = scope === "user" ? os.homedir() : cwd;
+  const claudeDir = path.join(baseDir, ".claude", "skills", name);
+  const agentsDir = path.join(baseDir, ".agents", "skills", name);
 
   for (const [label, dir] of [
     [".claude/skills", claudeDir] as const,
@@ -291,6 +305,11 @@ export async function uninstallSkillManual(
     } else {
       log.skip(`${label}/${name} not present`);
     }
+  }
+
+  if (scope === "user") {
+    // No `~/skills-lock.json` to mutate.
+    return;
   }
 
   const lockPath = path.join(cwd, "skills-lock.json");

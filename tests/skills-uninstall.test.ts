@@ -181,6 +181,82 @@ describe("uninstallSkill — fallback path", () => {
   });
 });
 
+describe("uninstallSkill — scope forwarding (user scope)", () => {
+  // The skills CLI accepts `-g` for global / user scope on install
+  // (skills.ts wires it up in installSelected). On remove, the same flag
+  // routes the operation to ~/.claude/skills/<name> instead of
+  // <cwd>/.claude/skills/<name>. Uninstall must mirror install: without
+  // the flag a user-scope-installed skill is silently no-op'd.
+  test("passes -g to `npx skills remove` when scope:'user'", async () => {
+    const cwd = makeScratchLock({});
+    const calls: string[] = [];
+    const { uninstallSkill } = await importSkills((cmd) => {
+      calls.push(cmd);
+      return "";
+    });
+
+    await uninstallSkill("brainstorming", { cwd, scope: "user" });
+
+    assert.deepEqual(calls, ["npx -y skills remove brainstorming -g"]);
+  });
+
+  test("project scope (default) omits the -g flag", async () => {
+    const cwd = makeScratchLock({});
+    const calls: string[] = [];
+    const { uninstallSkill } = await importSkills((cmd) => {
+      calls.push(cmd);
+      return "";
+    });
+
+    await uninstallSkill("brainstorming", { cwd, scope: "project" });
+
+    assert.deepEqual(calls, ["npx -y skills remove brainstorming"]);
+  });
+
+  test("scope:'user' fallback cleans ~/.claude/skills/<name> + ~/.agents/skills/<name>", async () => {
+    function makeRemoveUnsupportedError(): Error {
+      const err = new Error("Command failed");
+      (err as Error & { stderr?: string }).stderr = "Unknown command 'remove'";
+      return err;
+    }
+
+    const cwd = makeScratchLock({ brainstorming: { source: "x/y" } });
+    const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), "auriga-skill-user-"));
+
+    // Seed BOTH project (must NOT be touched) and user (must be removed)
+    fs.mkdirSync(path.join(cwd, ".claude/skills/brainstorming"), { recursive: true });
+    fs.writeFileSync(path.join(cwd, ".claude/skills/brainstorming/SKILL.md"), "x");
+    fs.mkdirSync(path.join(tmpHome, ".claude/skills/brainstorming"), { recursive: true });
+    fs.writeFileSync(path.join(tmpHome, ".claude/skills/brainstorming/SKILL.md"), "x");
+    fs.mkdirSync(path.join(tmpHome, ".agents/skills/brainstorming"), { recursive: true });
+    fs.writeFileSync(path.join(tmpHome, ".agents/skills/brainstorming/SKILL.md"), "x");
+
+    const { uninstallSkill } = await importSkills(() => {
+      throw makeRemoveUnsupportedError();
+    });
+
+    const originalHome = process.env.HOME;
+    process.env.HOME = tmpHome;
+    try {
+      await uninstallSkill("brainstorming", { cwd, scope: "user" });
+
+      // user-scope dirs gone
+      assert.equal(fs.existsSync(path.join(tmpHome, ".claude/skills/brainstorming")), false);
+      assert.equal(fs.existsSync(path.join(tmpHome, ".agents/skills/brainstorming")), false);
+      // project-scope dir untouched (user explicitly chose user scope)
+      assert.equal(
+        fs.existsSync(path.join(cwd, ".claude/skills/brainstorming")),
+        true,
+        "project dir must NOT be removed when scope:'user'",
+      );
+    } finally {
+      if (originalHome === undefined) delete process.env.HOME;
+      else process.env.HOME = originalHome;
+      fs.rmSync(tmpHome, { recursive: true, force: true });
+    }
+  });
+});
+
 describe("uninstallSkillManual — direct entry point", () => {
   test("removes .claude + .agents + lockfile entry in one pass", async () => {
     const cwd = makeScratchLock({

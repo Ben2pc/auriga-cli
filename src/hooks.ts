@@ -1119,13 +1119,20 @@ export async function installHooks(
 const HOOK_NAME_RE_STRICT = /^[a-z][a-z0-9-]*$/;
 
 /**
- * Uninstall a single hook from project scope. v0.1 surface:
- *   - rm `<cwd>/.claude/hooks/<name>/` directory (the install-time
- *     destination for both project and project-local scopes).
+ * Uninstall a single hook. Defaults to project scope; explicit
+ * `scope:"user"` cleans `~/.claude/...` instead.
+ *
+ * Project scope (default):
+ *   - rm `<cwd>/.claude/hooks/<name>/` directory.
  *   - Strip the hook's marker from `<cwd>/.claude/settings.json` AND
  *     `<cwd>/.claude/settings.local.json` (project + project-local share
  *     the on-disk hook dir, so cleaning both settings files keeps users
  *     who switched scopes from accumulating dangling registrations).
+ *
+ * User scope:
+ *   - rm `~/.claude/hooks/<name>/` directory.
+ *   - Strip the hook's marker from `~/.claude/settings.json`.
+ *   - Project files are NOT touched.
  *
  * Marker discovery: tries the live registry at `<cwd>` (or the npx
  * package root if that fails) so we use the same marker the install path
@@ -1134,25 +1141,21 @@ const HOOK_NAME_RE_STRICT = /^[a-z][a-z0-9-]*$/;
  * hook to date follows it, so the fallback is reliable for the common
  * case.
  *
- * Idempotent contract:
- *   - missing hook dir → skip silently
- *   - missing settings → skip silently
- *   - marker absent from settings → skip silently (cleanHookFromScope
- *     already handles this; we surface it via removed=0)
- *
- * User scope (~/.claude/...) is intentionally NOT touched. The install
- * path gates user-scope mutation behind an explicit prompt; symmetric
- * here — don't silently mutate global state from a project-context
- * uninstall request.
+ * Idempotent: missing hook dir / missing settings / absent marker → no-op.
  */
 export async function uninstallHook(
   name: string,
-  opts: { cwd: string; onLog?: (line: string) => void },
+  opts: {
+    cwd: string;
+    scope?: "project" | "user";
+    onLog?: (line: string) => void;
+  },
 ): Promise<void> {
   if (!HOOK_NAME_RE_STRICT.test(name)) {
     throw new Error(`uninstallHook: invalid hook name ${JSON.stringify(name)}`);
   }
   const cwd = path.resolve(opts.cwd);
+  const scope = opts.scope ?? "project";
   const emit = (line: string): void => { opts.onLog?.(line); };
 
   // Look up marker from the registry. If the registry is absent or the
@@ -1179,12 +1182,15 @@ export async function uninstallHook(
     marker,
   };
 
-  // Settings cleanup first — survives even if the hook dir was hand-deleted.
-  // Cover BOTH project + project-local: install can land in either,
-  // and a switched scope can leave a stale marker in the other.
+  // resolveScope picks the settings/hooks paths based on scope.
+  // Project scope covers both project + project-local settings (shared
+  // on-disk hook dir); user scope covers only ~/.claude/settings.json.
+  const cleanScopes: Scope[] =
+    scope === "user" ? ["user"] : ["project", "project-local"];
+
   let totalRemoved = 0;
-  for (const scope of ["project", "project-local"] as const) {
-    const r = cleanHookFromScope(stub, scope, cwd);
+  for (const s of cleanScopes) {
+    const r = cleanHookFromScope(stub, s, cwd);
     if (r.removed > 0) {
       totalRemoved += r.removed;
       log.ok(`${name}: removed ${r.removed} entr${r.removed === 1 ? "y" : "ies"} from ${r.settingsPath}`);
@@ -1196,8 +1202,11 @@ export async function uninstallHook(
     emit(`${name}: no settings entries found`);
   }
 
-  // Hook directory under <cwd>/.claude/hooks/<name>/.
-  const hookDir = path.join(cwd, ".claude", "hooks", name);
+  // Hook directory: user → ~/.claude/hooks/<name>; project → <cwd>/.claude/hooks/<name>.
+  const hookDir =
+    scope === "user"
+      ? path.join(os.homedir(), ".claude", "hooks", name)
+      : path.join(cwd, ".claude", "hooks", name);
   if (fs.existsSync(hookDir)) {
     fs.rmSync(hookDir, { recursive: true, force: true });
     log.ok(`${name}: directory removed`);

@@ -135,7 +135,7 @@ describe("uninstallHook", () => {
     assert.equal(fs.existsSync(path.join(cwd, ".claude")), false);
   });
 
-  test("does NOT touch ~/.claude (user scope) — global state stays untouched", async () => {
+  test("default scope is 'project' — does NOT touch ~/.claude (user scope)", async () => {
     const cwd = makeScratch("usersafe");
     seedHookDir(cwd, "notify");
     seedSettings(cwd, "settings.json", "auriga:notify");
@@ -149,6 +149,77 @@ describe("uninstallHook", () => {
       await uninstallHook("notify", { cwd });
       // tmpHome must be empty afterwards
       assert.deepEqual(fs.readdirSync(tmpHome), []);
+    } finally {
+      if (originalHome === undefined) delete process.env.HOME;
+      else process.env.HOME = originalHome;
+    }
+  });
+
+  test("scope:'user' cleans ~/.claude/settings.json + ~/.claude/hooks/<name>", async () => {
+    // User installed the hook at user scope (~/.claude/hooks/notify +
+    // ~/.claude/settings.json with the auriga:notify marker). Uninstalling
+    // with scope:"user" must clean both, NOT touch project files.
+    const cwd = makeScratch("userscope-uninstall");
+    // Project state — must stay untouched
+    seedHookDir(cwd, "notify");
+    seedSettings(cwd, "settings.json", "auriga:notify");
+
+    const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), "auriga-user-uninstall-"));
+    scratchDirs.push(tmpHome);
+    // User-scope hook dir + settings
+    const userHookDir = path.join(tmpHome, ".claude", "hooks", "notify");
+    fs.mkdirSync(userHookDir, { recursive: true });
+    fs.writeFileSync(path.join(userHookDir, "index.mjs"), "// hook\n");
+    const userSettingsPath = path.join(tmpHome, ".claude", "settings.json");
+    const { settings: userSettings } = addHookToSettings(
+      {},
+      "Notification",
+      "node /x.mjs",
+      "auriga:notify",
+    );
+    fs.writeFileSync(userSettingsPath, JSON.stringify(userSettings, null, 2));
+
+    const originalHome = process.env.HOME;
+    process.env.HOME = tmpHome;
+    try {
+      await uninstallHook("notify", { cwd, scope: "user" });
+
+      // User-scope cleaned
+      assert.equal(fs.existsSync(userHookDir), false, "user hook dir must be removed");
+      const settings = JSON.parse(
+        fs.readFileSync(userSettingsPath, "utf-8"),
+      ) as SettingsFile;
+      assert.equal(settings.hooks?.Notification, undefined);
+
+      // Project-scope untouched (the user explicitly chose user scope)
+      assert.equal(
+        fs.existsSync(path.join(cwd, ".claude/hooks/notify")),
+        true,
+        "project hook dir must NOT be removed when scope:'user'",
+      );
+      const projSettings = JSON.parse(
+        fs.readFileSync(path.join(cwd, ".claude/settings.json"), "utf-8"),
+      ) as SettingsFile;
+      assert.ok(
+        projSettings.hooks?.Notification,
+        "project settings.json Notification block must NOT be cleared",
+      );
+    } finally {
+      if (originalHome === undefined) delete process.env.HOME;
+      else process.env.HOME = originalHome;
+    }
+  });
+
+  test("scope:'user' is idempotent — nothing at ~/.claude is no-op", async () => {
+    const cwd = makeScratch("user-empty");
+    const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), "auriga-user-empty-"));
+    scratchDirs.push(tmpHome);
+    const originalHome = process.env.HOME;
+    process.env.HOME = tmpHome;
+    try {
+      await uninstallHook("notify", { cwd, scope: "user" });
+      // No throw, no spurious dirs
+      assert.equal(fs.existsSync(path.join(tmpHome, ".claude")), false);
     } finally {
       if (originalHome === undefined) delete process.env.HOME;
       else process.env.HOME = originalHome;

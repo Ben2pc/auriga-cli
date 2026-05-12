@@ -25,7 +25,9 @@ interface CallLog {
   installRecommendedSkills: Array<{ packageRoot: string; opts: unknown }>;
   uninstallSkill: Array<{ name: string; opts: unknown }>;
   installPlugins: Array<{ packageRoot: string; opts: unknown }>;
+  installPluginsImpl?: (packageRoot: string, opts: unknown) => Promise<void>;
   uninstallPlugin: Array<{ id: string; agent: string; opts: unknown }>;
+  uninstallPluginImpl?: (id: string, agent: string, opts: unknown) => Promise<void>;
   installHook: Array<{ hook: unknown; scope: string; cwd: string; packageRoot: string }>;
   uninstallHook: Array<{ name: string; opts: unknown }>;
   loadHooksConfig: Array<{ packageRoot: string }>;
@@ -74,9 +76,15 @@ async function importAdapter(calls: CallLog, hookDefs: Array<{ name: string }> =
     namedExports: {
       installPlugins: async (packageRoot: string, opts: unknown) => {
         calls.installPlugins.push({ packageRoot, opts });
+        if (calls.installPluginsImpl) {
+          await calls.installPluginsImpl(packageRoot, opts);
+        }
       },
       uninstallPlugin: async (id: string, agent: string, opts: unknown) => {
         calls.uninstallPlugin.push({ id, agent, opts });
+        if (calls.uninstallPluginImpl) {
+          await calls.uninstallPluginImpl(id, agent, opts);
+        }
       },
     },
   });
@@ -356,6 +364,130 @@ describe("buildDefaultApplyHandlers — hook", () => {
     // Uninstall must NOT call loadHooksConfig — that path only matters when
     // we need the HookDef to install/update.
     assert.equal(calls.loadHooksConfig.length, 0);
+  });
+});
+
+describe("buildDefaultApplyHandlers — scope forwarding on uninstall", () => {
+  test("skill uninstall forwards scope:'user' to uninstallSkill", async () => {
+    const calls = makeCallLog();
+    const { buildDefaultApplyHandlers } = await importAdapter(calls);
+    const handlers = buildDefaultApplyHandlers({
+      packageRoot: "/pkg",
+      cwd: "/proj",
+      pluginAgentsByName: new Map(),
+    });
+    await handlers.skill("uninstall", "brainstorming", {
+      onLog: () => {},
+      scope: "user",
+    });
+    assert.equal(calls.uninstallSkill.length, 1);
+    const opts = calls.uninstallSkill[0].opts as { scope?: string };
+    assert.equal(opts.scope, "user");
+  });
+
+  test("recommended-skill uninstall forwards scope:'user' to uninstallSkill", async () => {
+    const calls = makeCallLog();
+    const { buildDefaultApplyHandlers } = await importAdapter(calls);
+    const handlers = buildDefaultApplyHandlers({
+      packageRoot: "/pkg",
+      cwd: "/proj",
+      pluginAgentsByName: new Map(),
+    });
+    await handlers["recommended-skill"]("uninstall", "codex-agent", {
+      onLog: () => {},
+      scope: "user",
+    });
+    assert.equal(calls.uninstallSkill.length, 1);
+    const opts = calls.uninstallSkill[0].opts as { scope?: string };
+    assert.equal(opts.scope, "user");
+  });
+
+  test("hook uninstall forwards scope:'user' to uninstallHook", async () => {
+    const calls = makeCallLog();
+    const { buildDefaultApplyHandlers } = await importAdapter(calls, []);
+    const handlers = buildDefaultApplyHandlers({
+      packageRoot: "/pkg",
+      cwd: "/proj",
+      pluginAgentsByName: new Map(),
+    });
+    await handlers.hook("uninstall", "notify", {
+      onLog: () => {},
+      scope: "user",
+    });
+    assert.equal(calls.uninstallHook.length, 1);
+    const opts = calls.uninstallHook[0].opts as { scope?: string };
+    assert.equal(opts.scope, "user");
+  });
+});
+
+describe("buildDefaultApplyHandlers — dual-Agent plugin isolation", () => {
+  test("install: claude fails → codex still attempted, error aggregates both", async () => {
+    const calls = makeCallLog();
+    // Fail Claude install but succeed Codex install. The handler must:
+    //  - call installPlugins for both agents (don't short-circuit on Claude)
+    //  - emit onLog lines for both agent outcomes
+    //  - throw at the end so the SSE marks the item failed (with Claude error in the message)
+    calls.installPluginsImpl = async (_pkg, opts) => {
+      if ((opts as { agent: string }).agent === "claude") {
+        throw new Error("boom-claude");
+      }
+    };
+
+    const { buildDefaultApplyHandlers } = await importAdapter(calls);
+    const handlers = buildDefaultApplyHandlers({
+      packageRoot: "/pkg",
+      cwd: "/proj",
+      pluginAgentsByName: new Map([["auriga-go", ["claude", "codex"]]]),
+    });
+
+    const logs: string[] = [];
+    await assert.rejects(
+      () =>
+        handlers.plugin("install", "auriga-go", {
+          onLog: (l) => logs.push(l),
+        }),
+      /boom-claude/,
+    );
+
+    // Both agents were attempted — isolation prevented claude failure from
+    // skipping codex
+    assert.equal(calls.installPlugins.length, 2);
+    assert.equal((calls.installPlugins[0].opts as { agent: string }).agent, "claude");
+    assert.equal((calls.installPlugins[1].opts as { agent: string }).agent, "codex");
+
+    // onLog records both outcomes
+    assert.ok(
+      logs.some((l) => /claude/i.test(l) && /(fail|error|boom)/i.test(l)),
+      `missing claude failure log: ${logs.join(" | ")}`,
+    );
+    assert.ok(
+      logs.some((l) => /codex/i.test(l) && /install/i.test(l)),
+      `missing codex success log: ${logs.join(" | ")}`,
+    );
+  });
+
+  test("uninstall: claude fails → codex still attempted, error aggregates both", async () => {
+    const calls = makeCallLog();
+    calls.uninstallPluginImpl = async (_id, agent) => {
+      if (agent === "claude") throw new Error("boom-claude");
+    };
+
+    const { buildDefaultApplyHandlers } = await importAdapter(calls);
+    const handlers = buildDefaultApplyHandlers({
+      packageRoot: "/pkg",
+      cwd: "/proj",
+      pluginAgentsByName: new Map([["auriga-go", ["claude", "codex"]]]),
+    });
+
+    await assert.rejects(
+      () =>
+        handlers.plugin("uninstall", "auriga-go", { onLog: () => {} }),
+      /boom-claude/,
+    );
+
+    assert.equal(calls.uninstallPlugin.length, 2);
+    assert.equal(calls.uninstallPlugin[0].agent, "claude");
+    assert.equal(calls.uninstallPlugin[1].agent, "codex");
   });
 });
 
