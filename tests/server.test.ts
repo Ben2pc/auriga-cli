@@ -304,17 +304,15 @@ describe("POST /api/ping (spec §6.1 / §6.6)", () => {
 // ---------------------------------------------------------------------------
 
 describe("GET /api/progress (spec §6.5)", () => {
-  test("returns 200 + text/event-stream when jobId is given", async () => {
+  test("unknown jobId → 404", async () => {
+    // The route-level smoke check: an arbitrary jobId that was never created
+    // must 404 (spec AA4). Deeper SSE behavior is exercised in
+    // tests/server-apply.test.ts where job handlers can be injected.
     await withServer(async ({ baseUrl, token }) => {
-      const res = await fetch(`${baseUrl}/api/progress?jobId=abc`, {
+      const res = await fetch(`${baseUrl}/api/progress?jobId=does-not-exist`, {
         headers: authHeaders(token),
       });
-      assert.equal(res.status, 200);
-      assert.match(
-        res.headers.get("content-type") ?? "",
-        /text\/event-stream/i,
-      );
-      // Drain so the socket can be recycled before close().
+      assert.equal(res.status, 404);
       await res.text();
     });
   });

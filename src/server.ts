@@ -8,6 +8,35 @@
 // module" fake-red failures). The implementer of Slice B should delete
 // everything below the marker line.
 
+export type LogLevel = "info" | "warn" | "error";
+
+export interface ApplyHandlerOptions {
+  onLog: (line: string, level: LogLevel) => void;
+  signal?: AbortSignal;
+}
+
+export type ApplyHandler = (
+  action: ApplyAction,
+  name: string,
+  opts: ApplyHandlerOptions,
+) => Promise<void>;
+
+export interface ApplyHandlers {
+  workflow: ApplyHandler;
+  skill: ApplyHandler;
+  "recommended-skill": ApplyHandler;
+  plugin: ApplyHandler;
+  hook: ApplyHandler;
+}
+
+export interface ApplyCatalog {
+  workflow: Set<string>;
+  skill: Set<string>;
+  "recommended-skill": Set<string>;
+  plugin: Set<string>;
+  hook: Set<string>;
+}
+
 export interface StartServerOptions {
   port?: number;
   token: string;
@@ -23,6 +52,15 @@ export interface StartServerOptions {
    *  gracefully (closing-browser-closes-server UX). `0` disables the
    *  heartbeat (used by tests so a single suite doesn't time-bomb). */
   heartbeatTimeoutMs?: number;
+  /** Apply handlers per category. When omitted, /api/apply falls back to
+   *  built-in installers wired by the CLI. Tests inject mocks to make apply
+   *  behavior deterministic without touching real installers. */
+  applyHandlers?: ApplyHandlers;
+  /** Per-category name whitelist. When set, /api/apply rejects (400) any
+   *  item whose name is not present in the matching category's Set. When
+   *  omitted, name membership is not enforced (CLI builds a default
+   *  catalog at boot time). */
+  applyCatalog?: ApplyCatalog;
 }
 
 export interface RunningServer {
@@ -36,11 +74,11 @@ import { createServer } from "node:http";
 import type { IncomingMessage, Server, ServerResponse } from "node:http";
 import type { AddressInfo, Socket } from "node:net";
 import { Buffer } from "node:buffer";
-import { timingSafeEqual } from "node:crypto";
+import { randomBytes, timingSafeEqual } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 
-import type { ApplyRequest } from "./api-types.js";
+import type { ApplyAction, ApplyItemRef, ApplyRequest, ProgressEvent } from "./api-types.js";
 import { buildScanCatalog } from "./scan-catalog.js";
 import { scanState } from "./state.js";
 
@@ -49,10 +87,33 @@ import { scanState } from "./state.js";
 // abusive clients can't pin memory.
 const MAX_JSON_BODY = 1 * 1024 * 1024;
 
-// SSE placeholder hold time. Keeps the connection open briefly so the client
-// sees an established stream, then closes cleanly. Slice C will replace this
-// with a real event pump fed by the apply job runner.
-const SSE_PLACEHOLDER_HOLD_MS = 50;
+// SSE replay cache: keep at least 200 events per job for at least 5 minutes
+// after the job's `all-done` event so reconnecting clients can resume
+// (spec §6.5).
+const SSE_BUFFER_CAP = 200;
+const SSE_JOB_TTL_MS = 5 * 60 * 1000;
+
+interface BufferedEvent {
+  /** Monotonically increasing per-job event id, used by Last-Event-ID resume.
+   *  Stringified base-10 integer so it sorts numerically when needed. */
+  id: string;
+  event: ProgressEvent;
+}
+
+interface JobState {
+  jobId: string;
+  /** Ring buffer of recent events. Length ≤ SSE_BUFFER_CAP. */
+  events: BufferedEvent[];
+  /** Next id to assign. First emitted event gets id "1". */
+  nextId: number;
+  /** True once `all-done` has been emitted. After this, the job state is kept
+   *  in the cache for SSE_JOB_TTL_MS to serve late subscribers, then deleted. */
+  finished: boolean;
+  /** Live SSE connections subscribed to this job. */
+  subscribers: Set<ServerResponse>;
+  /** Cleanup timer scheduled when the job finishes. */
+  cleanupTimer?: ReturnType<typeof setTimeout>;
+}
 
 // ---------------------------------------------------------------------------
 // Generic error helpers — bodies are byte-identical for matching status codes
@@ -244,6 +305,14 @@ function parseApplyRequest(raw: string): ApplyRequest | null {
   return parsed as ApplyRequest;
 }
 
+function namesInCatalog(items: ApplyItemRef[], catalog: ApplyCatalog): boolean {
+  for (const it of items) {
+    const set = catalog[it.category];
+    if (!set || !set.has(it.name)) return false;
+  }
+  return true;
+}
+
 // ---------------------------------------------------------------------------
 // Static asset placeholder. M1 ships without a UI bundle; we return 404 for
 // every public-path request, but crucially NOT 401/403 — tests probe this.
@@ -277,6 +346,212 @@ export async function startServer(
 
   // Per-instance helpers that need the port (chosen after listen()).
   let allowedHosts: Set<string>;
+
+  // ---- Apply / SSE state ----
+  // Job cache. Keyed by jobId; entries are deleted SSE_JOB_TTL_MS after the
+  // job finishes. Late subscribers and Last-Event-ID resume both read from
+  // here. `currentJobId` enforces serial execution: a second /api/apply that
+  // arrives while another job is in-flight returns 409 (spec §6.4 — installers
+  // contend on shared files like settings.json + skills-lock.json).
+  const jobs = new Map<string, JobState>();
+  let currentJobId: string | null = null;
+
+  function emit(job: JobState, event: ProgressEvent): void {
+    const id = String(job.nextId);
+    job.nextId++;
+    job.events.push({ id, event });
+    if (job.events.length > SSE_BUFFER_CAP) job.events.shift();
+
+    const frame = `id: ${id}\nevent: progress\ndata: ${JSON.stringify(event)}\n\n`;
+    for (const sub of job.subscribers) {
+      try {
+        if (!sub.writableEnded) sub.write(frame);
+      } catch {
+        /* subscriber went away mid-write — close listener will remove it */
+      }
+    }
+
+    if (event.type === "all-done") {
+      job.finished = true;
+      // Close all live subscribers — they've received the terminal event.
+      for (const sub of job.subscribers) {
+        try {
+          if (!sub.writableEnded) sub.end();
+        } catch {
+          /* ignore */
+        }
+      }
+      job.subscribers.clear();
+      // Schedule cache eviction. .unref() so we don't keep the process alive.
+      job.cleanupTimer = setTimeout(() => {
+        jobs.delete(job.jobId);
+      }, SSE_JOB_TTL_MS);
+      job.cleanupTimer.unref?.();
+    }
+  }
+
+  async function runApplyJob(
+    job: JobState,
+    items: ApplyItemRef[],
+    handlers: ApplyHandlers,
+  ): Promise<void> {
+    let failedCount = 0;
+    try {
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+        emit(job, {
+          type: "item:start",
+          index: i,
+          total: items.length,
+          item,
+        });
+        const handler = handlers[item.category];
+        try {
+          await handler(item.action, item.name, {
+            onLog: (line, level) =>
+              emit(job, { type: "item:log", index: i, line, level }),
+          });
+          emit(job, { type: "item:done", index: i, success: true });
+        } catch (err) {
+          failedCount++;
+          const msg =
+            err instanceof Error && err.message ? err.message : "handler-failed";
+          emit(job, {
+            type: "item:done",
+            index: i,
+            success: false,
+            error: msg,
+          });
+        }
+      }
+    } finally {
+      // Clear the in-flight slot BEFORE emitting all-done so a client that
+      // reacts immediately to the terminal frame can submit a new apply
+      // without racing (test "after first job finishes, new apply succeeds").
+      if (currentJobId === job.jobId) currentJobId = null;
+      emit(job, {
+        type: "all-done",
+        success: failedCount === 0,
+        failedCount,
+      });
+    }
+  }
+
+  async function handleApply(
+    req: IncomingMessage,
+    res: ServerResponse,
+  ): Promise<void> {
+    // 1. Concurrency: serial execution per spec §6.4.
+    if (currentJobId !== null) {
+      sendJson(res, 409, { error: "apply-in-flight" });
+      return;
+    }
+
+    // 2. Body cap + JSON parse + shape validation.
+    let raw: string;
+    try {
+      raw = await readJsonBody(req);
+    } catch {
+      sendJson(res, 413, { error: "body-too-large" });
+      return;
+    }
+    const parsed = parseApplyRequest(raw);
+    if (parsed === null) {
+      sendJson(res, 400, { error: "bad-request" });
+      return;
+    }
+
+    // 3. Catalog membership (only when an applyCatalog was injected).
+    if (opts.applyCatalog) {
+      if (parsed.items.length === 0) {
+        sendJson(res, 400, { error: "items-empty" });
+        return;
+      }
+      if (!namesInCatalog(parsed.items, opts.applyCatalog)) {
+        sendJson(res, 400, { error: "unknown-name" });
+        return;
+      }
+    }
+
+    // 4. Allocate job. randomBytes(16) → 32 hex chars = 128 bits of entropy.
+    const jobId = randomBytes(16).toString("hex");
+    const job: JobState = {
+      jobId,
+      events: [],
+      nextId: 1,
+      finished: false,
+      subscribers: new Set(),
+    };
+    jobs.set(jobId, job);
+    currentJobId = jobId;
+
+    // 5. Accept fast — 202 returns BEFORE any handler runs.
+    sendJson(res, 202, { jobId });
+
+    // 6. Kick off the worker on the next tick so the response flushes first.
+    const handlers = opts.applyHandlers ?? defaultHandlersNotConfigured;
+    setImmediate(() => {
+      void runApplyJob(job, parsed.items, handlers);
+    });
+  }
+
+  function handleProgress(
+    req: IncomingMessage,
+    searchParams: URLSearchParams,
+    res: ServerResponse,
+  ): void {
+    const jobId = searchParams.get("jobId");
+    if (!jobId) {
+      sendJson(res, 400, { error: "missing-jobId" });
+      return;
+    }
+    const job = jobs.get(jobId);
+    if (!job) {
+      sendJson(res, 404, { error: "unknown-job" });
+      return;
+    }
+
+    // Parse Last-Event-ID. If valid numeric, replay buffered events with
+    // id strictly greater than the cursor. Otherwise replay everything in
+    // the buffer. EventSource spec sends the value verbatim from the last
+    // observed `id:` field.
+    const lastEventIdHeader = req.headers["last-event-id"];
+    let cursor = -1;
+    if (typeof lastEventIdHeader === "string" && lastEventIdHeader.length > 0) {
+      const parsedCursor = Number.parseInt(lastEventIdHeader, 10);
+      if (Number.isFinite(parsedCursor)) cursor = parsedCursor;
+    }
+
+    res.statusCode = 200;
+    res.setHeader("content-type", "text/event-stream; charset=utf-8");
+    res.setHeader("cache-control", "no-store");
+    res.setHeader("connection", "keep-alive");
+    res.flushHeaders?.();
+
+    // Replay strictly-newer cached events.
+    for (const buffered of job.events) {
+      const bid = Number.parseInt(buffered.id, 10);
+      if (Number.isFinite(bid) && bid <= cursor) continue;
+      res.write(
+        `id: ${buffered.id}\nevent: progress\ndata: ${JSON.stringify(buffered.event)}\n\n`,
+      );
+    }
+
+    if (job.finished) {
+      // No more events will arrive; close cleanly so late subscribers and
+      // resumers don't hold the socket forever.
+      res.end();
+      return;
+    }
+
+    // Subscribe for live events. Detach on client disconnect.
+    job.subscribers.add(res);
+    const detach = (): void => {
+      job.subscribers.delete(res);
+    };
+    req.once("close", detach);
+    res.once("close", detach);
+  }
 
   const server: Server = createServer(async (req, res) => {
     try {
@@ -373,11 +648,11 @@ export async function startServer(
       return;
     }
     if (pathname === "/api/apply" && method === "POST") {
-      await routeApply(req, res);
+      await handleApply(req, res);
       return;
     }
     if (pathname === "/api/progress" && method === "GET") {
-      await routeProgress(searchParams, res);
+      handleProgress(req, searchParams, res);
       return;
     }
     if (pathname === "/api/ping" && method === "POST") {
@@ -516,57 +791,21 @@ async function routeCatalog(
 }
 
 // ---------------------------------------------------------------------------
-// Route: POST /api/apply
+// Default apply handlers: returned when callers don't inject their own.
+// CLI mode (M3 T3.6) replaces this with real installers wired via
+// applyHandlers; tests always inject explicit mocks. The fallback throws so
+// any forgotten wiring surfaces immediately as an item:done failure instead
+// of silently no-op'ing.
 // ---------------------------------------------------------------------------
 
-async function routeApply(
-  req: IncomingMessage,
-  res: ServerResponse,
-): Promise<void> {
-  let raw: string;
-  try {
-    raw = await readJsonBody(req);
-  } catch {
-    sendJson(res, 413, { error: "body-too-large" });
-    return;
-  }
-  const parsed = parseApplyRequest(raw);
-  if (parsed === null) {
-    sendJson(res, 400, { error: "bad-request" });
-    return;
-  }
-  // M1 placeholder — Slice C will dispatch this to the apply runner and
-  // return a real jobId.
-  sendJson(res, 202, {
-    jobId: "placeholder",
-    note: "not-implemented-in-M1",
-  });
-}
+const handlerNotConfigured: ApplyHandler = async () => {
+  throw new Error("apply handlers not configured");
+};
 
-// ---------------------------------------------------------------------------
-// Route: GET /api/progress?jobId=...
-// ---------------------------------------------------------------------------
-
-async function routeProgress(
-  searchParams: URLSearchParams,
-  res: ServerResponse,
-): Promise<void> {
-  const jobId = searchParams.get("jobId");
-  if (!jobId) {
-    sendJson(res, 400, { error: "missing-jobId" });
-    return;
-  }
-  // Open an SSE stream, send nothing, close shortly after. Slice C wires this
-  // to the real event pump.
-  res.statusCode = 200;
-  res.setHeader("content-type", "text/event-stream; charset=utf-8");
-  res.setHeader("cache-control", "no-store");
-  res.setHeader("connection", "keep-alive");
-  res.flushHeaders?.();
-  // A no-op comment frame keeps some proxies happy.
-  res.write(": connected\n\n");
-  await new Promise<void>((resolve) =>
-    setTimeout(resolve, SSE_PLACEHOLDER_HOLD_MS),
-  );
-  res.end();
-}
+const defaultHandlersNotConfigured: ApplyHandlers = {
+  workflow: handlerNotConfigured,
+  skill: handlerNotConfigured,
+  "recommended-skill": handlerNotConfigured,
+  plugin: handlerNotConfigured,
+  hook: handlerNotConfigured,
+};
