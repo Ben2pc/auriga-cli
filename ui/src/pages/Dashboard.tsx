@@ -14,13 +14,15 @@
 //
 // Default action derivation (when a card is selected):
 //
-//   status="installed"        → action="uninstall"
-//   status="update-available" → action="update"
-//   status="not-installed"    → action="install"
+//   status="installed"     → action="uninstall"
+//   status="not-installed" → action="install"
+//   status="partial-install" → action="install" (backfill missing side)
 //
 // Rationale: the most likely user intent given the current state. Toggling
 // the action between install/uninstall on an already-installed item is a
 // post-M3 affordance (the design has room for a secondary action menu).
+// v1.19.0 dropped the "update" action — re-running install is the update
+// path for every category.
 //
 // Selection key shape: "<category>:<name>". `category` matches
 // ApplyCategory exactly so we can derive ApplyItemRef without a lookup map.
@@ -52,10 +54,16 @@ import type {
 
 const PING_INTERVAL_MS = 5000;
 
-// Map server's ItemStatus (3 states) onto StateCard's CardStatus (4 states).
-// `error` is reserved for future per-item failures that the scanner doesn't
-// surface today — keeping the mapping explicit makes the upgrade cheap.
+// Map server's ItemStatus onto StateCard's CardStatus. The legacy
+// `update-available` value is folded into `installed` for forward
+// compatibility — the scanner stopped producing it in v1.19.0 but old
+// servers / cached responses might still send it; treating it as
+// "installed" matches the new semantics ("re-install to refresh").
+// `error` is reserved for future per-item failures that the scanner
+// doesn't surface today — keeping the mapping explicit makes the upgrade
+// cheap.
 function toCardStatus(status: ItemStatus): CardStatus {
+  if (status === "update-available") return "installed";
   return status;
 }
 
@@ -63,8 +71,6 @@ function deriveAction(status: ItemStatus): ApplyAction {
   switch (status) {
     case "installed":
       return "uninstall";
-    case "update-available":
-      return "update";
     case "not-installed":
       return "install";
     case "partial-install":
@@ -72,6 +78,9 @@ function deriveAction(status: ItemStatus): ApplyAction {
       // install on each targeted agent; agents that already have it become
       // no-ops at the installer level. UI presents this as a one-click
       // backfill — same UX shape as "install".
+      return "install";
+    case "update-available":
+      // Legacy server response — re-install is the update path now.
       return "install";
   }
 }
@@ -871,8 +880,6 @@ function WorkflowSection({
         name="CLAUDE.md workflow"
         description={description}
         status={toCardStatus(workflow.status)}
-        currentVersion={workflow.currentVersion}
-        expectedVersion={workflow.expectedVersion}
         selected={selected.has(key)}
         onSelectChange={(isSel) =>
           onToggle("workflow", "workflow", workflow.status, isSel)
@@ -909,7 +916,7 @@ function SkillsSection({
       onScopeChange={onScopeChange}
       scopeTestId="section-skills-scope"
       refetching={refetching}
-      caption={<>Updates via <code>npx skills update --project</code></>}
+      caption={<>Re-install to refresh content</>}
     >
       {skills.map((skill) => {
         const key = makeKey("skill", skill.name);
@@ -919,8 +926,6 @@ function SkillsSection({
             name={skill.name}
             description={skill.description}
             status={toCardStatus(skill.status)}
-            currentHash={skill.currentHash}
-            expectedHash={skill.expectedHash}
             selected={selected.has(key)}
             onSelectChange={(isSel) =>
               onToggle("skill", skill.name, skill.status, isSel)
@@ -959,7 +964,7 @@ function RecommendedSkillsSection({
       onScopeChange={onScopeChange}
       scopeTestId="section-recommended-skills-scope"
       refetching={refetching}
-      caption={<>Updates via <code>npx skills update --project</code></>}
+      caption={<>Re-install to refresh content</>}
     >
       {recommendedSkills.map((skill) => {
         const key = makeKey("recommended-skill", skill.name);
@@ -969,8 +974,6 @@ function RecommendedSkillsSection({
             name={skill.name}
             description={skill.description}
             status={toCardStatus(skill.status)}
-            currentHash={skill.currentHash}
-            expectedHash={skill.expectedHash}
             selected={selected.has(key)}
             onSelectChange={(isSel) =>
               onToggle("recommended-skill", skill.name, skill.status, isSel)
@@ -1018,8 +1021,6 @@ function PluginsSection({
             name={plugin.id}
             description={plugin.description}
             status={toCardStatus(plugin.status)}
-            currentVersion={plugin.currentVersion}
-            expectedVersion={plugin.expectedVersion}
             selected={selected.has(key)}
             onSelectChange={(isSel) =>
               onToggle("plugin", plugin.id, plugin.status, isSel)
@@ -1070,8 +1071,6 @@ function HooksSection({
             name={hook.name}
             description={hook.description}
             status={toCardStatus(hook.status)}
-            currentHash={hook.currentHash}
-            expectedHash={hook.expectedHash}
             selected={selected.has(key)}
             onSelectChange={(isSel) =>
               onToggle("hook", hook.name, hook.status, isSel)

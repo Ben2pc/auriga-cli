@@ -54,7 +54,7 @@ function makeReport(overrides: Partial<StateReport> = {}): StateReport {
       {
         name: "systematic-debugging",
         description: "Debug-root-cause-first protocol",
-        status: "update-available",
+        status: "not-installed",
         isWorkflow: true,
         currentHash: "old11111",
         expectedHash: "new22222",
@@ -251,12 +251,15 @@ describe("Dashboard — selection drives the LogPanel Apply button", () => {
       expect(screen.getByTestId("dashboard-root")).toBeInTheDocument(),
     );
     const cards = screen.getAllByTestId("statecard");
-    const updateCard = cards.find(
-      (c) => c.getAttribute("data-status") === "update-available",
+    // Pick any not-installed card — selecting it derives action="install"
+    // and enables the Apply button. v1.19.0 dropped the update-available
+    // path the original assertion used.
+    const targetCard = cards.find(
+      (c) => c.getAttribute("data-status") === "not-installed",
     );
-    expect(updateCard).toBeDefined();
+    expect(targetCard).toBeDefined();
 
-    const cb = updateCard!.querySelector(
+    const cb = targetCard!.querySelector(
       '[data-testid="statecard-checkbox"]',
     ) as HTMLInputElement;
     fireEvent.click(cb);
@@ -400,19 +403,14 @@ describe("Dashboard — apply submission carries derived action per status", () 
 
   type DerivedCase = {
     label: string;
-    status: "update-available" | "not-installed" | "installed" | "partial-install";
-    expectedAction: "update" | "install" | "uninstall";
+    status: "not-installed" | "installed" | "partial-install";
+    expectedAction: "install" | "uninstall";
   };
 
   // Each card's status drives the action that Dashboard derives at selection
   // time. Verified at the network boundary (POST body) since the new LogPanel
   // doesn't surface the action verb in its DOM.
   const cases: DerivedCase[] = [
-    {
-      label: "update-available → action='update'",
-      status: "update-available",
-      expectedAction: "update",
-    },
     {
       label: "not-installed → action='install'",
       status: "not-installed",
@@ -424,9 +422,9 @@ describe("Dashboard — apply submission carries derived action per status", () 
       expectedAction: "uninstall",
     },
     {
-      // Added v1.18.5: dual-Agent plugin half-installs derive "install" so a
-      // single Apply backfills the missing agent. Apply path calls install on
-      // every targeted agent; the already-installed side becomes a CLI no-op.
+      // Dual-Agent plugin half-installs derive "install" so a single Apply
+      // backfills the missing agent. Apply path calls install on every
+      // targeted agent; the already-installed side becomes a CLI no-op.
       label: "partial-install → action='install'",
       status: "partial-install",
       expectedAction: "install",
@@ -570,13 +568,13 @@ describe("Dashboard — changeWorkflowLang re-derives already-selected workflow"
       vi.fn((url: string, init?: RequestInit) => {
         calls.push({ url, init });
         if (url.includes("/api/state")) {
-          // Use update-available so the action becomes "update" → carries
+          // Use not-installed so the action becomes "install" → carries
           // lang. (Workflow uninstall would skip the lang field.)
           return Promise.resolve(
             jsonResponse(
               makeReport({
                 workflow: {
-                  status: "update-available",
+                  status: "not-installed",
                   currentVersion: "1.5.0",
                   expectedVersion: "1.6.0",
                 },
