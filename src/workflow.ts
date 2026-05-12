@@ -47,11 +47,20 @@ export async function installWorkflow(
   const targetClaude = path.join(resolved, "CLAUDE.md");
   const targetAgents = path.join(resolved, "AGENTS.md");
 
-  // Copy CLAUDE.md
+  // Back up the FIRST existing CLAUDE.md only — never clobber a prior .bak.
+  // Once re-install became the update path (v1.19.0 dropped the separate
+  // "update" action), running installWorkflow twice would otherwise
+  // overwrite the user's pre-auriga backup with our previous workflow
+  // version on the second run, destroying their recovery path. Mirrors the
+  // backupOnce discipline in src/hooks.ts.
   if (fs.existsSync(targetClaude)) {
     const bakPath = targetClaude + ".bak";
-    fs.copyFileSync(targetClaude, bakPath);
-    log.warn(`Existing CLAUDE.md backed up to CLAUDE.md.bak`);
+    if (fs.existsSync(bakPath)) {
+      log.skip("CLAUDE.md.bak already exists; preserving original backup");
+    } else {
+      fs.copyFileSync(targetClaude, bakPath);
+      log.warn(`Existing CLAUDE.md backed up to CLAUDE.md.bak`);
+    }
   }
 
   fs.copyFileSync(sourceClaude, targetClaude);
