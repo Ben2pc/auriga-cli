@@ -25,11 +25,23 @@
       "skillPath": "skills/codex-agent/SKILL.md",
       "computedHash": "160315229913b882dd22202f942adf3a316692cc3376eb189da0dda2203a294b"
     },
+    "deprecation-and-migration": {
+      "source": "addyosmani/agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/deprecation-and-migration/SKILL.md",
+      "computedHash": "ad5b7a0b67d5cd952aafd0069865c10c21e2f5fe179bfbc544e11b3c853953c2"
+    },
     "design-taste-frontend": {
       "source": "Leonxlnx/taste-skill",
       "sourceType": "github",
       "skillPath": "skills/taste-skill/SKILL.md",
       "computedHash": "9d1e82c5c409d2b0247245a005bc0f7e4447c0999b78dcea60f568c1ba4a6694"
+    },
+    "documentation-and-adrs": {
+      "source": "addyosmani/agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/documentation-and-adrs/SKILL.md",
+      "computedHash": "1c1b33b3c8ff1d5f9fdcf9d8a7a67f82384b3224e88af567fd4688f3f2d9e85b"
     },
     "frontend-design": {
       "source": "anthropics/skills",
@@ -37,17 +49,17 @@
       "skillPath": "skills/frontend-design/SKILL.md",
       "computedHash": "063a0e6448123cd359ad0044cc46b0e490cc7964d45ef4bb9fd842bd2ffbca67"
     },
+    "incremental-impl": {
+      "source": "Ben2pc/auriga-cli",
+      "sourceType": "github",
+      "skillPath": "skills/incremental-impl/SKILL.md",
+      "computedHash": "ceee01a02db4bcaadb5b682b50c61cec085dd760fed022c14aad4c0680ea00e8"
+    },
     "make-interfaces-feel-better": {
       "source": "jakubkrehel/make-interfaces-feel-better",
       "sourceType": "github",
       "skillPath": "skills/make-interfaces-feel-better/SKILL.md",
       "computedHash": "54b6e221bbe4e2d1a8461c3f9ecabe69daf891f964e9ee5e699c323daa018f2e"
-    },
-    "parallel-implementation": {
-      "source": "Ben2pc/auriga-cli",
-      "sourceType": "github",
-      "skillPath": "skills/parallel-implementation/SKILL.md",
-      "computedHash": "c1e5fcfaf26ca8f339a724a3abc0cdf1b7ad8edcd0a5035ebd9f1933101428ab"
     },
     "planning-with-files": {
       "source": "OthmanAdi/planning-with-files",

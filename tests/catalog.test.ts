@@ -41,7 +41,7 @@ describe("generateCatalog (build-time)", () => {
     // (assertion lives in the plugins block below).
     assert.deepEqual(names, [
       "brainstorming",
-      "parallel-implementation",
+      "incremental-impl",
       "planning-with-files",
       "playwright-cli",
       "session-compound",
@@ -53,14 +53,16 @@ describe("generateCatalog (build-time)", () => {
     assertEntriesShape(catalog.workflowSkills, "workflowSkills");
   });
 
-  test("recommended skills: 6 entries (cross-model delegators + frontend skills + code-simplification)", () => {
-    assert.equal(catalog.recommendedSkills.length, 6);
+  test("recommended skills: 8 entries (cross-model delegators + frontend skills + code-simplification + deprecation-and-migration + documentation-and-adrs)", () => {
+    assert.equal(catalog.recommendedSkills.length, 8);
     const names = catalog.recommendedSkills.map((e) => e.name).sort();
     assert.deepEqual(names, [
       "claude-code-agent",
       "code-simplification",
       "codex-agent",
+      "deprecation-and-migration",
       "design-taste-frontend",
+      "documentation-and-adrs",
       "frontend-design",
       "make-interfaces-feel-better",
     ]);
@@ -104,12 +106,14 @@ describe("generateCatalog (build-time)", () => {
     assertEntriesShape(catalog.hooks, "hooks");
   });
 
-  test("descriptions survive YAML escaped quotes (parallel-implementation)", () => {
-    const pi = catalog.workflowSkills.find((e) => e.name === "parallel-implementation");
-    assert.ok(pi);
-    assert.match(pi.description, /parallel subagents/);
-    // parallel-implementation description contains escaped quotes: isolation: \"worktree\"
-    assert.match(pi.description, /isolation/);
+  test("descriptions survive unicode special chars (incremental-impl)", () => {
+    const e = catalog.workflowSkills.find((e) => e.name === "incremental-impl");
+    assert.ok(e);
+    // Description contains em-dashes and unicode arrows that must survive
+    // YAML parsing through the catalog generator. Regression guard for
+    // YAML special-character handling in skill descriptions.
+    assert.match(e.description, /XS–XL/);
+    assert.match(e.description, /Implement → Test → Verify → Commit/);
   });
 });
 

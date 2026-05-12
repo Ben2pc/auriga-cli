@@ -302,7 +302,7 @@ CATALOG (what each category contains)
 
 Workflow skills (category: skills)  ← installed by --all
   brainstorming                  Clarify requirements via dialogue before coding
-  parallel-implementation        Plan how to slice work across parallel subagents
+  incremental-impl               Plan a non-trivial implementation: size, slicing, optional parallel dispatch, per-slice discipline
   planning-with-files            Manus-style file-based planning for complex tasks
   playwright-cli                 Browser automation & testing verification
   systematic-debugging           Find root cause before fixing bugs
@@ -500,7 +500,7 @@ exit 2
 - `package.json`: `"build": "tsc && node dist/build/generate-catalog.js"`——两步必须同时保留；CI 里加一条"发布前 `test -f dist/catalog.json`"校验，防止漏改 build 脚本导致发布产物缺 catalog
 - 复用 `src/utils.ts` 导出的 `SkillsLock` / `PluginDef` 类型
 - `package.json` 的 `files` 字段显式列出运行时产物（不含 `dist/build/`），避免 build 脚本发到 npm
-- YAML frontmatter 解析用 **`gray-matter`**（markdown frontmatter 标准库，轻量）；避免正则——`parallel-implementation` / `ui-ux-pro-max` 等 skill 的 description 跨多行含转义字符，正则易漏
+- YAML frontmatter 解析用 **`gray-matter`**（markdown frontmatter 标准库，轻量）；避免正则——`incremental-impl` / `ui-ux-pro-max` 等 skill 的 description 跨多行含转义字符，正则易漏
 
 ### 5.5 Scope 词汇统一
 

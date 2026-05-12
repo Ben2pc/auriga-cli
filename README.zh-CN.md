@@ -11,7 +11,7 @@
 | 模块 | 说明 |
 |---|---|
 | **Workflow** | `CLAUDE.md` 里的 auriga 工作流：需求澄清 → TDD → Review，Harness 原则，Subagent 使用指南 |
-| **Skills** | 开发流程 + 编排类 skills —— brainstorming、systematic-debugging、TDD、verification、planning、playwright、test-designer、parallel-implementation |
+| **Skills** | 开发流程 + 编排类 skills —— brainstorming、systematic-debugging、TDD、verification、planning、playwright、test-designer、incremental-impl |
 | **Recommended Skills** | 可选的工具类 skills（如 `codex-agent`、`claude-code-agent`），在 workflow skills 之外按需追加 |
 | **Plugins** | 推荐的 Claude Code 和 Codex 插件 —— skill-creator、claude-md-management、codex、auriga-go、auriga-git-guards、session-instructions-loader、deep-review |
 | **Hooks** | Claude Code hooks：`notify`（macOS 通知，终端在焦点时仅放声不弹横幅 —— **opt-in**：`install --all` 不装，需要 `install hooks --hook notify`） |
@@ -103,7 +103,7 @@ npx auriga-cli
 | planning-with-files | [OthmanAdi/planning-with-files](https://github.com/OthmanAdi/planning-with-files) | 文件化任务计划与进度跟踪 |
 | playwright-cli | [microsoft/playwright-cli](https://github.com/microsoft/playwright-cli) | 浏览器自动化与测试 |
 | test-designer | [Ben2pc/auriga-cli](https://github.com/Ben2pc/auriga-cli) | TDD 红灯阶段的 Independent Evaluation 测试设计器 |
-| parallel-implementation | [Ben2pc/auriga-cli](https://github.com/Ben2pc/auriga-cli) | 多 subagent 并行写代码时的切片计划器 |
+| incremental-impl | [Ben2pc/auriga-cli](https://github.com/Ben2pc/auriga-cli) | 决定如何实现非平凡改动：估算大小、选择切片策略、按需并行派遣、执行片间纪律 |
 | session-compound | [Ben2pc/auriga-cli](https://github.com/Ben2pc/auriga-cli) | PR 合并后的会话复利 skill — 将本次会话沉淀为交互式 HTML 报告（时间线 + token / cache / 工具健康度 + playground：skill 安装 / AGENTS.md 修改 / 新建 skill 缺口） |
 
 **Recommended Skills（可选，不在 `--all` 内）：**
@@ -113,7 +113,9 @@ npx auriga-cli
 | claude-code-agent | [Ben2pc/g-claude-code-plugins](https://github.com/Ben2pc/g-claude-code-plugins) | 通过 Claude Code Agent SDK 把任务委派给独立 Claude Code 会话 |
 | code-simplification | [addyosmani/agent-skills](https://github.com/addyosmani/agent-skills) | 不改变行为前提下重构代码以提升可读性 —— 清掉累积的不必要复杂度 |
 | codex-agent | [Ben2pc/g-claude-code-plugins](https://github.com/Ben2pc/g-claude-code-plugins) | 委派给 Codex 会话，做跨模型覆盖 |
+| deprecation-and-migration | [addyosmani/agent-skills](https://github.com/addyosmani/agent-skills) | 废弃与迁移流程 —— 安全地下线、替换或迁移遗留代码 |
 | design-taste-frontend | [Leonxlnx/taste-skill](https://github.com/Leonxlnx/taste-skill) | 高阶 UI/UX 工程师 —— 度量化设计规则与严格的组件架构约束 |
+| documentation-and-adrs | [addyosmani/agent-skills](https://github.com/addyosmani/agent-skills) | 记录架构决策与"为什么" —— 为后来的工程师和 Agent 沉淀上下文 |
 | frontend-design | [anthropics/skills](https://github.com/anthropics/skills) | 生成有辨识度、production 级的前端界面，避开常见 AI 同质化美学 |
 | make-interfaces-feel-better | [jakubkrehel/make-interfaces-feel-better](https://github.com/jakubkrehel/make-interfaces-feel-better) | 界面打磨原则 —— 动画、表面、排版、性能 |
 

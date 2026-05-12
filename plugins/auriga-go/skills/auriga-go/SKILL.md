@@ -78,12 +78,12 @@ Use your Agent's native task/todo tool. If the Agent has none, announce in natur
 
 Name the phase (in `CLAUDE.md`'s own terms) + the action or skill to invoke. Examples: "requirement clarification phase → invoke `brainstorming`", "TDD red phase → invoke `test-designer` with the spec", "formal review phase → invoke `deep-review`". The main Agent executes.
 
-**Mandatory emissions before recommending green-phase code work** — at the TDD red phase + parallel-implementation decision points named in CLAUDE.md. Both must be recorded in the task tracker as a single line each, *before* recommending any Write/Edit on production code:
+**Mandatory emissions before recommending green-phase code work** — at the TDD red phase + incremental-impl size gate named in CLAUDE.md. Both must be recorded in the task tracker as a single line each, *before* recommending any Write/Edit on production code:
 
-1. Change-size estimate: `<N> module(s), <M> file(s), ~<L> lines/file` — the input the parallel-implementation thresholds key off of.
+1. Size estimate: `Size: <XS|S|M|L|XL> (AC=<n>, concerns=<n>, ~<n> lines)` — the input `incremental-impl`'s Step 1 size gate keys off of (three-axis judgment from CLAUDE.md's incremental implementation phase).
 2. `test-designer` applicability: `Y/N — <one-line reason>` — the TDD-phase test-designer-applicability judgment (predicates a/b/c in the CLAUDE.md TDD phase).
 
-These exist so the **skip** decisions at those two phases are auditable. CLAUDE.md's own escape hatch ("below thresholds, write inline — multi-agent overhead outweighs the gain") is legitimate; what is not legitimate is skipping silently. If either emission is missing when green-phase code lands, treat it as workflow drift on the next pass.
+These exist so the **skip** decisions at those two phases are auditable. CLAUDE.md's own escape hatches ("skip the skill only for trivial XS work and for pure documentation / configuration changes" for incremental-impl, the optional test-designer predicates for TDD) are legitimate; what is not legitimate is skipping silently. If either emission is missing when green-phase code lands, treat it as workflow drift on the next pass.
 
 ## Stop Contract
 
@@ -119,7 +119,7 @@ Skip if source 1 was sufficient.
 - ❌ Silently starting work — always record the phase in the task tracker first
 - ❌ Proceeding past a fallback inference without running the Confirmation Contract
 - ❌ Bypassing the Stop Contract for "small" destructive ops
-- ❌ Entering green phase without emitting the change-size estimate + `test-designer` applicability lines (the TDD + parallel-implementation skip-or-go decisions must be auditable)
+- ❌ Entering green phase without emitting the size estimate + `test-designer` applicability lines (the TDD + incremental-impl skip-or-go decisions must be auditable)
 
 ## Example invocations
 
