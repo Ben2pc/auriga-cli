@@ -67,6 +67,35 @@ function readLocalCodexManifestDescription(
   return undefined;
 }
 
+/** Read the owned plugin's manifest version (`.claude-plugin/plugin.json`
+ *  preferred, `.codex-plugin/plugin.json` as fallback). Returns undefined
+ *  when no in-tree manifest exists — for external-marketplace plugins
+ *  (skill-creator etc.) that's correct: the source lives upstream, so we
+ *  leave expectedVersion unset and the scanner trusts whatever's installed.
+ *  This MUST run at build time because `plugins/<name>/` is not in the npm
+ *  tarball's `files` allowlist — runtime scan-catalog cannot see it. */
+function readPluginManifestVersion(
+  repoRoot: string,
+  name: string,
+): string | undefined {
+  const candidates = [
+    path.join(repoRoot, "plugins", name, ".claude-plugin", "plugin.json"),
+    path.join(repoRoot, "plugins", name, ".codex-plugin", "plugin.json"),
+  ];
+  for (const p of candidates) {
+    if (!fs.existsSync(p)) continue;
+    try {
+      const parsed = JSON.parse(fs.readFileSync(p, "utf-8")) as { version?: unknown };
+      if (typeof parsed.version === "string" && parsed.version.length > 0) {
+        return parsed.version;
+      }
+    } catch {
+      /* try next candidate */
+    }
+  }
+  return undefined;
+}
+
 function readSkillDescription(repoRoot: string, name: string): string {
   const override = CATALOG_OVERRIDES[name];
   if (override) return override;
@@ -109,7 +138,12 @@ export function generateCatalog(repoRoot: string): Catalog {
   const pluginsCfg = pluginsRaw as PluginsConfig;
   const pluginByName = new Map<string, CatalogEntry>();
   for (const p of pluginsCfg.plugins) {
-    pluginByName.set(p.name, { name: p.name, description: p.description });
+    const expectedVersion = readPluginManifestVersion(repoRoot, p.name);
+    pluginByName.set(p.name, {
+      name: p.name,
+      description: p.description,
+      ...(expectedVersion ? { expectedVersion } : {}),
+    });
   }
 
   const codexMarketplacePath = path.join(repoRoot, ".agents", "plugins", "marketplace.json");
@@ -144,11 +178,16 @@ export function generateCatalog(repoRoot: string): Catalog {
         }
       }
 
+      // expectedVersion may have been set by the Claude pass; preserve it.
+      // Otherwise read from this plugin's in-tree manifest (handles codex-only
+      // plugins like session-instructions-loader).
+      const expectedVersion = existing?.expectedVersion ?? readPluginManifestVersion(repoRoot, p.name);
       pluginByName.set(p.name, {
         name: p.name,
         description: existing
           ? `(Claude/Codex) ${existing.description}`
           : `(Codex) ${description}`,
+        ...(expectedVersion ? { expectedVersion } : {}),
       });
     }
   }

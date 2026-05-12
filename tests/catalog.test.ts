@@ -106,6 +106,39 @@ describe("generateCatalog (build-time)", () => {
     assertEntriesShape(catalog.hooks, "hooks");
   });
 
+  test("owned plugins carry baked expectedVersion from plugin.json", () => {
+    // rationale: the scanner relies on this baked field to surface
+    // "update-available" for already-installed plugins. Reading at runtime
+    // doesn't work because `plugins/<name>/` is not in the npm tarball's
+    // `files` allowlist — must be baked into dist/catalog.json at build time.
+    for (const name of ["auriga-go", "auriga-git-guards", "deep-review", "session-instructions-loader"]) {
+      const e = catalog.plugins.find((p) => p.name === name);
+      assert.ok(e, `${name} present in catalog`);
+      assert.match(
+        e!.expectedVersion ?? "",
+        /^\d+\.\d+\.\d+/,
+        `${name} must bake a semver expectedVersion; got ${JSON.stringify(e!.expectedVersion)}`,
+      );
+    }
+  });
+
+  test("external-marketplace plugins do NOT carry expectedVersion", () => {
+    // rationale: skill-creator / claude-md-management / codex install from
+    // upstream marketplaces; their manifest doesn't live in this repo. The
+    // scanner must treat them as "trust whatever is installed" by leaving
+    // expectedVersion undefined — pinning a version here would force
+    // perpetual update-available against upstream's own release cadence.
+    for (const name of ["skill-creator", "claude-md-management", "codex"]) {
+      const e = catalog.plugins.find((p) => p.name === name);
+      assert.ok(e, `${name} present in catalog`);
+      assert.equal(
+        e!.expectedVersion,
+        undefined,
+        `${name} must NOT carry expectedVersion (external marketplace)`,
+      );
+    }
+  });
+
   test("descriptions survive unicode special chars (incremental-impl)", () => {
     const e = catalog.workflowSkills.find((e) => e.name === "incremental-impl");
     assert.ok(e);
