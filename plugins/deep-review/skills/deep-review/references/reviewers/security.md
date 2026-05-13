@@ -122,10 +122,10 @@ Return:
 - Summary of **at most 400 words** (longer than other reviewers; security findings often need explanation)
 - Followed by a bullet list, each: `<file>:<line> — <one-line description> — [severity: blocking | non-blocking] — [confidence: high | medium | low] — [category: auth | authz | secret | data | crypto | injection | config | dependency | third-party | other]`
 
-For high-impact findings (blocking + high confidence, or any remotely exploitable path to data exposure / account takeover / payment abuse / full compromise), append concise detail after the bullet:
+For high-impact findings (blocking + high confidence, or any remotely exploitable path to data exposure / account takeover / payment abuse / full compromise), keep the finding as one top-level bullet in the required format, then add these indented continuation lines under that same bullet:
 
-- `Exploit path:` attacker-controlled entry point + steps to reach the vulnerable behavior.
-- `Impact:` what the attacker can read, modify, bypass, or exhaust.
-- `Recommendation:` the concrete fix direction; do not recommend disabling security controls.
+  `Exploit path:` attacker-controlled entry point + steps to reach the vulnerable behavior.
+  `Impact:` what the attacker can read, modify, bypass, or exhaust.
+  `Recommendation:` the concrete fix direction; do not recommend disabling security controls.
 
 Return `"No findings."` only when you genuinely found nothing.
