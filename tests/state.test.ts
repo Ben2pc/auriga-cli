@@ -612,6 +612,40 @@ describe("scanState — #12 Plugins (Claude) / user scope happy path", () => {
 });
 
 // ===========================================================================
+// #12b — Plugins (Claude) / presence-only: no version field → still installed
+// ===========================================================================
+describe("scanState — #12b Plugins (Claude) presence-only contract", () => {
+  test("#12b plugins/claude installed=true when record exists without a version field (v1.19.0 presence-only)", async () => {
+    // rationale: v1.19.0 dropped version comparison; classifyClaudePlugin
+    // must NOT require installed.version to be a string. If a future
+    // `claude plugins list` shape omits the version field for installed
+    // entries, the scanner should still report the row as installed.
+    // Re-introducing a version-string requirement would falsely flip
+    // the UI to "not-installed" → push the user toward unnecessary
+    // re-installs.
+    const home = makeScratch("home12b");
+    redirectHome(home);
+    const spy = spyExec({
+      installed: [{ id: "auriga-go@auriga-cli" }], // no version field
+      available: [{ id: "auriga-go@auriga-cli" }],
+    });
+    const catalog = makeCatalog({
+      plugins: { "auriga-go@auriga-cli": { description: "", agents: ["claude"] } },
+    });
+
+    const report = await scan(makeScratch("proj12b"), catalog, {
+      execPluginList: spy.fn,
+      scopes: { plugins: "user" },
+      homeDir: home,
+      ...codexNone,
+    });
+
+    const p = report.plugins.find((x) => x.id === "auriga-go@auriga-cli")!;
+    assert.equal(p.status, "installed");
+  });
+});
+
+// ===========================================================================
 // #13 — Plugins (Claude) / project scope: scope flag plumbed through
 // ===========================================================================
 describe("scanState — #13 Plugins (Claude) / project scope flag plumbing", () => {

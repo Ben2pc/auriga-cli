@@ -505,8 +505,10 @@ function classifyClaudePlugin(
   scope: ScanScope,
 ): PluginState {
   const externalFlag = def.external === true ? { external: true as const } : {};
-  const status: ItemStatus =
-    installed && typeof installed.version === "string" ? "installed" : "not-installed";
+  // Presence-only since v1.19.0: any matching installed record counts.
+  // Don't require a `version` field — the field may go away in a future
+  // `claude plugins list --json` shape and we no longer compare versions.
+  const status: ItemStatus = installed ? "installed" : "not-installed";
   return {
     id,
     description: def.description,
