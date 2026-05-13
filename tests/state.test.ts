@@ -84,11 +84,10 @@
 //       — pre-v1.18.5 the row was conflated as "installed + workflow-unknown-
 //       version warning" which caused the $HOME-as-projectRoot bug.)
 //
-//   A2. **Skills via filesystem**: each row's `currentHash` is the SHA256 of
-//       the SKILL.md file bytes. The catalog row's `expectedHash` is the
-//       comparison target. A SKILL.md frontmatter `version` field MAY override
-//       the hash check (per spec), but tests assert via hash-only paths so
-//       implementations choosing either route both pass.
+//   A2. **Skills via filesystem**: a SKILL.md present under
+//       `<scope>/skills/<name>/` classifies as "installed"; missing →
+//       "not-installed". v1.19.0 dropped hash-based drift detection — the
+//       scanner is presence-only; re-install is the update path.
 //
 //   A3. **Skill malformed**: a directory exists under `<scope>/skills/<name>/`
 //       but `SKILL.md` is missing or unreadable → row present with status
@@ -109,13 +108,6 @@
 //
 //   A6. **Settings.json absent** → all catalog hooks classify as
 //       "not-installed" with NO warning (common case for fresh user).
-//
-//   A7. **Hook matcher drift**: settings.json contains a hook entry with the
-//       right `_marker` but its `matcher` field differs from the catalog's
-//       expected matcher → status `update-available`. The catalog hook
-//       entry's `expectedHash` field doubles as a coarse drift signal;
-//       tests assert via the `matcher` divergence path which is the spec's
-//       primary trigger.
 //
 //   A8. **No Claude install at all**: neither `~/.claude/` nor
 //       `<proj>/.claude/` exists → emit ONE `claude-code-not-installed`
@@ -151,7 +143,6 @@
 // =============================================================================
 
 import assert from "node:assert/strict";
-import { createHash } from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -161,6 +152,7 @@ import { mergePluginsById, scanState } from "../src/state.js";
 import type { Catalog, ScanOptions } from "../src/state.js";
 import type {
   HookState,
+  ItemStatus,
   PluginState,
   SkillState,
   StateReport,
@@ -170,11 +162,6 @@ import type {
 // ---------------------------------------------------------------------------
 // Fixture helpers
 // ---------------------------------------------------------------------------
-
-/** Compute SHA256 of a string — same algorithm we'd expect the scanner to use. */
-function sha256(text: string): string {
-  return createHash("sha256").update(text).digest("hex");
-}
 
 /** Track scratch dirs minted per-test so cleanup is unconditional. */
 const scratchDirs: string[] = [];
@@ -214,7 +201,6 @@ afterEach(() => restoreHome());
 /** Build a Catalog with everything defaulted to empty. */
 function makeCatalog(over: Partial<Catalog> = {}): Catalog {
   return {
-    workflowVersion: "1.6.0",
     skills: {},
     recommendedSkills: {},
     plugins: {},
@@ -317,15 +303,13 @@ describe("scanState — #1 Workflow / user scope happy path", () => {
     writeWorkflowFile(path.join(home, ".claude", "CLAUDE.md"), "1.6.0");
     redirectHome(home);
 
-    const report = await scan(makeScratch("proj1"), makeCatalog({ workflowVersion: "1.6.0" }), {
+    const report = await scan(makeScratch("proj1"), makeCatalog(), {
       scopes: { workflow: "user" },
       homeDir: home, // belt-and-suspenders for impls that prefer opts.homeDir
     });
 
     assert.equal(report.workflow.status, "installed");
     assert.equal((report.workflow as any).observedScope, "user");
-    assert.equal(report.workflow.currentVersion, "1.6.0");
-    assert.equal(report.workflow.expectedVersion, "1.6.0");
   });
 });
 
@@ -341,61 +325,20 @@ describe("scanState — #2 Workflow / user scope missing file", () => {
     const proj = makeScratch("proj2");
     writeWorkflowFile(path.join(proj, "CLAUDE.md"), "1.6.0");
 
-    const report = await scan(proj, makeCatalog({ workflowVersion: "1.6.0" }), {
+    const report = await scan(proj, makeCatalog(), {
       scopes: { workflow: "user" },
       homeDir: home,
     });
 
     assert.equal(report.workflow.status, "not-installed");
     assert.equal((report.workflow as any).observedScope, "user");
-    assert.equal(report.workflow.currentVersion, undefined);
   });
 });
 
 // ===========================================================================
-// #3 — Workflow / user scope: version mismatch → update-available
-// ===========================================================================
-describe("scanState — #3 Workflow / user scope version mismatch", () => {
-  test("#3 workflow/user update-available when marker version older", async () => {
-    // rationale: catches missing version-compare for user-scope path
-    const home = makeScratch("home3");
-    writeWorkflowFile(path.join(home, ".claude", "CLAUDE.md"), "1.4.0");
-    redirectHome(home);
-
-    const report = await scan(makeScratch("proj3"), makeCatalog({ workflowVersion: "1.6.0" }), {
-      scopes: { workflow: "user" },
-      homeDir: home,
-    });
-
-    assert.equal(report.workflow.status, "update-available");
-    assert.equal(report.workflow.currentVersion, "1.4.0");
-    assert.equal(report.workflow.expectedVersion, "1.6.0");
-    assert.equal((report.workflow as any).observedScope, "user");
-  });
-
-  test("#3b workflow/empty-expectedVersion trusts installed (no phantom update-available)", async () => {
-    // rationale: scan-catalog may fail to extract auriga-cli's own
-    // CLAUDE.md header (build-time miss / malformed shipped template), in
-    // which case catalog.workflowVersion is "". Without an explicit bypass
-    // the comparison `"1.6.0" === ""` is false and a freshly-installed
-    // workflow flips to "update-available" against the empty string —
-    // user has nothing to upgrade to and the UI gives no actionable info.
-    const home = makeScratch("home3b");
-    writeWorkflowFile(path.join(home, ".claude", "CLAUDE.md"), "1.6.0");
-    redirectHome(home);
-
-    const report = await scan(makeScratch("proj3b"), makeCatalog({ workflowVersion: "" }), {
-      scopes: { workflow: "user" },
-      homeDir: home,
-    });
-
-    assert.equal(report.workflow.status, "installed", "empty expectedVersion must NOT trigger update-available");
-    assert.equal(report.workflow.currentVersion, "1.6.0");
-  });
-});
-
-// ===========================================================================
-// #4 — Workflow / project scope: happy path
+// #4 — Workflow / project scope: happy path (scanner is presence-only since
+// v1.19.0 — no version comparison; tests #3 / #3b that asserted
+// update-available semantics were deleted with that surface)
 // ===========================================================================
 describe("scanState — #4 Workflow / project scope happy path", () => {
   test("#4 workflow/project installed reads <proj>/CLAUDE.md", async () => {
@@ -405,14 +348,13 @@ describe("scanState — #4 Workflow / project scope happy path", () => {
     const proj = makeScratch("proj4");
     writeWorkflowFile(path.join(proj, "CLAUDE.md"), "1.6.0");
 
-    const report = await scan(proj, makeCatalog({ workflowVersion: "1.6.0" }), {
+    const report = await scan(proj, makeCatalog(), {
       scopes: { workflow: "project" },
       homeDir: home,
     });
 
     assert.equal(report.workflow.status, "installed");
     assert.equal((report.workflow as any).observedScope, "project");
-    assert.equal(report.workflow.currentVersion, "1.6.0");
   });
 });
 
@@ -435,13 +377,12 @@ describe("scanState — #5 Workflow / project scope no .claude/CLAUDE.md fallbac
     // NO file at <proj>/CLAUDE.md, only at <proj>/.claude/CLAUDE.md
     writeWorkflowFile(path.join(proj, ".claude", "CLAUDE.md"), "1.6.0");
 
-    const report = await scan(proj, makeCatalog({ workflowVersion: "1.6.0" }), {
+    const report = await scan(proj, makeCatalog(), {
       scopes: { workflow: "project" },
       homeDir: home,
     });
 
     assert.equal(report.workflow.status, "not-installed", "must not pick up the .claude/ subdir file");
-    assert.equal(report.workflow.currentVersion, undefined);
   });
 });
 
@@ -461,13 +402,12 @@ describe("scanState — #6 Workflow foreign-CLAUDE.md", () => {
     const proj = makeScratch("proj6");
     writeWorkflowFile(path.join(proj, "CLAUDE.md"), null /* no marker */);
 
-    const report = await scan(proj, makeCatalog({ workflowVersion: "1.6.0" }), {
+    const report = await scan(proj, makeCatalog(), {
       scopes: { workflow: "project" },
       homeDir: home,
     });
 
     assert.equal(report.workflow.status, "not-installed", "foreign CLAUDE.md is not our workflow");
-    assert.equal(report.workflow.currentVersion, undefined);
     assert.ok(
       report.warnings.some((w: StateWarning) => (w.code as string) === "workflow-foreign-claudemd"),
       "must emit workflow-foreign-claudemd warning",
@@ -489,7 +429,7 @@ describe("scanState — #7 Skills / user scope happy path", () => {
 
     const catalog = makeCatalog({
       skills: {
-        brainstorming: { description: "B", expectedHash: sha256(content), isWorkflow: true },
+        brainstorming: { description: "B", isWorkflow: true },
       },
     });
     const report = await scan(makeScratch("proj7"), catalog, {
@@ -517,8 +457,8 @@ describe("scanState — #8 Skills / user scope partial", () => {
 
     const catalog = makeCatalog({
       skills: {
-        brainstorming: { description: "", expectedHash: sha256(content), isWorkflow: true },
-        "not-on-disk": { description: "", expectedHash: "any", isWorkflow: true },
+        brainstorming: { description: "", isWorkflow: true },
+        "not-on-disk": { description: "", isWorkflow: true },
       },
     });
     const report = await scan(makeScratch("proj8"), catalog, {
@@ -551,7 +491,7 @@ describe("scanState — #9 Skills / project scope", () => {
 
     const catalog = makeCatalog({
       skills: {
-        brainstorming: { description: "", expectedHash: sha256(content), isWorkflow: true },
+        brainstorming: { description: "", isWorkflow: true },
       },
     });
     const report = await scan(proj, catalog, {
@@ -582,8 +522,8 @@ describe("scanState — #10 Skills malformed (dir present, SKILL.md missing)", (
 
     const catalog = makeCatalog({
       skills: {
-        brainstorming: { description: "", expectedHash: "anyhash", isWorkflow: true },
-        healthy: { description: "", expectedHash: sha256(healthyContent), isWorkflow: false },
+        brainstorming: { description: "", isWorkflow: true },
+        healthy: { description: "", isWorkflow: false },
       },
     });
     let report: StateReport;
@@ -609,17 +549,13 @@ describe("scanState — #10 Skills malformed (dir present, SKILL.md missing)", (
 // ===========================================================================
 // #11 — Skills / drift detection deliberately deferred to `npx skills update`
 // ===========================================================================
-describe("scanState — #11 Skills drift detection deferred", () => {
-  test("#11 skill content drift is ignored when catalog expectedHash is empty (production path)", async () => {
-    // rationale: production scan-catalog sets every skill's expectedHash to
-    // "" (wildcard) — drift detection deliberately deferred to
-    // `npx skills update --project`, which compares against each skill's own
-    // upstream HEAD. Our catalog snapshot is at best stale; mis-reporting
-    // legitimate user-side updates as drift would push users into a confusing
-    // "auriga-cli says reinstall, npx skills says you're current" loop.
-    // The classifier already supports the wildcard (state.ts:455); this test
-    // pins the contract so a future regression that reintroduces non-empty
-    // skill hashes will fail loudly here too.
+describe("scanState — #11 Skills presence-only (no content drift)", () => {
+  test("#11 skill content drift never flips status (scanner is presence-only)", async () => {
+    // rationale: v1.19.0 dropped update-available status — re-running
+    // install is the update path. Drift detection deliberately deferred
+    // to `npx skills update --project`, which compares against each
+    // skill's own upstream HEAD. This test pins the contract so a future
+    // regression that re-introduces hash comparison would fail here.
     const home = makeScratch("home11");
     redirectHome(home);
     const onDisk = "---\nname: brainstorming\nversion: 0.9.0\n---\nold";
@@ -627,12 +563,7 @@ describe("scanState — #11 Skills drift detection deferred", () => {
 
     const catalog = makeCatalog({
       skills: {
-        brainstorming: {
-          description: "",
-          // Mirror production: scan-catalog always emits "" for skills.
-          expectedHash: "",
-          isWorkflow: true,
-        },
+        brainstorming: { description: "", isWorkflow: true },
       },
     });
     const report = await scan(makeScratch("proj11"), catalog, {
@@ -644,12 +575,7 @@ describe("scanState — #11 Skills drift detection deferred", () => {
     assert.equal(
       s.status,
       "installed",
-      "skill with content drift must still classify as installed when expectedHash is wildcard",
-    );
-    assert.notEqual(
-      s.status,
-      "update-available",
-      "must not surface update-available — that signal would be a stale proxy for what `npx skills update` already checks better",
+      "presence-only: SKILL.md present → installed regardless of content",
     );
     assert.equal((s as any).observedScope, "user");
   });
@@ -682,6 +608,40 @@ describe("scanState — #12 Plugins (Claude) / user scope happy path", () => {
     assert.equal(p.status, "installed");
     assert.equal((p as any).observedScope, "user");
     assert.deepEqual(p.agents, ["claude"]);
+  });
+});
+
+// ===========================================================================
+// #12b — Plugins (Claude) / presence-only: no version field → still installed
+// ===========================================================================
+describe("scanState — #12b Plugins (Claude) presence-only contract", () => {
+  test("#12b plugins/claude installed=true when record exists without a version field (v1.19.0 presence-only)", async () => {
+    // rationale: v1.19.0 dropped version comparison; classifyClaudePlugin
+    // must NOT require installed.version to be a string. If a future
+    // `claude plugins list` shape omits the version field for installed
+    // entries, the scanner should still report the row as installed.
+    // Re-introducing a version-string requirement would falsely flip
+    // the UI to "not-installed" → push the user toward unnecessary
+    // re-installs.
+    const home = makeScratch("home12b");
+    redirectHome(home);
+    const spy = spyExec({
+      installed: [{ id: "auriga-go@auriga-cli" }], // no version field
+      available: [{ id: "auriga-go@auriga-cli" }],
+    });
+    const catalog = makeCatalog({
+      plugins: { "auriga-go@auriga-cli": { description: "", agents: ["claude"] } },
+    });
+
+    const report = await scan(makeScratch("proj12b"), catalog, {
+      execPluginList: spy.fn,
+      scopes: { plugins: "user" },
+      homeDir: home,
+      ...codexNone,
+    });
+
+    const p = report.plugins.find((x) => x.id === "auriga-go@auriga-cli")!;
+    assert.equal(p.status, "installed");
   });
 });
 
@@ -776,89 +736,15 @@ describe("scanState — #14 Plugins (Claude) CLI missing degraded path", () => {
 });
 
 // ===========================================================================
-// #14c — Plugins (Claude) / baked def.expectedVersion path
+// #14d — Plugins (Claude) / external flag preserved
 // ===========================================================================
-describe("scanState — #14c Plugins (Claude) baked expectedVersion", () => {
-  test("#14c plugins/claude: baked def.expectedVersion mismatches installed.version → update-available", async () => {
-    // rationale: `claude plugins list --available --json` deliberately omits
-    // already-installed plugins from `.available[]`, so the marketplace-live
-    // ref path can never fire for the common upgrade case. When the scanner
-    // has a baked expectedVersion from auriga-cli's own
-    // plugins/<name>/.claude-plugin/plugin.json (the canonical source for
-    // owned plugins), it MUST use that to surface "an upgrade is available".
-    // Without this path a stale local install (e.g. deep-review@0.3.1 while
-    // the marketplace ships 0.3.2) reports a misleading green "installed".
-    const home = makeScratch("home14c");
-    redirectHome(home);
-    const catalog = makeCatalog({
-      plugins: {
-        "deep-review@auriga-cli": {
-          description: "",
-          agents: ["claude"],
-          expectedVersion: "0.3.2",
-        },
-      },
-    });
-    const report = await scan(makeScratch("proj14c"), catalog, {
-      execPluginList: (async () => ({
-        installed: [{ id: "deep-review@auriga-cli", version: "0.3.1" }],
-        available: [], // CLI excludes installed plugins from .available[]
-      })) as NonNullable<ScanOptions["execPluginList"]>,
-      scopes: { plugins: "user" },
-      homeDir: home,
-      ...codexNone,
-    });
-
-    const p = report.plugins.find((x) => x.id === "deep-review@auriga-cli")!;
-    assert.equal(p.status, "update-available");
-    assert.equal(p.currentVersion, "0.3.1");
-    assert.equal(p.expectedVersion, "0.3.2");
-    assert.equal(p.versionSource, "catalog");
-  });
-
-  test("#14c plugins/claude: baked def.expectedVersion matches installed.version → installed", async () => {
-    // rationale: confirms the baked-version path doesn't false-positive
-    // when the user IS up to date with the catalog-shipped version.
-    const home = makeScratch("home14c-eq");
-    redirectHome(home);
-    const catalog = makeCatalog({
-      plugins: {
-        "deep-review@auriga-cli": {
-          description: "",
-          agents: ["claude"],
-          expectedVersion: "0.3.2",
-        },
-      },
-    });
-    const report = await scan(makeScratch("proj14c-eq"), catalog, {
-      execPluginList: (async () => ({
-        installed: [{ id: "deep-review@auriga-cli", version: "0.3.2" }],
-        available: [],
-      })) as NonNullable<ScanOptions["execPluginList"]>,
-      scopes: { plugins: "user" },
-      homeDir: home,
-      ...codexNone,
-    });
-
-    const p = report.plugins.find((x) => x.id === "deep-review@auriga-cli")!;
-    assert.equal(p.status, "installed");
-    assert.equal(p.currentVersion, "0.3.2");
-    assert.equal(p.versionSource, "catalog");
-  });
-});
-
-// ===========================================================================
-// #14d — Plugins (Claude) / external short-circuit
-// ===========================================================================
-describe("scanState — #14d Plugins (Claude) external short-circuit", () => {
-  test("#14d external plugin with installed.version mismatch → still installed (never update-available)", async () => {
+describe("scanState — #14d Plugins (Claude) external flag", () => {
+  test("#14d external plugin shape: status installed when present; carries external:true", async () => {
     // rationale: external-marketplace plugins (skill-creator etc.) install
-    // through Claude Code's marketplace; upgrades go through
-    // `claude plugins update`, not us. Even if some signal claims a newer
-    // version is available, the scanner MUST report installed — surfacing
-    // update-available would push users to apply via auriga-cli, which
-    // doesn't know how to talk to the upstream marketplace correctly.
-    // Property under test: def.external === true overrides version compare.
+    // through Claude Code's marketplace; the `external` flag is a pure UI
+    // hint that upgrades go through `claude plugins update`, not us. The
+    // scanner must surface this flag on every row regardless of install
+    // state so the EXTERNAL badge renders consistently.
     const home = makeScratch("home14d");
     redirectHome(home);
     const catalog = makeCatalog({
@@ -875,14 +761,6 @@ describe("scanState — #14d Plugins (Claude) external short-circuit", () => {
         installed: [
           { id: "skill-creator@claude-plugins-official", version: "1.0.0" },
         ],
-        // Even a live "newer" marketplace ref must not flip the status —
-        // we explicitly defer authority to upstream for these.
-        available: [
-          {
-            id: "skill-creator@claude-plugins-official",
-            source: { ref: "v2.0.0" },
-          },
-        ],
       })) as NonNullable<ScanOptions["execPluginList"]>,
       scopes: { plugins: "user" },
       homeDir: home,
@@ -893,13 +771,7 @@ describe("scanState — #14d Plugins (Claude) external short-circuit", () => {
       (x) => x.id === "skill-creator@claude-plugins-official",
     )!;
     assert.equal(p.status, "installed");
-    assert.equal(p.currentVersion, "1.0.0");
     assert.equal((p as any).external, true);
-    assert.notEqual(
-      p.status,
-      "update-available",
-      "external plugins must never report update-available",
-    );
   });
 });
 
@@ -907,18 +779,14 @@ describe("scanState — #14d Plugins (Claude) external short-circuit", () => {
 // #15 — Plugins (Codex) / unchanged behavior: still works
 // ===========================================================================
 describe("scanState — #15 Plugins (Codex) sanity (unchanged behavior)", () => {
-  test("#15 plugins/codex installed when toml enables + fs version matches catalog expectedVersion", async () => {
+  test("#15 plugins/codex installed when toml enables + fs version present", async () => {
     // rationale: catches the rewrite accidentally breaking the existing
     // codex scanner (Codex is user-scope only and stays so)
     const home = makeScratch("home15");
     redirectHome(home);
     const catalog = makeCatalog({
       plugins: {
-        "auriga-go@auriga-cli": {
-          description: "",
-          agents: ["codex"],
-          expectedVersion: "1.0.0",
-        },
+        "auriga-go@auriga-cli": { description: "", agents: ["codex"] },
       },
     });
     const report = await scan(makeScratch("proj15"), catalog, {
@@ -929,8 +797,6 @@ describe("scanState — #15 Plugins (Codex) sanity (unchanged behavior)", () => 
 
     const p = report.plugins.find((x) => x.id === "auriga-go@auriga-cli")!;
     assert.equal(p.status, "installed");
-    assert.equal(p.currentVersion, "1.0.0");
-    assert.equal(p.versionSource, "catalog");
     // Codex is user-scope only.
     assert.equal((p as any).observedScope, "user");
   });
@@ -942,16 +808,12 @@ describe("scanState — #15 Plugins (Codex) sanity (unchanged behavior)", () => 
     // "auriga-go@auriga-cli"). Without dual-indexing the bare-named catalog
     // entry can never match, so every dual-Agent plugin permanently reports
     // as not-installed on the Codex side → mergePluginsById then folds that
-    // into a sticky "update-available" even when both sides are installed.
+    // into a misleading partial-install.
     const home = makeScratch("home15b");
     redirectHome(home);
     const catalog = makeCatalog({
       plugins: {
-        "auriga-go": {
-          description: "",
-          agents: ["codex"],
-          expectedVersion: "1.1.0",
-        },
+        "auriga-go": { description: "", agents: ["codex"] },
       },
     });
     const report = await scan(makeScratch("proj15b"), catalog, {
@@ -964,7 +826,6 @@ describe("scanState — #15 Plugins (Codex) sanity (unchanged behavior)", () => 
     const p = report.plugins.find((x) => x.id === "auriga-go")!;
     assert.ok(p, "catalog bare-name row must be present in the report");
     assert.equal(p.status, "installed", "bare-name catalog entry must resolve to the @marketplace TOML key");
-    assert.equal(p.currentVersion, "1.1.0");
   });
 });
 
@@ -984,7 +845,7 @@ describe("scanState — #16 Hooks / user scope happy path", () => {
     redirectHome(home);
 
     const catalog = makeCatalog({
-      hooks: { notify: { description: "", expectedHash: "any" } },
+      hooks: { notify: { description: "" } },
     });
     const report = await scan(makeScratch("proj16"), catalog, {
       scopes: { hooks: "user" },
@@ -1014,7 +875,7 @@ describe("scanState — #17 Hooks / project scope happy path", () => {
     );
 
     const catalog = makeCatalog({
-      hooks: { notify: { description: "", expectedHash: "any" } },
+      hooks: { notify: { description: "" } },
     });
     const report = await scan(proj, catalog, {
       scopes: { hooks: "project" },
@@ -1040,7 +901,7 @@ describe("scanState — #18 Hooks settings.json corrupt", () => {
     redirectHome(home);
 
     const catalog = makeCatalog({
-      hooks: { notify: { description: "", expectedHash: "any" } },
+      hooks: { notify: { description: "" } },
     });
     let report: StateReport;
     await assert.doesNotReject(async () => {
@@ -1073,7 +934,7 @@ describe("scanState — #19 Hooks settings.json absent (common case)", () => {
     redirectHome(home);
 
     const catalog = makeCatalog({
-      hooks: { notify: { description: "", expectedHash: "any" } },
+      hooks: { notify: { description: "" } },
     });
     const report = await scan(makeScratch("proj19"), catalog, {
       scopes: { hooks: "user" },
@@ -1086,47 +947,6 @@ describe("scanState — #19 Hooks settings.json absent (common case)", () => {
       !report.warnings.some((w) => (w.code as string) === "settings-unreadable"),
       "no settings-unreadable warning when file is simply absent",
     );
-  });
-});
-
-// ===========================================================================
-// #20 — Hooks / matcher drift → update-available
-// ===========================================================================
-describe("scanState — #20 Hooks matcher drift", () => {
-  test("#20 hooks: settings has marker but matcher differs from catalog → update-available", async () => {
-    // rationale: catches scanner ignoring matcher drift and reporting
-    // installed when the registered matcher no longer matches the registry
-    const home = makeScratch("home20");
-    fs.mkdirSync(path.join(home, ".claude"), { recursive: true });
-    // Settings carries an OLD matcher.
-    fs.writeFileSync(
-      path.join(home, ".claude", "settings.json"),
-      JSON.stringify(makeHookSettings({ hookName: "notify", matcher: "Stop" })),
-    );
-    redirectHome(home);
-
-    // Build a catalog whose expectedHash encodes the NEW matcher signal. We
-    // express drift via the catalog hook's expectedHash diverging from
-    // whatever signature the scanner computes for the current settings —
-    // any implementation that detects drift via matcher or hash must land
-    // here as "update-available".
-    const catalog = makeCatalog({
-      hooks: {
-        notify: {
-          description: "",
-          // Anything that the scanner can't square with the on-disk matcher.
-          expectedHash: "expected-new-matcher-signature",
-        },
-      },
-    });
-    const report = await scan(makeScratch("proj20"), catalog, {
-      scopes: { hooks: "user" },
-      homeDir: home,
-    });
-
-    const h = report.hooks.find((x) => x.name === "notify")!;
-    assert.equal(h.status, "update-available", "marker present + matcher drift must surface as update-available");
-    assert.equal((h as any).observedScope, "user");
   });
 });
 
@@ -1145,9 +965,9 @@ describe("scanState — #21 No Claude install detected at all", () => {
 
     const catalog = makeCatalog({
       skills: {
-        brainstorming: { description: "", expectedHash: "h", isWorkflow: true },
+        brainstorming: { description: "", isWorkflow: true },
       },
-      hooks: { notify: { description: "", expectedHash: "h" } },
+      hooks: { notify: { description: "" } },
     });
     const report = await scan(proj, catalog, {
       scopes: { workflow: "user", skills: "user", plugins: "user", hooks: "user" },
@@ -1182,12 +1002,11 @@ describe("scanState — #22 Default scopes when opts.scopes omitted", () => {
     // Also write a different version at user scope to prove project wins.
     writeWorkflowFile(path.join(home, ".claude", "CLAUDE.md"), "0.1.0");
 
-    const report = await scan(proj, makeCatalog({ workflowVersion: "1.6.0" }), {
+    const report = await scan(proj, makeCatalog(), {
       homeDir: home,
       // no scopes field
     });
     assert.equal((report.workflow as any).observedScope, "project");
-    assert.equal(report.workflow.currentVersion, "1.6.0", "must have read project file, not user file");
   });
 
   test("#22 default skills scope = 'project'", async () => {
@@ -1201,7 +1020,7 @@ describe("scanState — #22 Default scopes when opts.scopes omitted", () => {
 
     const catalog = makeCatalog({
       skills: {
-        brainstorming: { description: "", expectedHash: sha256(projContent), isWorkflow: true },
+        brainstorming: { description: "", isWorkflow: true },
       },
     });
     const report = await scan(proj, catalog, { homeDir: home });
@@ -1245,7 +1064,7 @@ describe("scanState — #22 Default scopes when opts.scopes omitted", () => {
     fs.writeFileSync(path.join(proj, ".claude", "settings.json"), JSON.stringify({ hooks: {} }));
 
     const catalog = makeCatalog({
-      hooks: { notify: { description: "", expectedHash: "any" } },
+      hooks: { notify: { description: "" } },
     });
     const report = await scan(proj, catalog, { homeDir: home });
     const h = report.hooks.find((x) => x.name === "notify")!;
@@ -1296,16 +1115,11 @@ describe("scanState — #23 Per-category scope picker independence", () => {
     fs.writeFileSync(path.join(home, ".claude", "settings.json"), JSON.stringify({ hooks: {} }));
 
     const catalog = makeCatalog({
-      workflowVersion: "1.6.0",
       skills: {
-        brainstorming: {
-          description: "",
-          expectedHash: sha256(projSkillContent),
-          isWorkflow: true,
-        },
+        brainstorming: { description: "", isWorkflow: true },
       },
       plugins: { "auriga-go@auriga-cli": { description: "", agents: ["claude"] } },
-      hooks: { notify: { description: "", expectedHash: "any" } },
+      hooks: { notify: { description: "" } },
     });
 
     const report = await scan(proj, catalog, {
@@ -1320,9 +1134,9 @@ describe("scanState — #23 Per-category scope picker independence", () => {
       ...codexNone,
     });
 
-    // Workflow: read user scope (v1.6.0) — installed; not the project file (v0.0.1).
+    // Workflow: read user scope — installed; project's foreign-version
+    // file does not bleed in.
     assert.equal((report.workflow as any).observedScope, "user");
-    assert.equal(report.workflow.currentVersion, "1.6.0");
     assert.equal(report.workflow.status, "installed");
 
     // Skills: read project scope (matches catalog hash) — installed.
@@ -1356,15 +1170,9 @@ describe("mergePluginsById — dedup by id + aggregate status", () => {
   function p(
     id: string,
     agents: ("claude" | "codex")[],
-    status: "installed" | "update-available" | "not-installed",
+    status: ItemStatus,
   ): PluginState {
-    return {
-      id,
-      description: "",
-      status,
-      agents,
-      versionSource: "upstream-live",
-    };
+    return { id, description: "", status, agents };
   }
 
   test("distinct ids are passed through unchanged", () => {
@@ -1402,13 +1210,11 @@ describe("mergePluginsById — dedup by id + aggregate status", () => {
   });
 
   test("partial install (installed + not-installed) → partial-install + missingAgents", () => {
-    // rationale: revised v1.18.5 — pre-v1.18.5 this folded to
-    // update-available, which surfaced as a misleading "vX → vX" upgrade
-    // when the installed side's version matched the catalog. The new
-    // partial-install state names the actual problem (the other agent
-    // doesn't have it) and missingAgents lets the UI render per-agent
-    // ✓/✗ marks. The Apply path can dispatch a single install to the
-    // missing agent.
+    // rationale: dual-Agent plugin with one side missing surfaces as
+    // partial-install + missingAgents so the UI renders per-agent ✓/✗
+    // marks. The Apply path dispatches install to the missing agent.
+    // (The pre-v1.19.0 "update-available + stale-side picker" branches
+    // are deleted with the update-available surface.)
     const out = mergePluginsById([
       p("x", ["claude"], "installed"),
       p("x", ["codex"], "not-installed"),
@@ -1416,64 +1222,5 @@ describe("mergePluginsById — dedup by id + aggregate status", () => {
     assert.equal(out.length, 1);
     assert.equal(out[0].status, "partial-install");
     assert.deepEqual(out[0].missingAgents, ["codex"]);
-  });
-
-  test("update-available on one side + not-installed on other → partial-install", () => {
-    // rationale: missing on one agent supersedes stale-on-another — the
-    // user-facing action is "install on the missing agent" first, then
-    // upgrade. Apply will do both, but the badge color must lead with
-    // "Codex side missing", not "Claude side stale".
-    const out = mergePluginsById([
-      p("x", ["claude"], "update-available"),
-      p("x", ["codex"], "not-installed"),
-    ]);
-    assert.equal(out.length, 1);
-    assert.equal(out[0].status, "partial-install");
-    assert.deepEqual(out[0].missingAgents, ["codex"]);
-  });
-
-  test("update-available on both sides → update-available (pure version drift)", () => {
-    // rationale: regression — version drift on every targeted agent stays
-    // update-available; no partial-install when nothing is "missing".
-    const out = mergePluginsById([
-      p("x", ["claude"], "update-available"),
-      p("x", ["codex"], "update-available"),
-    ]);
-    assert.equal(out.length, 1);
-    assert.equal(out[0].status, "update-available");
-    assert.equal(out[0].missingAgents, undefined, "no missingAgents when nothing is missing");
-  });
-
-  test("mixed installed + update-available picks the stale side's currentVersion", () => {
-    // rationale: the v1.18.4 live verification showed deep-review folding
-    // to update-available with currentVersion = Claude's 0.3.1 (the side
-    // that matched expected), producing the misleading "0.3.1 → 0.3.1"
-    // display. The merge must surface the version of the agent that's
-    // actually stale (Codex 0.3.0 in that case) so the UI renders the
-    // correct drift.
-    const claude: PluginState = {
-      id: "x",
-      description: "",
-      status: "installed",
-      agents: ["claude"],
-      versionSource: "upstream-live",
-      currentVersion: "1.0.1",
-      expectedVersion: "1.0.1",
-    };
-    const codex: PluginState = {
-      id: "x",
-      description: "",
-      status: "update-available",
-      agents: ["codex"],
-      versionSource: "upstream-live",
-      currentVersion: "1.0.0",
-      expectedVersion: "1.0.1",
-    };
-    const out = mergePluginsById([claude, codex]);
-    assert.equal(out.length, 1);
-    assert.equal(out[0].status, "update-available");
-    assert.equal(out[0].currentVersion, "1.0.0", "must surface the stale Codex side's version, not the up-to-date Claude side");
-    assert.equal(out[0].expectedVersion, "1.0.1");
-    assert.equal(out[0].missingAgents, undefined);
   });
 });

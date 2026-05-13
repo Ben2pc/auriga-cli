@@ -39,8 +39,6 @@ function makeReport(overrides: Partial<StateReport> = {}): StateReport {
     cwd: "~/Workspace/test-project",
     workflow: {
       status: "installed",
-      currentVersion: "1.6.0",
-      expectedVersion: "1.6.0",
     },
     skills: [
       {
@@ -48,16 +46,12 @@ function makeReport(overrides: Partial<StateReport> = {}): StateReport {
         description: "TDD red/green workflow",
         status: "installed",
         isWorkflow: true,
-        currentHash: "abc12345",
-        expectedHash: "abc12345",
       },
       {
         name: "systematic-debugging",
         description: "Debug-root-cause-first protocol",
-        status: "update-available",
+        status: "not-installed",
         isWorkflow: true,
-        currentHash: "old11111",
-        expectedHash: "new22222",
       },
     ],
     recommendedSkills: [
@@ -66,7 +60,6 @@ function makeReport(overrides: Partial<StateReport> = {}): StateReport {
         description: "Distinctive frontend interfaces",
         status: "not-installed",
         isWorkflow: false,
-        expectedHash: "fed99999",
       },
     ],
     plugins: [
@@ -75,9 +68,6 @@ function makeReport(overrides: Partial<StateReport> = {}): StateReport {
         description: "Workflow autopilot",
         status: "installed",
         agents: ["claude"],
-        currentVersion: "1.0.0",
-        expectedVersion: "1.0.0",
-        versionSource: "catalog",
       },
       {
         // Dual-Agent plugin with Codex side missing; drives the
@@ -87,9 +77,6 @@ function makeReport(overrides: Partial<StateReport> = {}): StateReport {
         status: "partial-install",
         agents: ["claude", "codex"],
         missingAgents: ["codex"],
-        currentVersion: "0.3.1",
-        expectedVersion: "0.3.1",
-        versionSource: "catalog",
       },
     ],
     hooks: [
@@ -97,7 +84,6 @@ function makeReport(overrides: Partial<StateReport> = {}): StateReport {
         name: "notify",
         description: "Desktop notifications",
         status: "not-installed",
-        expectedHash: "h00kfeed",
       },
     ],
     warnings: [],
@@ -251,12 +237,15 @@ describe("Dashboard — selection drives the LogPanel Apply button", () => {
       expect(screen.getByTestId("dashboard-root")).toBeInTheDocument(),
     );
     const cards = screen.getAllByTestId("statecard");
-    const updateCard = cards.find(
-      (c) => c.getAttribute("data-status") === "update-available",
+    // Pick any not-installed card — selecting it derives action="install"
+    // and enables the Apply button. v1.19.0 dropped the update-available
+    // path the original assertion used.
+    const targetCard = cards.find(
+      (c) => c.getAttribute("data-status") === "not-installed",
     );
-    expect(updateCard).toBeDefined();
+    expect(targetCard).toBeDefined();
 
-    const cb = updateCard!.querySelector(
+    const cb = targetCard!.querySelector(
       '[data-testid="statecard-checkbox"]',
     ) as HTMLInputElement;
     fireEvent.click(cb);
@@ -400,33 +389,31 @@ describe("Dashboard — apply submission carries derived action per status", () 
 
   type DerivedCase = {
     label: string;
-    status: "update-available" | "not-installed" | "installed" | "partial-install";
-    expectedAction: "update" | "install" | "uninstall";
+    status: "not-installed" | "installed" | "partial-install";
+    expectedAction: "install" | "uninstall";
   };
 
-  // Each card's status drives the action that Dashboard derives at selection
-  // time. Verified at the network boundary (POST body) since the new LogPanel
-  // doesn't surface the action verb in its DOM.
+  // Default Apply mode is "install" → selecting any row queues install
+  // regardless of status. This is the v1.19.0 contract: re-install is the
+  // update path, installer is idempotent. To trigger an actual uninstall
+  // the user must flip the output-bar mode toggle (covered separately
+  // below). Verified at the network boundary (POST body) since the new
+  // LogPanel doesn't surface the action verb in its DOM.
   const cases: DerivedCase[] = [
-    {
-      label: "update-available → action='update'",
-      status: "update-available",
-      expectedAction: "update",
-    },
     {
       label: "not-installed → action='install'",
       status: "not-installed",
       expectedAction: "install",
     },
     {
-      label: "installed → action='uninstall'",
+      label: "installed → action='install' (default mode = re-install)",
       status: "installed",
-      expectedAction: "uninstall",
+      expectedAction: "install",
     },
     {
-      // Added v1.18.5: dual-Agent plugin half-installs derive "install" so a
-      // single Apply backfills the missing agent. Apply path calls install on
-      // every targeted agent; the already-installed side becomes a CLI no-op.
+      // Dual-Agent plugin half-installs derive "install" so a single Apply
+      // backfills the missing agent. Apply path calls install on every
+      // targeted agent; the already-installed side becomes a CLI no-op.
       label: "partial-install → action='install'",
       status: "partial-install",
       expectedAction: "install",
@@ -495,6 +482,84 @@ describe("Dashboard — apply submission carries derived action per status", () 
       );
     });
   }
+
+  test("output-bar UNINSTALL toggle flips installed-row action and rewrites already-selected items", async () => {
+    // The toggle is the only path to arm an uninstall on an installed row.
+    // Two contracts to pin:
+    //   1. Flipping mode AFTER selecting rewrites the already-selected
+    //      row's action — Apply payload must reflect what the user now sees.
+    //   2. Not-installed rows are unaffected by mode (their action stays
+    //      "install" because uninstall has no meaning on an absent item).
+    const calls: Array<{ url: string; init?: RequestInit }> = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((url: string, init?: RequestInit) => {
+        calls.push({ url, init });
+        if (url.includes("/api/state")) {
+          return Promise.resolve(jsonResponse(makeReport()));
+        }
+        if (url.includes("/api/apply")) {
+          return Promise.resolve(jsonResponse({ jobId: "test-job" }, 202));
+        }
+        return Promise.resolve(jsonResponse({ ok: true }));
+      }),
+    );
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+
+    render(<Dashboard />);
+    await waitFor(() =>
+      expect(screen.getByTestId("dashboard-root")).toBeInTheDocument(),
+    );
+
+    // Pick two specific skill rows from the fixture by name — gives the
+    // test deterministic targets across categories without relying on
+    // DOM ordering. test-driven-development is installed,
+    // systematic-debugging is not-installed (see makeReport above).
+    const findCardByName = (name: string): HTMLElement => {
+      const nameEls = screen.getAllByTestId("statecard-name");
+      const match = nameEls.find((n) => n.textContent === name);
+      expect(match, `card "${name}" not in DOM`).toBeDefined();
+      return match!.closest('[data-testid="statecard"]') as HTMLElement;
+    };
+    const installedCard = findCardByName("test-driven-development");
+    const notInstalledCard = findCardByName("systematic-debugging");
+    expect(installedCard.getAttribute("data-status")).toBe("installed");
+    expect(notInstalledCard.getAttribute("data-status")).toBe("not-installed");
+    fireEvent.click(
+      installedCard.querySelector(
+        '[data-testid="statecard-checkbox"]',
+      ) as HTMLInputElement,
+    );
+    fireEvent.click(
+      notInstalledCard.querySelector(
+        '[data-testid="statecard-checkbox"]',
+      ) as HTMLInputElement,
+    );
+
+    // Flip mode to uninstall AFTER selecting.
+    const uninstallTab = screen.getByTestId("log-panel-mode-uninstall");
+    await act(async () => {
+      fireEvent.click(uninstallTab);
+    });
+
+    const applyBtn = await screen.findByTestId("log-panel-apply");
+    await act(async () => {
+      fireEvent.click(applyBtn);
+    });
+
+    const applyCall = calls.find((call) => call.url.includes("/api/apply"));
+    expect(applyCall).toBeDefined();
+    const body = JSON.parse(applyCall!.init!.body as string) as {
+      items: Array<{ action: string; name: string }>;
+    };
+    expect(body.items).toHaveLength(2);
+    const byName = new Map<string, string>();
+    for (const it of body.items) byName.set(it.name, it.action);
+    // Installed row was retroactively rewritten to uninstall by the mode flip.
+    expect(byName.get("test-driven-development")).toBe("uninstall");
+    // Not-installed row stays at install regardless of mode.
+    expect(byName.get("systematic-debugging")).toBe("install");
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -570,15 +635,13 @@ describe("Dashboard — changeWorkflowLang re-derives already-selected workflow"
       vi.fn((url: string, init?: RequestInit) => {
         calls.push({ url, init });
         if (url.includes("/api/state")) {
-          // Use update-available so the action becomes "update" → carries
+          // Use not-installed so the action becomes "install" → carries
           // lang. (Workflow uninstall would skip the lang field.)
           return Promise.resolve(
             jsonResponse(
               makeReport({
                 workflow: {
-                  status: "update-available",
-                  currentVersion: "1.5.0",
-                  expectedVersion: "1.6.0",
+                  status: "not-installed",
                 },
               }),
             ),

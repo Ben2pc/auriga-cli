@@ -4,13 +4,11 @@
 
 export type ItemStatus =
   | "installed"
-  | "update-available"
   | "not-installed"
   /** Dual-Agent plugin where some target Agents have the plugin installed
-   *  and some don't (e.g. Claude side installed, Codex side missing). Distinct
-   *  from `update-available` because the action is "install on the missing
-   *  side", not "upgrade to a newer version". The missing agents are
-   *  enumerated in `PluginState.missingAgents`. */
+   *  and some don't (e.g. Claude side installed, Codex side missing). The
+   *  user-facing action is "install on the missing side"; the missing
+   *  agents are enumerated in `PluginState.missingAgents`. */
   | "partial-install";
 
 /**
@@ -39,8 +37,6 @@ export interface StateReport {
 
 export interface WorkflowState {
   status: ItemStatus;
-  currentVersion?: string;
-  expectedVersion: string;
   /** Which scope the scanner read to produce this row. Reflects the scope
    *  scanned, not where the file was found — e.g. when scope=user and
    *  ~/.claude/CLAUDE.md is absent, observedScope is still "user". The
@@ -55,8 +51,6 @@ export interface SkillState {
   description: string;
   status: ItemStatus;
   isWorkflow: boolean;
-  currentHash?: string;
-  expectedHash: string;
   /** Scope the scanner read to produce this row. See WorkflowState comment. */
   observedScope?: ScanScope;
 }
@@ -72,27 +66,20 @@ export interface PluginState {
    *  `agents.length === 2` the UI shows a BOTH badge and Apply installs to
    *  each agent in turn. Status is aggregated across all targeted agents:
    *  `installed` ⇔ all agents installed; `not-installed` ⇔ all not-installed;
-   *  partial state (some installed, some not) → `partial-install`; agent-
-   *  uniform version drift → `update-available`. */
+   *  mixed → `partial-install` (some installed, some not). */
   agents: ApplyAgent[];
   /** Agents that target this plugin but don't have it installed. Populated
-   *  iff `status === "partial-install"`. Lets the UI render per-agent
-   *  ✓/✗ marks and tell the user exactly which side needs `auriga-cli`
-   *  to backfill. Always omitted for `installed` / `not-installed` /
-   *  `update-available`. */
+   *  iff `status === "partial-install"`. Drives the "Missing on Codex"
+   *  UI caption + tells the user exactly which side needs backfill. */
   missingAgents?: ApplyAgent[];
-  currentVersion?: string;
-  expectedVersion?: string;
-  versionSource: "upstream-live" | "catalog";
   /** Scope the scanner read to produce this row. Codex plugins are always
    *  "user" (Codex has no project-scope plugin concept). See WorkflowState
    *  comment on why this is typed optional. */
   observedScope?: ScanScope;
   /** True for plugins whose source lives in an upstream marketplace, not in
-   *  this repo (skill-creator / claude-md-management / codex). The scanner
-   *  short-circuits update-available reporting for these — upgrades go
-   *  through `claude plugins update`, not us. The UI renders an EXTERNAL
-   *  badge to make the "not our jurisdiction" signal explicit. */
+   *  this repo (skill-creator / claude-md-management / codex). Pure UI hint
+   *  since v1.19.0 — the EXTERNAL badge tells users upgrades go through
+   *  `claude plugins update`, not via auriga-cli. */
   external?: boolean;
 }
 
@@ -100,8 +87,6 @@ export interface HookState {
   name: string;
   description: string;
   status: ItemStatus;
-  currentHash?: string;
-  expectedHash: string;
   /** Scope the scanner read to produce this row. See WorkflowState comment. */
   observedScope?: ScanScope;
 }
@@ -129,7 +114,7 @@ export type ApplyCategory =
   | "plugin"
   | "hook";
 
-export type ApplyAction = "install" | "update" | "uninstall";
+export type ApplyAction = "install" | "uninstall";
 
 /**
  * Installer scope. Carried per-item so the Web UI can mix scopes within a

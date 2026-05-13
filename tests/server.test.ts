@@ -72,8 +72,7 @@ describe("GET /api/catalog (spec §6.1)", () => {
       const dist = path.join(tmp, "dist");
       await mkdir(dist, { recursive: true });
       const expected = {
-        workflowVersion: "v1.6.0",
-        skills: { foo: { description: "Foo skill", expectedHash: "abc", isWorkflow: true } },
+        skills: { foo: { description: "Foo skill", isWorkflow: true } },
         plugins: {},
       };
       await writeFile(
@@ -184,9 +183,8 @@ describe("GET /api/state (spec §6.1)", () => {
       assert.ok(Array.isArray(body.warnings));
       const wf = body.workflow as Record<string, unknown>;
       assert.equal(typeof wf.status, "string");
-      assert.equal(typeof wf.expectedVersion, "string");
       assert.ok(
-        ["installed", "update-available", "not-installed"].includes(
+        ["installed", "not-installed", "partial-install"].includes(
           wf.status as string,
         ),
         `workflow.status must be a valid ItemStatus, got: ${String(wf.status)}`,
@@ -267,6 +265,22 @@ describe("POST /api/apply (spec §6.1 / §6.4)", () => {
         headers: { ...authHeaders(token), "content-type": "application/json" },
         body: JSON.stringify({
           items: [{ category: "skill", name: "x", action: "obliterate" }],
+        }),
+      });
+      assert.equal(res.status, 400);
+    });
+  });
+
+  test("legacy action=\"update\" is rejected → 400 (v1.19.0 deprecation)", async () => {
+    // Pinned regression: re-install is the update path now. If a future
+    // change re-adds "update" to VALID_ACTIONS the deprecated surface comes
+    // back silently — this test fails first.
+    await withServer(async ({ baseUrl, token }) => {
+      const res = await fetch(`${baseUrl}/api/apply`, {
+        method: "POST",
+        headers: { ...authHeaders(token), "content-type": "application/json" },
+        body: JSON.stringify({
+          items: [{ category: "skill", name: "x", action: "update" }],
         }),
       });
       assert.equal(res.status, 400);

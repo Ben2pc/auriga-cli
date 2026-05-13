@@ -58,7 +58,7 @@ For a browser-based view of what's installed and one-click apply, run:
 npx auriga-cli web-ui
 ```
 
-This boots a local server on `127.0.0.1`, opens your default browser, and serves a dashboard that scans the current project, shows each module's status (installed / update-available / not-installed), and applies install / update / uninstall in a queue with live SSE progress. The server shuts down on its own ~15 s after the browser closes.
+This boots a local server on `127.0.0.1`, opens your default browser, and serves a dashboard that scans the current project, shows each module's status (installed / not-installed / partial-install), and applies install / uninstall in a queue with live SSE progress. Re-running install is the update path — every installer is idempotent and overwrites in place. The server shuts down on its own ~15 s after the browser closes.
 
 The UI is opt-in — `npx auriga-cli` still launches the TTY menu below.
 

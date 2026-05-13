@@ -23,15 +23,6 @@ describe("StateCard — status encoding", () => {
     expect(badge.style.color).toBe("var(--color-cloud-dark)");
   });
 
-  test("update-available renders UPDATE badge with clay color", () => {
-    // Compact dashboard layout uses "UPDATE" (short form) so the badge fits
-    // within a single 40px row. The chromatic accent (clay) is unchanged.
-    render(<StateCard {...baseProps({ status: "update-available" })} />);
-    const badge = screen.getByTestId("statecard-badge") as HTMLElement;
-    expect(badge).toHaveTextContent("UPDATE");
-    expect(badge.style.color).toBe("var(--color-clay)");
-  });
-
   test("not-installed renders NOT INSTALLED badge with slate-light (WCAG AA contrast)", () => {
     render(<StateCard {...baseProps({ status: "not-installed" })} />);
     const badge = screen.getByTestId("statecard-badge") as HTMLElement;
@@ -49,11 +40,8 @@ describe("StateCard — status encoding", () => {
   });
 
   test("partial-install renders PARTIAL badge with clay color + Missing-on caption", () => {
-    // Distinct from UPDATE — both use clay (action needed) but PARTIAL has
-    // a dedicated label and a missingAgents caption telling the user
-    // exactly which agent needs backfill. Added v1.18.5 after the v1.18.4
-    // deep-review verification showed dual-Agent half-installs surfacing
-    // as misleading "vX → vX" upgrades under update-available.
+    // The clay accent + PARTIAL label tells the user "action needed on the
+    // missing side". `missingAgents` enumerates which agent backfill targets.
     render(
       <StateCard
         {...baseProps({
@@ -114,7 +102,7 @@ describe("StateCard — status encoding", () => {
     let dot = screen.getByTestId("statecard-status-dot") as HTMLElement;
     expect(dot.style.backgroundColor).toBe("var(--color-olive)");
 
-    rerender(<StateCard {...baseProps({ status: "update-available" })} />);
+    rerender(<StateCard {...baseProps({ status: "partial-install" })} />);
     dot = screen.getByTestId("statecard-status-dot") as HTMLElement;
     expect(dot.style.backgroundColor).toBe("var(--color-clay)");
 
@@ -145,7 +133,7 @@ describe("StateCard — status encoding", () => {
   });
 
   test("badge has no chip/pill chrome (no bg, no border, 0 radius)", () => {
-    render(<StateCard {...baseProps({ status: "update-available" })} />);
+    render(<StateCard {...baseProps({ status: "installed" })} />);
     const badge = screen.getByTestId("statecard-badge") as HTMLElement;
     expect(
       badge.style.backgroundColor === "" ||
@@ -171,8 +159,8 @@ describe("StateCard — status encoding", () => {
   test("no emoji glyphs in any status's rendered text", () => {
     const statuses: CardStatus[] = [
       "installed",
-      "update-available",
       "not-installed",
+      "partial-install",
       "error",
     ];
     for (const status of statuses) {
@@ -258,48 +246,7 @@ describe("StateCard — selection", () => {
   });
 });
 
-describe("StateCard — version metadata", () => {
-  test("update-available with versions shows curr → expected", () => {
-    render(
-      <StateCard
-        {...baseProps({
-          status: "update-available",
-          currentVersion: "v1.0.0",
-          expectedVersion: "v1.1.0",
-        })}
-      />
-    );
-    const diff = screen.getByTestId("statecard-version-diff");
-    expect(diff).toHaveTextContent("v1.0.0 → v1.1.0");
-  });
-
-  test("update-available with hashes shows 8-char prefixes", () => {
-    render(
-      <StateCard
-        {...baseProps({
-          status: "update-available",
-          currentHash: "abcdef1234567890",
-          expectedHash: "0987654321fedcba",
-        })}
-      />
-    );
-    const diff = screen.getByTestId("statecard-version-diff");
-    expect(diff).toHaveTextContent("abcdef12 → 09876543");
-  });
-
-  test("installed shows only currentVersion if available", () => {
-    render(
-      <StateCard
-        {...baseProps({
-          status: "installed",
-          currentVersion: "v1.6.0",
-        })}
-      />
-    );
-    expect(screen.getByTestId("statecard-version")).toHaveTextContent("v1.6.0");
-    expect(screen.queryByTestId("statecard-version-diff")).toBeNull();
-  });
-
+describe("StateCard — uninstallable marker", () => {
   test("uninstallable shows a removable marker only on installed", () => {
     render(
       <StateCard

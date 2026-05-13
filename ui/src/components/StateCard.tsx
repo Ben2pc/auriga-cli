@@ -6,30 +6,32 @@
 //
 //   ┃ [✓] name               ●
 //   ┃ description (2 lines, truncated)
-//   ┃ STATUS · v1.6.0
+//   ┃ STATUS
 //
 // Status encoding:
 //   - LEFT border stripe (3px) is the chromatic accent — installed=olive,
-//     update=clay, not-installed=cloud-light, error=ember.
+//     partial-install=clay, not-installed=cloud-light, error=ember.
 //   - SMALL dot in the header row mirrors the same color (redundant but
 //     scannable from a distance).
 //   - BADGE text in the footer is uppercase mono, no background.
 //
+// v1.19.0 dropped the version / hash diff render (and the
+// `update-available` status it lived under). Re-running install is the
+// update path; the card shows only state presence, no version strings.
+//
 // Stable data-testids preserved:
 //   statecard, statecard-checkbox, statecard-name, statecard-description,
-//   statecard-badge, statecard-meta, statecard-version-diff,
-//   statecard-version, statecard-uninstallable, statecard-status-dot.
+//   statecard-badge, statecard-meta, statecard-uninstallable,
+//   statecard-status-dot.
 
 import type { JSX, KeyboardEvent, MouseEvent } from "react";
 
 export type CardStatus =
   | "installed"
-  | "update-available"
   | "not-installed"
   /** Dual-Agent plugin partially installed (some target agents have it,
-   *  some don't). Distinct from update-available so the meta row can
-   *  render "Missing on Codex" instead of a misleading "vX → vX" upgrade.
-   *  See PluginState.missingAgents for the enumeration. */
+   *  some don't). The meta row renders "Missing on Codex" / "Missing on
+   *  Claude" to enumerate the gap. See PluginState.missingAgents. */
   | "partial-install"
   | "error";
 
@@ -37,10 +39,6 @@ export interface StateCardProps {
   name: string;
   description: string;
   status: CardStatus;
-  currentVersion?: string;
-  expectedVersion?: string;
-  currentHash?: string;
-  expectedHash?: string;
   selected: boolean;
   onSelectChange: (selected: boolean) => void;
   uninstallable?: boolean;
@@ -52,7 +50,9 @@ export interface StateCardProps {
   agents?: ("claude" | "codex")[];
   /** True for plugins whose source lives in an upstream marketplace. Adds
    *  an EXTERNAL badge alongside the agent badge to signal "upgrades go
-   *  through `claude plugins update`, not us". */
+   *  through `claude plugins update`, not us" — pure UI hint since v1.19.0
+   *  (the flag used to also gate update-available reporting; that surface
+   *  was removed). */
   external?: boolean;
   /** Agents that target this plugin but don't have it installed — only
    *  populated when status === "partial-install". Drives the
@@ -72,11 +72,6 @@ const STATUS_VISUALS: Record<CardStatus, StatusVisual> = {
     badgeColor: "var(--color-cloud-dark)",
     accentColor: "var(--color-olive)",
   },
-  "update-available": {
-    label: "UPDATE",
-    badgeColor: "var(--color-clay)",
-    accentColor: "var(--color-clay)",
-  },
   "not-installed": {
     label: "NOT INSTALLED",
     // cloud-medium on ivory-light fails WCAG AA (~2.4:1); slate-light
@@ -86,9 +81,6 @@ const STATUS_VISUALS: Record<CardStatus, StatusVisual> = {
     accentColor: "var(--color-cloud-dark)",
   },
   "partial-install": {
-    // Shares clay with update-available — both signal "action needed".
-    // Distinction comes from the badge label ("PARTIAL" vs "UPDATE") and
-    // the meta row ("Missing on Codex" vs "vX → vY").
     label: "PARTIAL",
     badgeColor: "var(--color-clay)",
     accentColor: "var(--color-clay)",
@@ -104,11 +96,6 @@ function capitalize(s: string): string {
   return s.length === 0 ? s : s.charAt(0).toUpperCase() + s.slice(1);
 }
 
-function shortHash(hash: string | undefined): string | undefined {
-  if (!hash) return undefined;
-  return hash.slice(0, 8);
-}
-
 function agentLabel(agents: ("claude" | "codex")[] | undefined): string | null {
   if (!agents || agents.length === 0) return null;
   if (agents.length === 2) return "BOTH";
@@ -119,10 +106,6 @@ export default function StateCard({
   name,
   description,
   status,
-  currentVersion,
-  expectedVersion,
-  currentHash,
-  expectedHash,
   selected,
   onSelectChange,
   uninstallable = false,
@@ -144,20 +127,6 @@ export default function StateCard({
       onSelectChange(!selected);
     }
   };
-
-  const versionDiff = (() => {
-    if (status !== "update-available") return null;
-    if (currentVersion && expectedVersion) {
-      return `${currentVersion} → ${expectedVersion}`;
-    }
-    if (currentHash && expectedHash) {
-      return `${shortHash(currentHash)} → ${shortHash(expectedHash)}`;
-    }
-    return null;
-  })();
-
-  const captionVersion =
-    status !== "update-available" && currentVersion ? currentVersion : null;
 
   const cellBg = selected
     ? "var(--color-ivory-medium)"
@@ -348,9 +317,6 @@ export default function StateCard({
             justifyContent: "flex-end",
           }}
         >
-          {versionDiff && (
-            <span data-testid="statecard-version-diff">{versionDiff}</span>
-          )}
           {status === "partial-install" &&
             missingAgents &&
             missingAgents.length > 0 && (
@@ -358,9 +324,6 @@ export default function StateCard({
                 Missing on {missingAgents.map(capitalize).join(", ")}
               </span>
             )}
-          {captionVersion && (
-            <span data-testid="statecard-version">{captionVersion}</span>
-          )}
           {uninstallable && (
             <span data-testid="statecard-uninstallable">REMOVABLE</span>
           )}

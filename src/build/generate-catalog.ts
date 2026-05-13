@@ -67,33 +67,17 @@ function readLocalCodexManifestDescription(
   return undefined;
 }
 
-/** Read the owned plugin's manifest version (`.claude-plugin/plugin.json`
- *  preferred, `.codex-plugin/plugin.json` as fallback). Returns undefined
- *  when no in-tree manifest exists — for external-marketplace plugins
- *  (skill-creator etc.) that's correct: the source lives upstream, so we
- *  leave expectedVersion unset and the scanner trusts whatever's installed.
- *  This MUST run at build time because `plugins/<name>/` is not in the npm
- *  tarball's `files` allowlist — runtime scan-catalog cannot see it. */
-function readPluginManifestVersion(
-  repoRoot: string,
-  name: string,
-): string | undefined {
+/** Heuristic for "this plugin's source lives in this repo, not upstream".
+ *  Used to set the `external` flag — true when no in-tree manifest exists
+ *  under `plugins/<name>/`, meaning the plugin is published through an
+ *  upstream marketplace (skill-creator / claude-md-management / codex) and
+ *  the EXTERNAL badge tells users to defer to `claude plugins update`. */
+function pluginHasLocalManifest(repoRoot: string, name: string): boolean {
   const candidates = [
     path.join(repoRoot, "plugins", name, ".claude-plugin", "plugin.json"),
     path.join(repoRoot, "plugins", name, ".codex-plugin", "plugin.json"),
   ];
-  for (const p of candidates) {
-    if (!fs.existsSync(p)) continue;
-    try {
-      const parsed = JSON.parse(fs.readFileSync(p, "utf-8")) as { version?: unknown };
-      if (typeof parsed.version === "string" && parsed.version.length > 0) {
-        return parsed.version;
-      }
-    } catch {
-      /* try next candidate */
-    }
-  }
-  return undefined;
+  return candidates.some((p) => fs.existsSync(p));
 }
 
 function readSkillDescription(repoRoot: string, name: string): string {
@@ -138,12 +122,12 @@ export function generateCatalog(repoRoot: string): Catalog {
   const pluginsCfg = pluginsRaw as PluginsConfig;
   const pluginByName = new Map<string, CatalogEntry>();
   for (const p of pluginsCfg.plugins) {
-    const expectedVersion = readPluginManifestVersion(repoRoot, p.name);
+    const local = pluginHasLocalManifest(repoRoot, p.name);
     pluginByName.set(p.name, {
       name: p.name,
       description: p.description,
       agents: ["claude"],
-      ...(expectedVersion ? { expectedVersion } : { external: true }),
+      ...(local ? {} : { external: true }),
     });
   }
 
@@ -179,10 +163,6 @@ export function generateCatalog(repoRoot: string): Catalog {
         }
       }
 
-      // expectedVersion may have been set by the Claude pass; preserve it.
-      // Otherwise read from this plugin's in-tree manifest (handles codex-only
-      // plugins like session-instructions-loader).
-      const expectedVersion = existing?.expectedVersion ?? readPluginManifestVersion(repoRoot, p.name);
       // Agent map: if existing came from the Claude pass it's ["claude"]; this
       // pass adds "codex". Codex-only entries get ["codex"].
       const agents: ("claude" | "codex")[] = existing
@@ -191,14 +171,13 @@ export function generateCatalog(repoRoot: string): Catalog {
       // external flag: true when no in-tree manifest in this repo's plugins/.
       // The Claude pass may have already set it; respect either signal —
       // a plugin we don't own on either Agent side stays external.
-      const external = !expectedVersion;
+      const external = !pluginHasLocalManifest(repoRoot, p.name);
       pluginByName.set(p.name, {
         name: p.name,
         description: existing
           ? `(Claude/Codex) ${existing.description}`
           : `(Codex) ${description}`,
         agents,
-        ...(expectedVersion ? { expectedVersion } : {}),
         ...(external ? { external: true } : {}),
       });
     }
@@ -212,20 +191,8 @@ export function generateCatalog(repoRoot: string): Catalog {
     description: h.defaultOn === false ? `(opt-in) ${h.description}` : h.description,
   }));
 
-  // Workflow content version. MUST be baked at build time because the user's
-  // installed CLAUDE.md (the workflow product) and auriga-cli's own CLAUDE.md
-  // template share the same filename but live at different paths, and the
-  // npm tarball does not ship the template — `files` only allowlists `dist/`.
-  // Without baking, scan-catalog at runtime can't compare versions and the
-  // Web UI silently never shows "update-available" for workflow upgrades.
-  const workflowMdPath = path.join(repoRoot, "CLAUDE.md");
-  const workflowMd = fs.readFileSync(workflowMdPath, "utf-8");
-  const headerMatch = /^#\s*auriga Workflow\s*\(v([\d.]+)\)/m.exec(workflowMd);
-  const workflowVersion = headerMatch ? headerMatch[1] : "";
-
   return {
     generatedAt: new Date().toISOString(),
-    workflowVersion,
     workflowSkills,
     recommendedSkills,
     plugins,

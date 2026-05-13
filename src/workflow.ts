@@ -47,11 +47,40 @@ export async function installWorkflow(
   const targetClaude = path.join(resolved, "CLAUDE.md");
   const targetAgents = path.join(resolved, "AGENTS.md");
 
-  // Copy CLAUDE.md
+  // Back up an existing CLAUDE.md before overwriting, but never clobber
+  // a prior .bak.
+  //
+  // Two regressions to defend against:
+  // 1. F1 (v1.19.0 Slice 0): re-install is the update path now, so a
+  //    second install must not overwrite the user's pre-auriga .bak with
+  //    our previous workflow version.
+  // 2. Codex adversarial review: if the user later replaces an
+  //    auriga-managed CLAUDE.md with foreign content (hand-paste, manual
+  //    edits, etc.) and re-runs install, the foreign content must NOT
+  //    be silently overwritten just because .bak already exists.
+  //
+  // Strategy: only consider the file "safe to overwrite without backup"
+  // when its bytes match the packaged source (i.e. it's the workflow we
+  // installed last time, untouched). Otherwise capture it — to .bak when
+  // free, else to a timestamped slot so .bak stays canonical.
   if (fs.existsSync(targetClaude)) {
-    const bakPath = targetClaude + ".bak";
-    fs.copyFileSync(targetClaude, bakPath);
-    log.warn(`Existing CLAUDE.md backed up to CLAUDE.md.bak`);
+    const currentBytes = fs.readFileSync(targetClaude);
+    const sourceBytes = fs.readFileSync(sourceClaude);
+    const diverged = !currentBytes.equals(sourceBytes);
+    if (diverged) {
+      const bakPath = targetClaude + ".bak";
+      if (fs.existsSync(bakPath)) {
+        const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+        const stampedPath = `${bakPath}.${stamp}`;
+        fs.copyFileSync(targetClaude, stampedPath);
+        log.warn(
+          `CLAUDE.md.bak already exists; current CLAUDE.md backed up to ${path.basename(stampedPath)}`,
+        );
+      } else {
+        fs.copyFileSync(targetClaude, bakPath);
+        log.warn(`Existing CLAUDE.md backed up to CLAUDE.md.bak`);
+      }
+    }
   }
 
   fs.copyFileSync(sourceClaude, targetClaude);

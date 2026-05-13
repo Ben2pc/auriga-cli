@@ -14,13 +14,15 @@
 //
 // Default action derivation (when a card is selected):
 //
-//   status="installed"        → action="uninstall"
-//   status="update-available" → action="update"
-//   status="not-installed"    → action="install"
+//   status="installed"     → action="uninstall"
+//   status="not-installed" → action="install"
+//   status="partial-install" → action="install" (backfill missing side)
 //
 // Rationale: the most likely user intent given the current state. Toggling
 // the action between install/uninstall on an already-installed item is a
 // post-M3 affordance (the design has room for a secondary action menu).
+// v1.19.0 dropped the "update" action — re-running install is the update
+// path for every category.
 //
 // Selection key shape: "<category>:<name>". `category` matches
 // ApplyCategory exactly so we can derive ApplyItemRef without a lookup map.
@@ -52,28 +54,20 @@ import type {
 
 const PING_INTERVAL_MS = 5000;
 
-// Map server's ItemStatus (3 states) onto StateCard's CardStatus (4 states).
-// `error` is reserved for future per-item failures that the scanner doesn't
-// surface today — keeping the mapping explicit makes the upgrade cheap.
 function toCardStatus(status: ItemStatus): CardStatus {
   return status;
 }
 
-function deriveAction(status: ItemStatus): ApplyAction {
-  switch (status) {
-    case "installed":
-      return "uninstall";
-    case "update-available":
-      return "update";
-    case "not-installed":
-      return "install";
-    case "partial-install":
-      // Action lives on the missing side(s). The Apply path dispatches
-      // install on each targeted agent; agents that already have it become
-      // no-ops at the installer level. UI presents this as a one-click
-      // backfill — same UX shape as "install".
-      return "install";
-  }
+// Selecting an already-installed row defaults to **re-install** (action =
+// "install"). Re-install is the v1.19.0 update path — installers are
+// idempotent and overwriting, so a fresh `install` on an installed row
+// pulls latest upstream and refreshes contents. The user explicitly opts
+// into uninstall via the output-bar mode toggle. Not-installed rows
+// always queue install (no meaningful uninstall action for an absent
+// item, regardless of mode).
+function deriveAction(status: ItemStatus, mode: ApplyAction): ApplyAction {
+  if (status === "not-installed") return "install";
+  return mode === "uninstall" ? "uninstall" : "install";
 }
 
 function makeKey(category: ApplyCategory, name: string): string {
@@ -231,10 +225,6 @@ interface CategorySectionProps {
    *  button etc. don't disappear), matching the "don't blank during
    *  refetch" decision in Dashboard.useEffect. */
   refetching?: boolean;
-  /** Optional small text rendered between the header and the row list.
-   *  Use to direct users at upstream update paths for categories we don't
-   *  authoritatively own (Skills → `npx skills update --project`). */
-  caption?: React.ReactNode;
   children: React.ReactNode;
 }
 
@@ -249,7 +239,6 @@ function CategorySection({
   onLangChange,
   langTestId,
   refetching = false,
-  caption,
   children,
 }: CategorySectionProps): JSX.Element {
   return (
@@ -275,23 +264,6 @@ function CategorySection({
       >
         {title}
       </CategoryHeader>
-      {caption !== undefined && (
-        <div
-          data-testid={`${testId}-caption`}
-          className="font-anthropic-mono"
-          style={{
-            fontSize: "10px",
-            lineHeight: 1.4,
-            // slate-light on ivory-light = ~6:1 (clears WCAG AA 4.5:1 for body text);
-            // cloud-dark (3.47:1) failed AA — see deep-review PR #86.
-            color: "var(--color-slate-light)",
-            padding: "0 12px 8px 12px",
-            letterSpacing: "0.02em",
-          }}
-        >
-          {caption}
-        </div>
-      )}
       <div
         data-testid={`${testId}-list`}
         style={{
@@ -352,6 +324,12 @@ export default function Dashboard(): JSX.Element {
   // CLAUDE.md language picker. Workflow is a singleton, so we keep this
   // as a flat top-level state rather than per-category map.
   const [workflowLang, setWorkflowLang] = useState<Lang>("en");
+  // Global Apply mode. Default "install" — selecting an installed row
+  // re-installs (= refresh to latest upstream). Flipped to "uninstall" via
+  // the output-bar toggle for explicit removal intent. Not-installed rows
+  // always queue install regardless. Switching mode retroactively
+  // rewrites the action on already-selected installed/partial rows.
+  const [applyMode, setApplyMode] = useState<ApplyAction>("install");
   const [applying, setApplying] = useState(false);
 
   // Derive the /api/state `scopes` query payload from the per-column scope
@@ -431,7 +409,7 @@ export default function Dashboard(): JSX.Element {
           const ref: ApplyItemRef = {
             category,
             name,
-            action: deriveAction(status),
+            action: deriveAction(status, applyMode),
           };
           // workflow has no scope; other categories pick from the current
           // column-level scope state.
@@ -449,7 +427,42 @@ export default function Dashboard(): JSX.Element {
         return next;
       });
     },
-    [scopeByCategory, workflowLang],
+    [scopeByCategory, workflowLang, applyMode],
+  );
+
+  // Mode toggle on the output bar. Mirrors changeScope / changeWorkflowLang
+  // discipline — flipping mode rewrites the action on every
+  // already-selected installed / partial row so the Apply payload matches
+  // what the user sees. Not-installed rows are left alone (mode has no
+  // effect on them; their action stays "install").
+  const changeApplyMode = useCallback(
+    (next: ApplyAction) => {
+      setApplyMode(next);
+      if (state === null) return;
+      const statusByKey = new Map<string, ItemStatus>();
+      statusByKey.set(makeKey("workflow", "workflow"), state.workflow.status);
+      for (const s of state.skills) statusByKey.set(makeKey("skill", s.name), s.status);
+      for (const s of state.recommendedSkills)
+        statusByKey.set(makeKey("recommended-skill", s.name), s.status);
+      for (const p of state.plugins) statusByKey.set(makeKey("plugin", p.id), p.status);
+      for (const h of state.hooks) statusByKey.set(makeKey("hook", h.name), h.status);
+      setSelected((prev) => {
+        if (prev.size === 0) return prev;
+        let changed = false;
+        const out = new Map(prev);
+        for (const [key, ref] of out) {
+          const status = statusByKey.get(key);
+          if (status === undefined) continue;
+          const want = deriveAction(status, next);
+          if (ref.action !== want) {
+            out.set(key, { ...ref, action: want });
+            changed = true;
+          }
+        }
+        return changed ? out : prev;
+      });
+    },
+    [state],
   );
 
   // Update the column scope, and re-derive scope on already-selected items
@@ -801,6 +814,8 @@ export default function Dashboard(): JSX.Element {
               applying={applying}
               status={jobStatus}
               hasDestructive={hasDestructive}
+              mode={applyMode}
+              onModeChange={changeApplyMode}
               onApply={() => void handleApply()}
               onCancel={handleCancel}
             />
@@ -871,8 +886,6 @@ function WorkflowSection({
         name="CLAUDE.md workflow"
         description={description}
         status={toCardStatus(workflow.status)}
-        currentVersion={workflow.currentVersion}
-        expectedVersion={workflow.expectedVersion}
         selected={selected.has(key)}
         onSelectChange={(isSel) =>
           onToggle("workflow", "workflow", workflow.status, isSel)
@@ -909,7 +922,6 @@ function SkillsSection({
       onScopeChange={onScopeChange}
       scopeTestId="section-skills-scope"
       refetching={refetching}
-      caption={<>Updates via <code>npx skills update --project</code></>}
     >
       {skills.map((skill) => {
         const key = makeKey("skill", skill.name);
@@ -919,8 +931,6 @@ function SkillsSection({
             name={skill.name}
             description={skill.description}
             status={toCardStatus(skill.status)}
-            currentHash={skill.currentHash}
-            expectedHash={skill.expectedHash}
             selected={selected.has(key)}
             onSelectChange={(isSel) =>
               onToggle("skill", skill.name, skill.status, isSel)
@@ -959,7 +969,6 @@ function RecommendedSkillsSection({
       onScopeChange={onScopeChange}
       scopeTestId="section-recommended-skills-scope"
       refetching={refetching}
-      caption={<>Updates via <code>npx skills update --project</code></>}
     >
       {recommendedSkills.map((skill) => {
         const key = makeKey("recommended-skill", skill.name);
@@ -969,8 +978,6 @@ function RecommendedSkillsSection({
             name={skill.name}
             description={skill.description}
             status={toCardStatus(skill.status)}
-            currentHash={skill.currentHash}
-            expectedHash={skill.expectedHash}
             selected={selected.has(key)}
             onSelectChange={(isSel) =>
               onToggle("recommended-skill", skill.name, skill.status, isSel)
@@ -1018,8 +1025,6 @@ function PluginsSection({
             name={plugin.id}
             description={plugin.description}
             status={toCardStatus(plugin.status)}
-            currentVersion={plugin.currentVersion}
-            expectedVersion={plugin.expectedVersion}
             selected={selected.has(key)}
             onSelectChange={(isSel) =>
               onToggle("plugin", plugin.id, plugin.status, isSel)
@@ -1070,8 +1075,6 @@ function HooksSection({
             name={hook.name}
             description={hook.description}
             status={toCardStatus(hook.status)}
-            currentHash={hook.currentHash}
-            expectedHash={hook.expectedHash}
             selected={selected.has(key)}
             onSelectChange={(isSel) =>
               onToggle("hook", hook.name, hook.status, isSel)
