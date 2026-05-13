@@ -75,6 +75,64 @@ describe("installWorkflow", () => {
     );
   });
 
+  test("foreign CLAUDE.md + pre-existing .bak → spills current to timestamped backup, preserves .bak", async () => {
+    // Codex adversarial review surfaced this gap: backupOnce protects the
+    // FIRST .bak across re-installs, but if a user later replaces an
+    // auriga-managed CLAUDE.md with foreign content (hand-paste, copy from
+    // another repo, heavy edits...) and re-runs install, the previous logic
+    // skipped the backup branch entirely because .bak already existed AND
+    // then overwrote the foreign current file with the auriga template →
+    // silent user data loss.
+    //
+    // Correct behavior: when the current CLAUDE.md differs from the
+    // packaged source, back up to .bak when free, else spill to a
+    // timestamped path (.bak.<stamp>). Never silently overwrite a
+    // diverged CLAUDE.md.
+    const packageRoot = makePackageRoot();
+    const cwd = makeScratch("foreign-bak-collision");
+    const firstOriginal = "# User's first foreign content\n";
+    const secondForeign = "# User re-pasted different foreign content\n";
+    fs.writeFileSync(path.join(cwd, "CLAUDE.md.bak"), firstOriginal);
+    fs.writeFileSync(path.join(cwd, "CLAUDE.md"), secondForeign);
+
+    await installWorkflow(packageRoot, { interactive: false, cwd, lang: "en" });
+
+    // The canonical .bak slot still holds the FIRST foreign content
+    // (preserves the F1 regression invariant).
+    assert.equal(
+      fs.readFileSync(path.join(cwd, "CLAUDE.md.bak"), "utf-8"),
+      firstOriginal,
+      ".bak must remain the first foreign content across re-installs",
+    );
+
+    // The current foreign content was spilled to a timestamped backup —
+    // anything matching CLAUDE.md.bak.* with our second-foreign content.
+    const entries = fs.readdirSync(cwd);
+    const stamped = entries.filter(
+      (name) => name.startsWith("CLAUDE.md.bak.") && name !== "CLAUDE.md.bak",
+    );
+    assert.ok(
+      stamped.length >= 1,
+      `expected at least one CLAUDE.md.bak.<timestamp> backup, got: ${JSON.stringify(entries)}`,
+    );
+    const stampedContents = stamped.map((name) =>
+      fs.readFileSync(path.join(cwd, name), "utf-8"),
+    );
+    assert.ok(
+      stampedContents.includes(secondForeign),
+      "expected one of the timestamped backups to hold the second foreign content",
+    );
+
+    // CLAUDE.md is now the auriga workflow (overwrite still happens, but
+    // only after the foreign content was preserved).
+    const finalClaude = fs.readFileSync(path.join(cwd, "CLAUDE.md"), "utf-8");
+    assert.notEqual(finalClaude, secondForeign);
+    assert.ok(
+      /auriga\s+Workflow/.test(finalClaude),
+      `expected auriga workflow header in installed CLAUDE.md, got: ${finalClaude.slice(0, 80)}`,
+    );
+  });
+
   test("install creates AGENTS.md symlink", async () => {
     const packageRoot = makePackageRoot();
     const cwd = makeScratch("symlink");
