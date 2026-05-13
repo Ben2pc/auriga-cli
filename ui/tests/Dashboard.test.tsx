@@ -39,8 +39,6 @@ function makeReport(overrides: Partial<StateReport> = {}): StateReport {
     cwd: "~/Workspace/test-project",
     workflow: {
       status: "installed",
-      currentVersion: "1.6.0",
-      expectedVersion: "1.6.0",
     },
     skills: [
       {
@@ -48,16 +46,12 @@ function makeReport(overrides: Partial<StateReport> = {}): StateReport {
         description: "TDD red/green workflow",
         status: "installed",
         isWorkflow: true,
-        currentHash: "abc12345",
-        expectedHash: "abc12345",
       },
       {
         name: "systematic-debugging",
         description: "Debug-root-cause-first protocol",
         status: "not-installed",
         isWorkflow: true,
-        currentHash: "old11111",
-        expectedHash: "new22222",
       },
     ],
     recommendedSkills: [
@@ -66,7 +60,6 @@ function makeReport(overrides: Partial<StateReport> = {}): StateReport {
         description: "Distinctive frontend interfaces",
         status: "not-installed",
         isWorkflow: false,
-        expectedHash: "fed99999",
       },
     ],
     plugins: [
@@ -75,9 +68,6 @@ function makeReport(overrides: Partial<StateReport> = {}): StateReport {
         description: "Workflow autopilot",
         status: "installed",
         agents: ["claude"],
-        currentVersion: "1.0.0",
-        expectedVersion: "1.0.0",
-        versionSource: "catalog",
       },
       {
         // Dual-Agent plugin with Codex side missing; drives the
@@ -87,9 +77,6 @@ function makeReport(overrides: Partial<StateReport> = {}): StateReport {
         status: "partial-install",
         agents: ["claude", "codex"],
         missingAgents: ["codex"],
-        currentVersion: "0.3.1",
-        expectedVersion: "0.3.1",
-        versionSource: "catalog",
       },
     ],
     hooks: [
@@ -97,7 +84,6 @@ function makeReport(overrides: Partial<StateReport> = {}): StateReport {
         name: "notify",
         description: "Desktop notifications",
         status: "not-installed",
-        expectedHash: "h00kfeed",
       },
     ],
     warnings: [],
@@ -575,8 +561,6 @@ describe("Dashboard — changeWorkflowLang re-derives already-selected workflow"
               makeReport({
                 workflow: {
                   status: "not-installed",
-                  currentVersion: "1.5.0",
-                  expectedVersion: "1.6.0",
                 },
               }),
             ),

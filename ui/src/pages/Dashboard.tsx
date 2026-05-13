@@ -54,16 +54,7 @@ import type {
 
 const PING_INTERVAL_MS = 5000;
 
-// Map server's ItemStatus onto StateCard's CardStatus. The legacy
-// `update-available` value is folded into `installed` for forward
-// compatibility — the scanner stopped producing it in v1.19.0 but old
-// servers / cached responses might still send it; treating it as
-// "installed" matches the new semantics ("re-install to refresh").
-// `error` is reserved for future per-item failures that the scanner
-// doesn't surface today — keeping the mapping explicit makes the upgrade
-// cheap.
 function toCardStatus(status: ItemStatus): CardStatus {
-  if (status === "update-available") return "installed";
   return status;
 }
 
@@ -78,9 +69,6 @@ function deriveAction(status: ItemStatus): ApplyAction {
       // install on each targeted agent; agents that already have it become
       // no-ops at the installer level. UI presents this as a one-click
       // backfill — same UX shape as "install".
-      return "install";
-    case "update-available":
-      // Legacy server response — re-install is the update path now.
       return "install";
   }
 }
