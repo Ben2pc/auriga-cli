@@ -786,8 +786,8 @@ describe("scanState — #14c Plugins (Claude) baked expectedVersion", () => {
     // has a baked expectedVersion from auriga-cli's own
     // plugins/<name>/.claude-plugin/plugin.json (the canonical source for
     // owned plugins), it MUST use that to surface "an upgrade is available".
-    // Without this path a stale local install (e.g. deep-review@0.3.0 while
-    // the marketplace ships 0.3.1) reports a misleading green "installed".
+    // Without this path a stale local install (e.g. deep-review@0.3.1 while
+    // the marketplace ships 0.3.2) reports a misleading green "installed".
     const home = makeScratch("home14c");
     redirectHome(home);
     const catalog = makeCatalog({
@@ -795,13 +795,13 @@ describe("scanState — #14c Plugins (Claude) baked expectedVersion", () => {
         "deep-review@auriga-cli": {
           description: "",
           agents: ["claude"],
-          expectedVersion: "0.3.1",
+          expectedVersion: "0.3.2",
         },
       },
     });
     const report = await scan(makeScratch("proj14c"), catalog, {
       execPluginList: (async () => ({
-        installed: [{ id: "deep-review@auriga-cli", version: "0.3.0" }],
+        installed: [{ id: "deep-review@auriga-cli", version: "0.3.1" }],
         available: [], // CLI excludes installed plugins from .available[]
       })) as NonNullable<ScanOptions["execPluginList"]>,
       scopes: { plugins: "user" },
@@ -811,8 +811,8 @@ describe("scanState — #14c Plugins (Claude) baked expectedVersion", () => {
 
     const p = report.plugins.find((x) => x.id === "deep-review@auriga-cli")!;
     assert.equal(p.status, "update-available");
-    assert.equal(p.currentVersion, "0.3.0");
-    assert.equal(p.expectedVersion, "0.3.1");
+    assert.equal(p.currentVersion, "0.3.1");
+    assert.equal(p.expectedVersion, "0.3.2");
     assert.equal(p.versionSource, "catalog");
   });
 
@@ -826,13 +826,13 @@ describe("scanState — #14c Plugins (Claude) baked expectedVersion", () => {
         "deep-review@auriga-cli": {
           description: "",
           agents: ["claude"],
-          expectedVersion: "0.3.1",
+          expectedVersion: "0.3.2",
         },
       },
     });
     const report = await scan(makeScratch("proj14c-eq"), catalog, {
       execPluginList: (async () => ({
-        installed: [{ id: "deep-review@auriga-cli", version: "0.3.1" }],
+        installed: [{ id: "deep-review@auriga-cli", version: "0.3.2" }],
         available: [],
       })) as NonNullable<ScanOptions["execPluginList"]>,
       scopes: { plugins: "user" },
@@ -842,7 +842,7 @@ describe("scanState — #14c Plugins (Claude) baked expectedVersion", () => {
 
     const p = report.plugins.find((x) => x.id === "deep-review@auriga-cli")!;
     assert.equal(p.status, "installed");
-    assert.equal(p.currentVersion, "0.3.1");
+    assert.equal(p.currentVersion, "0.3.2");
     assert.equal(p.versionSource, "catalog");
   });
 });
