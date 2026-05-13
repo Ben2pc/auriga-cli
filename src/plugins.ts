@@ -243,10 +243,7 @@ function cleanupMigratedWorkflowSkillInstalls(
     for (const runtime of runtimes) {
       const dir = legacySkillDir(opts, runtime, name);
       const stat = fs.lstatSync(dir, { throwIfNoEntry: false });
-      if (!stat) {
-        emitMigrationLog(opts, `${runtimeSkillRoot(runtime)}/skills/${name} not present`);
-        continue;
-      }
+      if (!stat) continue;
       if (scope === "project" && isWorkflowPluginDevSymlink(dir, cwd, name)) {
         emitMigrationLog(opts, `preserved ${runtimeSkillRoot(runtime)}/skills/${name} development symlink`);
         continue;

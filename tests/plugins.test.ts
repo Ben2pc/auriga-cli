@@ -1063,6 +1063,34 @@ describe("installPlugins — Claude target", () => {
     }
   });
 
+  test("auriga-workflow-skills cleanup stays quiet when legacy skill dirs are absent", async () => {
+    const packageRoot = makeMigratedAssetsPluginPackage();
+    const cwd = fs.mkdtempSync(path.join(os.tmpdir(), "auriga-migrated-skills-quiet-"));
+    const codexHome = fs.mkdtempSync(path.join(os.tmpdir(), "auriga-codex-home-"));
+    process.env.CODEX_HOME = codexHome;
+    const logs: string[] = [];
+    const { installPlugins } = await importPlugins((cmd) => {
+      if (cmd === "claude plugins list --json") return "[]";
+      if (cmd === "claude plugins marketplace list") return "";
+      return "";
+    });
+
+    await installPlugins(packageRoot, {
+      interactive: false,
+      agent: "both",
+      selected: ["auriga-workflow-skills"],
+      cwd,
+      scope: "project",
+      onLog: (line: string) => logs.push(line),
+    });
+
+    assert.equal(
+      logs.some((line) => line.includes("not present")),
+      false,
+      `missing legacy skill dirs should not emit noisy cleanup logs: ${logs.join(" | ")}`,
+    );
+  });
+
   test("auriga-notify install preserves legacy hook config and icon under plugin-owned config", async () => {
     const packageRoot = makeMigratedAssetsPluginPackage();
     const cwd = fs.mkdtempSync(path.join(os.tmpdir(), "auriga-notify-migrate-"));
