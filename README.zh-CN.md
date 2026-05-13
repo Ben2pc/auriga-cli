@@ -11,10 +11,10 @@
 | 模块 | 说明 |
 |---|---|
 | **Workflow** | `CLAUDE.md` 里的 auriga 工作流：需求澄清 → TDD → Review，Harness 原则，Subagent 使用指南 |
-| **Skills** | 开发流程 + 编排类 skills —— brainstorming、systematic-debugging、TDD、verification、planning、playwright、test-designer、incremental-impl |
+| **Skills** | 外部开发流程 skills —— brainstorming、systematic-debugging、TDD、verification、planning、playwright |
 | **Recommended Skills** | 可选的工具类 skills（如 `codex-agent`、`claude-code-agent`），在 workflow skills 之外按需追加 |
-| **Plugins** | 推荐的 Claude Code 和 Codex 插件 —— skill-creator、claude-md-management、codex、auriga-go、auriga-git-guards、session-instructions-loader、deep-review |
-| **Hooks** | Claude Code hooks：`notify`（macOS 通知，终端在焦点时仅放声不弹横幅 —— **opt-in**：`install --all` 不装，需要 `install hooks --hook notify`） |
+| **Plugins** | 推荐的 Claude Code 和 Codex 插件 —— skill-creator、claude-md-management、codex、auriga-go、auriga-git-guards、auriga-workflow-skills、auriga-notify、session-instructions-loader、deep-review |
+| **Hooks** | 传统 Claude Code hook 安装器。目前没有仓库自维护 hook 暴露在这里；`notify` 已迁移为 `auriga-notify` 插件。 |
 
 ## 快速开始
 
@@ -41,7 +41,7 @@ npx -y auriga-cli guide
 非交互安装命令：
 
 ```bash
-npx -y auriga-cli install --all              # workflow + skills + plugins + hooks（原子）
+npx -y auriga-cli install --all              # workflow + skills + 默认 plugins（原子）
 npx -y auriga-cli install recommended        # 可选工具 skills（不在 --all 内）
 npx -y auriga-cli install plugins --agent codex --plugin session-instructions-loader
 npx -y auriga-cli install <type> [--flags]   # 单类：workflow | skills | recommended | plugins | hooks
@@ -102,9 +102,6 @@ npx auriga-cli
 | verification-before-completion | [obra/superpowers](https://github.com/obra/superpowers) | 完成前验证，用证据说话 |
 | planning-with-files | [OthmanAdi/planning-with-files](https://github.com/OthmanAdi/planning-with-files) | 文件化任务计划与进度跟踪 |
 | playwright-cli | [microsoft/playwright-cli](https://github.com/microsoft/playwright-cli) | 浏览器自动化与测试 |
-| test-designer | [Ben2pc/auriga-cli](https://github.com/Ben2pc/auriga-cli) | TDD 红灯阶段的 Independent Evaluation 测试设计器 |
-| incremental-impl | [Ben2pc/auriga-cli](https://github.com/Ben2pc/auriga-cli) | 决定如何实现非平凡改动：估算大小、选择切片策略、按需并行派遣、执行片间纪律 |
-| session-compound | [Ben2pc/auriga-cli](https://github.com/Ben2pc/auriga-cli) | PR 合并后的会话复利 skill — 将本次会话沉淀为交互式 HTML 报告（时间线 + token / cache / 工具健康度 + playground：skill 安装 / AGENTS.md 修改 / 新建 skill 缺口） |
 
 **Recommended Skills（可选，不在 `--all` 内）：**
 
@@ -129,6 +126,8 @@ npx auriga-cli
 
 ```bash
 npx -y auriga-cli install plugins --plugin auriga-go
+npx -y auriga-cli install plugins --agent both --plugin auriga-workflow-skills
+npx -y auriga-cli install plugins --plugin auriga-notify
 npx -y auriga-cli install plugins --agent codex --plugin session-instructions-loader
 npx -y auriga-cli install plugins --agent both --plugin auriga-git-guards
 ```
@@ -140,31 +139,23 @@ npx -y auriga-cli install plugins --agent both --plugin auriga-git-guards
 | codex | Claude Code | Codex 跨模型协作 |
 | auriga-go | Claude Code / Codex | auriga 工作流的自动驾驶：按 `CLAUDE.md` 的 phase 做 reminder-based 导航。内置两个 skill：`auriga-go`（按 description 的自然语言触发 + `/auriga-go` slash command）和 `/goalify`（根据 spec 或当前进展 plan 出 goal，并通过 Claude Code 内置的 `/goal` 命令分发执行）。 |
 | auriga-git-guards | Claude Code / Codex | 三个 git-lifecycle guardrail + 内置 `git-workflow` skill。Hooks：`commit-reminder`（Claude Code 下 PostToolUse 匹配 `Edit` / `Write` / `MultiEdit`，Codex 下匹配 `apply_patch`（Codex 文件编辑 canonical `tool_name`），两个 runtime 都触发 —— 未提交 diff 对比 `HEAD` 超过 200 行或 8 个文件，且距上次提醒 ≥ 60 s 时，注入提醒让 Agent 在下一个语义边界 commit）、`pr-create-guard`（`gh pr create` 的 PostToolUse —— 通过 `gh pr view` 拉真实 PR body，扫 `^##` / `^###` headings 并统计 `- [ ]` / `- [x]` 注入 `additionalContext`，让 Agent 对照五要素：scope / acceptance criteria / design decisions / risks / remaining TODOs）、`pr-ready-guard`（`gh pr ready` 的 PreToolUse —— 仅按结构信号拦截：游离 `findings.md` / `progress.md` / `task_plan.md` / `docs/superpowers/specs/*.md`、`docs/specs/*.md` 内未结案的活跃 spec、未 push commits；放行时注入 body 快照）。两个 PostToolUse hook 在 Claude Code / Codex 上完全对齐；Codex 仅对 `pr-ready-guard` 的 PreToolUse `additionalContext` 信息路径 fail-open（block 路径两边一致）。 |
+| auriga-workflow-skills | Claude Code / Codex | 打包 auriga 自维护的工作流执行 skills：`incremental-impl`、`test-designer`、`session-compound`。默认通过插件路径安装，不再通过 `install skills` 作为独立条目安装。 |
+| auriga-notify *(opt-in)* | Claude Code | Claude Code `Notification` 事件的 macOS 原生通知插件。支持焦点感知仅提示音、点击唤起终端、按项目分组通知，并迁移旧 `config.json` / `icon.png`。不随 `install --all` 默认安装，需要显式执行 `install plugins --plugin auriga-notify`。 |
 | session-instructions-loader | Codex | Codex-only SessionStart 插件，注入上层目录的 `AGENTS.md` 和仓库配置的额外 instruction 文件。 |
 | deep-review | Claude Code / Codex | 多维度 PR review 编排器 —— 并行派发各维度 reviewer（spec-conformance、correctness、test-quality、docs-sync，以及条件触发的 robustness/UX/performance/structure/code-quality/skill-plugin-quality），汇总成 punch list。同包内打包了 `reviewer-creator` skill，用于在 `docs/rules/review/` 下生成项目级自定义 reviewer。承担 `CLAUDE.md` 中的正式评审职责。 |
 
 ### Hooks
 
-把 Claude Code hooks 安装到选定的作用域。每个 hook 都是 `.claude/hooks/<name>/` 下一个自包含目录，可以**不改代码**自定义。
-
-| Hook | 说明 |
-|---|---|
-| notify *(opt-in)* | 当 Claude 需要你关注时弹一条原生 macOS 通知。在通知小图标位显示品牌图，点击通知可把发起 Claude 的终端拉回前台。**焦点感知**：发起 Claude 的终端正处于前台时，仅放提示音不弹横幅（通过 `config.json` 的 `soundOnlyWhenFocused` 切换）。**按项目分组**：新通知会干净地替换通知中心里的旧条目，不会进程堆积，也不会跨项目互相覆盖。会自动通过 Homebrew 安装 `alerter`（`vjeantet/tap/alerter`）。改 `.claude/hooks/notify/config.json` 即可换提示音、替换 `.claude/hooks/notify/icon.png` 即可换图标。仅 macOS 运行时生效，其它平台静默 no-op。 |
-
-作用域选择：
-
-- **Project local**（推荐给跨平台团队）：文件落在 `./.claude/hooks/`，注册到 `./.claude/settings.local.json` —— 每个开发者各自安装，不进 git。
-- **Project**：同样的文件，注册到 `./.claude/settings.json` —— 整个团队共享。
-- **User**：文件落在 `~/.claude/hooks/`，注册到 `~/.claude/settings.json` —— 全局生效。
-
-重新跑安装器时会保留你修改过的 `config.json` 和 `icon.png`，覆盖运行时本身，并通过 marker 字段幂等去重，绝不会产生重复的 hook 条目。
+传统 hook 安装器仍保留作兼容入口，但本仓库当前不再通过
+`install hooks` 暴露自维护 hook。新的自维护 hook 应随插件分发。原来的
+`notify` hook 已迁移为 `auriga-notify` 插件。
 
 ## 环境要求
 
 - Node.js >= 18
 - [Claude Code](https://docs.anthropic.com/en/docs/claude-code)（Claude Code Plugins 和 Hooks 模块需要）
 - Codex CLI（仅 `install plugins --agent codex|both` 需要）
-- [Homebrew](https://brew.sh)（`notify` hook 用来安装 `alerter`，可选）
+- [Homebrew](https://brew.sh)（`auriga-notify` 插件使用 `alerter` 时推荐安装）
 
 ## 开发
 

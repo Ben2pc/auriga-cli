@@ -371,9 +371,24 @@ function validateFilterAgainstCatalog(type: CategoryName, filter: string[]): voi
   const singular = categorySingular(type);
   for (const name of filter) {
     if (!available.includes(name)) {
-      parseErr(`unknown ${singular} '${name}'; available: ${available.join(", ")}`);
+      const hint = migratedPluginHint(type, name);
+      const hintText = hint ? ` ${hint}` : "";
+      parseErr(`unknown ${singular} '${name}';${hintText} available: ${available.join(", ")}`);
     }
   }
+}
+
+function migratedPluginHint(type: CategoryName, name: string): string | undefined {
+  if (
+    type === "skills" &&
+    ["incremental-impl", "test-designer", "session-compound"].includes(name)
+  ) {
+    return "This skill moved to the auriga-workflow-skills plugin; install it with `install plugins --plugin auriga-workflow-skills`.";
+  }
+  if (type === "hooks" && name === "notify") {
+    return "The notify hook moved to the auriga-notify plugin; install it with `install plugins --plugin auriga-notify`.";
+  }
+  return undefined;
 }
 
 function categorySingular(type: CategoryName): string {

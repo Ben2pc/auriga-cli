@@ -1,24 +1,24 @@
 #!/usr/bin/env node
-// Manual smoke test for the notify hook.
+// Manual smoke test for the auriga-notify plugin script.
 //
-// Fires a fake `Notification` payload at index.mjs the same way Claude
+// Fires a fake `Notification` payload at notify.mjs the same way Claude
 // Code would, so you can verify your customized `config.json` (sound)
 // and `icon.png` actually fire after editing them. Run from anywhere:
 //
-//     node /path/to/.claude/hooks/notify/test.mjs
+//     node /path/to/plugins/auriga-notify/scripts/test-notify.mjs
 //
 // or, if your project is the cwd:
 //
-//     node .claude/hooks/notify/test.mjs
+//     node plugins/auriga-notify/scripts/test-notify.mjs
 //
 // The script does not duplicate any of the hook logic — it just invokes
-// index.mjs over stdin, exactly the way Claude Code does at runtime.
+// notify.mjs over stdin, exactly the way Claude Code does at runtime.
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const ENTRY = path.join(HERE, "index.mjs");
+const ENTRY = path.join(HERE, "notify.mjs");
 
 const payload = JSON.stringify({
   hook_event_name: "Notification",
@@ -40,7 +40,7 @@ child.stdin.end();
 
 child.on("exit", (code) => {
   if (code !== 0) {
-    console.error(`✗ notify hook exited with code ${code}`);
+    console.error(`✗ auriga-notify exited with code ${code}`);
     process.exit(code ?? 1);
   }
   console.log("✓ notify fired. Now check:");

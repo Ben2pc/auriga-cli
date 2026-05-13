@@ -9,14 +9,39 @@ if (process.platform !== "darwin") process.exit(0);
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const SELF = fileURLToPath(import.meta.url);
+const PLUGIN_ROOT = path.resolve(HERE, "..");
 
 const DEFAULTS = {
-  icon: "./icon.png",
+  icon: "assets/icon.png",
   sound: "Submarine",
   sender: null,
   activate: undefined,
   soundOnlyWhenFocused: true,
 };
+
+function configCandidates() {
+  const out = [];
+  if (process.env.AURIGA_NOTIFY_CONFIG) {
+    const p = path.resolve(process.env.AURIGA_NOTIFY_CONFIG);
+    out.push({ path: p, baseDir: path.dirname(p) });
+  }
+  out.push({
+    path: path.join(process.cwd(), ".claude", "auriga-notify", "config.json"),
+    baseDir: path.join(process.cwd(), ".claude", "auriga-notify"),
+  });
+  const home = process.env.HOME ?? "";
+  if (home) {
+    out.push({
+      path: path.join(home, ".config", "auriga-cli", "notify", "config.json"),
+      baseDir: path.join(home, ".config", "auriga-cli", "notify"),
+    });
+  }
+  out.push({
+    path: path.join(PLUGIN_ROOT, "defaults", "config.json"),
+    baseDir: PLUGIN_ROOT,
+  });
+  return out;
+}
 
 // alerter's `--sender` re-routes the notification through a specific
 // app's bundle ID, which determines what notification permission and
@@ -30,32 +55,36 @@ const DEFAULTS = {
 // config.json — but `--app-icon` already lets you override that icon
 // without the routing fragility, so most users won't need this.
 function loadConfig() {
-  try {
-    const raw = fs.readFileSync(path.join(HERE, "config.json"), "utf8");
-    const parsed = JSON.parse(raw);
-    return {
-      icon: typeof parsed.icon === "string" ? parsed.icon : DEFAULTS.icon,
-      sound: typeof parsed.sound === "string" ? parsed.sound : DEFAULTS.sound,
-      sender:
-        typeof parsed.sender === "string" && parsed.sender.length > 0
-          ? parsed.sender
-          : DEFAULTS.sender,
-      // `activate` accepts a bundle ID string, `false` to opt out of
-      // click-to-activate entirely, or undefined for auto-detect.
-      activate:
-        parsed.activate === false || typeof parsed.activate === "string"
-          ? parsed.activate
-          : DEFAULTS.activate,
-      // `soundOnlyWhenFocused` toggles the focus-aware downgrade
-      // (see the focus branch in the main flow). Default true.
-      soundOnlyWhenFocused:
-        typeof parsed.soundOnlyWhenFocused === "boolean"
-          ? parsed.soundOnlyWhenFocused
-          : DEFAULTS.soundOnlyWhenFocused,
-    };
-  } catch {
-    return { ...DEFAULTS };
+  for (const candidate of configCandidates()) {
+    try {
+      const raw = fs.readFileSync(candidate.path, "utf8");
+      const parsed = JSON.parse(raw);
+      return {
+        icon: typeof parsed.icon === "string" ? parsed.icon : DEFAULTS.icon,
+        sound: typeof parsed.sound === "string" ? parsed.sound : DEFAULTS.sound,
+        sender:
+          typeof parsed.sender === "string" && parsed.sender.length > 0
+            ? parsed.sender
+            : DEFAULTS.sender,
+        // `activate` accepts a bundle ID string, `false` to opt out of
+        // click-to-activate entirely, or undefined for auto-detect.
+        activate:
+          parsed.activate === false || typeof parsed.activate === "string"
+            ? parsed.activate
+            : DEFAULTS.activate,
+        // `soundOnlyWhenFocused` toggles the focus-aware downgrade
+        // (see the focus branch in the main flow). Default true.
+        soundOnlyWhenFocused:
+          typeof parsed.soundOnlyWhenFocused === "boolean"
+            ? parsed.soundOnlyWhenFocused
+            : DEFAULTS.soundOnlyWhenFocused,
+        baseDir: candidate.baseDir,
+      };
+    } catch {
+      // try next candidate
+    }
   }
+  return { ...DEFAULTS, baseDir: PLUGIN_ROOT };
 }
 
 // macOS Launch Services injects $__CFBundleIdentifier into every
@@ -145,8 +174,8 @@ function playSoundOnly(soundName) {
 // Claude sessions in different projects would silently cannibalize
 // each other's notifications via alerter's same-group replacement.
 // process.cwd() is the directory the hook fires from — typically the
-// project root. 8 hex chars of sha256 is plenty for collision-free
-// grouping across a developer's project set.
+// project root. 8 hex chars of sha256 is compact enough for readable
+// grouping and unlikely to collide across a developer's project set.
 function projectGroupId() {
   const hash = createHash("sha256")
     .update(process.cwd())
@@ -155,10 +184,12 @@ function projectGroupId() {
   return `auriga-notify-${hash}`;
 }
 
-function resolveIcon(iconPath) {
+function resolveIcon(iconPath, baseDir = PLUGIN_ROOT) {
   if (!iconPath) return null;
-  const abs = path.isAbsolute(iconPath) ? iconPath : path.join(HERE, iconPath);
-  return fs.existsSync(abs) ? abs : null;
+  const abs = path.isAbsolute(iconPath) ? iconPath : path.join(baseDir, iconPath);
+  if (fs.existsSync(abs)) return abs;
+  const fallback = path.join(PLUGIN_ROOT, "assets", "icon.png");
+  return fs.existsSync(fallback) ? fallback : null;
 }
 
 // Detached worker mode (re-invocation of this script). Reads a JSON job
@@ -183,11 +214,15 @@ if (process.argv[2] === "--alerter-worker") {
       result.status === 0 &&
       typeof result.stdout === "string" &&
       result.stdout.includes("@CONTENTCLICKED") &&
-      job.activate
+      typeof job.activate === "string" &&
+      job.activate.length > 0
     ) {
       spawnSync("osascript", [
-        "-e",
-        `tell application id "${job.activate}" to activate`,
+        "-e", "on run argv",
+        "-e", "tell application id (item 1 of argv) to activate",
+        "-e", "end run",
+        "--",
+        job.activate,
       ]);
     }
   } catch {
@@ -202,7 +237,7 @@ process.stdin.on("data", (chunk) => (input += chunk));
 process.stdin.on("end", () => {
   try {
     const cfg = loadConfig();
-    const iconAbs = resolveIcon(cfg.icon);
+    const iconAbs = resolveIcon(cfg.icon, cfg.baseDir);
 
     const data = JSON.parse(input);
     const title = String(data.title || "Claude Code");

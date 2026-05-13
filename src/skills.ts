@@ -10,12 +10,9 @@ import type { InstallOpts, SkillEntry, SkillsLock } from "./utils.js";
 // installRecommendedSkills as an opt-in utility.
 export const WORKFLOW_SKILLS = [
   "brainstorming",
-  "incremental-impl",
   "planning-with-files",
   "playwright-cli",
-  "session-compound",
   "systematic-debugging",
-  "test-designer",
   "test-driven-development",
   "verification-before-completion",
 ];

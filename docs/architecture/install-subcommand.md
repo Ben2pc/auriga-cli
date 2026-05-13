@@ -98,8 +98,8 @@ npx auriga-cli install hooks
 # 类内子项过滤
 npx auriga-cli install skills --skill brainstorming systematic-debugging
 npx auriga-cli install plugins --plugin auriga-go
+npx auriga-cli install plugins --plugin auriga-notify
 npx auriga-cli install recommended --recommended-skill codex-agent
-npx auriga-cli install hooks --hook notify pr-create-guard
 
 # 语言 / scope
 npx auriga-cli install workflow --lang zh-CN
@@ -151,7 +151,7 @@ TTY / 非 TTY 判据：`process.stdin.isTTY`（`true` = TTY）。
 # auriga-cli bootstrap SOP
 
 This guide walks an Agent through installing the auriga harness
-(CLAUDE.md + skills + plugins + hooks) into the current repository.
+(CLAUDE.md + skills + plugins, plus any legacy hooks) into the current repository.
 
 Run each step in order. If any step fails with exit 1, stop and report.
 If exit 2, see stderr for per-category status and follow the "retry"
@@ -188,19 +188,19 @@ Per-type detail (flags + only that category's catalog slice):
 
 ## Step 3 — Install
 
-Preset — the full default-on set (workflow + skills + plugins + hooks;
-recommended is NOT included):
+Preset — the full default-on set (workflow + skills + plugins; hooks is a
+legacy empty category; recommended is NOT included):
   npx -y auriga-cli install --all
 
 Targeted — single category:
   npx -y auriga-cli install workflow --lang en
   npx -y auriga-cli install skills --skill brainstorming test-driven-development
   npx -y auriga-cli install plugins --plugin skill-creator codex --scope user
-  npx -y auriga-cli install hooks --hook pr-ready-guard
+  npx -y auriga-cli install plugins --plugin auriga-notify
 
-Opt-in hooks (e.g. notify — macOS-only + brew deps) require naming them
+Opt-in plugins (e.g. auriga-notify — macOS-only + brew deps) require naming them
 explicitly:
-  npx -y auriga-cli install hooks --hook notify
+  npx -y auriga-cli install plugins --plugin auriga-notify
 
 Opt-in recommended skills:
   npx -y auriga-cli install recommended
@@ -214,9 +214,9 @@ Exit codes:
 
 ## Step 4 — Reload session (REQUIRED when installed non-interactively)
 
-`CLAUDE.md`, `.agents/skills/`, `.claude/plugins.json`, and hook
-registrations (`.claude/settings.json`) are all loaded at Claude Code
-session startup. If you ran
+`CLAUDE.md`, `.agents/skills/`, `.claude/plugins.json`, Codex plugin
+config, and hook/plugin registrations (`.claude/settings.json`) are all loaded
+at Claude Code session startup. If you ran
 `npx -y auriga-cli install` inside an existing Claude Code session
 (e.g., `claude -p` / `claude -p --worktree`), **the current session
 will NOT see the new harness.**
@@ -233,7 +233,8 @@ Expected artifacts:
   - AGENTS.md -> CLAUDE.md    (symlink)
   - .agents/skills/<name>/    (one per installed skill)
   - .claude/plugins.json
-  - .claude/settings.json     (updated hook registrations, if hooks selected)
+  - .claude/settings.json     (updated plugin/hook registrations, if selected)
+  - .claude/auriga-notify/    (project notify config, if auriga-notify selected)
 
 ## Troubleshooting
 
@@ -265,7 +266,7 @@ auriga-cli v<ver> — install Claude Code harness modules
 USAGE
   npx auriga-cli guide                                   Agent bootstrap SOP (start here)
   npx auriga-cli install                                 (TTY only) checkbox menu
-  npx auriga-cli install --all [--scope <s>]             workflow + skills + plugins + hooks
+  npx auriga-cli install --all [--scope <s>]             workflow + skills + default plugins
                                                          (excludes recommended — install separately)
   npx auriga-cli install <type> [type-specific flags]    single category
   npx auriga-cli --help
@@ -302,11 +303,9 @@ CATALOG (what each category contains)
 
 Workflow skills (category: skills)  ← installed by --all
   brainstorming                  Clarify requirements via dialogue before coding
-  incremental-impl               Plan a non-trivial implementation: size, slicing, optional parallel dispatch, per-slice discipline
   planning-with-files            Manus-style file-based planning for complex tasks
   playwright-cli                 Browser automation & testing verification
   systematic-debugging           Find root cause before fixing bugs
-  test-designer                  Independent failing-test design for complex features
   test-driven-development        Red-green-refactor discipline
   verification-before-completion Require verification evidence before claiming done
 
@@ -317,6 +316,8 @@ Recommended skills (category: recommended)  ← NOT installed by --all
 Plugins (category: plugins)
   auriga-go                      Workflow autopilot — drives CLAUDE.md workflow forward
   auriga-git-guards              Git lifecycle guardrails: commit-reminder + PR-create + PR-ready (Claude Code + Codex)
+  auriga-workflow-skills         Bundled auriga-owned execution skills
+  auriga-notify                  (opt-in) macOS Notification hook plugin
   session-instructions-loader    Inject ancestor AGENTS.md + extra files on Codex SessionStart
   skill-creator                  Create / modify / measure skills
   claude-md-management           Audit & improve CLAUDE.md files
@@ -324,7 +325,7 @@ Plugins (category: plugins)
   deep-review                    Multi-dimensional PR review (parallel reviewers + punch list)
 
 Hooks (category: hooks)
-  notify                         macOS notification when Claude needs attention (opt-in)
+  (none)                         Legacy category; repo-owned hooks ship as plugins
 
 ──────────────────────────────────────────────────────
 EXAMPLES
@@ -354,7 +355,7 @@ More: https://github.com/Ben2pc/auriga-cli
 - **描述的真源**：build-time 从各类元数据读取后内嵌到 `dist/catalog.json`：
   - workflow skills / recommended skills → `.agents/skills/<name>/SKILL.md` 的 YAML frontmatter `description`
   - plugins → `.claude/plugins.json` 的 `plugins[].description`
-  - hooks → `.claude/hooks/hooks.json` 的 `hooks[].description`
+  - hooks → `.claude/hooks/hooks.json` 的 `hooks[].description`（legacy，目前为空）
 - 本文档 §4.2 的 CATALOG 段是**示意**，不是手写真源；实际 help 里的描述按以上映射取自源文件并截断到 50 列
 
 ## 5. 实现
@@ -480,7 +481,7 @@ exit 2
 
 - `.agents/skills/<name>/SKILL.md` YAML frontmatter 的 `description` 字段
 - `.claude/plugins.json` 的 `plugins[].description`
-- `.claude/hooks/hooks.json` 的 `hooks[].description`
+- `.claude/hooks/hooks.json` 的 `hooks[].description`（legacy，目前为空）
 - `src/skills.ts` 的 `WORKFLOW_SKILLS` 数组（决定归 `workflowSkills` 还是 `recommendedSkills`）
 
 **输出 `dist/catalog.json`：**
@@ -491,7 +492,7 @@ exit 2
   "workflowSkills": [{ "name": "brainstorming", "description": "..." }, ...],
   "recommendedSkills": [{ "name": "claude-code-agent", "description": "..." }, ...],
   "plugins": [{ "name": "auriga-go", "description": "..." }, ...],
-  "hooks": [{ "name": "notify", "description": "..." }, ...]
+  "hooks": []
 }
 ```
 

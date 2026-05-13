@@ -5,6 +5,7 @@ import path from "node:path";
 import type { Catalog, CatalogEntry } from "../src/catalog.js";
 import { loadCatalog } from "../src/catalog.js";
 import { generateCatalog } from "../src/build/generate-catalog.js";
+import { renderTypeHelp } from "../src/help.js";
 
 // Covers spec §5.4 "Catalog 生成"
 
@@ -34,19 +35,14 @@ describe("generateCatalog (build-time)", () => {
     assert.ok(typeof catalog.generatedAt === "string" && catalog.generatedAt.length > 0);
   });
 
-  test("workflow skills: 9 entries matching WORKFLOW_SKILLS", () => {
-    assert.equal(catalog.workflowSkills.length, 9);
+  test("workflow skills exclude repo-owned skills migrated into auriga-workflow-skills", () => {
+    assert.equal(catalog.workflowSkills.length, 6);
     const names = catalog.workflowSkills.map((e) => e.name).sort();
-    // deep-review is no longer here — it ships as the `deep-review` plugin
-    // (assertion lives in the plugins block below).
     assert.deepEqual(names, [
       "brainstorming",
-      "incremental-impl",
       "planning-with-files",
       "playwright-cli",
-      "session-compound",
       "systematic-debugging",
-      "test-designer",
       "test-driven-development",
       "verification-before-completion",
     ]);
@@ -69,12 +65,14 @@ describe("generateCatalog (build-time)", () => {
     assertEntriesShape(catalog.recommendedSkills, "recommendedSkills");
   });
 
-  test("plugins: Claude Code entries plus Codex-only entries", () => {
-    assert.equal(catalog.plugins.length, 7);
+  test("plugins: Claude Code entries plus Codex-only entries plus migrated repo-owned assets", () => {
+    assert.equal(catalog.plugins.length, 9);
     const names = catalog.plugins.map((e) => e.name).sort();
     assert.deepEqual(names, [
       "auriga-git-guards",
       "auriga-go",
+      "auriga-notify",
+      "auriga-workflow-skills",
       "claude-md-management",
       "codex",
       "deep-review",
@@ -97,12 +95,16 @@ describe("generateCatalog (build-time)", () => {
       catalog.plugins.find((e) => e.name === "deep-review")?.description ?? "",
       /^\(Claude\/Codex\)/,
     );
+    assert.match(
+      catalog.plugins.find((e) => e.name === "auriga-workflow-skills")?.description ?? "",
+      /^\(Claude\/Codex\)/,
+    );
   });
 
-  test("hooks: 1 entry", () => {
-    assert.equal(catalog.hooks.length, 1);
+  test("hooks: notify is no longer exposed as a traditional hook", () => {
+    assert.equal(catalog.hooks.length, 0);
     const names = catalog.hooks.map((e) => e.name).sort();
-    assert.deepEqual(names, ["notify"]);
+    assert.deepEqual(names, []);
     assertEntriesShape(catalog.hooks, "hooks");
   });
 
@@ -116,6 +118,8 @@ describe("generateCatalog (build-time)", () => {
     const expectedAgents: Record<string, ("claude" | "codex")[]> = {
       "auriga-go": ["claude", "codex"],
       "auriga-git-guards": ["claude", "codex"],
+      "auriga-workflow-skills": ["claude", "codex"],
+      "auriga-notify": ["claude"],
       "deep-review": ["claude", "codex"],
       "session-instructions-loader": ["codex"],
       "skill-creator": ["claude"],
@@ -152,14 +156,20 @@ describe("generateCatalog (build-time)", () => {
     }
   });
 
-  test("descriptions survive unicode special chars (incremental-impl)", () => {
-    const e = catalog.workflowSkills.find((e) => e.name === "incremental-impl");
-    assert.ok(e);
-    // Description contains em-dashes and unicode arrows that must survive
-    // YAML parsing through the catalog generator. Regression guard for
-    // YAML special-character handling in skill descriptions.
-    assert.match(e.description, /XS–XL/);
-    assert.match(e.description, /Implement → Test → Verify → Commit/);
+  test("install help reflects migrated plugin surfaces instead of standalone entries", () => {
+    // rationale: install help is rendered from the generated catalog, so this
+    // pins the user-visible CLI surface as well as dist/catalog.json.
+    const skillHelp = renderTypeHelp(catalog, "skills", "0.0.0-test");
+    for (const name of ["incremental-impl", "test-designer", "session-compound"]) {
+      assert.doesNotMatch(skillHelp, new RegExp(`\\b${name}\\b`));
+    }
+
+    const pluginHelp = renderTypeHelp(catalog, "plugins", "0.0.0-test");
+    assert.match(pluginHelp, /\bauriga-workflow-skills\b/);
+    assert.match(pluginHelp, /\bauriga-notify\b/);
+
+    const hookHelp = renderTypeHelp(catalog, "hooks", "0.0.0-test");
+    assert.doesNotMatch(hookHelp, /\bnotify\b/);
   });
 });
 

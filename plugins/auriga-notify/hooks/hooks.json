@@ -1,0 +1,15 @@
+{
+  "description": "auriga notify: opt-in macOS native notification hook for Claude Code Notification events.",
+  "hooks": {
+    "Notification": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/notify.mjs\""
+          }
+        ]
+      }
+    ]
+  }
+}

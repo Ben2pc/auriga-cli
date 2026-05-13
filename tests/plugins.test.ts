@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -6,6 +7,7 @@ import { afterEach, describe, mock, test } from "node:test";
 import { parse } from "smol-toml";
 
 let importSerial = 0;
+const ORIGINAL_HOME = process.env.HOME;
 
 function writeJson(file: string, value: unknown): void {
   fs.mkdirSync(path.dirname(file), { recursive: true });
@@ -103,6 +105,82 @@ function makeClaudePluginsConfigWithMarketplace(): string {
   return root;
 }
 
+function makeMigratedAssetsPluginPackage(): string {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "auriga-migrated-plugin-test-"));
+  writeJson(path.join(root, ".claude/plugins.json"), {
+    plugins: [
+      {
+        name: "auriga-workflow-skills",
+        package: "auriga-workflow-skills@auriga-cli",
+        description: "Repo-owned workflow skills",
+        marketplace: { name: "auriga-cli", source: "Ben2pc/auriga-cli" },
+      },
+      {
+        name: "auriga-notify",
+        package: "auriga-notify@auriga-cli",
+        description: "Native notification plugin",
+        defaultOn: false,
+        marketplace: { name: "auriga-cli", source: "Ben2pc/auriga-cli" },
+      },
+      {
+        name: "auriga-go",
+        package: "auriga-go@auriga-cli",
+        description: "Workflow autopilot",
+        marketplace: { name: "auriga-cli", source: "Ben2pc/auriga-cli" },
+      },
+    ],
+  });
+  writeJson(path.join(root, ".agents/plugins/marketplace.json"), {
+    name: "auriga-cli",
+    plugins: [
+      {
+        name: "auriga-workflow-skills",
+        source: { source: "local", path: "./plugins/auriga-workflow-skills" },
+        policy: { installation: "AVAILABLE", authentication: "ON_INSTALL" },
+      },
+    ],
+  });
+  writeJson(path.join(root, ".agents/plugins/install.json"), {
+    plugins: [
+      {
+        name: "auriga-workflow-skills",
+        description: "Repo-owned workflow skills",
+      },
+    ],
+  });
+  writeJson(path.join(root, "plugins/auriga-workflow-skills/.codex-plugin/plugin.json"), {
+    name: "auriga-workflow-skills",
+    version: "1.0.0",
+    skills: "./skills/",
+  });
+  return root;
+}
+
+function seedLegacySkill(cwd: string, name: string): void {
+  for (const agentDir of [".claude", ".agents"]) {
+    const dir = path.join(cwd, agentDir, "skills", name);
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, "SKILL.md"), `# ${name}\n`);
+  }
+}
+
+function findFileUnder(root: string, segment: string, fileName: string): string | undefined {
+  if (!fs.existsSync(root)) return undefined;
+  const entries = fs.readdirSync(root, { withFileTypes: true });
+  for (const entry of entries) {
+    const abs = path.join(root, entry.name);
+    if (entry.isDirectory()) {
+      const found = findFileUnder(abs, segment, fileName);
+      if (found) return found;
+      continue;
+    }
+    if (entry.isFile() && entry.name === fileName && abs.split(path.sep).includes(segment)) {
+      return abs;
+    }
+  }
+  return undefined;
+}
+
 async function importPlugins(
   execImpl: (cmd: string, opts?: { cwd?: string; inherit?: boolean }) => string = () => "",
   overrides: {
@@ -142,6 +220,8 @@ async function importPlugins(
 afterEach(() => {
   mock.restoreAll();
   delete process.env.CODEX_HOME;
+  if (ORIGINAL_HOME === undefined) delete process.env.HOME;
+  else process.env.HOME = ORIGINAL_HOME;
 });
 
 describe("installPlugins — Codex target", () => {
@@ -769,6 +849,367 @@ describe("installPlugins — Codex target", () => {
 });
 
 describe("installPlugins — Claude target", () => {
+  test("default Claude plugin selection skips opt-in auriga-notify while wildcard includes it", async () => {
+    const packageRoot = makeMigratedAssetsPluginPackage();
+    const cwd = fs.mkdtempSync(path.join(os.tmpdir(), "auriga-migrated-plugin-default-"));
+    const commands: string[] = [];
+    const { installPlugins } = await importPlugins((cmd) => {
+      commands.push(cmd);
+      if (cmd === "claude plugins list --json") return "[]";
+      if (cmd === "claude plugins marketplace list") return "";
+      return "";
+    });
+
+    await installPlugins(packageRoot, {
+      interactive: false,
+      agent: "claude",
+      cwd,
+    });
+
+    let installCalls = commands.filter((cmd) => cmd.startsWith("claude plugins install"));
+    assert.ok(
+      installCalls.some((cmd) => cmd.includes("auriga-workflow-skills@auriga-cli")),
+      `default selection should include default-on auriga-workflow-skills; got: ${installCalls.join(" | ")}`,
+    );
+    assert.ok(
+      installCalls.some((cmd) => cmd.includes("auriga-go@auriga-cli")),
+      `default selection should include default-on auriga-go; got: ${installCalls.join(" | ")}`,
+    );
+    assert.ok(
+      installCalls.every((cmd) => !cmd.includes("auriga-notify@auriga-cli")),
+      `default selection must skip opt-in auriga-notify; got: ${installCalls.join(" | ")}`,
+    );
+
+    commands.length = 0;
+    await installPlugins(packageRoot, {
+      interactive: false,
+      agent: "claude",
+      selected: ["*"],
+      cwd,
+    });
+
+    installCalls = commands.filter((cmd) => cmd.startsWith("claude plugins install"));
+    assert.ok(
+      installCalls.some((cmd) => cmd.includes("auriga-notify@auriga-cli")),
+      `wildcard selection must include opt-in auriga-notify; got: ${installCalls.join(" | ")}`,
+    );
+  });
+
+  test("auriga-workflow-skills install removes only migrated standalone skills from project scope", async () => {
+    const packageRoot = makeMigratedAssetsPluginPackage();
+    const cwd = fs.mkdtempSync(path.join(os.tmpdir(), "auriga-migrated-skills-project-"));
+    const codexHome = fs.mkdtempSync(path.join(os.tmpdir(), "auriga-codex-home-"));
+    process.env.CODEX_HOME = codexHome;
+    for (const name of [
+      "incremental-impl",
+      "test-designer",
+      "session-compound",
+      "brainstorming",
+      "planning-with-files",
+    ]) {
+      seedLegacySkill(cwd, name);
+    }
+    writeJson(path.join(cwd, "skills-lock.json"), {
+      version: 1,
+      skills: Object.fromEntries(
+        [
+          "incremental-impl",
+          "test-designer",
+          "session-compound",
+          "brainstorming",
+          "planning-with-files",
+        ].map((name) => [
+          name,
+          { source: "example/source", sourceType: "github", computedHash: "x" },
+        ]),
+      ),
+    });
+    const { installPlugins } = await importPlugins((cmd) => {
+      if (cmd === "claude plugins list --json") return "[]";
+      if (cmd === "claude plugins marketplace list") return "";
+      return "";
+    });
+
+    await installPlugins(packageRoot, {
+      interactive: false,
+      agent: "both",
+      selected: ["auriga-workflow-skills"],
+      cwd,
+      scope: "project",
+    });
+
+    for (const name of ["incremental-impl", "test-designer", "session-compound"]) {
+      assert.equal(fs.existsSync(path.join(cwd, ".claude", "skills", name)), false);
+      assert.equal(fs.existsSync(path.join(cwd, ".agents", "skills", name)), false);
+    }
+    for (const name of ["brainstorming", "planning-with-files"]) {
+      assert.equal(
+        fs.existsSync(path.join(cwd, ".claude", "skills", name)),
+        true,
+        `${name} is not repo-owned migrated legacy state and must be preserved`,
+      );
+      assert.equal(fs.existsSync(path.join(cwd, ".agents", "skills", name)), true);
+    }
+    const lock = JSON.parse(fs.readFileSync(path.join(cwd, "skills-lock.json"), "utf-8")) as {
+      skills: Record<string, unknown>;
+    };
+    assert.deepEqual(Object.keys(lock.skills).sort(), ["brainstorming", "planning-with-files"]);
+  });
+
+  test("auriga-workflow-skills Codex-only install preserves Claude legacy fallback", async () => {
+    const packageRoot = makeMigratedAssetsPluginPackage();
+    const cwd = fs.mkdtempSync(path.join(os.tmpdir(), "auriga-migrated-skills-codex-only-"));
+    const codexHome = fs.mkdtempSync(path.join(os.tmpdir(), "auriga-codex-home-"));
+    process.env.CODEX_HOME = codexHome;
+    for (const name of ["incremental-impl", "test-designer", "session-compound"]) {
+      seedLegacySkill(cwd, name);
+    }
+    const { installPlugins } = await importPlugins(() => "");
+
+    await installPlugins(packageRoot, {
+      interactive: false,
+      agent: "codex",
+      selected: ["auriga-workflow-skills"],
+      cwd,
+      scope: "project",
+    });
+
+    for (const name of ["incremental-impl", "test-designer", "session-compound"]) {
+      assert.equal(
+        fs.existsSync(path.join(cwd, ".agents", "skills", name)),
+        false,
+        `${name} should be removed from the Codex legacy view`,
+      );
+      assert.equal(
+        fs.existsSync(path.join(cwd, ".claude", "skills", name)),
+        true,
+        `${name} must remain available to Claude when only the Codex plugin was enabled`,
+      );
+    }
+  });
+
+  test("auriga-workflow-skills cleanup preserves repo development symlinks", async () => {
+    const packageRoot = makeMigratedAssetsPluginPackage();
+    const cwd = fs.mkdtempSync(path.join(os.tmpdir(), "auriga-migrated-skills-dev-symlink-"));
+    const codexHome = fs.mkdtempSync(path.join(os.tmpdir(), "auriga-codex-home-"));
+    process.env.CODEX_HOME = codexHome;
+    for (const name of ["incremental-impl", "test-designer", "session-compound"]) {
+      const pluginSkillDir = path.join(cwd, "plugins", "auriga-workflow-skills", "skills", name);
+      fs.mkdirSync(pluginSkillDir, { recursive: true });
+      fs.writeFileSync(path.join(pluginSkillDir, "SKILL.md"), `# ${name}\n`);
+      for (const agentDir of [".claude", ".agents"]) {
+        const link = path.join(cwd, agentDir, "skills", name);
+        fs.mkdirSync(path.dirname(link), { recursive: true });
+        fs.symlinkSync(pluginSkillDir, link);
+      }
+    }
+    const { installPlugins } = await importPlugins((cmd) => {
+      if (cmd === "claude plugins list --json") return "[]";
+      if (cmd === "claude plugins marketplace list") return "";
+      return "";
+    });
+
+    await installPlugins(packageRoot, {
+      interactive: false,
+      agent: "both",
+      selected: ["auriga-workflow-skills"],
+      cwd,
+      scope: "project",
+    });
+
+    for (const name of ["incremental-impl", "test-designer", "session-compound"]) {
+      assert.equal(fs.lstatSync(path.join(cwd, ".claude", "skills", name)).isSymbolicLink(), true);
+      assert.equal(fs.lstatSync(path.join(cwd, ".agents", "skills", name)).isSymbolicLink(), true);
+    }
+  });
+
+  test("auriga-notify install preserves legacy hook config and icon under plugin-owned config", async () => {
+    const packageRoot = makeMigratedAssetsPluginPackage();
+    const cwd = fs.mkdtempSync(path.join(os.tmpdir(), "auriga-notify-migrate-"));
+    const legacyDir = path.join(cwd, ".claude", "hooks", "notify");
+    fs.mkdirSync(legacyDir, { recursive: true });
+    const configBody = JSON.stringify({ sound: "Submarine", title: "Custom" }, null, 2) + "\n";
+    const iconBody = Buffer.from("CUSTOM_ICON_BYTES");
+    fs.writeFileSync(path.join(legacyDir, "config.json"), configBody);
+    fs.writeFileSync(path.join(legacyDir, "icon.png"), iconBody);
+    const { installPlugins } = await importPlugins((cmd) => {
+      if (cmd === "claude plugins list --json") return "[]";
+      if (cmd === "claude plugins marketplace list") return "";
+      return "";
+    });
+
+    await installPlugins(packageRoot, {
+      interactive: false,
+      agent: "claude",
+      selected: ["auriga-notify"],
+      cwd,
+      scope: "project",
+    });
+
+    const configPath = findFileUnder(path.join(cwd, ".claude"), "auriga-notify", "config.json");
+    const iconPath = findFileUnder(path.join(cwd, ".claude"), "auriga-notify", "icon.png");
+    assert.ok(configPath, "migrated config.json should land under an auriga-notify plugin-owned path");
+    assert.ok(iconPath, "migrated icon.png should land under an auriga-notify plugin-owned path");
+    assert.equal(fs.readFileSync(configPath, "utf-8"), configBody);
+    assert.equal(Buffer.compare(fs.readFileSync(iconPath), iconBody), 0);
+  });
+
+  test("auriga-notify project migration removes both legacy settings files", async () => {
+    const packageRoot = makeMigratedAssetsPluginPackage();
+    const cwd = fs.mkdtempSync(path.join(os.tmpdir(), "auriga-notify-settings-"));
+    const legacyDir = path.join(cwd, ".claude", "hooks", "notify");
+    fs.mkdirSync(legacyDir, { recursive: true });
+    fs.writeFileSync(path.join(legacyDir, "config.json"), "{}\n");
+    for (const file of ["settings.json", "settings.local.json"]) {
+      writeJson(path.join(cwd, ".claude", file), {
+        hooks: {
+          Notification: [
+            {
+              matcher: "",
+              hooks: [
+                { type: "command", command: "node .claude/hooks/notify/index.mjs", _marker: "auriga:notify" },
+                { type: "command", command: "echo keep" },
+              ],
+            },
+          ],
+        },
+      });
+    }
+    const { installPlugins } = await importPlugins((cmd) => {
+      if (cmd === "claude plugins list --json") return "[]";
+      if (cmd === "claude plugins marketplace list") return "";
+      return "";
+    });
+
+    await installPlugins(packageRoot, {
+      interactive: false,
+      agent: "claude",
+      selected: ["auriga-notify"],
+      cwd,
+      scope: "project",
+    });
+
+    for (const file of ["settings.json", "settings.local.json"]) {
+      const settings = JSON.parse(fs.readFileSync(path.join(cwd, ".claude", file), "utf-8")) as {
+        hooks: { Notification: Array<{ hooks: unknown[] }> };
+      };
+      assert.deepEqual(settings.hooks.Notification[0].hooks, [
+        { type: "command", command: "echo keep" },
+      ]);
+    }
+    assert.equal(fs.existsSync(legacyDir), false);
+  });
+
+  test("auriga-notify user migration moves user config and cleans user settings", async () => {
+    const packageRoot = makeMigratedAssetsPluginPackage();
+    const home = fs.mkdtempSync(path.join(os.tmpdir(), "auriga-notify-home-"));
+    process.env.HOME = home;
+    const legacyDir = path.join(home, ".claude", "hooks", "notify");
+    fs.mkdirSync(legacyDir, { recursive: true });
+    fs.writeFileSync(path.join(legacyDir, "config.json"), "{\"sound\":\"Glass\"}\n");
+    writeJson(path.join(home, ".claude", "settings.json"), {
+      hooks: {
+        Notification: [
+          {
+            hooks: [
+              { type: "command", command: "node ~/.claude/hooks/notify/index.mjs", _marker: "auriga:notify" },
+            ],
+          },
+        ],
+      },
+    });
+    const { installPlugins } = await importPlugins((cmd) => {
+      if (cmd === "claude plugins list --json") return "[]";
+      if (cmd === "claude plugins marketplace list") return "";
+      return "";
+    });
+
+    await installPlugins(packageRoot, {
+      interactive: false,
+      agent: "claude",
+      selected: ["auriga-notify"],
+      scope: "user",
+    });
+
+    assert.equal(
+      fs.readFileSync(path.join(home, ".config", "auriga-cli", "notify", "config.json"), "utf-8"),
+      "{\"sound\":\"Glass\"}\n",
+    );
+    assert.deepEqual(
+      JSON.parse(fs.readFileSync(path.join(home, ".claude", "settings.json"), "utf-8")),
+      { hooks: {} },
+    );
+    assert.equal(fs.existsSync(legacyDir), false);
+  });
+
+  test("auriga-notify keeps legacy directory when settings cleanup cannot be verified", async () => {
+    const packageRoot = makeMigratedAssetsPluginPackage();
+    const cwd = fs.mkdtempSync(path.join(os.tmpdir(), "auriga-notify-bad-settings-"));
+    const legacyDir = path.join(cwd, ".claude", "hooks", "notify");
+    fs.mkdirSync(legacyDir, { recursive: true });
+    fs.writeFileSync(path.join(legacyDir, "config.json"), "{}\n");
+    fs.mkdirSync(path.join(cwd, ".claude"), { recursive: true });
+    fs.writeFileSync(path.join(cwd, ".claude", "settings.json"), "{bad json");
+    const { installPlugins } = await importPlugins((cmd) => {
+      if (cmd === "claude plugins list --json") return "[]";
+      if (cmd === "claude plugins marketplace list") return "";
+      return "";
+    });
+
+    await installPlugins(packageRoot, {
+      interactive: false,
+      agent: "claude",
+      selected: ["auriga-notify"],
+      cwd,
+      scope: "project",
+    });
+
+    assert.equal(fs.existsSync(legacyDir), true);
+  });
+
+  test("auriga-notify click activation passes bundle id to osascript as data", () => {
+    if (process.platform !== "darwin") return;
+    const binDir = fs.mkdtempSync(path.join(os.tmpdir(), "auriga-notify-bin-"));
+    const argsOut = path.join(binDir, "osascript-args.json");
+    const fakeAlerter = path.join(binDir, "alerter");
+    const fakeOsascript = path.join(binDir, "osascript");
+    const fakeOsascriptRecorder = path.join(binDir, "record-osascript.cjs");
+    fs.writeFileSync(fakeAlerter, "#!/bin/sh\nprintf '@CONTENTCLICKED\\n'\n");
+    fs.writeFileSync(
+      fakeOsascriptRecorder,
+      'const fs = require("fs"); fs.writeFileSync(process.env.OSASCRIPT_ARGS_OUT, JSON.stringify(process.argv.slice(2)));',
+    );
+    fs.writeFileSync(
+      fakeOsascript,
+      `#!/bin/sh\nexec ${JSON.stringify(process.execPath)} ${JSON.stringify(fakeOsascriptRecorder)} "$@"\n`,
+    );
+    fs.chmodSync(fakeAlerter, 0o755);
+    fs.chmodSync(fakeOsascript, 0o755);
+    const maliciousBundle = "com.apple.Terminal\" & do shell script \"touch /tmp/auriga-pwned\" & \"";
+    const script = path.resolve("plugins/auriga-notify/scripts/notify.mjs");
+
+    const result = spawnSync(process.execPath, [
+      script,
+      "--alerter-worker",
+      JSON.stringify({ bin: fakeAlerter, args: [], activate: maliciousBundle }),
+    ], {
+      cwd: path.dirname(script),
+      env: {
+        ...process.env,
+        PATH: `${binDir}${path.delimiter}${process.env.PATH ?? ""}`,
+        OSASCRIPT_ARGS_OUT: argsOut,
+      },
+      encoding: "utf-8",
+    });
+
+    assert.equal(result.status, 0, result.stderr);
+    const args = JSON.parse(fs.readFileSync(argsOut, "utf-8")) as string[];
+    const separator = args.indexOf("--");
+    assert.notEqual(separator, -1, `expected osascript argv separator, got ${args.join(" ")}`);
+    assert.equal(args.at(-1), maliciousBundle);
+    assert.equal(args.slice(0, separator).some((arg) => arg.includes(maliciousBundle)), false);
+  });
+
   test("fails when a Codex-only plugin is explicitly selected for Claude Code", async () => {
     const packageRoot = makeClaudePluginsConfig();
     const { installPlugins } = await importPlugins((cmd) => {

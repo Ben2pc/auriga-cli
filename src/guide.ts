@@ -28,7 +28,7 @@ export function renderGuide(opts: GuideOpts): string {
   return `${h(`# auriga-cli bootstrap SOP (v${opts.version})`)}
 
 This guide walks an Agent through installing the auriga harness
-(CLAUDE.md + skills + plugins + hooks) into the current repository.
+(CLAUDE.md + skills + plugins, plus any legacy hooks) into the current repository.
 
 Run each step in order. If any step fails with exit 1, stop and report.
 If exit 2, see stderr for per-category status and follow the "Retry"
@@ -70,8 +70,8 @@ Per-type detail (flags + only that category's catalog slice):
 
 ${h("## Step 3 — Install")}
 
-Preset — the full default-on set (workflow + skills + plugins + hooks;
-recommended skills are NOT included):
+Preset — the full default-on set (workflow + skills + default plugins;
+the legacy hooks category is currently empty; recommended skills are NOT included):
   ${cmd("npx -y auriga-cli install --all")}
 
 Targeted — single category, picking from the catalog surfaced in Step 2:
@@ -80,10 +80,10 @@ Targeted — single category, picking from the catalog surfaced in Step 2:
   ${cmd("npx -y auriga-cli install plugins --plugin skill-creator codex --scope user")}
   ${cmd("npx -y auriga-cli install plugins --agent codex --plugin session-instructions-loader")}
 
-Opt-in hooks (\`defaultOn: false\`) are NOT in the default \`install --all\`
-set because they have side effects (OS notifications, platform-gated
-deps). Inspect \`install hooks --help\` for the catalog and install by name:
-  ${cmd("npx -y auriga-cli install hooks --hook notify")}
+Opt-in plugins (\`defaultOn: false\`) are NOT in the default \`install --all\`
+set because they have side effects or platform-specific behavior. For example,
+the macOS notification plugin is explicit opt-in:
+  ${cmd("npx -y auriga-cli install plugins --plugin auriga-notify")}
 
 Opt-in recommended skills (cross-model delegation helpers —
 claude-code-agent, codex-agent):
@@ -102,7 +102,7 @@ Exit codes:
 ${h("## Step 4 — Reload session (REQUIRED when installed non-interactively)")}
 
 ${warn("⚠")} CLAUDE.md, .agents/skills/, .claude/plugins.json, Codex plugin
-config, and hook registrations are loaded at session startup. If you ran
+config, and hook/plugin registrations are loaded at session startup. If you ran
 \`npx -y auriga-cli install\` inside an existing Claude Code or Codex session
 (e.g., \`claude -p\` / \`claude -p --worktree\` / \`codex exec\`), the current session
 will NOT see the new harness.
@@ -120,7 +120,8 @@ Expected artifacts:
   - .agents/skills/<name>/    (one per installed skill)
   - .claude/plugins.json
   - ~/.codex/config.toml      (Codex plugin enablement, if Codex plugins selected)
-  - .claude/settings.json     (updated hook registrations, if hooks selected)
+  - .claude/settings.json     (updated hook/plugin registrations, if selected)
+  - .claude/auriga-notify/    (project notify config, if auriga-notify selected)
 
 ${h("## Troubleshooting")}
 

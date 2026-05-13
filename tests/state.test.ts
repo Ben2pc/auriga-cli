@@ -150,6 +150,7 @@ import { afterEach, beforeEach, describe, test } from "node:test";
 
 import { mergePluginsById, scanState } from "../src/state.js";
 import type { Catalog, ScanOptions } from "../src/state.js";
+import { generateCatalog } from "../src/build/generate-catalog.js";
 import type {
   HookState,
   ItemStatus,
@@ -158,6 +159,8 @@ import type {
   StateReport,
   StateWarning,
 } from "../src/api-types.js";
+
+const REPO_ROOT = process.cwd();
 
 // ---------------------------------------------------------------------------
 // Fixture helpers
@@ -292,6 +295,66 @@ function scan(
 ): Promise<StateReport> {
   return scanState(projectRoot, catalog, opts as ScanOptions);
 }
+
+function generatedScanCatalog(): Catalog {
+  const generated = generateCatalog(REPO_ROOT);
+  return {
+    skills: Object.fromEntries(
+      generated.workflowSkills.map((entry) => [
+        entry.name,
+        { description: entry.description, isWorkflow: true },
+      ]),
+    ),
+    recommendedSkills: Object.fromEntries(
+      generated.recommendedSkills.map((entry) => [
+        entry.name,
+        { description: entry.description },
+      ]),
+    ),
+    plugins: Object.fromEntries(
+      generated.plugins.map((entry) => [
+        entry.name,
+        {
+          description: entry.description,
+          agents: entry.agents ?? ["claude"],
+          ...(entry.external === true ? { external: true } : {}),
+        },
+      ]),
+    ),
+    hooks: Object.fromEntries(
+      generated.hooks.map((entry) => [
+        entry.name,
+        { description: entry.description },
+      ]),
+    ),
+  };
+}
+
+describe("scanState — generated catalog migration surface", () => {
+  test("Web UI rows expose migrated assets as plugins, not standalone skills or hooks", async () => {
+    // rationale: /api/state uses the generated catalog as its row source.
+    // Migrated repo-owned assets must therefore disappear from the Web UI's
+    // standalone skill/hook columns and reappear in the plugin column.
+    const home = makeScratch("home-migrated-catalog");
+    redirectHome(home);
+    const report = await scan(makeScratch("proj-migrated-catalog"), generatedScanCatalog(), {
+      execPluginList: async () => ({ installed: [] }),
+      readCodexConfig: async () => "",
+      readCodexPluginsDir: async () => new Map(),
+      homeDir: home,
+    });
+
+    const skillNames = report.skills.map((s) => s.name).sort();
+    for (const name of ["incremental-impl", "test-designer", "session-compound"]) {
+      assert.equal(skillNames.includes(name), false, `${name} must not render as a standalone skill row`);
+    }
+    assert.equal(report.hooks.some((h) => h.name === "notify"), false);
+
+    const pluginNames = report.plugins.map((p) => p.id).sort();
+    assert.ok(pluginNames.includes("auriga-workflow-skills"));
+    assert.ok(pluginNames.includes("auriga-notify"));
+  });
+});
 
 // ===========================================================================
 // #1 — Workflow / user scope: happy path

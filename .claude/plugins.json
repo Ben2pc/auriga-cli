@@ -38,6 +38,25 @@
       }
     },
     {
+      "name": "auriga-workflow-skills",
+      "package": "auriga-workflow-skills@auriga-cli",
+      "description": "Bundles the auriga-owned workflow execution skills: incremental-impl, test-designer, and session-compound.",
+      "marketplace": {
+        "name": "auriga-cli",
+        "source": "Ben2pc/auriga-cli"
+      }
+    },
+    {
+      "name": "auriga-notify",
+      "package": "auriga-notify@auriga-cli",
+      "description": "Opt-in macOS native notification hook for Claude Code Notification events; migrates legacy notify config and icon on install.",
+      "defaultOn": false,
+      "marketplace": {
+        "name": "auriga-cli",
+        "source": "Ben2pc/auriga-cli"
+      }
+    },
+    {
       "name": "deep-review",
       "package": "deep-review@auriga-cli",
       "description": "Multi-dimensional PR review orchestrator. Dispatches parallel reviewers (spec-conformance, correctness, test-quality, docs-sync, robustness, security, ux, performance, structure, code-quality, skill-plugin-quality) and synthesizes findings into an actionable punch list. Supports project-level custom reviewers via docs/rules/review/ and ships a reviewer-creator skill for scaffolding them.",

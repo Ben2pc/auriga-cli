@@ -94,12 +94,32 @@ describe("parseArgs", () => {
         filter: ["auriga-go"],
       },
     });
-    assert.deepEqual(installArgs(["hooks", "--hook", "notify"]), {
+    assert.deepEqual(installArgs(["hooks", "--hook", "*"]), {
       command: "install",
       install: {
         all: false,
         type: "hooks",
-        filter: ["notify"],
+        filter: ["*"],
+      },
+    });
+  });
+
+  test("parses migrated repo-owned assets through plugin filters only", () => {
+    assert.deepEqual(installArgs(["plugins", "--agent", "both", "--plugin", "auriga-workflow-skills"]), {
+      command: "install",
+      install: {
+        all: false,
+        type: "plugins",
+        agent: "both",
+        filter: ["auriga-workflow-skills"],
+      },
+    });
+    assert.deepEqual(installArgs(["plugins", "--plugin", "auriga-notify"]), {
+      command: "install",
+      install: {
+        all: false,
+        type: "plugins",
+        filter: ["auriga-notify"],
       },
     });
   });
@@ -154,9 +174,9 @@ describe("parseArgs", () => {
   // Hooks now accept --scope in non-interactive mode (default: project).
   // The TTY menu is the only surface that exposes project-local.
   test("accepts --scope on install hooks (default: project)", () => {
-    assert.deepEqual(installArgs(["hooks", "--scope", "user", "--hook", "notify"]), {
+    assert.deepEqual(installArgs(["hooks", "--scope", "user", "--hook", "*"]), {
       command: "install",
-      install: { all: false, type: "hooks", scope: "user", filter: ["notify"] },
+      install: { all: false, type: "hooks", scope: "user", filter: ["*"] },
     });
     assert.deepEqual(installArgs(["hooks", "--scope", "project"]), {
       command: "install",
@@ -182,7 +202,10 @@ describe("parseArgs", () => {
     expectParseError(["install", "skills", "--skill", "foo"], /unknown skill 'foo'; available: .*brainstorming/i);
     expectParseError(["install", "recommended", "--recommended-skill", "foo"], /available: .*codex-agent/i);
     expectParseError(["install", "plugins", "--plugin", "foo"], /available: .*auriga-go/i);
-    expectParseError(["install", "hooks", "--hook", "foo"], /available: .*notify/i);
+    expectParseError(["install", "hooks", "--hook", "notify"], /auriga-notify/i);
+    expectParseError(["install", "skills", "--skill", "incremental-impl"], /auriga-workflow-skills/i);
+    expectParseError(["install", "skills", "--skill", "test-designer"], /auriga-workflow-skills/i);
+    expectParseError(["install", "skills", "--skill", "session-compound"], /auriga-workflow-skills/i);
     expectParseError(["install", "workflow", "--lang", "xx"], /en.*zh-CN|zh-CN.*en/i);
     expectParseError(["install", "plugins", "--scope", "team"], /scope/i);
     expectParseError(["install", "workflow", "--cwd", "/definitely/not/here"], /cwd|directory|exist/i);

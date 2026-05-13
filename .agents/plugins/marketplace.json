@@ -29,6 +29,18 @@
       "category": "Productivity"
     },
     {
+      "name": "auriga-workflow-skills",
+      "source": {
+        "source": "local",
+        "path": "./plugins/auriga-workflow-skills"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    },
+    {
       "name": "session-instructions-loader",
       "source": {
         "source": "local",
