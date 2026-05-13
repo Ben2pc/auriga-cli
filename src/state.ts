@@ -268,7 +268,7 @@ function aggregateStatus(
 // Workflow
 // ---------------------------------------------------------------------------
 
-const WORKFLOW_HEADER_RE = /^#\s+auriga\s+Workflow\s*\(v(\d+\.\d+\.\d+)\)/;
+const WORKFLOW_HEADER_RE = /^#\s+auriga\s+Workflow\s*\(v\d+\.\d+\.\d+\)/;
 
 function workflowPathsForScope(scope: ScanScope, projectRoot: string, home: string): string[] {
   if (scope === "user") {
@@ -571,7 +571,7 @@ async function scanCodexPlugins(
   // both emit `<plugin>@<marketplace>` keys (e.g. "auriga-go@auriga-cli").
   // Without dual indexing every dual-Agent plugin reports `not-installed` on
   // the Codex side, which `mergePluginsById` then folds into a permanent
-  // `update-available` even when both sides are genuinely installed.
+  // `partial-install` even when both sides are genuinely installed.
   const lookupEnabled = (catalogId: string): boolean => {
     if (enabledIds.has(catalogId)) return true;
     for (const id of enabledIds) {

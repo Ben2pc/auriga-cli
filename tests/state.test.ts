@@ -84,11 +84,10 @@
 //       — pre-v1.18.5 the row was conflated as "installed + workflow-unknown-
 //       version warning" which caused the $HOME-as-projectRoot bug.)
 //
-//   A2. **Skills via filesystem**: each row's `currentHash` is the SHA256 of
-//       the SKILL.md file bytes. The catalog row's `expectedHash` is the
-//       comparison target. A SKILL.md frontmatter `version` field MAY override
-//       the hash check (per spec), but tests assert via hash-only paths so
-//       implementations choosing either route both pass.
+//   A2. **Skills via filesystem**: a SKILL.md present under
+//       `<scope>/skills/<name>/` classifies as "installed"; missing →
+//       "not-installed". v1.19.0 dropped hash-based drift detection — the
+//       scanner is presence-only; re-install is the update path.
 //
 //   A3. **Skill malformed**: a directory exists under `<scope>/skills/<name>/`
 //       but `SKILL.md` is missing or unreadable → row present with status
@@ -109,13 +108,6 @@
 //
 //   A6. **Settings.json absent** → all catalog hooks classify as
 //       "not-installed" with NO warning (common case for fresh user).
-//
-//   A7. **Hook matcher drift**: settings.json contains a hook entry with the
-//       right `_marker` but its `matcher` field differs from the catalog's
-//       expected matcher → status `update-available`. The catalog hook
-//       entry's `expectedHash` field doubles as a coarse drift signal;
-//       tests assert via the `matcher` divergence path which is the spec's
-//       primary trigger.
 //
 //   A8. **No Claude install at all**: neither `~/.claude/` nor
 //       `<proj>/.claude/` exists → emit ONE `claude-code-not-installed`
@@ -151,7 +143,6 @@
 // =============================================================================
 
 import assert from "node:assert/strict";
-import { createHash } from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -171,11 +162,6 @@ import type {
 // ---------------------------------------------------------------------------
 // Fixture helpers
 // ---------------------------------------------------------------------------
-
-/** Compute SHA256 of a string — same algorithm we'd expect the scanner to use. */
-function sha256(text: string): string {
-  return createHash("sha256").update(text).digest("hex");
-}
 
 /** Track scratch dirs minted per-test so cleanup is unconditional. */
 const scratchDirs: string[] = [];
@@ -929,13 +915,6 @@ describe("scanState — #19 Hooks settings.json absent (common case)", () => {
     );
   });
 });
-
-// ===========================================================================
-// #20 — Hooks / matcher drift → update-available
-// ===========================================================================
-// (Test #20 hook matcher drift → update-available was deleted with the
-// update-available surface in v1.19.0; re-installing the hook is now the
-// repair path. Marker presence remains the only signal, covered by #16/#17.)
 
 // ===========================================================================
 // #21 — Aggregate: no Claude install at all

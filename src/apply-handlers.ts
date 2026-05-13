@@ -212,10 +212,9 @@ export function buildDefaultApplyHandlers(
       });
       return;
     }
-    // install + update both run installHook with the requested scope. The
-    // hook installer is idempotent — re-running == "update". Look up the
-    // HookDef in the bundled registry; unknown name → loud throw so the
-    // SSE caller surfaces it as item:done success=false.
+    // Look up the HookDef in the bundled registry; unknown name → loud throw
+    // so the SSE caller surfaces it as item:done success=false. The hook
+    // installer is idempotent; re-running install is the update path.
     const config = loadHooksConfig(packageRoot);
     const hookDef = config.hooks.find((h) => h.name === name);
     if (!hookDef) {

@@ -46,7 +46,7 @@
 ### 2.3 成功标准
 
 - 三态 scanner 在 fixture 项目上 100% 准确（对每类目 × 三态都有单测断言）
-- 一次完整的 install + update + uninstall 流程在浏览器中可走通，过程通过 SSE 实时反馈
+- 一次完整的 install + uninstall 流程在浏览器中可走通，过程通过 SSE 实时反馈（"update" 等价于重跑 install）
 - **Hermetic spawn-CLI e2e**（`npm run test:web-ui-e2e`，plain `node:test`）在**完全隔离的 HOME** 环境中通过：HOME 重定向到 scratch 目录 → spawn 真 CLI 启 server → 调用 `/api/state` + `/api/apply` → 断言 scratch 文件系统副作用 + 断言用户真实 `$HOME` 未被触碰；在本地与发版前各跑一次。（Playwright 浏览器覆盖推迟到 v0.2）
 - 现有所有测试 (`npm test` + `npm run test:git-guards` + `npm run test:e2e`) 不回归
 - 安全测试覆盖：token 缺失 / 错误 → 401，Origin 黑名单 → 403，DNS rebinding 模拟 → 403
@@ -60,7 +60,7 @@
 | 老用户（工程师） | 跑 `npx auriga-cli` 走熟悉的 TTY 菜单，零学习成本 |
 | 新用户（工程师） | 跑 `npx auriga-cli web-ui` 在浏览器里一目了然看到推荐项和已装项 |
 | 非工程师 | 同事告诉他"在项目目录跑 `npx auriga-cli web-ui`"，他在浏览器里勾选预设项 → 点确认 → 看完成提示 |
-| 维护者 | 几个月没更新过的项目，跑 `auriga-cli web-ui` 一眼看到 5 个"可更新" → 批量勾选 → 一键升级 |
+| 维护者 | 几个月没更新过的项目，跑 `auriga-cli web-ui` 一眼看到当前 5 类目的安装情况 → 想刷新就重跑 install（每个安装器都是幂等覆盖） |
 
 ---
 
@@ -482,7 +482,6 @@ UI bundle 路径键就是 `v<package.version>`，CLI 启动时根据自身版本
 
 ### 10.4 已知缺口
 
-- Codex plugin 期望版本依赖 CLI catalog 新鲜度——用户手动 `codex plugin marketplace upgrade` 超过 catalog 时会误报"已装"（良性偏差）
 - Codex plugin 没有 `uninstall` 直接命令——`src/plugins.ts` 的 `uninstallPlugin` 对 Codex 端需要在实现时确认替代路径（手动改 `config.toml` + 删 cache 目录？）
 - 多浏览器标签同时打开同一 UI URL：行为未定义。v0.1 假设单标签使用，多标签下心跳争抢不影响功能，但日志可能混
 
@@ -517,7 +516,7 @@ UI bundle 路径键就是 `v<package.version>`，CLI 启动时根据自身版本
 5. **M5：Playwright e2e + 联调**
    - `tests/web-ui-e2e.test.ts` + HOME 重定向脚手架 + canary
    - `package.json` 加 `scripts.test:web-ui-e2e`
-   - 端到端跑通 install + update + uninstall × workflow + skill + plugin + hook 几条主路径
+   - 端到端跑通 install + uninstall × workflow + skill + plugin + hook 几条主路径
 
 6. **M6：UI polish pass（`make-interfaces-feel-better`）**
    - 强制调用该 skill 做最后一公里打磨
@@ -555,7 +554,7 @@ UI bundle 路径键就是 `v<package.version>`，CLI 启动时根据自身版本
    - 中段：滚动日志缓冲（Anthropic Mono 11px），按 `ProgressEvent` 实时推。**位置感知 auto-scroll**：用户在底部 → 跟随；用户向上滚 → 不劫持
    - **Destructive Banner**：pending 中含 uninstall 时，OUTPUT 列上方插入 `--color-accent-ember` 警示条
    - 列脚：左 `CANCEL` ghost 按钮（pending=0 或 applying 时禁用）+ 右 `APPLY (n)` primary 按钮（destructive batch 时变 ember 色 + 标签变 "APPLY (DESTRUCTIVE)"）
-   - **Apply 前的双重确认**：workflow uninstall = 两次 `window.confirm`（spec §13.5），其它 uninstall = 一次 `window.confirm` 列出待删项；纯 install/update 不需要确认
+   - **Apply 前的双重确认**：workflow uninstall = 两次 `window.confirm`（spec §13.5），其它 uninstall = 一次 `window.confirm` 列出待删项；纯 install 不需要确认
    - **Cancel 前的确认**：pending > 0 时弹一次 `window.confirm`，applying 时 Cancel 是 no-op（in-flight abort 待 v0.2 加 server-side `/api/cancel`）
 
 **不出现的元素**：sidebar、mega-menu、hero band、footer chrome、decorative imagery、emoji——与 DESIGN.md "text-dominant" + §13 "三态徽章纯文字" 风格一致；早期设计中的"Sticky 底部 Action Bar"已被右侧 LogPanel 替代，Layout 仍保留 `bottomBar` 槽位作为未来通用挂载点。
