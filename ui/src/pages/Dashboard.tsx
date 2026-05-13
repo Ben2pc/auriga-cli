@@ -228,10 +228,6 @@ interface CategorySectionProps {
    *  button etc. don't disappear), matching the "don't blank during
    *  refetch" decision in Dashboard.useEffect. */
   refetching?: boolean;
-  /** Optional small text rendered between the header and the row list.
-   *  Use to direct users at upstream update paths for categories we don't
-   *  authoritatively own (Skills → `npx skills update --project`). */
-  caption?: React.ReactNode;
   children: React.ReactNode;
 }
 
@@ -246,7 +242,6 @@ function CategorySection({
   onLangChange,
   langTestId,
   refetching = false,
-  caption,
   children,
 }: CategorySectionProps): JSX.Element {
   return (
@@ -272,23 +267,6 @@ function CategorySection({
       >
         {title}
       </CategoryHeader>
-      {caption !== undefined && (
-        <div
-          data-testid={`${testId}-caption`}
-          className="font-anthropic-mono"
-          style={{
-            fontSize: "10px",
-            lineHeight: 1.4,
-            // slate-light on ivory-light = ~6:1 (clears WCAG AA 4.5:1 for body text);
-            // cloud-dark (3.47:1) failed AA — see deep-review PR #86.
-            color: "var(--color-slate-light)",
-            padding: "0 12px 8px 12px",
-            letterSpacing: "0.02em",
-          }}
-        >
-          {caption}
-        </div>
-      )}
       <div
         data-testid={`${testId}-list`}
         style={{
@@ -904,7 +882,6 @@ function SkillsSection({
       onScopeChange={onScopeChange}
       scopeTestId="section-skills-scope"
       refetching={refetching}
-      caption={<>Re-install to refresh content</>}
     >
       {skills.map((skill) => {
         const key = makeKey("skill", skill.name);
@@ -952,7 +929,6 @@ function RecommendedSkillsSection({
       onScopeChange={onScopeChange}
       scopeTestId="section-recommended-skills-scope"
       refetching={refetching}
-      caption={<>Re-install to refresh content</>}
     >
       {recommendedSkills.map((skill) => {
         const key = makeKey("recommended-skill", skill.name);
