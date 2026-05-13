@@ -58,19 +58,16 @@ function toCardStatus(status: ItemStatus): CardStatus {
   return status;
 }
 
-function deriveAction(status: ItemStatus): ApplyAction {
-  switch (status) {
-    case "installed":
-      return "uninstall";
-    case "not-installed":
-      return "install";
-    case "partial-install":
-      // Action lives on the missing side(s). The Apply path dispatches
-      // install on each targeted agent; agents that already have it become
-      // no-ops at the installer level. UI presents this as a one-click
-      // backfill — same UX shape as "install".
-      return "install";
-  }
+// Selecting an already-installed row defaults to **re-install** (action =
+// "install"). Re-install is the v1.19.0 update path — installers are
+// idempotent and overwriting, so a fresh `install` on an installed row
+// pulls latest upstream and refreshes contents. The user explicitly opts
+// into uninstall via the output-bar mode toggle. Not-installed rows
+// always queue install (no meaningful uninstall action for an absent
+// item, regardless of mode).
+function deriveAction(status: ItemStatus, mode: ApplyAction): ApplyAction {
+  if (status === "not-installed") return "install";
+  return mode === "uninstall" ? "uninstall" : "install";
 }
 
 function makeKey(category: ApplyCategory, name: string): string {
@@ -327,6 +324,12 @@ export default function Dashboard(): JSX.Element {
   // CLAUDE.md language picker. Workflow is a singleton, so we keep this
   // as a flat top-level state rather than per-category map.
   const [workflowLang, setWorkflowLang] = useState<Lang>("en");
+  // Global Apply mode. Default "install" — selecting an installed row
+  // re-installs (= refresh to latest upstream). Flipped to "uninstall" via
+  // the output-bar toggle for explicit removal intent. Not-installed rows
+  // always queue install regardless. Switching mode retroactively
+  // rewrites the action on already-selected installed/partial rows.
+  const [applyMode, setApplyMode] = useState<ApplyAction>("install");
   const [applying, setApplying] = useState(false);
 
   // Derive the /api/state `scopes` query payload from the per-column scope
@@ -406,7 +409,7 @@ export default function Dashboard(): JSX.Element {
           const ref: ApplyItemRef = {
             category,
             name,
-            action: deriveAction(status),
+            action: deriveAction(status, applyMode),
           };
           // workflow has no scope; other categories pick from the current
           // column-level scope state.
@@ -424,7 +427,42 @@ export default function Dashboard(): JSX.Element {
         return next;
       });
     },
-    [scopeByCategory, workflowLang],
+    [scopeByCategory, workflowLang, applyMode],
+  );
+
+  // Mode toggle on the output bar. Mirrors changeScope / changeWorkflowLang
+  // discipline — flipping mode rewrites the action on every
+  // already-selected installed / partial row so the Apply payload matches
+  // what the user sees. Not-installed rows are left alone (mode has no
+  // effect on them; their action stays "install").
+  const changeApplyMode = useCallback(
+    (next: ApplyAction) => {
+      setApplyMode(next);
+      if (state === null) return;
+      const statusByKey = new Map<string, ItemStatus>();
+      statusByKey.set(makeKey("workflow", "workflow"), state.workflow.status);
+      for (const s of state.skills) statusByKey.set(makeKey("skill", s.name), s.status);
+      for (const s of state.recommendedSkills)
+        statusByKey.set(makeKey("recommended-skill", s.name), s.status);
+      for (const p of state.plugins) statusByKey.set(makeKey("plugin", p.id), p.status);
+      for (const h of state.hooks) statusByKey.set(makeKey("hook", h.name), h.status);
+      setSelected((prev) => {
+        if (prev.size === 0) return prev;
+        let changed = false;
+        const out = new Map(prev);
+        for (const [key, ref] of out) {
+          const status = statusByKey.get(key);
+          if (status === undefined) continue;
+          const want = deriveAction(status, next);
+          if (ref.action !== want) {
+            out.set(key, { ...ref, action: want });
+            changed = true;
+          }
+        }
+        return changed ? out : prev;
+      });
+    },
+    [state],
   );
 
   // Update the column scope, and re-derive scope on already-selected items
@@ -776,6 +814,8 @@ export default function Dashboard(): JSX.Element {
               applying={applying}
               status={jobStatus}
               hasDestructive={hasDestructive}
+              mode={applyMode}
+              onModeChange={changeApplyMode}
               onApply={() => void handleApply()}
               onCancel={handleCancel}
             />

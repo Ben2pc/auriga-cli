@@ -21,6 +21,8 @@ describe("LogPanel — rendering", () => {
   test("renders header, OUTPUT label, and pending count when present", () => {
     render(
       <LogPanel
+        mode="install"
+        onModeChange={() => {}}
         lines={[]}
         pendingCount={3}
         applying={false}
@@ -35,6 +37,8 @@ describe("LogPanel — rendering", () => {
   test("omits pending count chip when batch is empty", () => {
     render(
       <LogPanel
+        mode="install"
+        onModeChange={() => {}}
         lines={[]}
         pendingCount={0}
         applying={false}
@@ -48,6 +52,8 @@ describe("LogPanel — rendering", () => {
   test("empty state surfaces guidance depending on pending count", () => {
     const { rerender } = render(
       <LogPanel
+        mode="install"
+        onModeChange={() => {}}
         lines={[]}
         pendingCount={0}
         applying={false}
@@ -59,6 +65,8 @@ describe("LogPanel — rendering", () => {
 
     rerender(
       <LogPanel
+        mode="install"
+        onModeChange={() => {}}
         lines={[]}
         pendingCount={2}
         applying={false}
@@ -79,6 +87,8 @@ describe("LogPanel — rendering", () => {
     ];
     render(
       <LogPanel
+        mode="install"
+        onModeChange={() => {}}
         lines={lines}
         pendingCount={1}
         applying={false}
@@ -95,6 +105,8 @@ describe("LogPanel — rendering", () => {
   test("renders optional status banner above the log body", () => {
     render(
       <LogPanel
+        mode="install"
+        onModeChange={() => {}}
         lines={[]}
         pendingCount={0}
         applying={false}
@@ -111,6 +123,8 @@ describe("LogPanel — buttons", () => {
   test("apply button is disabled when pendingCount === 0", () => {
     render(
       <LogPanel
+        mode="install"
+        onModeChange={() => {}}
         lines={[]}
         pendingCount={0}
         applying={false}
@@ -124,6 +138,8 @@ describe("LogPanel — buttons", () => {
   test("apply button is disabled while applying is true", () => {
     render(
       <LogPanel
+        mode="install"
+        onModeChange={() => {}}
         lines={[]}
         pendingCount={2}
         applying={true}
@@ -139,6 +155,8 @@ describe("LogPanel — buttons", () => {
   test("apply label shows the count when there are pending items", () => {
     render(
       <LogPanel
+        mode="install"
+        onModeChange={() => {}}
         lines={[]}
         pendingCount={7}
         applying={false}
@@ -153,6 +171,8 @@ describe("LogPanel — buttons", () => {
     const onApply = vi.fn();
     render(
       <LogPanel
+        mode="install"
+        onModeChange={() => {}}
         lines={[]}
         pendingCount={1}
         applying={false}
@@ -168,6 +188,8 @@ describe("LogPanel — buttons", () => {
     const onCancel = vi.fn();
     render(
       <LogPanel
+        mode="install"
+        onModeChange={() => {}}
         lines={[]}
         pendingCount={1}
         applying={false}
@@ -184,6 +206,8 @@ describe("LogPanel — destructive batch visual", () => {
   test("hasDestructive=true renders the ember warning banner", () => {
     render(
       <LogPanel
+        mode="install"
+        onModeChange={() => {}}
         lines={[]}
         pendingCount={2}
         applying={false}
@@ -198,6 +222,8 @@ describe("LogPanel — destructive batch visual", () => {
   test("hasDestructive=false omits the warning banner", () => {
     render(
       <LogPanel
+        mode="install"
+        onModeChange={() => {}}
         lines={[]}
         pendingCount={2}
         applying={false}
@@ -212,6 +238,8 @@ describe("LogPanel — destructive batch visual", () => {
   test("destructive batch repaints Apply button label + data attr", () => {
     render(
       <LogPanel
+        mode="install"
+        onModeChange={() => {}}
         lines={[]}
         pendingCount={1}
         applying={false}
@@ -228,6 +256,8 @@ describe("LogPanel — destructive batch visual", () => {
   test("destructive banner hidden when batch is empty (no pending items)", () => {
     render(
       <LogPanel
+        mode="install"
+        onModeChange={() => {}}
         lines={[]}
         pendingCount={0}
         applying={false}
@@ -252,6 +282,8 @@ describe("LogPanel — position-aware auto-scroll", () => {
   test("auto-scrolls to bottom when new lines arrive and user is at bottom", () => {
     const { rerender } = render(
       <LogPanel
+        mode="install"
+        onModeChange={() => {}}
         lines={makeLines(3)}
         pendingCount={1}
         applying={false}
@@ -271,6 +303,8 @@ describe("LogPanel — position-aware auto-scroll", () => {
     Object.defineProperty(body, "scrollHeight", { value: 240, configurable: true });
     rerender(
       <LogPanel
+        mode="install"
+        onModeChange={() => {}}
         lines={makeLines(5)}
         pendingCount={1}
         applying={false}
@@ -284,6 +318,8 @@ describe("LogPanel — position-aware auto-scroll", () => {
   test("does NOT scroll when user has scrolled up (stickToBottom = false)", () => {
     const { rerender } = render(
       <LogPanel
+        mode="install"
+        onModeChange={() => {}}
         lines={makeLines(3)}
         pendingCount={1}
         applying={false}
@@ -304,6 +340,8 @@ describe("LogPanel — position-aware auto-scroll", () => {
     Object.defineProperty(body, "scrollHeight", { value: 240, configurable: true });
     rerender(
       <LogPanel
+        mode="install"
+        onModeChange={() => {}}
         lines={makeLines(5)}
         pendingCount={1}
         applying={false}

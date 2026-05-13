@@ -29,6 +29,11 @@ export interface LogLine {
   text: string;
 }
 
+/** Global Apply intent. Mirrors `ApplyAction` from api-types but kept as
+ *  a local literal type so the LogPanel component doesn't depend on the
+ *  server API surface. */
+export type ApplyMode = "install" | "uninstall";
+
 export interface LogPanelProps {
   lines: LogLine[];
   /** Pending action count surfaced next to OUTPUT header + APPLY button. */
@@ -42,6 +47,12 @@ export interface LogPanelProps {
    *  destructive visual treatment (clay header strip + Apply button color).
    *  Dashboard derives this from the selected map and passes it through. */
   hasDestructive?: boolean;
+  /** Global Apply intent. Default "install" — selecting an installed row
+   *  re-installs (= refresh). Flipped to "uninstall" via the toggle. */
+  mode: ApplyMode;
+  /** Fired when the user flips the mode toggle. Dashboard re-derives
+   *  actions on already-selected installed / partial rows. */
+  onModeChange: (next: ApplyMode) => void;
   onApply: () => void;
   onCancel: () => void;
 }
@@ -63,6 +74,8 @@ export default function LogPanel({
   applying,
   status,
   hasDestructive = false,
+  mode,
+  onModeChange,
   onApply,
   onCancel,
 }: LogPanelProps): JSX.Element {
@@ -240,6 +253,66 @@ export default function LogPanel({
             </div>
           ))
         )}
+      </div>
+
+      {/* Mode toggle — sits above the buttons. Two-tab segmented control.
+          RE-INSTALL is the default; flipping to UNINSTALL is the only way to
+          arm an actual delete on already-installed rows. Visual: the active
+          tab takes the slate-dark inked button styling, the inactive one is
+          a transparent outline. Disabled while a job is in-flight to avoid
+          mid-apply intent flips. */}
+      <div
+        data-testid="log-panel-mode-toggle"
+        role="radiogroup"
+        aria-label="Apply mode"
+        style={{
+          display: "flex",
+          padding: "10px 12px 0 12px",
+          gap: 0,
+          backgroundColor: "var(--color-ivory-light)",
+        }}
+      >
+        {(["install", "uninstall"] as const).map((m, idx) => {
+          const isActive = mode === m;
+          const isDestructive = m === "uninstall";
+          const label = m === "install" ? "RE-INSTALL" : "UNINSTALL";
+          return (
+            <button
+              key={m}
+              data-testid={`log-panel-mode-${m}`}
+              data-active={isActive ? "true" : "false"}
+              role="radio"
+              aria-checked={isActive}
+              type="button"
+              disabled={applying}
+              onClick={() => onModeChange(m)}
+              className="font-anthropic-mono uppercase"
+              style={{
+                flex: 1,
+                padding: "6px 10px",
+                backgroundColor: isActive
+                  ? isDestructive
+                    ? "var(--color-accent-ember)"
+                    : "var(--color-slate-dark)"
+                  : "transparent",
+                border: "1px solid var(--color-slate-medium)",
+                borderLeft: idx === 0 ? "1px solid var(--color-slate-medium)" : "0",
+                color: isActive
+                  ? "var(--color-ivory-light)"
+                  : "var(--color-slate-dark)",
+                fontSize: "10px",
+                letterSpacing: "0.06em",
+                fontWeight: 600,
+                cursor: applying ? "not-allowed" : "pointer",
+                opacity: applying ? 0.6 : 1,
+                fontFamily: "var(--font-anthropic-mono)",
+                borderRadius: 0,
+              }}
+            >
+              {label}
+            </button>
+          );
+        })}
       </div>
 
       {/* Footer: buttons */}
