@@ -656,7 +656,28 @@ async function runUi(p: UiParsed, version: string): Promise<number> {
   const { ensureUiBundle } = await import("./ui-fetch.js");
 
   const cwd = process.cwd();
-  const packageRoot = getPackageRoot();
+  // Two roots, two responsibilities (mirrors the TTY install path's pattern):
+  //   - tarballRoot: where `dist/catalog.json` + the bundled DEV ui/dist live.
+  //     Always read from the installed npm package; can't be fetched because
+  //     dist/ is built artifact, not git content.
+  //   - contentRoot: where the runtime install recipes live (CLAUDE.md,
+  //     .claude/plugins.json, .claude/hooks/hooks.json, .agents/plugins/
+  //     install.json + marketplace.json, skills-lock.json). These files are
+  //     NOT in the npm tarball — the `files` allowlist only ships `dist/*`
+  //     + npm defaults. They are fetched from GitHub, pinned to the CLI
+  //     version tag, by fetchContentRoot(). Under DEV=1 fetchContentRoot
+  //     short-circuits to the repo root so this is a no-op there.
+  // Without the contentRoot fix, tarball-installed Web UI users hit ENOENT
+  // on any Codex plugin install (apply handlers read .agents/plugins/
+  // install.json from packageRoot).
+  const tarballRoot = getPackageRoot();
+  let contentRoot: string;
+  try {
+    contentRoot = await fetchContentRoot();
+  } catch (e) {
+    log.error(`Failed to fetch content: ${(e as Error).message}`);
+    return 1;
+  }
 
   // 1. Resolve UI bundle directory.
   let uiDir: string;
@@ -668,7 +689,7 @@ async function runUi(p: UiParsed, version: string): Promise<number> {
     }
   } else if (process.env.DEV === "1") {
     // Dev convenience: prefer the locally-built ui/dist over a network fetch.
-    const localDist = path.join(packageRoot, "ui", "dist");
+    const localDist = path.join(tarballRoot, "ui", "dist");
     if (fs.existsSync(path.join(localDist, "index.html"))) {
       uiDir = localDist;
     } else {
@@ -695,7 +716,9 @@ async function runUi(p: UiParsed, version: string): Promise<number> {
   // 2. Build scan catalog → ApplyCatalog + pluginAgentsByName.
   let scanCatalog: Awaited<ReturnType<typeof buildScanCatalog>>;
   try {
-    scanCatalog = await buildScanCatalog(packageRoot);
+    // dist/catalog.json ships in the tarball — read from tarballRoot, not
+    // the fetched content root (which doesn't carry build artifacts).
+    scanCatalog = await buildScanCatalog(tarballRoot);
   } catch (e) {
     log.error(`Failed to build catalog: ${(e as Error).message}`);
     return 1;
@@ -719,7 +742,10 @@ async function runUi(p: UiParsed, version: string): Promise<number> {
     pluginAgentsByName.set(name, def.agents);
   }
   const applyHandlers = buildDefaultApplyHandlers({
-    packageRoot,
+    // contentRoot: install handlers read CLAUDE.md, plugins.json,
+    // hooks.json, install.json, marketplace.json — all CONTENT_FILES.
+    // Routing them at tarballRoot fails ENOENT for npm-installed users.
+    packageRoot: contentRoot,
     cwd,
     pluginAgentsByName,
   });
@@ -742,7 +768,11 @@ async function runUi(p: UiParsed, version: string): Promise<number> {
         port,
         token,
         cwd,
-        packageRoot,
+        // server reads dist/catalog.json (tarball-shipped) via
+        // buildScanCatalog on each /api/state call; install-time content
+        // (install.json, plugins.json, CLAUDE.md, …) was already injected
+        // into applyHandlers above with contentRoot.
+        packageRoot: tarballRoot,
         heartbeatTimeoutMs: UI_HEARTBEAT_TIMEOUT_MS,
         applyHandlers,
         applyCatalog,
