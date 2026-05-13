@@ -112,6 +112,69 @@ const cases = [
     },
   },
   {
+    name: "inside a Codex managed worktree, injects original repo ancestors but not Codex home AGENTS.md",
+    setup: () => {
+      const home = makeTempDir();
+      cleanupDirs.push(home);
+
+      const codexHome = path.join(home, ".codex");
+      fs.mkdirSync(codexHome, { recursive: true });
+      fs.writeFileSync(path.join(codexHome, "AGENTS.md"), "codex home instructions");
+
+      const worktreeParent = path.join(codexHome, "worktrees", "1234");
+      fs.mkdirSync(worktreeParent, { recursive: true });
+      fs.writeFileSync(path.join(worktreeParent, "AGENTS.md"), "worktree local instructions");
+
+      const workspace = path.join(home, "Workspace");
+      fs.mkdirSync(workspace, { recursive: true });
+      fs.writeFileSync(path.join(workspace, "AGENTS.md"), "workspace instructions");
+
+      const originalRepo = path.join(workspace, "repo");
+      const gitWorktrees = path.join(originalRepo, ".git", "worktrees");
+      fs.mkdirSync(gitWorktrees, { recursive: true });
+
+      const repo = path.join(worktreeParent, "repo");
+      fs.mkdirSync(repo, { recursive: true });
+      fs.writeFileSync(path.join(repo, ".git"), `gitdir: ${path.join(gitWorktrees, "1234")}\n`);
+
+      const cwd = path.join(repo, "pkg");
+      fs.mkdirSync(cwd, { recursive: true });
+      return cwd;
+    },
+    expect: {
+      includes: ["workspace instructions", "worktree local instructions"],
+      excludes: ["codex home instructions"],
+    },
+  },
+  {
+    name: "gitfile repositories do not inject non-worktree gitdir target ancestors",
+    setup: () => {
+      const root = makeTempDir();
+      cleanupDirs.push(root);
+
+      const currentWorkspace = path.join(root, "current-workspace");
+      fs.mkdirSync(currentWorkspace, { recursive: true });
+      fs.writeFileSync(path.join(currentWorkspace, "AGENTS.md"), "current workspace instructions");
+
+      const foreignWorkspace = path.join(root, "foreign-workspace");
+      fs.mkdirSync(foreignWorkspace, { recursive: true });
+      fs.writeFileSync(path.join(foreignWorkspace, "AGENTS.md"), "foreign workspace instructions");
+      fs.mkdirSync(path.join(foreignWorkspace, "repo", ".git"), { recursive: true });
+
+      const repo = path.join(currentWorkspace, "repo");
+      fs.mkdirSync(repo, { recursive: true });
+      fs.writeFileSync(path.join(repo, ".git"), `gitdir: ${path.join(foreignWorkspace, "repo", ".git")}\n`);
+
+      const cwd = path.join(repo, "pkg");
+      fs.mkdirSync(cwd, { recursive: true });
+      return cwd;
+    },
+    expect: {
+      includes: ["current workspace instructions"],
+      excludes: ["foreign workspace instructions"],
+    },
+  },
+  {
     name: "truncates oversized ancestor AGENTS.md within the content budget",
     setup: () => {
       const root = makeTempDir();
