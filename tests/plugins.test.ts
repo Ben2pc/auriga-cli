@@ -58,6 +58,13 @@ function makeCodexMarketplace(): string {
     version: "1.0.0",
     hooks: "./hooks/hooks.json",
   });
+  fs.mkdirSync(path.join(root, "plugins/session-instructions-loader/skills/session-loader"), {
+    recursive: true,
+  });
+  fs.writeFileSync(
+    path.join(root, "plugins/session-instructions-loader/skills/session-loader/SKILL.md"),
+    "# session loader\n",
+  );
   writeJson(path.join(root, "plugins/marketplace-only/.codex-plugin/plugin.json"), {
     name: "marketplace-only",
     version: "1.0.0",
@@ -413,6 +420,39 @@ describe("installPlugins — Codex target", () => {
     });
 
     assert.deepEqual(atomicWrites, [path.join(codexHome, "config.toml")]);
+  });
+
+  test("materializes local Codex plugin cache for selected plugins", async () => {
+    const packageRoot = makeCodexMarketplace();
+    const codexHome = fs.mkdtempSync(path.join(os.tmpdir(), "auriga-codex-home-"));
+    process.env.CODEX_HOME = codexHome;
+    const { installPlugins } = await importPlugins(() => "");
+
+    await installPlugins(packageRoot, {
+      interactive: false,
+      agent: "codex",
+      selected: ["session-instructions-loader"],
+    });
+
+    const cachedPluginRoot = path.join(
+      codexHome,
+      "plugins/cache/auriga-cli/session-instructions-loader/1.0.0",
+    );
+    assert.equal(
+      fs.existsSync(path.join(cachedPluginRoot, ".codex-plugin/plugin.json")),
+      true,
+      "selected plugin manifest should be present in the Codex cache",
+    );
+    assert.equal(
+      fs.existsSync(path.join(cachedPluginRoot, "skills/session-loader/SKILL.md")),
+      true,
+      "selected plugin content should be present in the Codex cache",
+    );
+    assert.equal(
+      fs.existsSync(path.join(codexHome, "plugins/cache/auriga-cli/auriga-go")),
+      false,
+      "unselected local plugins should not be materialized",
+    );
   });
 
   test("uses the auriga Codex install list instead of installing every marketplace plugin by default", async () => {
@@ -1021,6 +1061,34 @@ describe("installPlugins — Claude target", () => {
       assert.equal(fs.lstatSync(path.join(cwd, ".claude", "skills", name)).isSymbolicLink(), true);
       assert.equal(fs.lstatSync(path.join(cwd, ".agents", "skills", name)).isSymbolicLink(), true);
     }
+  });
+
+  test("auriga-workflow-skills cleanup stays quiet when legacy skill dirs are absent", async () => {
+    const packageRoot = makeMigratedAssetsPluginPackage();
+    const cwd = fs.mkdtempSync(path.join(os.tmpdir(), "auriga-migrated-skills-quiet-"));
+    const codexHome = fs.mkdtempSync(path.join(os.tmpdir(), "auriga-codex-home-"));
+    process.env.CODEX_HOME = codexHome;
+    const logs: string[] = [];
+    const { installPlugins } = await importPlugins((cmd) => {
+      if (cmd === "claude plugins list --json") return "[]";
+      if (cmd === "claude plugins marketplace list") return "";
+      return "";
+    });
+
+    await installPlugins(packageRoot, {
+      interactive: false,
+      agent: "both",
+      selected: ["auriga-workflow-skills"],
+      cwd,
+      scope: "project",
+      onLog: (line: string) => logs.push(line),
+    });
+
+    assert.equal(
+      logs.some((line) => line.includes("not present")),
+      false,
+      `missing legacy skill dirs should not emit noisy cleanup logs: ${logs.join(" | ")}`,
+    );
   });
 
   test("auriga-notify install preserves legacy hook config and icon under plugin-owned config", async () => {

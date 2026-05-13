@@ -5,6 +5,7 @@ import { checkbox, select } from "@inquirer/prompts";
 import { parse as parseToml, stringify as stringifyToml } from "smol-toml";
 import type { TomlTable } from "smol-toml";
 import {
+  codexLocalPluginPath,
   codexManifestPath,
   validateCodexInstallConfig,
   validateCodexMarketplace,
@@ -34,6 +35,7 @@ const MIGRATED_WORKFLOW_SKILLS = [
 const NOTIFY_PLUGIN_NAME = "auriga-notify";
 const WORKFLOW_SKILLS_PLUGIN_NAME = "auriga-workflow-skills";
 const LEGACY_NOTIFY_MARKER = "auriga:notify";
+const CODEX_PLUGIN_VERSION_RE = /^[A-Za-z0-9][A-Za-z0-9._+-]{0,127}$/;
 type PluginRuntime = "claude" | "codex";
 
 export function validatePluginsConfig(raw: unknown): asserts raw is PluginsConfig {
@@ -241,10 +243,7 @@ function cleanupMigratedWorkflowSkillInstalls(
     for (const runtime of runtimes) {
       const dir = legacySkillDir(opts, runtime, name);
       const stat = fs.lstatSync(dir, { throwIfNoEntry: false });
-      if (!stat) {
-        emitMigrationLog(opts, `${runtimeSkillRoot(runtime)}/skills/${name} not present`);
-        continue;
-      }
+      if (!stat) continue;
       if (scope === "project" && isWorkflowPluginDevSymlink(dir, cwd, name)) {
         emitMigrationLog(opts, `preserved ${runtimeSkillRoot(runtime)}/skills/${name} development symlink`);
         continue;
@@ -417,6 +416,22 @@ function pluginHasHooks(packageRoot: string, plugin: CodexMarketplacePlugin): bo
   return typeof manifest.hooks === "string" || Array.isArray(manifest.hooks);
 }
 
+function resolveSelectedCodexMarketplacePlugins(
+  localMarketplace: CodexMarketplace,
+  localSelected: CodexInstallPlugin[],
+): CodexMarketplacePlugin[] {
+  const localMpByName = new Map(
+    localMarketplace.plugins.map((p) => [p.name, p]),
+  );
+  return localSelected.map((p) => {
+    const plugin = localMpByName.get(p.name);
+    if (!plugin) {
+      throw new Error(`Codex install.json: plugin ${p.name} is not present in marketplace.json`);
+    }
+    return plugin;
+  });
+}
+
 async function ensureCodexPluginManifests(
   packageRoot: string,
   plugins: CodexMarketplacePlugin[],
@@ -428,6 +443,46 @@ async function ensureCodexPluginManifests(
     }
     if (fs.existsSync(path.join(packageRoot, manifestPath))) continue;
     await fetchExtraContent(packageRoot, manifestPath);
+  }
+}
+
+function readCodexPluginVersion(packageRoot: string, plugin: CodexMarketplacePlugin): string {
+  const manifestPath = codexManifestPath(plugin);
+  if (!manifestPath) {
+    throw new Error(`Codex marketplace.json: plugin ${plugin.name} must use a local source.path`);
+  }
+  const manifest = JSON.parse(fs.readFileSync(path.join(packageRoot, manifestPath), "utf-8")) as {
+    version?: unknown;
+  };
+  if (typeof manifest.version !== "string" || !CODEX_PLUGIN_VERSION_RE.test(manifest.version)) {
+    throw new Error(`Codex plugin ${plugin.name} manifest must include a safe string version`);
+  }
+  return manifest.version;
+}
+
+function materializeLocalCodexPluginCache(
+  packageRoot: string,
+  marketplaceName: string,
+  plugins: CodexMarketplacePlugin[],
+): void {
+  const cacheRoot = path.join(codexHome(), "plugins", "cache");
+  for (const plugin of plugins) {
+    const sourcePath = codexLocalPluginPath(plugin);
+    if (!sourcePath) {
+      throw new Error(`Codex marketplace.json: plugin ${plugin.name} must use a local source.path`);
+    }
+    const version = readCodexPluginVersion(packageRoot, plugin);
+    const sourceDir = path.join(packageRoot, sourcePath);
+    const destDir = path.join(cacheRoot, marketplaceName, plugin.name, version);
+    const tmpDir = `${destDir}.tmp-${process.pid}-${Date.now()}`;
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+    fs.mkdirSync(path.dirname(destDir), { recursive: true });
+    fs.cpSync(sourceDir, tmpDir, { recursive: true });
+    fs.rmSync(destDir, { recursive: true, force: true });
+    fs.renameSync(tmpDir, destDir);
+    if (!fs.existsSync(path.join(destDir, ".codex-plugin", "plugin.json"))) {
+      throw new Error(`Codex plugin ${plugin.name} cache materialization did not produce plugin.json`);
+    }
   }
 }
 
@@ -608,24 +663,13 @@ type ExternalSelection = CodexInstallPlugin & { marketplace: MarketplaceRef };
 async function composeCodexPluginKeys(
   packageRoot: string,
   localMarketplace: CodexMarketplace | null,
-  localSelected: CodexInstallPlugin[],
+  selectedMarketplacePlugins: CodexMarketplacePlugin[],
   externalSelected: ExternalSelection[],
 ): Promise<{ pluginKeys: string[]; needsPluginHooks: boolean }> {
   const pluginKeys: string[] = [];
   let needsPluginHooks = false;
 
   if (localMarketplace) {
-    const localMpByName = new Map(
-      localMarketplace.plugins.map((p) => [p.name, p]),
-    );
-    const selectedMarketplacePlugins = localSelected.map((p) => {
-      const plugin = localMpByName.get(p.name);
-      if (!plugin) {
-        throw new Error(`Codex install.json: plugin ${p.name} is not present in marketplace.json`);
-      }
-      return plugin;
-    });
-    await ensureCodexPluginManifests(packageRoot, selectedMarketplacePlugins);
     for (const plugin of selectedMarketplacePlugins) {
       pluginKeys.push(`${plugin.name}@${localMarketplace.name}`);
       if (pluginHasHooks(packageRoot, plugin)) needsPluginHooks = true;
@@ -729,10 +773,21 @@ async function installCodexPlugins(
   }
 
   if (failures.length === 0) {
+    const selectedMarketplacePlugins = localMarketplace
+      ? resolveSelectedCodexMarketplacePlugins(localMarketplace, localSelected)
+      : [];
+    await ensureCodexPluginManifests(packageRoot, selectedMarketplacePlugins);
+    if (localMarketplace) {
+      materializeLocalCodexPluginCache(
+        packageRoot,
+        localMarketplace.name,
+        selectedMarketplacePlugins,
+      );
+    }
     const { pluginKeys, needsPluginHooks } = await composeCodexPluginKeys(
       packageRoot,
       localMarketplace,
-      localSelected,
+      selectedMarketplacePlugins,
       externalSelected,
     );
 
