@@ -49,12 +49,6 @@
       "skillPath": "skills/frontend-design/SKILL.md",
       "computedHash": "063a0e6448123cd359ad0044cc46b0e490cc7964d45ef4bb9fd842bd2ffbca67"
     },
-    "incremental-impl": {
-      "source": "Ben2pc/auriga-cli",
-      "sourceType": "github",
-      "skillPath": "skills/incremental-impl/SKILL.md",
-      "computedHash": "ceee01a02db4bcaadb5b682b50c61cec085dd760fed022c14aad4c0680ea00e8"
-    },
     "make-interfaces-feel-better": {
       "source": "jakubkrehel/make-interfaces-feel-better",
       "sourceType": "github",
@@ -73,23 +67,11 @@
       "skillPath": "skills/playwright-cli/SKILL.md",
       "computedHash": "84495cfda62b6c012afc4cc34a0c35bfc7923ba35983b8c04ce4cace0f35a5d8"
     },
-    "session-compound": {
-      "source": "Ben2pc/auriga-cli",
-      "sourceType": "github",
-      "skillPath": "skills/session-compound/SKILL.md",
-      "computedHash": "bac1a829498978da9da89f638cdb25619bb583eb8e08cc78a93ab17e16826517"
-    },
     "systematic-debugging": {
       "source": "obra/superpowers",
       "sourceType": "github",
       "skillPath": "skills/systematic-debugging/SKILL.md",
       "computedHash": "7246fdd3a795fc3daff0af72044ca99bf836e4e6a46844742858786fdfb86488"
-    },
-    "test-designer": {
-      "source": "Ben2pc/auriga-cli",
-      "sourceType": "github",
-      "skillPath": "skills/test-designer/SKILL.md",
-      "computedHash": "e1011d9b0474ad9e95ce1bab0fffb0b826519cff6bc44477ca7ce62d7ae81802"
     },
     "test-driven-development": {
       "source": "obra/superpowers",

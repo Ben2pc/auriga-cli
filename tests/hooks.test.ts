@@ -45,6 +45,32 @@ function writeRegistry(dir: string, content: unknown): void {
   fs.writeFileSync(path.join(hooksDir, "hooks.json"), JSON.stringify(content));
 }
 
+function makeHookPackage(label: string): { packageRoot: string; hook: HookDef } {
+  const packageRoot = makeScratch(label);
+  const hook: HookDef = {
+    name: "sample",
+    description: "Synthetic hook fixture",
+    runtimePlatforms: [process.platform],
+    settingsEvents: [{ event: "Notification" }],
+    command: 'node "$HOOK_DIR/index.mjs"',
+    files: ["index.mjs", "config.json", "icon.png", "README.md", "test.mjs"],
+    preserveFiles: ["config.json", "icon.png"],
+    marker: "test:sample",
+  };
+  writeRegistry(packageRoot, { hooks: [hook] });
+  const hookDir = path.join(packageRoot, ".claude", "hooks", hook.name);
+  fs.mkdirSync(hookDir, { recursive: true });
+  fs.writeFileSync(
+    path.join(hookDir, "index.mjs"),
+    "process.stdin.resume(); process.stdin.on('end', () => process.exit(0));\n",
+  );
+  fs.writeFileSync(path.join(hookDir, "config.json"), JSON.stringify({ sound: "Ping" }));
+  fs.writeFileSync(path.join(hookDir, "icon.png"), "SAMPLE_ICON_BYTES");
+  fs.writeFileSync(path.join(hookDir, "README.md"), "# sample\n");
+  fs.writeFileSync(path.join(hookDir, "test.mjs"), "process.exit(0);\n");
+  return { packageRoot, hook };
+}
+
 // ---------------------------------------------------------------------------
 // addHookToSettings — pure function unit tests
 // ---------------------------------------------------------------------------
@@ -288,17 +314,12 @@ describe("loadHooksConfig", () => {
     SCRATCH = makeScratch("registry");
   });
 
-  test("accepts the real notify hook from this repo", () => {
+  test("real registry no longer exposes migrated notify as a traditional hook", () => {
     const config = loadHooksConfig(REPO_ROOT);
-    const notify = config.hooks.find((h) => h.name === "notify");
-    assert.ok(notify, "notify hook present in registry");
-    assert.deepEqual(notify?.runtimePlatforms, ["darwin"]);
-    // Lock in the alerter dep — guard against accidental revert to
-    // terminal-notifier (whose lack of --app-icon is the reason we
-    // switched in 1.2.0).
-    assert.ok(
-      notify?.deps?.some((d) => d.name === "vjeantet/tap/alerter"),
-      "notify hook must declare vjeantet/tap/alerter as a dep",
+    assert.equal(
+      config.hooks.some((h) => h.name === "notify"),
+      false,
+      "notify must be exposed through the auriga-notify plugin, not hooks.json",
     );
   });
 
@@ -585,47 +606,47 @@ describe("loadHooksConfig", () => {
 // ---------------------------------------------------------------------------
 
 describe("installHook (integration)", () => {
-  let notify: HookDef;
+  let sample: HookDef;
+  let hookPackageRoot: string;
 
   before(() => {
-    const config = loadHooksConfig(REPO_ROOT);
-    const found = config.hooks.find((h) => h.name === "notify");
-    if (!found) throw new Error("notify hook missing from registry");
-    notify = found;
+    const fixture = makeHookPackage("sample-package");
+    sample = fixture.hook;
+    hookPackageRoot = fixture.packageRoot;
   });
 
   test("fresh install at project-local scope writes all files + settings", async () => {
     const TEST_PROJECT = makeScratch("fresh");
 
-    const r = await installHook(notify, "project-local", TEST_PROJECT, REPO_ROOT);
+    const r = await installHook(sample, "project-local", TEST_PROJECT, hookPackageRoot);
 
     assert.ok(fs.existsSync(r.hookDir), "hook directory created");
-    for (const f of notify.files) {
+    for (const f of sample.files) {
       assert.ok(fs.existsSync(path.join(r.hookDir, f)), `${f} present`);
     }
 
-    const srcIcon = fs.readFileSync(path.join(REPO_ROOT, ".claude/hooks/notify/icon.png"));
+    const srcIcon = fs.readFileSync(path.join(hookPackageRoot, ".claude/hooks/sample/icon.png"));
     const dstIcon = fs.readFileSync(path.join(r.hookDir, "icon.png"));
     assert.equal(Buffer.compare(srcIcon, dstIcon), 0, "icon.png byte-identical to source");
 
     assert.ok(fs.existsSync(r.settingsPath), "settings.local.json written");
     assert.equal(r.settingsMutated, true);
-    assert.equal(r.written, notify.files.length);
+    assert.equal(r.written, sample.files.length);
     assert.equal(r.preserved, 0);
 
     const settings = JSON.parse(fs.readFileSync(r.settingsPath, "utf8")) as SettingsFile;
     const groups = settings.hooks?.Notification ?? [];
     assert.equal(groups.length, 1);
     const action = groups[0].hooks[0];
-    assert.equal(action._marker, "auriga:notify");
+    assert.equal(action._marker, "test:sample");
     assert.match(action.command, /\$CLAUDE_PROJECT_DIR/);
-    assert.match(action.command, /notify\/index\.mjs/);
+    assert.match(action.command, /sample\/index\.mjs/);
     assert.deepEqual(Object.keys(settings), ["hooks"], "no other settings keys touched");
   });
 
   test("re-run preserves user customizations and is idempotent", async () => {
     const TEST_PROJECT = makeScratch("rerun");
-    const r1 = await installHook(notify, "project-local", TEST_PROJECT, REPO_ROOT);
+    const r1 = await installHook(sample, "project-local", TEST_PROJECT, hookPackageRoot);
 
     // User edits config + icon
     const userIcon = Buffer.from("USER_CUSTOM_ICON_BYTES_FOR_TEST_PURPOSES_ONLY");
@@ -633,7 +654,7 @@ describe("installHook (integration)", () => {
     const userConfig = JSON.stringify({ icon: "./icon.png", sound: "Hero" }, null, 2);
     fs.writeFileSync(path.join(r1.hookDir, "config.json"), userConfig);
 
-    const r2 = await installHook(notify, "project-local", TEST_PROJECT, REPO_ROOT);
+    const r2 = await installHook(sample, "project-local", TEST_PROJECT, hookPackageRoot);
 
     assert.equal(r2.settingsMutated, false, "settings merge is idempotent");
     assert.equal(r2.preserved, 2, "config.json and icon.png both preserved");
@@ -668,7 +689,7 @@ describe("installHook (integration)", () => {
       JSON.stringify(customSettings, null, 2),
     );
 
-    const r = await installHook(notify, "project-local", TEST_PROJECT, REPO_ROOT);
+    const r = await installHook(sample, "project-local", TEST_PROJECT, hookPackageRoot);
     const settings = JSON.parse(fs.readFileSync(r.settingsPath, "utf8")) as SettingsFile;
 
     assert.equal(r.settingsMutated, true);
@@ -679,7 +700,7 @@ describe("installHook (integration)", () => {
 
   test("installed runtime fires against a stdin payload", async () => {
     const TEST_PROJECT = makeScratch("runtime");
-    const r = await installHook(notify, "project-local", TEST_PROJECT, REPO_ROOT);
+    const r = await installHook(sample, "project-local", TEST_PROJECT, hookPackageRoot);
 
     const proc = spawnSync("node", [path.join(r.hookDir, "index.mjs")], {
       input: JSON.stringify({
@@ -701,11 +722,11 @@ describe("installHook (integration)", () => {
       "{ this is: not valid json",
     );
 
-    const r = await installHook(notify, "project-local", TEST_PROJECT, REPO_ROOT);
+    const r = await installHook(sample, "project-local", TEST_PROJECT, hookPackageRoot);
 
     assert.match(r.aborted ?? "", /not valid JSON/);
     assert.ok(
-      !fs.existsSync(path.join(TEST_PROJECT, ".claude/hooks/notify")),
+      !fs.existsSync(path.join(TEST_PROJECT, ".claude/hooks/sample")),
       "no orphan hook directory created when settings parse failed",
     );
   });
@@ -716,13 +737,13 @@ describe("installHook (integration)", () => {
 // ---------------------------------------------------------------------------
 
 describe("findStaleScopes / cleanHookFromScope", () => {
-  let notify: HookDef;
+  let sample: HookDef;
+  let hookPackageRoot: string;
   let originalHome: string | undefined;
   before(() => {
-    const config = loadHooksConfig(REPO_ROOT);
-    const found = config.hooks.find((h) => h.name === "notify");
-    if (!found) throw new Error("notify hook missing from registry");
-    notify = found;
+    const fixture = makeHookPackage("cross-package");
+    sample = fixture.hook;
+    hookPackageRoot = fixture.packageRoot;
     // findStaleScopes scans all 3 scopes incl. user, which on a real
     // dev machine reads ~/.claude/settings.json. If the developer has
     // a real notify hook installed (very likely while dogfooding!),
@@ -740,24 +761,24 @@ describe("findStaleScopes / cleanHookFromScope", () => {
   test("detects + removes a project-local entry when installing into project scope", async () => {
     const TEST_PROJECT = makeScratch("cross");
 
-    await installHook(notify, "project-local", TEST_PROJECT, REPO_ROOT);
+    await installHook(sample, "project-local", TEST_PROJECT, hookPackageRoot);
     assert.ok(fs.existsSync(path.join(TEST_PROJECT, ".claude/settings.local.json")));
 
-    const stale = findStaleScopes(notify, "project", TEST_PROJECT);
+    const stale = findStaleScopes(sample, "project", TEST_PROJECT);
     assert.equal(stale.length, 1);
     assert.equal(stale[0].scope, "project-local");
     assert.equal(stale[0].count, 1);
 
-    const cleaned = cleanHookFromScope(notify, "project-local", TEST_PROJECT);
+    const cleaned = cleanHookFromScope(sample, "project-local", TEST_PROJECT);
     assert.equal(cleaned.removed, 1);
 
     const settings = JSON.parse(
       fs.readFileSync(path.join(TEST_PROJECT, ".claude/settings.local.json"), "utf8"),
     ) as SettingsFile;
-    const stillThere = JSON.stringify(settings).includes("auriga:notify");
+    const stillThere = JSON.stringify(settings).includes("test:sample");
     assert.equal(stillThere, false, "marker gone after clean");
 
-    const second = cleanHookFromScope(notify, "project-local", TEST_PROJECT);
+    const second = cleanHookFromScope(sample, "project-local", TEST_PROJECT);
     assert.equal(second.removed, 0, "second clean is a no-op");
   });
 });

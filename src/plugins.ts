@@ -14,6 +14,7 @@ import {
   type CodexMarketplacePlugin,
 } from "./codex-plugin-config.js";
 import { validateMarketplaceField, type MarketplaceRef } from "./marketplace.js";
+import { uninstallSkillManual } from "./skills.js";
 import { atomicWriteFile, exec, execAsync, fetchExtraContent, log, withEsc } from "./utils.js";
 import type { InstallOpts, PluginAgent, PluginsConfig, PluginDef } from "./utils.js";
 
@@ -26,6 +27,14 @@ import type { InstallOpts, PluginAgent, PluginsConfig, PluginDef } from "./utils
 // `./marketplace.js` so Claude and Codex sides share one validator.
 const PLUGIN_NAME_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
 const PLUGIN_PACKAGE_RE = /^[A-Za-z0-9][A-Za-z0-9._@/-]{0,255}$/;
+const MIGRATED_WORKFLOW_SKILLS = [
+  "incremental-impl",
+  "test-designer",
+  "session-compound",
+];
+const NOTIFY_PLUGIN_NAME = "auriga-notify";
+const WORKFLOW_SKILLS_PLUGIN_NAME = "auriga-workflow-skills";
+const LEGACY_NOTIFY_MARKER = "auriga:notify";
 
 export function validatePluginsConfig(raw: unknown): asserts raw is PluginsConfig {
   if (!raw || typeof raw !== "object") {
@@ -53,6 +62,9 @@ export function validatePluginsConfig(raw: unknown): asserts raw is PluginsConfi
     if (plugin.marketplace !== undefined) {
       validateMarketplaceField(`plugins.json: plugins[${i}]`, plugin.marketplace);
     }
+    if (plugin.defaultOn !== undefined && typeof plugin.defaultOn !== "boolean") {
+      throw new Error(`plugins.json: plugins[${i}].defaultOn must be a boolean`);
+    }
   });
 }
 
@@ -60,6 +72,21 @@ interface PluginInfo {
   id: string;
   scope: string;
   projectPath?: string;
+}
+
+interface SettingsHookAction {
+  _marker?: string;
+  [key: string]: unknown;
+}
+
+interface SettingsHookGroup {
+  hooks?: SettingsHookAction[];
+  [key: string]: unknown;
+}
+
+interface SettingsFile {
+  hooks?: Record<string, SettingsHookGroup[]>;
+  [key: string]: unknown;
 }
 
 function getInstalledPlugins(): Map<string, string[]> {
@@ -93,7 +120,8 @@ function resolvePluginSelection(
   all: PluginDef[],
   selected: string[] | undefined,
 ): PluginDef[] {
-  if (!selected || (selected.length === 1 && selected[0] === "*")) return all;
+  if (!selected) return all.filter((p) => p.defaultOn !== false);
+  if (selected.length === 1 && selected[0] === "*") return all;
   const byName = new Map(all.map((p) => [p.name, p]));
   const missing = selected.filter((name) => !byName.has(name));
   if (missing.length > 0) {
@@ -155,6 +183,128 @@ function codexHome(): string {
 
 function shellQuote(value: string): string {
   return `'${value.replace(/'/g, "'\\''")}'`;
+}
+
+function installTargetCwd(opts: InstallOpts): string {
+  return path.resolve(opts.cwd ?? process.cwd());
+}
+
+function emitMigrationLog(opts: InstallOpts, line: string): void {
+  opts.onLog?.(line, "stdout");
+}
+
+async function cleanupMigratedWorkflowSkillInstalls(opts: InstallOpts): Promise<void> {
+  const cwd = installTargetCwd(opts);
+  const scope = opts.scope ?? "project";
+  for (const name of MIGRATED_WORKFLOW_SKILLS) {
+    await uninstallSkillManual(
+      name,
+      cwd,
+      (line) => emitMigrationLog(opts, line),
+      scope,
+    );
+  }
+}
+
+function copyIfPresentWithoutOverwrite(src: string, dest: string): boolean {
+  if (!fs.existsSync(src) || fs.existsSync(dest)) return false;
+  fs.mkdirSync(path.dirname(dest), { recursive: true });
+  fs.copyFileSync(src, dest);
+  return true;
+}
+
+function removeMarkerFromSettings(settings: SettingsFile, marker: string): {
+  settings: SettingsFile;
+  removed: number;
+} {
+  const next: SettingsFile = JSON.parse(JSON.stringify(settings ?? {}));
+  if (!next.hooks || typeof next.hooks !== "object" || Array.isArray(next.hooks)) {
+    return { settings: next, removed: 0 };
+  }
+  let removed = 0;
+  for (const event of Object.keys(next.hooks)) {
+    const groups = next.hooks[event];
+    if (!Array.isArray(groups)) continue;
+    const nextGroups: SettingsHookGroup[] = [];
+    for (const group of groups) {
+      if (!Array.isArray(group.hooks)) {
+        nextGroups.push(group);
+        continue;
+      }
+      const hooks = group.hooks.filter((action) => {
+        if (action?._marker === marker) {
+          removed += 1;
+          return false;
+        }
+        return true;
+      });
+      if (hooks.length > 0) nextGroups.push({ ...group, hooks });
+    }
+    if (nextGroups.length > 0) next.hooks[event] = nextGroups;
+    else delete next.hooks[event];
+  }
+  return { settings: next, removed };
+}
+
+function cleanLegacyNotifySettings(settingsPaths: string[], opts: InstallOpts): void {
+  for (const settingsPath of settingsPaths) {
+    if (!fs.existsSync(settingsPath)) continue;
+    let parsed: SettingsFile;
+    try {
+      parsed = JSON.parse(fs.readFileSync(settingsPath, "utf-8")) as SettingsFile;
+    } catch {
+      emitMigrationLog(opts, `skipped unreadable legacy notify settings: ${settingsPath}`);
+      continue;
+    }
+    const result = removeMarkerFromSettings(parsed, LEGACY_NOTIFY_MARKER);
+    if (result.removed === 0) continue;
+    atomicWriteFile(settingsPath, JSON.stringify(result.settings, null, 2) + "\n");
+    emitMigrationLog(opts, `removed ${result.removed} legacy notify settings entries from ${settingsPath}`);
+  }
+}
+
+function migrateLegacyNotifyConfig(opts: InstallOpts): void {
+  const scope = opts.scope ?? "project";
+  const cwd = installTargetCwd(opts);
+  const home = os.homedir();
+  const legacyBase = scope === "user" ? home : cwd;
+  const legacyDir = path.join(legacyBase, ".claude", "hooks", "notify");
+  const destDir = scope === "user"
+    ? path.join(home, ".config", "auriga-cli", "notify")
+    : path.join(cwd, ".claude", "auriga-notify");
+
+  const copiedConfig = copyIfPresentWithoutOverwrite(
+    path.join(legacyDir, "config.json"),
+    path.join(destDir, "config.json"),
+  );
+  const copiedIcon = copyIfPresentWithoutOverwrite(
+    path.join(legacyDir, "icon.png"),
+    path.join(destDir, "icon.png"),
+  );
+  if (copiedConfig) emitMigrationLog(opts, `migrated legacy notify config to ${path.join(destDir, "config.json")}`);
+  if (copiedIcon) emitMigrationLog(opts, `migrated legacy notify icon to ${path.join(destDir, "icon.png")}`);
+
+  const settingsPaths = scope === "user"
+    ? [path.join(home, ".claude", "settings.json")]
+    : [
+        path.join(cwd, ".claude", "settings.json"),
+        path.join(cwd, ".claude", "settings.local.json"),
+      ];
+  cleanLegacyNotifySettings(settingsPaths, opts);
+
+  if (fs.existsSync(legacyDir)) {
+    fs.rmSync(legacyDir, { recursive: true, force: true });
+    emitMigrationLog(opts, `removed legacy notify hook directory ${legacyDir}`);
+  }
+}
+
+async function runPostInstallMigration(pluginName: string, opts: InstallOpts): Promise<void> {
+  if (pluginName === WORKFLOW_SKILLS_PLUGIN_NAME) {
+    await cleanupMigratedWorkflowSkillInstalls(opts);
+  }
+  if (pluginName === NOTIFY_PLUGIN_NAME) {
+    migrateLegacyNotifyConfig(opts);
+  }
 }
 
 function codexMarketplaceAddCommand(packageRoot: string): string {
@@ -534,6 +684,7 @@ async function installCodexPlugins(
     );
     for (const plugin of [...localSelected, ...externalSelected]) {
       log.ok(`${plugin.name} enabled for Codex`);
+      await runPostInstallMigration(plugin.name, opts);
     }
   }
 
@@ -631,10 +782,11 @@ export async function installPlugins(
           choices: config.plugins.map((p) => {
             const scopes = installed.get(p.package);
             const suffix = scopes ? ` (installed: ${scopes.join(", ")})` : "";
+            const installedEverywhere = scopes?.includes("user") && scopes?.includes("project");
             return {
               name: `${p.name} — ${p.description}${suffix}`,
               value: p,
-              checked: !scopes || !(scopes.includes("user") && scopes.includes("project")),
+              checked: p.defaultOn !== false && !installedEverywhere,
             };
           }),
         }))
@@ -716,6 +868,7 @@ export async function installPlugins(
             exec(cmd, { inherit: true });
           }
           log.ok(`${plugin.name} installed`);
+          await runPostInstallMigration(plugin.name, { ...opts, scope });
         } catch {
           log.error(`Failed to install: ${plugin.name}`);
           failures.push(plugin.name);

@@ -1,0 +1,12 @@
+{
+  "name": "auriga-workflow-skills",
+  "version": "1.0.0",
+  "description": "Bundles the auriga-owned workflow execution skills: incremental-impl, test-designer, and session-compound.",
+  "author": {
+    "name": "Ben2pc",
+    "email": "pangcheng33@gmail.com"
+  },
+  "homepage": "https://github.com/Ben2pc/auriga-cli/tree/main/plugins/auriga-workflow-skills",
+  "repository": "https://github.com/Ben2pc/auriga-cli",
+  "license": "MIT"
+}

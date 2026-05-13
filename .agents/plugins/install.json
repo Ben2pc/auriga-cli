@@ -9,6 +9,10 @@
       "description": "Git lifecycle guardrails: commit-reminder + PR-create snapshot + PR-ready structural block, with the git-workflow skill bundled"
     },
     {
+      "name": "auriga-workflow-skills",
+      "description": "Bundles the auriga-owned workflow execution skills: incremental-impl, test-designer, and session-compound."
+    },
+    {
       "name": "session-instructions-loader",
       "description": "Injects extra instruction files on session start"
     },

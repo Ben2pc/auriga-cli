@@ -125,7 +125,7 @@ export function generateCatalog(repoRoot: string): Catalog {
     const local = pluginHasLocalManifest(repoRoot, p.name);
     pluginByName.set(p.name, {
       name: p.name,
-      description: p.description,
+      description: p.defaultOn === false ? `(opt-in) ${p.description}` : p.description,
       agents: ["claude"],
       ...(local ? {} : { external: true }),
     });

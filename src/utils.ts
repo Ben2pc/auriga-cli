@@ -25,6 +25,7 @@ export interface PluginDef {
   package: string;
   description: string;
   marketplace?: MarketplaceRef;
+  defaultOn?: boolean;
 }
 
 export interface PluginsConfig {

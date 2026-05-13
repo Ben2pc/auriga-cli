@@ -6,17 +6,5 @@
     "auriga-go@auriga-cli": true,
     "auriga-git-guards@auriga-cli": true
   },
-  "hooks": {
-    "Notification": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/notify/index.mjs\"",
-            "_marker": "auriga:notify"
-          }
-        ]
-      }
-    ]
-  }
+  "hooks": {}
 }

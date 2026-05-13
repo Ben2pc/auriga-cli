@@ -1,4 +1,4 @@
-# notify hook
+# auriga-notify plugin
 
 Fires a native macOS notification (banner + sound) whenever Claude Code
 emits a `Notification` event — permission prompts, idle input waits — so
@@ -6,11 +6,13 @@ you get pulled back to the terminal without having to watch it.
 
 ## Customize
 
-Edit `config.json` next to this README:
+Project-scope customization lives at `./.claude/auriga-notify/config.json`.
+User-scope customization lives at `~/.config/auriga-cli/notify/config.json`.
+You can also point `AURIGA_NOTIFY_CONFIG` at a JSON file for ad hoc testing.
 
 ```json
 {
-  "icon": "./icon.png",
+  "icon": "icon.png",
   "sound": "Submarine"
 }
 ```
@@ -20,9 +22,10 @@ Edit `config.json` next to this README:
   `Ping`, `Pop`, `Purr`, `Sosumi`, `Submarine`, `Tink`. You can also
   drop a `.aiff` or `.caf` into `~/Library/Sounds/` and reference it by
   filename without the extension.
-- **`icon`** — relative to this directory (default `./icon.png`) or an
-  absolute path. Replace `icon.png` with any 512×512 PNG to brand it
-  yourself; the file is never overwritten by re-running the installer.
+- **`icon`** — relative to the config file's directory or an absolute
+  path. Replace the migrated `icon.png` with any 512×512 PNG to brand it
+  yourself. If no custom icon exists, the plugin falls back to its bundled
+  `assets/icon.png`.
 - **`sender`** *(optional, advanced)* — bundle ID of a macOS app whose
   notification permission the notification should piggy-back on (e.g.
   `"com.apple.Terminal"`, `"com.googlecode.iterm2"`). Default is unset,
@@ -60,14 +63,14 @@ cross-platform team if you registered it in `.claude/settings.json`.
 
 ## Test it
 
-After editing `config.json` or replacing `icon.png`, fire a fake
+After editing your config or replacing `icon.png`, fire a fake
 `Notification` event end-to-end without waiting for Claude:
 
 ```bash
-node .claude/hooks/notify/test.mjs
+node plugins/auriga-notify/scripts/test-notify.mjs
 ```
 
-This invokes `index.mjs` exactly the way Claude Code would, so what you
+This invokes `notify.mjs` exactly the way Claude Code would, so what you
 see + hear is what you'll get in real use.
 
 **No sound but the banner shows up?** macOS's *alert volume* is
@@ -79,7 +82,7 @@ notification permission for your terminal app being set to "None" in
 
 ## How it works
 
-`index.mjs` reads the `Notification` event payload from stdin, then
+`scripts/notify.mjs` reads the `Notification` event payload from stdin, then
 decides between three paths:
 
 - **Sound only** — when `soundOnlyWhenFocused` is on AND the launching
@@ -120,8 +123,13 @@ decides between three paths:
 
 ## Re-installing
 
-Re-running `npx auriga-cli` and re-selecting this hook will:
+`auriga-notify` is opt-in. Install it explicitly:
 
-- Overwrite `index.mjs`, `test.mjs`, and this `README.md` (the runtime, smoke test, and docs).
-- Preserve `config.json` and `icon.png` (your customizations).
-- Skip duplicate entries in `settings.json` / `settings.local.json`.
+```bash
+npx -y auriga-cli install plugins --plugin auriga-notify
+```
+
+If an older standalone `.claude/hooks/notify/` install exists, the CLI
+migrates `config.json` and `icon.png` into the plugin-owned config directory
+without overwriting existing files, removes the old settings marker, and
+deletes the legacy hook directory.

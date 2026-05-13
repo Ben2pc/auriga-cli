@@ -325,31 +325,67 @@ describe(
     );
 
     test(
-      "install hooks --hook notify → notify dir + settings entry",
-      { skip: process.platform === "darwin" ? undefined : "notify hook is darwin-only", timeout: TIMEOUT },
+      "install plugins --plugin auriga-notify → plugin registered + legacy notify config migrated",
+      { skip: CLAUDE_AVAILABLE ? undefined : "requires 'claude' CLI", timeout: TIMEOUT },
       () => {
         const proj = setupProject(tarballPath!);
-        const r = runCli(proj, ["install", "hooks", "--hook", "notify"]);
+        const legacyDir = path.join(proj, ".claude", "hooks", "notify");
+        fs.mkdirSync(legacyDir, { recursive: true });
+        fs.writeFileSync(path.join(legacyDir, "config.json"), JSON.stringify({ title: "legacy" }));
+        fs.writeFileSync(path.join(legacyDir, "icon.png"), "legacy-icon");
+        fs.writeFileSync(
+          path.join(proj, ".claude", "settings.json"),
+          JSON.stringify({
+            hooks: {
+              Notification: [
+                {
+                  hooks: [
+                    {
+                      type: "command",
+                      command: "node .claude/hooks/notify/index.mjs",
+                      _marker: "auriga:notify",
+                    },
+                  ],
+                },
+              ],
+            },
+          }),
+        );
+
+        const r = runCli(proj, ["install", "plugins", "--plugin", "auriga-notify"]);
         assert.equal(
           r.status,
           0,
-          `install hooks exited ${r.status}.\nstdout: ${r.stdout}\nstderr: ${r.stderr}`,
+          `install plugins exited ${r.status}.\nstdout: ${r.stdout}\nstderr: ${r.stderr}`,
         );
-        const hookDir = path.join(proj, ".claude", "hooks", "notify");
-        assert.ok(fs.existsSync(path.join(hookDir, "index.mjs")), "notify/index.mjs missing");
+
         const settings = path.join(proj, ".claude", "settings.json");
         assert.ok(fs.existsSync(settings), ".claude/settings.json missing");
-        const parsed = JSON.parse(fs.readFileSync(settings, "utf-8")) as {
+        const content = fs.readFileSync(settings, "utf-8");
+        assert.match(content, /auriga-notify/, "auriga-notify not mentioned in .claude/settings.json");
+
+        const pluginConfigDir = path.join(proj, ".claude", "auriga-notify");
+        assert.equal(
+          fs.readFileSync(path.join(pluginConfigDir, "config.json"), "utf-8"),
+          JSON.stringify({ title: "legacy" }),
+          "legacy notify config.json was not preserved under the plugin config dir",
+        );
+        assert.equal(
+          fs.readFileSync(path.join(pluginConfigDir, "icon.png"), "utf-8"),
+          "legacy-icon",
+          "legacy notify icon.png was not preserved under the plugin config dir",
+        );
+        assert.equal(fs.existsSync(legacyDir), false, "legacy .claude/hooks/notify dir should be removed");
+
+        const parsed = JSON.parse(content) as {
           hooks?: Record<string, Array<{ hooks: Array<{ _marker?: string }> }>>;
         };
-        // Confirm the marker sentinel landed — that's the primary key
-        // addHookToSettings uses for idempotency, so its presence means
-        // the registry merge actually ran end-to-end.
         const markers = Object.values(parsed.hooks ?? {})
           .flatMap((events) => events.flatMap((e) => e.hooks.map((h) => h._marker)));
-        assert.ok(
+        assert.equal(
           markers.some((m) => typeof m === "string" && m.includes("notify")),
-          `expected an auriga:notify marker in settings.hooks, got ${JSON.stringify(markers)}`,
+          false,
+          `legacy auriga:notify marker should be removed, got ${JSON.stringify(markers)}`,
         );
       },
     );
@@ -375,7 +411,7 @@ describe(
     });
 
     test(
-      "install --all → workflow + skills + plugins + hooks all present",
+      "install --all → workflow + skills + default plugins present, opt-in notify absent",
       { skip: CLAUDE_AVAILABLE ? undefined : "requires 'claude' CLI", timeout: TIMEOUT },
       () => {
         const proj = setupProject(tarballPath!);
@@ -399,29 +435,26 @@ describe(
         // install can actually write it.
         const settings = path.join(proj, ".claude", "settings.json");
         assert.ok(fs.existsSync(settings), ".claude/settings.json missing (plugins category)");
+        const settingsContent = fs.readFileSync(settings, "utf-8");
         assert.match(
-          fs.readFileSync(settings, "utf-8"),
+          settingsContent,
           /auriga-go/,
           "auriga-go plugin not registered in settings.json (plugins category silent-failed)",
         );
-
-        // Hooks category: `install --all` only installs hooks with
-        // `defaultOn: true` in the registry (notify is opt-in on
-        // purpose — macOS-only, requires brew dep). Don't assert a
-        // specific hook; instead assert at least one auriga:* marker
-        // landed, proving the hooks installer ran and merged settings.
-        // A silent hooks-category failure would leave settings.json
-        // with only the plugins marker from `claude plugins install`,
-        // which is not auriga-prefixed.
-        const settingsParsed = JSON.parse(fs.readFileSync(settings, "utf-8")) as {
-          hooks?: Record<string, Array<{ hooks: Array<{ _marker?: string }> }>>;
-        };
-        const aurigaMarkers = Object.values(settingsParsed.hooks ?? {})
-          .flatMap((events) => events.flatMap((e) => e.hooks.map((h) => h._marker)))
-          .filter((m): m is string => typeof m === "string" && m.startsWith("auriga:"));
-        assert.ok(
-          aurigaMarkers.length > 0,
-          `no auriga:* hook markers in settings.json — hooks category likely silent-failed. Got markers: ${JSON.stringify(aurigaMarkers)}`,
+        assert.match(
+          settingsContent,
+          /auriga-workflow-skills/,
+          "auriga-workflow-skills plugin not registered in settings.json (default plugin selection regressed)",
+        );
+        assert.doesNotMatch(
+          settingsContent,
+          /auriga-notify/,
+          "auriga-notify is opt-in and must not be installed by install --all",
+        );
+        assert.equal(
+          fs.existsSync(path.join(proj, ".claude", "auriga-notify")),
+          false,
+          "auriga-notify config dir should not be created by install --all",
         );
       },
     );

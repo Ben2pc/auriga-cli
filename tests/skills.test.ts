@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 
-import { planSkillInstallCommands } from "../src/skills.js";
+import { WORKFLOW_SKILLS, planSkillInstallCommands } from "../src/skills.js";
 import type { SkillsLock } from "../src/utils.js";
 
 // Typed as the real SkillsLock["skills"] shape so schema drift in
@@ -30,6 +30,19 @@ const LOCK: SkillsLock["skills"] = {
 };
 
 describe("planSkillInstallCommands", () => {
+  test("repo-owned migrated workflow skills are not standalone workflow-skill defaults", () => {
+    // rationale: these three now ship through the auriga-workflow-skills
+    // plugin, so bare `install skills` must not ask the skills CLI to add
+    // them as standalone workflow skills.
+    const migrated = ["incremental-impl", "test-designer", "session-compound"];
+    assert.deepEqual(
+      migrated.filter((name) => WORKFLOW_SKILLS.includes(name)),
+      [],
+    );
+    assert.ok(WORKFLOW_SKILLS.includes("brainstorming"));
+    assert.ok(WORKFLOW_SKILLS.includes("test-driven-development"));
+  });
+
   test("single source, single skill → one command with npx -y", () => {
     const batches = planSkillInstallCommands(["brainstorming"], LOCK, "");
     assert.equal(batches.length, 1);
