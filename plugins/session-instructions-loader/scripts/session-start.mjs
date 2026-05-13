@@ -6,6 +6,7 @@ import path from "node:path";
 const MAX_TOTAL_BYTES = 64 * 1024;
 const AGENTS_FILENAME = "AGENTS.md";
 const CONFIG_PATH = path.join(".agents", "plugins", "session-instructions-loader.json");
+const TOOL_STATE_BOUNDARY_DIRS = new Set([".codex"]);
 
 function readStdin() {
   return fs.readFileSync(0, "utf8");
@@ -51,27 +52,76 @@ function findGitRoot(cwd) {
   return null;
 }
 
+function gitDirFromFile(gitRoot) {
+  const gitMarker = path.join(gitRoot, ".git");
+  try {
+    if (!fs.statSync(gitMarker).isFile()) return null;
+    const match = fs.readFileSync(gitMarker, "utf8").match(/^gitdir:\s*(.+)\s*$/m);
+    if (!match) return null;
+    const gitDir = match[1].trim();
+    return path.resolve(gitRoot, gitDir);
+  } catch {
+    return null;
+  }
+}
+
+function worktreeRepositoryRootFromGitDir(gitDir) {
+  const worktreesDir = path.dirname(gitDir);
+  if (path.basename(worktreesDir) !== "worktrees") return null;
+
+  const commonGitDir = path.dirname(worktreesDir);
+  if (path.basename(commonGitDir) === ".git") return parentOf(commonGitDir);
+
+  return null;
+}
+
 function ancestorDirsFrom(startDir) {
   const dirs = [];
   for (let dir = startDir; dir; dir = parentOf(dir)) {
     dirs.push(dir);
   }
-  return dirs.reverse();
+  const rootToLeaf = dirs.reverse();
+  const boundaryIndex = rootToLeaf.findLastIndex((dir) =>
+    TOOL_STATE_BOUNDARY_DIRS.has(path.basename(dir)),
+  );
+  return boundaryIndex === -1 ? rootToLeaf : rootToLeaf.slice(boundaryIndex + 1);
 }
 
 function readableAgentsFiles(cwd) {
   const gitRoot = findGitRoot(cwd);
-  const firstAncestor = gitRoot ? parentOf(gitRoot) : parentOf(cwd);
-  if (!firstAncestor) return [];
+  const firstAncestors = [];
+
+  if (gitRoot) {
+    const gitDir = gitDirFromFile(gitRoot);
+    if (gitDir) {
+      const originalRepoRoot = worktreeRepositoryRootFromGitDir(gitDir);
+      if (originalRepoRoot && originalRepoRoot !== gitRoot) {
+        const originalRepoAncestor = parentOf(originalRepoRoot);
+        if (originalRepoAncestor) firstAncestors.push(originalRepoAncestor);
+      }
+    }
+
+    const worktreeAncestor = parentOf(gitRoot);
+    if (worktreeAncestor) firstAncestors.push(worktreeAncestor);
+  } else {
+    const cwdAncestor = parentOf(cwd);
+    if (cwdAncestor) firstAncestors.push(cwdAncestor);
+  }
 
   const files = [];
-  for (const dir of ancestorDirsFrom(firstAncestor)) {
-    const candidate = path.join(dir, AGENTS_FILENAME);
-    try {
-      const stat = fs.statSync(candidate);
-      if (stat.isFile()) files.push(candidate);
-    } catch {
-      // Missing or unreadable files are not fatal for a context hook.
+  const seen = new Set();
+  for (const firstAncestor of firstAncestors) {
+    for (const dir of ancestorDirsFrom(firstAncestor)) {
+      const candidate = path.join(dir, AGENTS_FILENAME);
+      if (seen.has(candidate)) continue;
+      seen.add(candidate);
+
+      try {
+        const stat = fs.statSync(candidate);
+        if (stat.isFile()) files.push(candidate);
+      } catch {
+        // Missing or unreadable files are not fatal for a context hook.
+      }
     }
   }
   return files;
