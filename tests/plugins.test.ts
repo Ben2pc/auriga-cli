@@ -58,6 +58,13 @@ function makeCodexMarketplace(): string {
     version: "1.0.0",
     hooks: "./hooks/hooks.json",
   });
+  fs.mkdirSync(path.join(root, "plugins/session-instructions-loader/skills/session-loader"), {
+    recursive: true,
+  });
+  fs.writeFileSync(
+    path.join(root, "plugins/session-instructions-loader/skills/session-loader/SKILL.md"),
+    "# session loader\n",
+  );
   writeJson(path.join(root, "plugins/marketplace-only/.codex-plugin/plugin.json"), {
     name: "marketplace-only",
     version: "1.0.0",
@@ -413,6 +420,39 @@ describe("installPlugins — Codex target", () => {
     });
 
     assert.deepEqual(atomicWrites, [path.join(codexHome, "config.toml")]);
+  });
+
+  test("materializes local Codex plugin cache for selected plugins", async () => {
+    const packageRoot = makeCodexMarketplace();
+    const codexHome = fs.mkdtempSync(path.join(os.tmpdir(), "auriga-codex-home-"));
+    process.env.CODEX_HOME = codexHome;
+    const { installPlugins } = await importPlugins(() => "");
+
+    await installPlugins(packageRoot, {
+      interactive: false,
+      agent: "codex",
+      selected: ["session-instructions-loader"],
+    });
+
+    const cachedPluginRoot = path.join(
+      codexHome,
+      "plugins/cache/auriga-cli/session-instructions-loader/1.0.0",
+    );
+    assert.equal(
+      fs.existsSync(path.join(cachedPluginRoot, ".codex-plugin/plugin.json")),
+      true,
+      "selected plugin manifest should be present in the Codex cache",
+    );
+    assert.equal(
+      fs.existsSync(path.join(cachedPluginRoot, "skills/session-loader/SKILL.md")),
+      true,
+      "selected plugin content should be present in the Codex cache",
+    );
+    assert.equal(
+      fs.existsSync(path.join(codexHome, "plugins/cache/auriga-cli/auriga-go")),
+      false,
+      "unselected local plugins should not be materialized",
+    );
   });
 
   test("uses the auriga Codex install list instead of installing every marketplace plugin by default", async () => {
