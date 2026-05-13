@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -6,6 +7,7 @@ import { afterEach, describe, mock, test } from "node:test";
 import { parse } from "smol-toml";
 
 let importSerial = 0;
+const ORIGINAL_HOME = process.env.HOME;
 
 function writeJson(file: string, value: unknown): void {
   fs.mkdirSync(path.dirname(file), { recursive: true });
@@ -218,6 +220,8 @@ async function importPlugins(
 afterEach(() => {
   mock.restoreAll();
   delete process.env.CODEX_HOME;
+  if (ORIGINAL_HOME === undefined) delete process.env.HOME;
+  else process.env.HOME = ORIGINAL_HOME;
 });
 
 describe("installPlugins — Codex target", () => {
@@ -952,6 +956,73 @@ describe("installPlugins — Claude target", () => {
     assert.deepEqual(Object.keys(lock.skills).sort(), ["brainstorming", "planning-with-files"]);
   });
 
+  test("auriga-workflow-skills Codex-only install preserves Claude legacy fallback", async () => {
+    const packageRoot = makeMigratedAssetsPluginPackage();
+    const cwd = fs.mkdtempSync(path.join(os.tmpdir(), "auriga-migrated-skills-codex-only-"));
+    const codexHome = fs.mkdtempSync(path.join(os.tmpdir(), "auriga-codex-home-"));
+    process.env.CODEX_HOME = codexHome;
+    for (const name of ["incremental-impl", "test-designer", "session-compound"]) {
+      seedLegacySkill(cwd, name);
+    }
+    const { installPlugins } = await importPlugins(() => "");
+
+    await installPlugins(packageRoot, {
+      interactive: false,
+      agent: "codex",
+      selected: ["auriga-workflow-skills"],
+      cwd,
+      scope: "project",
+    });
+
+    for (const name of ["incremental-impl", "test-designer", "session-compound"]) {
+      assert.equal(
+        fs.existsSync(path.join(cwd, ".agents", "skills", name)),
+        false,
+        `${name} should be removed from the Codex legacy view`,
+      );
+      assert.equal(
+        fs.existsSync(path.join(cwd, ".claude", "skills", name)),
+        true,
+        `${name} must remain available to Claude when only the Codex plugin was enabled`,
+      );
+    }
+  });
+
+  test("auriga-workflow-skills cleanup preserves repo development symlinks", async () => {
+    const packageRoot = makeMigratedAssetsPluginPackage();
+    const cwd = fs.mkdtempSync(path.join(os.tmpdir(), "auriga-migrated-skills-dev-symlink-"));
+    const codexHome = fs.mkdtempSync(path.join(os.tmpdir(), "auriga-codex-home-"));
+    process.env.CODEX_HOME = codexHome;
+    for (const name of ["incremental-impl", "test-designer", "session-compound"]) {
+      const pluginSkillDir = path.join(cwd, "plugins", "auriga-workflow-skills", "skills", name);
+      fs.mkdirSync(pluginSkillDir, { recursive: true });
+      fs.writeFileSync(path.join(pluginSkillDir, "SKILL.md"), `# ${name}\n`);
+      for (const agentDir of [".claude", ".agents"]) {
+        const link = path.join(cwd, agentDir, "skills", name);
+        fs.mkdirSync(path.dirname(link), { recursive: true });
+        fs.symlinkSync(pluginSkillDir, link);
+      }
+    }
+    const { installPlugins } = await importPlugins((cmd) => {
+      if (cmd === "claude plugins list --json") return "[]";
+      if (cmd === "claude plugins marketplace list") return "";
+      return "";
+    });
+
+    await installPlugins(packageRoot, {
+      interactive: false,
+      agent: "both",
+      selected: ["auriga-workflow-skills"],
+      cwd,
+      scope: "project",
+    });
+
+    for (const name of ["incremental-impl", "test-designer", "session-compound"]) {
+      assert.equal(fs.lstatSync(path.join(cwd, ".claude", "skills", name)).isSymbolicLink(), true);
+      assert.equal(fs.lstatSync(path.join(cwd, ".agents", "skills", name)).isSymbolicLink(), true);
+    }
+  });
+
   test("auriga-notify install preserves legacy hook config and icon under plugin-owned config", async () => {
     const packageRoot = makeMigratedAssetsPluginPackage();
     const cwd = fs.mkdtempSync(path.join(os.tmpdir(), "auriga-notify-migrate-"));
@@ -981,6 +1052,162 @@ describe("installPlugins — Claude target", () => {
     assert.ok(iconPath, "migrated icon.png should land under an auriga-notify plugin-owned path");
     assert.equal(fs.readFileSync(configPath, "utf-8"), configBody);
     assert.equal(Buffer.compare(fs.readFileSync(iconPath), iconBody), 0);
+  });
+
+  test("auriga-notify project migration removes both legacy settings files", async () => {
+    const packageRoot = makeMigratedAssetsPluginPackage();
+    const cwd = fs.mkdtempSync(path.join(os.tmpdir(), "auriga-notify-settings-"));
+    const legacyDir = path.join(cwd, ".claude", "hooks", "notify");
+    fs.mkdirSync(legacyDir, { recursive: true });
+    fs.writeFileSync(path.join(legacyDir, "config.json"), "{}\n");
+    for (const file of ["settings.json", "settings.local.json"]) {
+      writeJson(path.join(cwd, ".claude", file), {
+        hooks: {
+          Notification: [
+            {
+              matcher: "",
+              hooks: [
+                { type: "command", command: "node .claude/hooks/notify/index.mjs", _marker: "auriga:notify" },
+                { type: "command", command: "echo keep" },
+              ],
+            },
+          ],
+        },
+      });
+    }
+    const { installPlugins } = await importPlugins((cmd) => {
+      if (cmd === "claude plugins list --json") return "[]";
+      if (cmd === "claude plugins marketplace list") return "";
+      return "";
+    });
+
+    await installPlugins(packageRoot, {
+      interactive: false,
+      agent: "claude",
+      selected: ["auriga-notify"],
+      cwd,
+      scope: "project",
+    });
+
+    for (const file of ["settings.json", "settings.local.json"]) {
+      const settings = JSON.parse(fs.readFileSync(path.join(cwd, ".claude", file), "utf-8")) as {
+        hooks: { Notification: Array<{ hooks: unknown[] }> };
+      };
+      assert.deepEqual(settings.hooks.Notification[0].hooks, [
+        { type: "command", command: "echo keep" },
+      ]);
+    }
+    assert.equal(fs.existsSync(legacyDir), false);
+  });
+
+  test("auriga-notify user migration moves user config and cleans user settings", async () => {
+    const packageRoot = makeMigratedAssetsPluginPackage();
+    const home = fs.mkdtempSync(path.join(os.tmpdir(), "auriga-notify-home-"));
+    process.env.HOME = home;
+    const legacyDir = path.join(home, ".claude", "hooks", "notify");
+    fs.mkdirSync(legacyDir, { recursive: true });
+    fs.writeFileSync(path.join(legacyDir, "config.json"), "{\"sound\":\"Glass\"}\n");
+    writeJson(path.join(home, ".claude", "settings.json"), {
+      hooks: {
+        Notification: [
+          {
+            hooks: [
+              { type: "command", command: "node ~/.claude/hooks/notify/index.mjs", _marker: "auriga:notify" },
+            ],
+          },
+        ],
+      },
+    });
+    const { installPlugins } = await importPlugins((cmd) => {
+      if (cmd === "claude plugins list --json") return "[]";
+      if (cmd === "claude plugins marketplace list") return "";
+      return "";
+    });
+
+    await installPlugins(packageRoot, {
+      interactive: false,
+      agent: "claude",
+      selected: ["auriga-notify"],
+      scope: "user",
+    });
+
+    assert.equal(
+      fs.readFileSync(path.join(home, ".config", "auriga-cli", "notify", "config.json"), "utf-8"),
+      "{\"sound\":\"Glass\"}\n",
+    );
+    assert.deepEqual(
+      JSON.parse(fs.readFileSync(path.join(home, ".claude", "settings.json"), "utf-8")),
+      { hooks: {} },
+    );
+    assert.equal(fs.existsSync(legacyDir), false);
+  });
+
+  test("auriga-notify keeps legacy directory when settings cleanup cannot be verified", async () => {
+    const packageRoot = makeMigratedAssetsPluginPackage();
+    const cwd = fs.mkdtempSync(path.join(os.tmpdir(), "auriga-notify-bad-settings-"));
+    const legacyDir = path.join(cwd, ".claude", "hooks", "notify");
+    fs.mkdirSync(legacyDir, { recursive: true });
+    fs.writeFileSync(path.join(legacyDir, "config.json"), "{}\n");
+    fs.mkdirSync(path.join(cwd, ".claude"), { recursive: true });
+    fs.writeFileSync(path.join(cwd, ".claude", "settings.json"), "{bad json");
+    const { installPlugins } = await importPlugins((cmd) => {
+      if (cmd === "claude plugins list --json") return "[]";
+      if (cmd === "claude plugins marketplace list") return "";
+      return "";
+    });
+
+    await installPlugins(packageRoot, {
+      interactive: false,
+      agent: "claude",
+      selected: ["auriga-notify"],
+      cwd,
+      scope: "project",
+    });
+
+    assert.equal(fs.existsSync(legacyDir), true);
+  });
+
+  test("auriga-notify click activation passes bundle id to osascript as data", () => {
+    if (process.platform !== "darwin") return;
+    const binDir = fs.mkdtempSync(path.join(os.tmpdir(), "auriga-notify-bin-"));
+    const argsOut = path.join(binDir, "osascript-args.json");
+    const fakeAlerter = path.join(binDir, "alerter");
+    const fakeOsascript = path.join(binDir, "osascript");
+    const fakeOsascriptRecorder = path.join(binDir, "record-osascript.cjs");
+    fs.writeFileSync(fakeAlerter, "#!/bin/sh\nprintf '@CONTENTCLICKED\\n'\n");
+    fs.writeFileSync(
+      fakeOsascriptRecorder,
+      'const fs = require("fs"); fs.writeFileSync(process.env.OSASCRIPT_ARGS_OUT, JSON.stringify(process.argv.slice(2)));',
+    );
+    fs.writeFileSync(
+      fakeOsascript,
+      `#!/bin/sh\nexec ${JSON.stringify(process.execPath)} ${JSON.stringify(fakeOsascriptRecorder)} "$@"\n`,
+    );
+    fs.chmodSync(fakeAlerter, 0o755);
+    fs.chmodSync(fakeOsascript, 0o755);
+    const maliciousBundle = "com.apple.Terminal\" & do shell script \"touch /tmp/auriga-pwned\" & \"";
+    const script = path.resolve("plugins/auriga-notify/scripts/notify.mjs");
+
+    const result = spawnSync(process.execPath, [
+      script,
+      "--alerter-worker",
+      JSON.stringify({ bin: fakeAlerter, args: [], activate: maliciousBundle }),
+    ], {
+      cwd: path.dirname(script),
+      env: {
+        ...process.env,
+        PATH: `${binDir}${path.delimiter}${process.env.PATH ?? ""}`,
+        OSASCRIPT_ARGS_OUT: argsOut,
+      },
+      encoding: "utf-8",
+    });
+
+    assert.equal(result.status, 0, result.stderr);
+    const args = JSON.parse(fs.readFileSync(argsOut, "utf-8")) as string[];
+    const separator = args.indexOf("--");
+    assert.notEqual(separator, -1, `expected osascript argv separator, got ${args.join(" ")}`);
+    assert.equal(args.at(-1), maliciousBundle);
+    assert.equal(args.slice(0, separator).some((arg) => arg.includes(maliciousBundle)), false);
   });
 
   test("fails when a Codex-only plugin is explicitly selected for Claude Code", async () => {

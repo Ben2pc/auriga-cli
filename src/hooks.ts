@@ -896,9 +896,15 @@ export async function installHooks(
     h.runtimePlatforms.includes(process.platform),
   );
   if (compatible.length === 0) {
-    log.warn(
-      `No hooks available for your platform (${process.platform}). Skipping.`,
-    );
+    if (config.hooks.length === 0) {
+      log.warn(
+        "No legacy hooks are defined. The notify hook moved to the opt-in auriga-notify plugin.",
+      );
+    } else {
+      log.warn(
+        `No hooks available for your platform (${process.platform}). Skipping.`,
+      );
+    }
     return;
   }
 

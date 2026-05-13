@@ -1,6 +1,6 @@
 # auriga 自维护资产插件化迁移设计
 
-> Status: active spec
+> Status: archived worklog
 > Date: 2026-05-13
 > Scope: 将本仓库自维护的三个 workflow skill 和 `notify` hook 迁移为插件。
 

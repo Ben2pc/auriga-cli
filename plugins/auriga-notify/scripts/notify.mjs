@@ -174,8 +174,8 @@ function playSoundOnly(soundName) {
 // Claude sessions in different projects would silently cannibalize
 // each other's notifications via alerter's same-group replacement.
 // process.cwd() is the directory the hook fires from — typically the
-// project root. 8 hex chars of sha256 is plenty for collision-free
-// grouping across a developer's project set.
+// project root. 8 hex chars of sha256 is compact enough for readable
+// grouping and unlikely to collide across a developer's project set.
 function projectGroupId() {
   const hash = createHash("sha256")
     .update(process.cwd())
@@ -214,11 +214,15 @@ if (process.argv[2] === "--alerter-worker") {
       result.status === 0 &&
       typeof result.stdout === "string" &&
       result.stdout.includes("@CONTENTCLICKED") &&
-      job.activate
+      typeof job.activate === "string" &&
+      job.activate.length > 0
     ) {
       spawnSync("osascript", [
-        "-e",
-        `tell application id "${job.activate}" to activate`,
+        "-e", "on run argv",
+        "-e", "tell application id (item 1 of argv) to activate",
+        "-e", "end run",
+        "--",
+        job.activate,
       ]);
     }
   } catch {

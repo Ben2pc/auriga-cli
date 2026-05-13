@@ -49,7 +49,7 @@
     {
       "name": "auriga-notify",
       "package": "auriga-notify@auriga-cli",
-      "description": "Opt-in macOS native notification hook for Claude Code Notification events.",
+      "description": "Opt-in macOS native notification hook for Claude Code Notification events; migrates legacy notify config and icon on install.",
       "defaultOn": false,
       "marketplace": {
         "name": "auriga-cli",

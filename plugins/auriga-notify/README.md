@@ -95,9 +95,9 @@ decides between three paths:
   available notification backend:
 
 1. **`alerter`** *(preferred)* — Swift-based notification CLI with
-   `--app-icon` for the small top-left icon next to the title. The
-   auriga-cli installer auto-installs it via
-   `brew install vjeantet/tap/alerter`. alerter blocks until the user
+   `--app-icon` for the small top-left icon next to the title. Install
+   it separately with `brew install vjeantet/tap/alerter`; without it,
+   the hook falls back to `osascript`. alerter blocks until the user
    clicks (or the notification is replaced), so the hook spawns it
    through a detached background worker and exits immediately —
    Claude Code is never blocked. The worker watches alerter's stdout

@@ -14,7 +14,6 @@ import {
   type CodexMarketplacePlugin,
 } from "./codex-plugin-config.js";
 import { validateMarketplaceField, type MarketplaceRef } from "./marketplace.js";
-import { uninstallSkillManual } from "./skills.js";
 import { atomicWriteFile, exec, execAsync, fetchExtraContent, log, withEsc } from "./utils.js";
 import type { InstallOpts, PluginAgent, PluginsConfig, PluginDef } from "./utils.js";
 
@@ -35,6 +34,7 @@ const MIGRATED_WORKFLOW_SKILLS = [
 const NOTIFY_PLUGIN_NAME = "auriga-notify";
 const WORKFLOW_SKILLS_PLUGIN_NAME = "auriga-workflow-skills";
 const LEGACY_NOTIFY_MARKER = "auriga:notify";
+type PluginRuntime = "claude" | "codex";
 
 export function validatePluginsConfig(raw: unknown): asserts raw is PluginsConfig {
   if (!raw || typeof raw !== "object") {
@@ -112,9 +112,9 @@ function getInstalledPlugins(): Map<string, string[]> {
 }
 
 /**
- * Non-interactive selection resolver for plugins. Mirrors the skills
- * resolveSelected: `undefined` / `["*"]` = full set; explicit names =
- * filter. CLI parser validates names up-front.
+ * Non-interactive selection resolver for plugins.
+ * `undefined` = default-on set; `["*"]` = full set; explicit names =
+ * exact filter. CLI parser validates names up-front.
  */
 function resolvePluginSelection(
   all: PluginDef[],
@@ -193,16 +193,66 @@ function emitMigrationLog(opts: InstallOpts, line: string): void {
   opts.onLog?.(line, "stdout");
 }
 
-async function cleanupMigratedWorkflowSkillInstalls(opts: InstallOpts): Promise<void> {
+function runtimeSkillRoot(runtime: PluginRuntime): ".claude" | ".agents" {
+  return runtime === "claude" ? ".claude" : ".agents";
+}
+
+function legacySkillDir(
+  opts: InstallOpts,
+  runtime: PluginRuntime,
+  name: string,
+): string {
+  const cwd = installTargetCwd(opts);
+  const scope = opts.scope ?? "project";
+  const baseDir = scope === "user" ? os.homedir() : cwd;
+  return path.join(baseDir, runtimeSkillRoot(runtime), "skills", name);
+}
+
+function isWorkflowPluginDevSymlink(skillPath: string, cwd: string, name: string): boolean {
+  const stat = fs.lstatSync(skillPath, { throwIfNoEntry: false });
+  if (!stat?.isSymbolicLink()) return false;
+  const target = fs.readlinkSync(skillPath);
+  const resolved = path.resolve(path.dirname(skillPath), target);
+  const expected = path.resolve(cwd, "plugins", "auriga-workflow-skills", "skills", name);
+  return resolved === expected;
+}
+
+function removeMigratedSkillFromLock(cwd: string, name: string, opts: InstallOpts): void {
+  const lockPath = path.join(cwd, "skills-lock.json");
+  if (!fs.existsSync(lockPath)) return;
+  const raw = JSON.parse(fs.readFileSync(lockPath, "utf-8")) as {
+    skills?: Record<string, unknown>;
+    [key: string]: unknown;
+  };
+  if (!raw.skills || typeof raw.skills !== "object" || !(name in raw.skills)) return;
+  const nextSkills = { ...raw.skills };
+  delete nextSkills[name];
+  atomicWriteFile(lockPath, JSON.stringify({ ...raw, skills: nextSkills }, null, 2) + "\n");
+  emitMigrationLog(opts, `removed ${name} from skills-lock.json`);
+}
+
+function cleanupMigratedWorkflowSkillInstalls(
+  opts: InstallOpts,
+  runtimes: PluginRuntime[],
+): void {
   const cwd = installTargetCwd(opts);
   const scope = opts.scope ?? "project";
   for (const name of MIGRATED_WORKFLOW_SKILLS) {
-    await uninstallSkillManual(
-      name,
-      cwd,
-      (line) => emitMigrationLog(opts, line),
-      scope,
-    );
+    for (const runtime of runtimes) {
+      const dir = legacySkillDir(opts, runtime, name);
+      const stat = fs.lstatSync(dir, { throwIfNoEntry: false });
+      if (!stat) {
+        emitMigrationLog(opts, `${runtimeSkillRoot(runtime)}/skills/${name} not present`);
+        continue;
+      }
+      if (scope === "project" && isWorkflowPluginDevSymlink(dir, cwd, name)) {
+        emitMigrationLog(opts, `preserved ${runtimeSkillRoot(runtime)}/skills/${name} development symlink`);
+        continue;
+      }
+      fs.rmSync(dir, { recursive: true, force: true });
+      emitMigrationLog(opts, `removed ${runtimeSkillRoot(runtime)}/skills/${name}`);
+    }
+    if (scope === "project") removeMigratedSkillFromLock(cwd, name, opts);
   }
 }
 
@@ -246,7 +296,8 @@ function removeMarkerFromSettings(settings: SettingsFile, marker: string): {
   return { settings: next, removed };
 }
 
-function cleanLegacyNotifySettings(settingsPaths: string[], opts: InstallOpts): void {
+function cleanLegacyNotifySettings(settingsPaths: string[], opts: InstallOpts): boolean {
+  let allReadable = true;
   for (const settingsPath of settingsPaths) {
     if (!fs.existsSync(settingsPath)) continue;
     let parsed: SettingsFile;
@@ -254,6 +305,7 @@ function cleanLegacyNotifySettings(settingsPaths: string[], opts: InstallOpts): 
       parsed = JSON.parse(fs.readFileSync(settingsPath, "utf-8")) as SettingsFile;
     } catch {
       emitMigrationLog(opts, `skipped unreadable legacy notify settings: ${settingsPath}`);
+      allReadable = false;
       continue;
     }
     const result = removeMarkerFromSettings(parsed, LEGACY_NOTIFY_MARKER);
@@ -261,6 +313,7 @@ function cleanLegacyNotifySettings(settingsPaths: string[], opts: InstallOpts): 
     atomicWriteFile(settingsPath, JSON.stringify(result.settings, null, 2) + "\n");
     emitMigrationLog(opts, `removed ${result.removed} legacy notify settings entries from ${settingsPath}`);
   }
+  return allReadable;
 }
 
 function migrateLegacyNotifyConfig(opts: InstallOpts): void {
@@ -290,17 +343,23 @@ function migrateLegacyNotifyConfig(opts: InstallOpts): void {
         path.join(cwd, ".claude", "settings.json"),
         path.join(cwd, ".claude", "settings.local.json"),
       ];
-  cleanLegacyNotifySettings(settingsPaths, opts);
+  const settingsCleaned = cleanLegacyNotifySettings(settingsPaths, opts);
 
-  if (fs.existsSync(legacyDir)) {
+  if (settingsCleaned && fs.existsSync(legacyDir)) {
     fs.rmSync(legacyDir, { recursive: true, force: true });
     emitMigrationLog(opts, `removed legacy notify hook directory ${legacyDir}`);
+  } else if (!settingsCleaned && fs.existsSync(legacyDir)) {
+    emitMigrationLog(opts, `kept legacy notify hook directory because settings cleanup was incomplete: ${legacyDir}`);
   }
 }
 
-async function runPostInstallMigration(pluginName: string, opts: InstallOpts): Promise<void> {
+function runPostInstallMigration(
+  pluginName: string,
+  opts: InstallOpts,
+  runtimes: PluginRuntime[],
+): void {
   if (pluginName === WORKFLOW_SKILLS_PLUGIN_NAME) {
-    await cleanupMigratedWorkflowSkillInstalls(opts);
+    cleanupMigratedWorkflowSkillInstalls(opts, runtimes);
   }
   if (pluginName === NOTIFY_PLUGIN_NAME) {
     migrateLegacyNotifyConfig(opts);
@@ -684,7 +743,7 @@ async function installCodexPlugins(
     );
     for (const plugin of [...localSelected, ...externalSelected]) {
       log.ok(`${plugin.name} enabled for Codex`);
-      await runPostInstallMigration(plugin.name, opts);
+      runPostInstallMigration(plugin.name, opts, ["codex"]);
     }
   }
 
@@ -861,14 +920,15 @@ export async function installPlugins(
         console.log(`\nInstalling ${plugin.name}...`);
         try {
           const cmd = `claude plugins install ${plugin.package} --scope ${scope}`;
+          const cmdOpts = { cwd: installTargetCwd(opts) };
           if (opts.onLog) {
             opts.onLog(`▸ ${cmd}`, "stdout");
-            await execAsync(cmd, { onLine: opts.onLog });
+            await execAsync(cmd, { ...cmdOpts, onLine: opts.onLog });
           } else {
-            exec(cmd, { inherit: true });
+            exec(cmd, { ...cmdOpts, inherit: true });
           }
           log.ok(`${plugin.name} installed`);
-          await runPostInstallMigration(plugin.name, { ...opts, scope });
+          runPostInstallMigration(plugin.name, { ...opts, scope }, ["claude"]);
         } catch {
           log.error(`Failed to install: ${plugin.name}`);
           failures.push(plugin.name);

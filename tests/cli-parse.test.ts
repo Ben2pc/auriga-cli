@@ -202,10 +202,10 @@ describe("parseArgs", () => {
     expectParseError(["install", "skills", "--skill", "foo"], /unknown skill 'foo'; available: .*brainstorming/i);
     expectParseError(["install", "recommended", "--recommended-skill", "foo"], /available: .*codex-agent/i);
     expectParseError(["install", "plugins", "--plugin", "foo"], /available: .*auriga-go/i);
-    expectParseError(["install", "hooks", "--hook", "notify"], /unknown hook 'notify'/i);
-    expectParseError(["install", "skills", "--skill", "incremental-impl"], /unknown skill 'incremental-impl'/i);
-    expectParseError(["install", "skills", "--skill", "test-designer"], /unknown skill 'test-designer'/i);
-    expectParseError(["install", "skills", "--skill", "session-compound"], /unknown skill 'session-compound'/i);
+    expectParseError(["install", "hooks", "--hook", "notify"], /auriga-notify/i);
+    expectParseError(["install", "skills", "--skill", "incremental-impl"], /auriga-workflow-skills/i);
+    expectParseError(["install", "skills", "--skill", "test-designer"], /auriga-workflow-skills/i);
+    expectParseError(["install", "skills", "--skill", "session-compound"], /auriga-workflow-skills/i);
     expectParseError(["install", "workflow", "--lang", "xx"], /en.*zh-CN|zh-CN.*en/i);
     expectParseError(["install", "plugins", "--scope", "team"], /scope/i);
     expectParseError(["install", "workflow", "--cwd", "/definitely/not/here"], /cwd|directory|exist/i);

@@ -140,7 +140,7 @@ USAGE
 
 FLAGS
   --plugin <names...>      space-separated; '*' = all
-                           omit → install every plugin available for the selected agent
+                           omit → install every plugin with defaultOn != false
   --agent <...>            target runtime: claude, codex, or both
                            default claude; codex enablement is user-level
   --scope <project|user>   default project
