@@ -271,6 +271,22 @@ describe("POST /api/apply (spec §6.1 / §6.4)", () => {
     });
   });
 
+  test("legacy action=\"update\" is rejected → 400 (v1.19.0 deprecation)", async () => {
+    // Pinned regression: re-install is the update path now. If a future
+    // change re-adds "update" to VALID_ACTIONS the deprecated surface comes
+    // back silently — this test fails first.
+    await withServer(async ({ baseUrl, token }) => {
+      const res = await fetch(`${baseUrl}/api/apply`, {
+        method: "POST",
+        headers: { ...authHeaders(token), "content-type": "application/json" },
+        body: JSON.stringify({
+          items: [{ category: "skill", name: "x", action: "update" }],
+        }),
+      });
+      assert.equal(res.status, 400);
+    });
+  });
+
   test("empty items[] is accepted → 202", async () => {
     // Empty batch is well-formed; the runner will simply emit all-done with
     // failedCount: 0. No reason to 400.
