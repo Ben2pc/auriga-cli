@@ -81,9 +81,9 @@ describe("tarball-shape — dist/catalog.json carries everything the scanner nee
   });
 
   test("every plugin entry carries a baked agents map (build-time)", () => {
-    // rationale: scan-catalog used to read .claude/plugins.json +
-    // .agents/plugins/install.json at runtime, both NOT in the tarball.
-    // dist/catalog.json must carry the agent map per plugin so the runtime
+    // rationale: scan-catalog used to derive the agent map from runtime plugin
+    // config files that are NOT in the tarball. dist/catalog.json must carry
+    // the agent map per plugin so the runtime
     // adapter doesn't need to touch any non-shipped file.
     for (const entry of catalogFromTarball.plugins) {
       assert.ok(

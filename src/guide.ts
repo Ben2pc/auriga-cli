@@ -101,8 +101,8 @@ Exit codes:
 
 ${h("## Step 4 — Reload session (REQUIRED when installed non-interactively)")}
 
-${warn("⚠")} CLAUDE.md, .agents/skills/, .claude/plugins.json, Codex plugin
-config, and hook/plugin registrations are loaded at session startup. If you ran
+${warn("⚠")} CLAUDE.md, .agents/skills/, plugin enablement, and hook/plugin
+registrations are loaded at session startup. If you ran
 \`npx -y auriga-cli install\` inside an existing Claude Code or Codex session
 (e.g., \`claude -p\` / \`claude -p --worktree\` / \`codex exec\`), the current session
 will NOT see the new harness.
@@ -118,7 +118,6 @@ Expected artifacts:
   - CLAUDE.md                 (workflow manifesto)
   - AGENTS.md -> CLAUDE.md    (symlink)
   - .agents/skills/<name>/    (one per installed skill)
-  - .claude/plugins.json
   - ~/.codex/config.toml      (Codex plugin enablement, if Codex plugins selected)
   - .claude/settings.json     (updated hook/plugin registrations, if selected)
   - .claude/auriga-notify/    (project notify config, if auriga-notify selected)

@@ -88,9 +88,8 @@ describe("generateCatalog (build-time)", () => {
       catalog.plugins.find((e) => e.name === "session-instructions-loader")?.description ?? "",
       /^\(Codex\)/,
     );
-    // deep-review is dual-Agent and locally bundled (registered in
-    // .claude/plugins.json + .agents/plugins/install.json, sourced from
-    // .claude-plugin/marketplace.json + .agents/plugins/marketplace.json).
+    // deep-review is dual-Agent and locally bundled, sourced from both
+    // repo marketplace manifests.
     assert.match(
       catalog.plugins.find((e) => e.name === "deep-review")?.description ?? "",
       /^\(Claude\/Codex\)/,
@@ -109,9 +108,9 @@ describe("generateCatalog (build-time)", () => {
   });
 
   test("plugins carry baked agents map (build-time, no runtime IO)", () => {
-    // rationale: scan-catalog used to read .claude/plugins.json +
-    // .agents/plugins/install.json at runtime to derive the agent map.
-    // Those files are NOT in the npm tarball (`files` only ships dist/), so
+    // rationale: scan-catalog used to derive the agent map from non-tarball
+    // plugin config files at runtime. Those files are NOT in the npm tarball
+    // (`files` only ships dist/), so
     // installed users had every plugin default to ["claude"] — dual-Agent
     // plugins (auriga-go etc.) mis-classified as Claude-only. The fix bakes
     // `agents` at build time. This pins the contract per plugin.

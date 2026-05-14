@@ -1,15 +1,14 @@
 // Shared shape + validators for cross-Agent marketplace references.
 // Used by:
-//   - PluginDef.marketplace in src/utils.ts (Claude side, .claude/plugins.json)
-//   - CodexInstallPlugin.marketplace in src/codex-plugin-config.ts
-//     (Codex side, .agents/plugins/install.json)
+//   - extra_plugin_configs.json external plugin refs
+//   - Codex local marketplace materialization refs
 //
 // Both sides interpolate `<source>` into shell commands like
 // `codex plugin marketplace add https://github.com/<source>.git` and
 // `<plugin>@<name>` into TOML keys, so these regexes are the only thing
 // standing between a compromised metadata source and arbitrary command
 // execution. Tighten with care — a regression here is a shell-injection
-// vector. Both metadata files are fetched from raw GitHub at runtime.
+// vector. The metadata files are fetched from raw GitHub at runtime.
 
 export const MARKETPLACE_NAME_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
 
@@ -25,10 +24,9 @@ export interface MarketplaceRef {
   source: string;
 }
 
-// Centralizes the marketplace field shape check so the Claude-side
-// validatePluginsConfig and the Codex-side validateCodexInstallConfig
-// stay in lockstep. `label` is interpolated into the thrown Error so
-// the caller's file context (e.g. `plugins.json: plugins[3]`) survives.
+// Centralizes the marketplace field shape check so Claude and Codex plugin
+// config paths stay in lockstep. `label` is interpolated into the thrown Error
+// so the caller's file context survives.
 export function validateMarketplaceField(
   label: string,
   raw: unknown,

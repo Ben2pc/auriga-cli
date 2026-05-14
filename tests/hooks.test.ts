@@ -871,6 +871,14 @@ describe("resolveHookSelection", () => {
   });
 });
 
+describe("loadHooksConfig", () => {
+  test("missing legacy hook registry is treated as an empty hook list", () => {
+    const packageRoot = makeScratch("missing-hooks-registry");
+
+    assert.deepEqual(loadHooksConfig(packageRoot), { hooks: [] });
+  });
+});
+
 // Non-interactive `install hooks --hook X` with X unavailable on the
 // current platform used to silently no-op exit 0. Catch that at the
 // installHooks boundary via this helper so CI pipelines see exit 1.

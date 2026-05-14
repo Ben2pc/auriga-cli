@@ -7,7 +7,7 @@ import { fetchContentRoot } from "../src/utils.js";
 const BASE_RESPONSES: Record<string, string> = {
   "CLAUDE.md": "# Claude\n",
   "skills-lock.json": JSON.stringify({ skills: {} }),
-  ".claude/plugins.json": JSON.stringify({ plugins: [] }),
+  ".claude-plugin/marketplace.json": JSON.stringify({ name: "auriga-cli", plugins: [] }),
   ".agents/plugins/marketplace.json": JSON.stringify({
     name: "auriga-cli",
     plugins: [
@@ -17,10 +17,7 @@ const BASE_RESPONSES: Record<string, string> = {
       },
     ],
   }),
-  ".agents/plugins/install.json": JSON.stringify({
-    plugins: [{ name: "session-instructions-loader" }],
-  }),
-  ".claude/hooks/hooks.json": JSON.stringify({ hooks: [] }),
+  "extra_plugin_configs.json": JSON.stringify({ plugins: [] }),
 };
 
 const RESPONSES: Record<string, string> = {

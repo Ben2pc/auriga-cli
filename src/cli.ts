@@ -676,15 +676,15 @@ async function runUi(p: UiParsed, version: string): Promise<number> {
   //     Always read from the installed npm package; can't be fetched because
   //     dist/ is built artifact, not git content.
   //   - contentRoot: where the runtime install recipes live (CLAUDE.md,
-  //     .claude/plugins.json, .claude/hooks/hooks.json, .agents/plugins/
-  //     install.json + marketplace.json, skills-lock.json). These files are
+  //     marketplace manifests, extra_plugin_configs.json, skills-lock.json).
+  //     These files are
   //     NOT in the npm tarball — the `files` allowlist only ships `dist/*`
   //     + npm defaults. They are fetched from GitHub, pinned to the CLI
   //     version tag, by fetchContentRoot(). Under DEV=1 fetchContentRoot
   //     short-circuits to the repo root so this is a no-op there.
   // Without the contentRoot fix, tarball-installed Web UI users hit ENOENT
-  // on any Codex plugin install (apply handlers read .agents/plugins/
-  // install.json from packageRoot).
+  // on any plugin install (apply handlers read non-tarball install inputs
+  // from packageRoot).
   const tarballRoot = getPackageRoot();
   let contentRoot: string;
   try {
@@ -757,8 +757,8 @@ async function runUi(p: UiParsed, version: string): Promise<number> {
     pluginAgentsByName.set(name, def.agents);
   }
   const applyHandlers = buildDefaultApplyHandlers({
-    // contentRoot: install handlers read CLAUDE.md, plugins.json,
-    // hooks.json, install.json, marketplace.json — all CONTENT_FILES.
+    // contentRoot: install handlers read CLAUDE.md, marketplace manifests,
+    // extra_plugin_configs.json, and skills-lock.json — all CONTENT_FILES.
     // Routing them at tarballRoot fails ENOENT for npm-installed users.
     packageRoot: contentRoot,
     cwd,
@@ -785,7 +785,7 @@ async function runUi(p: UiParsed, version: string): Promise<number> {
         cwd,
         // server reads dist/catalog.json (tarball-shipped) via
         // buildScanCatalog on each /api/state call; install-time content
-        // (install.json, plugins.json, CLAUDE.md, …) was already injected
+        // (marketplace manifests, extra plugin config, CLAUDE.md, …) was already injected
         // into applyHandlers above with contentRoot.
         packageRoot: tarballRoot,
         heartbeatTimeoutMs: UI_HEARTBEAT_TIMEOUT_MS,

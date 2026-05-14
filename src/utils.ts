@@ -246,10 +246,9 @@ function resolveContentRef(): string {
 const CONTENT_FILES = [
   "CLAUDE.md",
   "skills-lock.json",
-  ".claude/plugins.json",
+  ".claude-plugin/marketplace.json",
   ".agents/plugins/marketplace.json",
-  ".agents/plugins/install.json",
-  ".claude/hooks/hooks.json",
+  "extra_plugin_configs.json",
 ];
 
 async function fetchFile(file: string): Promise<string> {

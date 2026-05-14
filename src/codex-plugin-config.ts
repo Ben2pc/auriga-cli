@@ -1,10 +1,6 @@
 import path from "node:path";
 
-import {
-  MARKETPLACE_NAME_RE,
-  validateMarketplaceField,
-  type MarketplaceRef,
-} from "./marketplace.js";
+import { MARKETPLACE_NAME_RE } from "./marketplace.js";
 
 const PLUGIN_NAME_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
 
@@ -19,22 +15,6 @@ export interface CodexMarketplacePlugin {
 export interface CodexMarketplace {
   name: string;
   plugins: CodexMarketplacePlugin[];
-}
-
-export interface CodexInstallPlugin {
-  name: string;
-  description?: string;
-  defaultOn?: boolean;
-  // Set when the plugin lives in an external Codex marketplace (e.g.
-  // `Ben2pc/g-claude-code-plugins`). Local plugins from this repo's
-  // own `.agents/plugins/marketplace.json` omit this field. Same shape
-  // as `PluginDef.marketplace` (Claude side, src/utils.ts) so the two
-  // installers stay symmetric.
-  marketplace?: MarketplaceRef;
-}
-
-export interface CodexInstallConfig {
-  plugins: CodexInstallPlugin[];
 }
 
 export function validateCodexMarketplace(raw: unknown): asserts raw is CodexMarketplace {
@@ -57,36 +37,6 @@ export function validateCodexMarketplace(raw: unknown): asserts raw is CodexMark
       throw new Error(
         `Codex marketplace.json: plugins[${i}].name ${JSON.stringify(p.name)} does not match ${PLUGIN_NAME_RE}`,
       );
-    }
-  }
-}
-
-export function validateCodexInstallConfig(raw: unknown): asserts raw is CodexInstallConfig {
-  if (!raw || typeof raw !== "object") {
-    throw new Error("Codex install.json: root must be an object");
-  }
-  const cfg = raw as Record<string, unknown>;
-  if (!Array.isArray(cfg.plugins)) {
-    throw new Error("Codex install.json: .plugins must be an array");
-  }
-  for (const [i, plugin] of cfg.plugins.entries()) {
-    if (!plugin || typeof plugin !== "object") {
-      throw new Error(`Codex install.json: plugins[${i}] must be an object`);
-    }
-    const p = plugin as Record<string, unknown>;
-    if (typeof p.name !== "string" || !PLUGIN_NAME_RE.test(p.name)) {
-      throw new Error(
-        `Codex install.json: plugins[${i}].name ${JSON.stringify(p.name)} does not match ${PLUGIN_NAME_RE}`,
-      );
-    }
-    if (p.description !== undefined && typeof p.description !== "string") {
-      throw new Error(`Codex install.json: plugins[${i}].description must be a string`);
-    }
-    if (p.defaultOn !== undefined && typeof p.defaultOn !== "boolean") {
-      throw new Error(`Codex install.json: plugins[${i}].defaultOn must be a boolean`);
-    }
-    if (p.marketplace !== undefined) {
-      validateMarketplaceField(`Codex install.json: plugins[${i}]`, p.marketplace);
     }
   }
 }

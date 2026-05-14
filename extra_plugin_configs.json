@@ -1,0 +1,37 @@
+{
+  "plugins": [
+    {
+      "name": "auriga-notify",
+      "agents": ["claude"],
+      "defaultOn": false
+    },
+    {
+      "name": "skill-creator",
+      "agents": ["claude"],
+      "description": "Create and manage custom skills",
+      "claude": {
+        "package": "skill-creator@claude-plugins-official"
+      }
+    },
+    {
+      "name": "claude-md-management",
+      "agents": ["claude"],
+      "description": "Audit and improve CLAUDE.md files",
+      "claude": {
+        "package": "claude-md-management@claude-plugins-official"
+      }
+    },
+    {
+      "name": "codex",
+      "agents": ["claude"],
+      "description": "Cross-model collaboration with Codex",
+      "claude": {
+        "package": "codex@openai-codex",
+        "marketplace": {
+          "name": "openai-codex",
+          "source": "openai/codex-plugin-cc"
+        }
+      }
+    }
+  ]
+}
