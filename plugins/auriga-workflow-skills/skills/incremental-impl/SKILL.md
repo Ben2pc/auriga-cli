@@ -266,6 +266,23 @@ Each slice — dispatched subagent or inline — ends with a structured handoff 
 - `not_completed` is mandatory even when empty — leaving it blank when something was punted is a discipline failure
 - Five fields is the minimum that still survives a model swap; expanding the schema in this skill should require a corresponding change in dispatched-prompt templates
 
+**Roles** (writer / broker / reader):
+
+```
+   slice N                       slice N+1
+   (Writer)       ╳ no direct    (Reader)
+      │                             ▲
+      │ handoff at                  │ handoff in
+      │ end of response             │ dispatch prompt
+      │                             │
+      └──────▶ Main Agent ──────────┘
+               (Broker — sees every
+                handoff, pastes into
+                next slice's prompt)
+```
+
+For inline slices, the main Agent plays all three roles: writes the block to the transcript, then reads it back when starting the next slice.
+
 **Inter-slice flow:**
 
 When the main Agent dispatches slice N+1, it copies slice N's handoff block(s) verbatim into the N+1 subagent's dispatch prompt — alongside the slice N+1 spec and verify command. The subagent receives the handoff as data; no paraphrasing, no summarizing.
