@@ -3,7 +3,12 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 
-const repoRoot = path.resolve(__dirname, "..");
+// Compiled test lives at dist-test/tests/spec-design.test.js; ../.. = repo root.
+const repoRoot = path.resolve(
+  new URL(".", import.meta.url).pathname,
+  "..",
+  "..",
+);
 
 function read(rel: string): string {
   return fs.readFileSync(path.join(repoRoot, rel), "utf-8");

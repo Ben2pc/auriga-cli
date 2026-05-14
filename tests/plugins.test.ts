@@ -1231,7 +1231,7 @@ describe("installPlugins — Claude target", () => {
     const lock = JSON.parse(fs.readFileSync(path.join(cwd, "skills-lock.json"), "utf-8")) as {
       skills: Record<string, unknown>;
     };
-    assert.deepEqual(Object.keys(lock.skills).sort(), ["systematic-debugging", "planning-with-files"]);
+    assert.deepEqual(Object.keys(lock.skills).sort(), ["planning-with-files", "systematic-debugging"]);
   });
 
   test("auriga-workflow-skills Codex-only install preserves Claude legacy fallback", async () => {

@@ -165,7 +165,7 @@ describe("uninstallSkill — fallback path", () => {
   });
 
   test("onLog stream records the fallback decision", async () => {
-    const cwd = makeScratchLock({ systematic-debugging: { source: "obra/superpowers" } });
+    const cwd = makeScratchLock({ "systematic-debugging": { source: "obra/superpowers" } });
     fs.mkdirSync(path.join(cwd, ".claude/skills/systematic-debugging"), { recursive: true });
 
     const logs: string[] = [];
@@ -225,7 +225,7 @@ describe("uninstallSkill — scope forwarding (user scope)", () => {
       return err;
     }
 
-    const cwd = makeScratchLock({ systematic-debugging: { source: "x/y" } });
+    const cwd = makeScratchLock({ "systematic-debugging": { source: "x/y" } });
     const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), "auriga-skill-user-"));
 
     // Seed BOTH project (must NOT be touched) and user (must be removed)
