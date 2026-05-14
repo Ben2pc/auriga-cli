@@ -74,12 +74,16 @@ describe("validateExtraPluginConfigs", () => {
     const cases: [string, unknown][] = [
       ["name", "a; rm -rf /"],
       ["claude.package", "pkg@owner`whoami`"],
+      ["marketplace.name", "ok`whoami`"],
       ["marketplace.source", "$(whoami)"],
     ];
     for (const [field, payload] of cases) {
       const base: Record<string, unknown> = { name: "ok", agents: ["claude"] };
       if (field === "name") base.name = payload as string;
       if (field === "claude.package") base.claude = { package: payload as string };
+      if (field === "marketplace.name") {
+        base.codex = { marketplace: { name: payload as string, source: "ok/ok" } };
+      }
       if (field === "marketplace.source") {
         base.codex = { marketplace: { name: "ok", source: payload as string } };
       }
@@ -91,13 +95,30 @@ describe("validateExtraPluginConfigs", () => {
     }
   });
 
-  test("rejects malformed agents, plugin list, and marketplace references", () => {
+  test("rejects malformed plugin lists", () => {
     assert.throws(() => validateExtraPluginConfigs({ plugins: "oops" }), /\.plugins must be an array/);
     assert.throws(() => validateExtraPluginConfigs({ plugins: ["oops"] }), /must be an object/);
+  });
+
+  test("rejects malformed agents", () => {
     assert.throws(
       () => validateExtraPluginConfigs({ plugins: [{ name: "ok", agents: ["weird"] }] }),
       /agents must contain only/,
     );
+  });
+
+  test("rejects malformed runtime config fields", () => {
+    assert.throws(
+      () => validateExtraPluginConfigs({ plugins: [{ name: "ok", claude: "oops" }] }),
+      /plugins\[0\]\.claude must be an object/,
+    );
+    assert.throws(
+      () => validateExtraPluginConfigs({ plugins: [{ name: "ok", codex: "oops" }] }),
+      /plugins\[0\]\.codex must be an object/,
+    );
+  });
+
+  test("rejects malformed marketplace references", () => {
     assert.throws(
       () =>
         validateExtraPluginConfigs({

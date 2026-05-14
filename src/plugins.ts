@@ -599,8 +599,11 @@ function isCodexMarketplaceAlreadyAdded(error: unknown, marketplaceName: string)
     `marketplace ['"]?${escapeRegex(marketplaceName)}['"]? is already added`,
     "i",
   );
-  return marketplacePattern.test(text)
-    || /already added from a different source/i.test(text);
+  return marketplacePattern.test(text);
+}
+
+function isCodexMarketplaceDifferentSource(error: unknown): boolean {
+  return /already added from a different source/i.test(commandErrorText(error));
 }
 
 function pluginHasHooks(packageRoot: string, plugin: CodexMarketplacePlugin): boolean {
@@ -822,7 +825,13 @@ async function addCodexMarketplaceWithRetry(
     log.ok(`Codex marketplace ${marketplaceName} added`);
     return;
   } catch (e) {
-    if (opts.interactive || isCodexMarketplaceAlreadyAdded(e, marketplaceName)) {
+    if (isCodexMarketplaceDifferentSource(e)) {
+      const msg = `Codex marketplace ${marketplaceName} is already added from a different source`;
+      log.error(`${msg}\n${commandErrorText(e)}`);
+      failures.push(msg);
+      return;
+    }
+    if (isCodexMarketplaceAlreadyAdded(e, marketplaceName)) {
       try {
         exec(codexMarketplaceUpgradeCommand(marketplaceName), marketplaceExecOpts);
         log.ok(`Codex marketplace ${marketplaceName} upgraded`);

@@ -336,7 +336,7 @@ describe("installPlugins — Codex target", () => {
         if (cmd === "codex plugin marketplace add https://github.com/Ben2pc/auriga-cli.git") {
           const error = new Error("Command failed: codex plugin marketplace add");
           (error as Error & { stderr?: string }).stderr =
-            "Error: marketplace 'auriga-cli' is already added from a different source";
+            "Error: marketplace 'auriga-cli' is already added";
           throw error;
         }
         return "";
@@ -372,7 +372,10 @@ describe("installPlugins — Codex target", () => {
       const { installPlugins } = await importPlugins((cmd, opts) => {
         calls.push({ cmd, inherit: opts?.inherit });
         if (cmd === "codex plugin marketplace add https://github.com/Ben2pc/auriga-cli.git") {
-          throw new Error("Command failed: codex plugin marketplace add");
+          const error = new Error("Command failed: codex plugin marketplace add");
+          (error as Error & { stderr?: string }).stderr =
+            "Error: marketplace 'auriga-cli' is already added";
+          throw error;
         }
         return "";
       });
@@ -895,6 +898,54 @@ describe("installPlugins — Codex target", () => {
     }
   });
 
+  test("fails Codex marketplace add when the marketplace name belongs to a different source", async () => {
+    const previousDev = process.env.DEV;
+    delete process.env.DEV;
+    try {
+      const packageRoot = makeCodexMarketplace();
+      const codexHome = fs.mkdtempSync(path.join(os.tmpdir(), "auriga-codex-home-"));
+      process.env.CODEX_HOME = codexHome;
+      seedCodexMarketplaceCache(packageRoot, codexHome);
+      const commands: string[] = [];
+      const { installPlugins } = await importPlugins((cmd) => {
+        commands.push(cmd);
+        if (cmd === "codex plugin marketplace add https://github.com/Ben2pc/auriga-cli.git") {
+          const error = new Error("Command failed: codex plugin marketplace add");
+          (error as Error & { stderr?: string }).stderr =
+            "Error: marketplace 'auriga-cli' is already added from a different source";
+          throw error;
+        }
+        return "";
+      });
+
+      await assert.rejects(
+        () => installPlugins(packageRoot, {
+          interactive: false,
+          agent: "codex",
+          selected: ["auriga-go"],
+        }),
+        /different source/i,
+      );
+
+      assert.deepEqual(commands, [
+        "codex plugin marketplace add https://github.com/Ben2pc/auriga-cli.git",
+      ]);
+      assert.equal(
+        fs.existsSync(path.join(codexHome, "config.toml")),
+        false,
+        "config.toml must not be written after source mismatch",
+      );
+      assert.equal(
+        fs.existsSync(path.join(codexHome, "plugins/cache/auriga-cli/auriga-go")),
+        false,
+        "plugin payload must not be materialized from an untrusted same-name marketplace",
+      );
+    } finally {
+      if (previousDev === undefined) delete process.env.DEV;
+      else process.env.DEV = previousDev;
+    }
+  });
+
   test("interactive: external-only plugin still installs when local marketplace.json is missing", async () => {
     const previousDev = process.env.DEV;
     delete process.env.DEV;
@@ -1013,6 +1064,44 @@ describe("installPlugins — Codex target", () => {
 });
 
 describe("installPlugins — Claude target", () => {
+  test("rejects unsafe Claude marketplace root names", async () => {
+    const packageRoot = makeClaudeMarketplaceOnlyConfig();
+    const marketplacePath = path.join(packageRoot, ".claude-plugin/marketplace.json");
+    const marketplace = JSON.parse(fs.readFileSync(marketplacePath, "utf-8")) as Record<string, unknown>;
+    marketplace.name = "auriga-cli; rm -rf /";
+    writeJson(marketplacePath, marketplace);
+    const { installPlugins } = await importPlugins();
+
+    await assert.rejects(
+      () => installPlugins(packageRoot, {
+        interactive: false,
+        agent: "claude",
+        selected: ["auriga-go"],
+      }),
+      /root must include a safe name/,
+    );
+  });
+
+  test("rejects unsafe Claude marketplace plugin names", async () => {
+    const packageRoot = makeClaudeMarketplaceOnlyConfig();
+    const marketplacePath = path.join(packageRoot, ".claude-plugin/marketplace.json");
+    const marketplace = JSON.parse(fs.readFileSync(marketplacePath, "utf-8")) as {
+      plugins: Array<Record<string, unknown>>;
+    };
+    marketplace.plugins[0].name = "auriga-go`whoami`";
+    writeJson(marketplacePath, marketplace);
+    const { installPlugins } = await importPlugins();
+
+    await assert.rejects(
+      () => installPlugins(packageRoot, {
+        interactive: false,
+        agent: "claude",
+        selected: ["auriga-go"],
+      }),
+      /plugins\[0\]\.name/,
+    );
+  });
+
   test("installs local Claude plugins from marketplace.json without plugins.json", async () => {
     const packageRoot = makeClaudeMarketplaceOnlyConfig();
     const commands: string[] = [];
