@@ -8,7 +8,7 @@
 | 范围 | VAL 区间 |
 |---|---|
 | Skill 内部 4 阶段行为 (Discover / Decide & Design / Write / Gate & Handoff) | VAL-WORK-001 ~ VAL-WORK-015 |
-| 下游集成 (workflow 文档、上游 brainstorming 退役、plugin manifest、test-designer 契约、goalify 标注、release notes) | VAL-DEP-001 ~ VAL-DEP-008 |
+| 下游集成 (workflow 文档、上游 brainstorming 退役、plugin manifest、test-designer 契约、goalify 标注、release notes、deep-review spec-conformance) | VAL-DEP-001 ~ VAL-DEP-009 |
 
 ## Assertions
 
@@ -65,9 +65,9 @@
 - **Evidence**: 不存在一次性 dump 整个 What 段落的对话节点；每节产出后下一个非 skill 的对话回合来自用户
 
 #### VAL-WORK-011
-- **Behavior**: C1 产出的 `spec.md` 必须包含 Why / Findings / What / Out of scope / Open questions 五段头
+- **Behavior**: C1 产出的 `spec.md` 必须包含 Why / Findings / What / Out of scope / Open questions 五段头；当 brainstorming 过程中用户提供过任何 URL/外链时，还必须包含 `## References` 段并列出对应链接 + 来源时机 + 对设计的影响要点
 - **Tool**: repo-check
-- **Evidence**: `docs/specs/<topic>/spec.md` 内 `grep -E '^## (Why|Findings|What|Out of scope|Open questions)'` 命中 5 行
+- **Evidence**: `docs/specs/<topic>/spec.md` 内 `grep -E '^## (Why|Findings|What|Out of scope|Open questions)'` 命中 5 行；若会话历史含 URL，`grep -c '^## References'` ≥1 且段落内含用户提供的 URL 子串
 
 #### VAL-WORK-012
 - **Behavior**: C2 产出的 `validation-contract.md` 必须包含 Coverage map + Assertions 两段；每条 VAL 必须有 Behavior / Tool / Evidence 三字段；Tool 字段值必须来自 §9 词表
@@ -130,3 +130,8 @@
 - **Behavior**: 版本 release notes / CHANGELOG (或 git tag 的 release body) 在引入 spec-design 的版本里显式标注"removed brainstorming, replaced by spec-design"
 - **Tool**: gh-state
 - **Evidence**: `gh release view v<new-version>` 的 body 含"brainstorming"与"spec-design"两个关键字
+
+#### VAL-DEP-009
+- **Behavior**: `plugins/deep-review/skills/deep-review/references/reviewers/spec-conformance.md` 升级为以 `validation-contract.md` 的 VAL 列表作为主要核验输入；`spec.md` 仅作为 Why / Out-of-scope 上下文。reviewer 报告中漏覆盖必须标注 `VAL-XXX-NNN` 编号；deep-review 的 plugin manifest (Claude + Codex) 同步 bump
+- **Tool**: repo-check
+- **Evidence**: spec-conformance.md 含 "validation-contract.md" 与 "VAL-" 关键字，并在 Output contract 段明确要求 finding 引用 VAL 编号；`plugins/deep-review/.claude-plugin/plugin.json` 与 `.codex-plugin/plugin.json` 的 version 字段相比 main 上调一档且相等

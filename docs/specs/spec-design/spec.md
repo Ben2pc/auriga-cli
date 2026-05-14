@@ -79,7 +79,9 @@ A. Discover   →  B. Decide & Design  →  C. Write   →  D. Gate & Handoff
 
 ### 5. 三个文件模板
 
-**spec.md (本文件本身就是模板)**：Why / Findings / What / Out of scope / Open questions。What 段落的内部结构按需求复杂度自行展开，不强制统一。
+**spec.md (本文件本身就是模板)**：Why / Findings / What / Out of scope / Open questions / **References (可选)**。What 段落的内部结构按需求复杂度自行展开，不强制统一。
+
+`References` 段用于存档用户在 brainstorming 过程中提供的外部链接 (文章、上游 SKILL.md、PRD 链接、Figma URL、相关 issue/PR 等)。skill 在 A1 / A2 / A3 阶段一旦接收到 URL 类输入，必须把它落入此段并标注来源时机 (例如 "用户在 A2 第 3 轮提供") 与该链接对设计的影响要点，避免链接丢失或下游 agent 无法回溯依据。仅当用户未提供任何外链时，References 段可省略。
 
 **validation-contract.md**：
 
@@ -187,6 +189,8 @@ VAL 的 `Tool` 字段必须从下列**类别**里选一个，不写具体工具�
 - 本地开发期符号链接：`.claude/skills/spec-design` 与 `.agents/skills/spec-design` 指向 plugin 内目录 (与 `incremental-impl` / `test-designer` 同模式)
 - `dist/catalog.json` 在 `npm run build` 后自动收录 spec-design 描述 (来自 SKILL.md frontmatter)
 
+**10.6 `deep-review` 的 `spec-conformance` reviewer 升级**：把 reviewer 的主要输入从 "spec.md 散文" 调整为 "`validation-contract.md` 的 VAL 列表"。reviewer 必须对照 PR diff 逐条核验 VAL 是否被实现满足 (Behavior 命中 / Tool 与 Evidence 可被现有测试或检查覆盖)；`spec.md` 仍保留为 Why 上下文与 Out-of-scope 判定来源。任何 VAL 漏覆盖一律算 blocking，写入 deep-review 报告时附 `VAL-XXX-NNN` 编号定位。文件路径：`plugins/deep-review/skills/deep-review/references/reviewers/spec-conformance.md`。该 reviewer 的 Detection table、Output contract、worked scenarios 都需同步更新。
+
 ## Out of scope
 
 本次 spec-design skill 的实现 **不包含**：
@@ -205,3 +209,11 @@ VAL 的 `Tool` 字段必须从下列**类别**里选一个，不写具体工具�
 1. **dual-Agent 差异**：spec-design 在 Codex 端是否需要缩减 Q+GUESS 轮数以适配其 hook 反馈通道差异 (Codex 当前在 PreToolUse `additionalContext` 上 fail-open)？
 2. **B0 拆分后 PR 链路**：一次 spec-design 产出 N 个子 spec 时，是 N 个独立 Draft PR 串行，还是一个 umbrella PR + N 个 follow-up issue？取决于 `incremental-impl` 是否能跨 spec 复用 slice 计划。
 3. **spec-design 自身的 dogfood 顺序**：是否先用一份手写 spec-design SKILL.md 走第一轮实现，再回头用最终 spec-design 跑自己一次作为 regression？
+
+## References
+
+- **Factory Missions (Factory.ai)** — 2026-05 公开介绍文章 (用户在初次对话提供)。借鉴：orchestrator/worker/validator 分离、Validation Contract `VAL-XXX-NNN` 形态、写串行/读并行的 broker 模型、Self-Evaluation Bias 概念。
+- **interview-me** — `https://github.com/addyosmani/agent-skills/blob/main/skills/interview-me/SKILL.md` (用户在 Section 1 提供)。借鉴：Hypothesis+Confidence 提问纪律、Q+GUESS 单问、Explicit-yes gate、95% 置信度停止规则、6-line restate。
+- **spec-driven-development** — `https://github.com/addyosmani/agent-skills/blob/main/skills/spec-driven-development/SKILL.md` (用户在 Section 1 提供)。借鉴：surface-findings 纪律、模糊需求 reframe 成可测试断言、把 spec 当"活文档"维护的姿态。
+- **incremental-impl** — 本仓库 `plugins/auriga-workflow-skills/skills/incremental-impl/SKILL.md`。复用 §7 五条 slicing axes (Walking Skeleton / By risk / Horizontal sweep / Branch by Abstraction / Vertical slice)，spec 层定的轴下游 plan / impl 阶段直接沿用。
+- **brainstorming (upstream，待退役)** — `https://github.com/addyosmani/agent-skills/blob/main/skills/brainstorming/SKILL.md`。本 skill 上线后，按 §10.4 直接删 lock 条目 + `.agents/skills/brainstorming/`，release notes 标注迁移路径。
