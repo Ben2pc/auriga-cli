@@ -9,6 +9,7 @@
 //     node tests/pr-create-guard.test.mjs
 
 import { spawnSync } from "node:child_process";
+import fs from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 
@@ -107,6 +108,7 @@ const cases = [
         "design decisions",
         "language",
         "git-workflow",
+        "Conventional Commits",
       ],
     },
   },
@@ -132,6 +134,7 @@ const cases = [
         "design decisions",
         "language",
         "git-workflow",
+        "Conventional Commits",
       ],
     },
   },
@@ -158,6 +161,7 @@ const cases = [
         "design decisions",
         "language",
         "git-workflow",
+        "Conventional Commits",
       ],
     },
   },
@@ -195,6 +199,32 @@ for (const c of cases) {
     failed++;
     console.error(`  ✗ ${c.name}`);
     for (const ch of checks) console.error(`      ${ch.ok ? "ok  " : "fail"}  ${ch.msg}`);
+  }
+}
+
+// Source-level regression guard: the title-format check inside the
+// summarize() path runs only when gh auth is available (real PR
+// fetch returns a valid title), which the smoke harness can't satisfy.
+// Read the script source and assert the CC regex + title-format
+// reminder text are both present — protects against future edits that
+// drop the title check.
+{
+  const src = fs.readFileSync(ENTRY, "utf8");
+  const checks = [
+    { needle: "CC_TYPES", label: "Conventional Commits type list" },
+    { needle: "CC_RE", label: "Conventional Commits regex" },
+    { needle: "Title format", label: "title format injection line" },
+  ];
+  for (const { needle, label } of checks) {
+    if (src.includes(needle)) {
+      passed++;
+      console.log(`  ✓ pr-create-guard source contains ${label}`);
+    } else {
+      failed++;
+      console.error(
+        `  ✗ pr-create-guard source contains ${label} — "${needle}" not found`,
+      );
+    }
   }
 }
 
