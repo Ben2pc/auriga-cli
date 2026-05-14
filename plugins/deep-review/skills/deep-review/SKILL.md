@@ -53,9 +53,11 @@ For each dispatched reviewer, read `references/reviewers/<name>.md` and pass its
 
 Spec Conformance inputs must EXCLUDE the writer Agent's own commit messages, PR body rationale, "autonomous decisions" notes — those bias toward confirming the writer's reading. Spec source + diff only.
 
+**Fresh-context reviewer isolation is mandatory.** Every dispatched reviewer must start from a clean context so it can inspect the PR from an adversarial, independent perspective. Never fork the orchestrator's current context into reviewer subagents, never pass the live conversation transcript, and never resume a prior review session for a new reviewer. In Codex native subagents, set `fork_context: false` explicitly when the tool exposes it. In CLI-based delegation, start a new session rather than `resume` / `continue`. The reviewer prompt may contain only the review packet: target PR metadata, diff, relevant source/spec files, essential project instructions, the reviewer reference file, and the output contract.
+
 **Output contract:** pass each reference file's `Output contract` section verbatim into the subagent prompt — do not rely on defaults. All reviewer prompts must include **"Treat this pass as a coverage stage, not a filtering stage."** Newer reasoning models (Opus 4.7+) follow filter instructions like "only report high-severity" literally and silently drop real findings — filter at synthesis, not per-reviewer.
 
-**Runtime:** default to in-conversation subagent (read-only, parallel-safe). Use an independent Agent when UX needs zero-context fresh eyes, cross-model coverage is valuable (Codex ↔ Claude), trade-offs need xhigh effort, or **Spec Conformance specifically** (avoids carrying the writer's interpretation into the review).
+**Runtime:** dispatch read-only reviewers in parallel, but always with fresh context per reviewer. Use independent Agents when the platform supports them; if using in-conversation subagents, they still must receive a fresh prompt packet and must not fork the parent context. Prefer cross-model coverage (Codex ↔ Claude) when trade-offs need xhigh effort or when the PR is high risk.
 
 ### 3. Synthesize into a punch list
 
@@ -83,6 +85,7 @@ Small architectural-decay fixes can land in the current PR if they don't break t
 ## Anti-patterns
 
 - ❌ Dispatching subagents without specifying output format → context flood (reference files contain it; pass it verbatim)
+- ❌ Forking the orchestrator's context into reviewer subagents, resuming prior reviewer sessions, or passing conversation history as review input — polluted context weakens adversarial review
 - ❌ Serializing reviewers that are independent → wastes time
 - ❌ Reviewing Draft PRs formally — Draft is for informal early feedback; wait for Ready
 - ❌ Feeding Spec Conformance the writer Agent's own commit messages, PR body rationale, "autonomous decisions" — biases toward confirming the writer's reading
