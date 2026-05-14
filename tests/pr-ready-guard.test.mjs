@@ -253,5 +253,23 @@ try {
   }
 }
 
+// Source-level regression guard: summarize() runs only when gh auth is
+// available, so it can't be exercised end-to-end in the smoke harness.
+// Read the script source and assert the git-workflow reference is
+// present — protects against future edits that drop the skill pointer.
+{
+  const src = fs.readFileSync(ENTRY, "utf8");
+  const ok = src.includes("git-workflow");
+  if (ok) {
+    passed++;
+    console.log("  ✓ pr-ready-guard source references git-workflow skill");
+  } else {
+    failed++;
+    console.error(
+      '  ✗ pr-ready-guard source references git-workflow skill — "git-workflow" not found in script',
+    );
+  }
+}
+
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exit(failed === 0 ? 0 : 1);

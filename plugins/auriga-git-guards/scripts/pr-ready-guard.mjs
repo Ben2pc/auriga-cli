@@ -208,7 +208,7 @@ function summarize(ref, body) {
       : "  Headings:\n" + headings.map((h) => `    - ${h}`).join("\n");
   const todoLine = `  TODO checkboxes: ${unchecked} unchecked, ${checked} checked`;
   const tail =
-    "Confirm acceptance criteria are met and the body reflects the final commits. Use `gh pr edit` to sync anything drifted.";
+    "Confirm acceptance criteria are met and the body reflects the final commits. Use `gh pr edit` to sync anything drifted. Follow the `git-workflow` skill for ready-state expectations and post-ready batch-comment discipline.";
   return [head, headingLine, todoLine, tail].join("\n");
 }
 

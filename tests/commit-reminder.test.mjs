@@ -120,6 +120,11 @@ function check(name, condition, info = "") {
     `stdout="${r.stdout}"`,
   );
   check(
+    "reminder references git-workflow skill",
+    r.stdout.includes("git-workflow"),
+    `stdout="${r.stdout}"`,
+  );
+  check(
     "state file created on first reminder",
     existsSync(statePath(dir)),
     `expected file at ${statePath(dir)}`,
