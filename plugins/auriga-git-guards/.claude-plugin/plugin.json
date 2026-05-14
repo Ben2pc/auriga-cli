@@ -1,6 +1,6 @@
 {
   "name": "auriga-git-guards",
-  "version": "1.1.1",
+  "version": "1.2.0",
   "description": "Workflow guardrails for the git lifecycle: PR-create / PR-ready body-snapshot injection plus a commit-reminder hook that nudges agents at semantic boundaries.",
   "author": {
     "name": "Ben2pc",

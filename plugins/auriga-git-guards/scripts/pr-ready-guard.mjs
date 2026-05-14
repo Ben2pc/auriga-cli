@@ -1,8 +1,16 @@
 #!/usr/bin/env node
-// pr-ready-guard — PreToolUse hook for `gh pr ready`.
+// pr-ready-guard — PreToolUse guard for PR transitions into Ready state.
+//
+// Two trigger routes share this script because they both put a PR
+// into Ready immediately and therefore must enforce the same
+// structural baseline:
+//
+//   Route A: `gh pr ready`                  → existing flow
+//   Route B: `gh pr create` without --draft → bypasses Route A entirely
 //
 // Block only on structural signals that can't be reasonably debated:
-//   B1  unpushed commits on the current branch
+//   B1  unpushed commits on the current branch  (Route A only — gh
+//       pr create handles push itself, so this check is moot there)
 //   B2  stray planning docs at repo root (findings/progress/task_plan)
 //   B3  stray spec docs under docs/superpowers/specs/
 //   B4  active specs left under docs/specs/ — that directory is a
@@ -10,10 +18,11 @@
 //       (promote to docs/architecture/, archive to docs/worklog/, or
 //       delete; per CLAUDE.md Document Conventions)
 //
-// Everything else is filter-only: we fetch the real PR body (best-effort
-// via gh pr view), list ^## / ^### headings, count TODO checkboxes, and
-// inject it as additionalContext for the Agent. No text-regex of body
-// content is ever used as a block signal.
+// Filter-only (Route A): we fetch the real PR body via gh pr view,
+// list ^## / ^### headings, count TODO checkboxes, and inject as
+// additionalContext. Route B skips the snapshot because the PR doesn't
+// exist yet — pr-create-guard's PostToolUse hook handles that side.
+// No text-regex of body content is ever used as a block signal.
 
 import { spawnSync } from "node:child_process";
 import fs from "node:fs";
@@ -29,79 +38,120 @@ process.stdin.on("end", () => {
 
     const cmd = data?.tool_input?.command;
     if (typeof cmd !== "string") return exit0();
-    // Strip simple quoted runs so mentions of "gh pr ready" inside
+    // Strip simple quoted runs so mentions of our match phrases inside
     // echo args, git commit messages, etc. don't trigger the hook.
-    if (!/\bgh\s+pr\s+ready\b/.test(stripQuoted(cmd))) return exit0();
+    const stripped = stripQuoted(cmd);
 
-    // Block checks run in a fixed order so the reason the Agent sees
-    // is the first unambiguous structural problem, not a grab-bag.
-
-    // B2/B3/B4: stray planning artifacts (repo-root files + spec glob +
-    // unfinalized active specs). Anchor at the git toplevel, not
-    // process.cwd — hooks fire from whatever subdir the Agent was in
-    // when it ran the command, and we want the stray check to apply to
-    // the whole repo.
-    const repoRoot = gitToplevel() ?? process.cwd();
-    const stray = findStrayDocs(repoRoot);
-    if (
-      stray.root.length > 0 ||
-      stray.specs.length > 0 ||
-      stray.activeSpecs.length > 0
-    ) {
-      const parts = [];
-      if (stray.root.length > 0) {
-        parts.push(
-          `stray planning docs at repo root: [${stray.root.join(", ")}]`,
-        );
-      }
-      if (stray.specs.length > 0) {
-        parts.push(`stray spec docs: [${stray.specs.join(", ")}]`);
-      }
-      if (stray.activeSpecs.length > 0) {
-        parts.push(
-          `unfinalized active specs in docs/specs/: [${stray.activeSpecs.join(", ")}]`,
-        );
-      }
-      // Only B4 (active specs) is "promote-able" to docs/architecture/.
-      // B2/B3 are session-ephemeral by definition — don't suggest
-      // promotion when only those fire.
-      const remediation =
-        stray.activeSpecs.length > 0
-          ? "Resolve before marking ready: promote to docs/architecture/, archive to docs/worklog/worklog-<YYYY-MM-DD>-<branch>/, or delete."
-          : "Archive to docs/worklog/worklog-<YYYY-MM-DD>-<branch>/ or delete before marking ready.";
-      return block(`${parts.join("; ")}. ${remediation}`);
+    if (/\bgh\s+pr\s+ready\b/.test(stripped)) {
+      return handlePrReady(cmd);
     }
-
-    // B1: unpushed commits on current branch. Only meaningful when the
-    // Agent is marking the current branch's PR ready — if an explicit
-    // PR ref was passed (`gh pr ready 15` / `gh pr ready <url>`), the
-    // current branch may be unrelated and its push state is irrelevant.
-    // Skip B1 in that case; the ref-specified PR either has its own
-    // pushed commits (handled upstream by gh) or the Agent knows what
-    // it's doing.
-    const prRef = extractPRRef(cmd);
-    if (prRef === null) {
-      const unpushed = countUnpushed();
-      if (unpushed > 0) {
-        return block(
-          `${unpushed} unpushed commit${unpushed === 1 ? "" : "s"} on current branch. Push first so the PR reflects your local state.`,
-        );
-      }
+    if (/\bgh\s+pr\s+create\b/.test(stripped)) {
+      // --draft / -d defers the Ready transition to a later
+      // `gh pr ready`, which Route A guards separately. Silent here.
+      if (hasDraftFlag(stripped)) return exit0();
+      return handlePrCreateGoingReady();
     }
-
-    // Filter path: body snapshot. gh failures are non-fatal.
-    const body = fetchBody(prRef);
-    if (body === null) {
-      // Nothing useful to say without a body; stay out of the way.
-      return exit0();
-    }
-    inject(summarize(prRef ?? "(current branch)", body));
+    return exit0();
   } catch {
     exit0();
   }
 });
 
 // ---------------------------------------------------------------------
+// Route handlers
+
+function handlePrReady(cmd) {
+  const repoRoot = gitToplevel() ?? process.cwd();
+  const stray = findStrayDocs(repoRoot);
+  if (hasAnyStray(stray)) {
+    return block(formatStrayBlockMessage(stray, "ready"));
+  }
+
+  // B1: unpushed commits on current branch. Only meaningful when the
+  // Agent is marking the current branch's PR ready — if an explicit
+  // PR ref was passed (`gh pr ready 15` / `gh pr ready <url>`), the
+  // current branch may be unrelated and its push state is irrelevant.
+  const prRef = extractPRRef(cmd);
+  if (prRef === null) {
+    const unpushed = countUnpushed();
+    if (unpushed > 0) {
+      return block(
+        `${unpushed} unpushed commit${unpushed === 1 ? "" : "s"} on current branch. Push first so the PR reflects your local state.`,
+      );
+    }
+  }
+
+  // Filter path: body snapshot. gh failures are non-fatal.
+  const body = fetchBody(prRef);
+  if (body === null) {
+    // Nothing useful to say without a body; stay out of the way.
+    return exit0();
+  }
+  inject(summarize(prRef ?? "(current branch)", body));
+}
+
+function handlePrCreateGoingReady() {
+  // `gh pr create` without --draft publishes a Ready PR immediately,
+  // bypassing Route A entirely. Run the same structural docs checks
+  // here so stray planning artifacts can't slip in via this route.
+  // Skip B1 (gh handles push on create) and skip the body snapshot
+  // (PR doesn't exist yet — PostToolUse pr-create-guard handles it).
+  const repoRoot = gitToplevel() ?? process.cwd();
+  const stray = findStrayDocs(repoRoot);
+  if (hasAnyStray(stray)) {
+    return block(formatStrayBlockMessage(stray, "create-nondraft"));
+  }
+  return exit0();
+}
+
+// ---------------------------------------------------------------------
+// Command parsing
+
+function hasDraftFlag(stripped) {
+  // gh supports --draft (long form) and -d (short form); --draft can
+  // also appear as --draft=true. Anchor on whitespace boundaries so we
+  // don't false-match nonexistent flags like --draft-something.
+  return /(?:^|\s)(?:--draft(?:=\S*)?|-d)(?:\s|$)/.test(stripped);
+}
+
+function extractPRRef(cmd) {
+  // `gh pr ready` optionally accepts a PR number or URL as its first
+  // positional argument. When omitted, gh picks the PR for the current
+  // branch. We don't need to resolve the current branch ourselves —
+  // gh pr view with no ref does the same.
+  const m = cmd.match(/\bgh\s+pr\s+ready\s+(\S+)/);
+  if (!m) return null;
+  const candidate = m[1];
+  // Ignore flag-starting tokens (`--confirm`, etc.)
+  if (candidate.startsWith("-")) return null;
+  return candidate;
+}
+
+// Minimal quote-stripper so mentions of our match phrases inside quoted
+// args (echo, git commit -m, etc.) don't false-positive the hook.
+// Handles '...' and "..." with backslash escapes inside double quotes;
+// unclosed quote → return input unchanged (upstream regex decides).
+function stripQuoted(cmd) {
+  let out = "";
+  let quote = null;
+  for (let i = 0; i < cmd.length; i++) {
+    const c = cmd[i];
+    if (quote) {
+      if (c === quote) quote = null;
+      else if (c === "\\" && quote === '"' && i + 1 < cmd.length) i++;
+      continue;
+    }
+    if (c === "'" || c === '"') {
+      quote = c;
+      continue;
+    }
+    out += c;
+  }
+  return quote === null ? out : cmd;
+}
+
+// ---------------------------------------------------------------------
+// Structural checks
 
 function findStrayDocs(repoRoot) {
   const rootFiles = ["findings.md", "progress.md", "task_plan.md"];
@@ -143,6 +193,45 @@ function findStrayDocs(repoRoot) {
   return { root, specs, activeSpecs };
 }
 
+function hasAnyStray(s) {
+  return s.root.length > 0 || s.specs.length > 0 || s.activeSpecs.length > 0;
+}
+
+function formatStrayBlockMessage(stray, route) {
+  const parts = [];
+  if (stray.root.length > 0) {
+    parts.push(`stray planning docs at repo root: [${stray.root.join(", ")}]`);
+  }
+  if (stray.specs.length > 0) {
+    parts.push(`stray spec docs: [${stray.specs.join(", ")}]`);
+  }
+  if (stray.activeSpecs.length > 0) {
+    parts.push(
+      `unfinalized active specs in docs/specs/: [${stray.activeSpecs.join(", ")}]`,
+    );
+  }
+  // Only B4 (active specs) is "promote-able" to docs/architecture/.
+  // B2/B3 are session-ephemeral by definition — don't suggest promotion
+  // when only those fire.
+  const promoteable = stray.activeSpecs.length > 0;
+  const archiveTarget = "docs/worklog/worklog-<YYYY-MM-DD>-<branch>/";
+
+  let remediation;
+  if (route === "create-nondraft") {
+    const promoteHint = promoteable ? "promote to docs/architecture/, " : "";
+    remediation =
+      `Resolve before \`gh pr create\` without --draft: ${promoteHint}archive to ${archiveTarget}, or delete. Alternatively, pass --draft to defer the Ready transition to a separate \`gh pr ready\`.`;
+  } else {
+    remediation = promoteable
+      ? `Resolve before marking ready: promote to docs/architecture/, archive to ${archiveTarget}, or delete.`
+      : `Archive to ${archiveTarget} or delete before marking ready.`;
+  }
+  return `${parts.join("; ")}. ${remediation}`;
+}
+
+// ---------------------------------------------------------------------
+// Git / gh helpers
+
 function gitToplevel() {
   const r = spawnSync("git", ["rev-parse", "--show-toplevel"], {
     encoding: "utf8",
@@ -165,19 +254,6 @@ function countUnpushed() {
   if (r.status !== 0) return 0;
   const n = parseInt((r.stdout ?? "").trim(), 10);
   return Number.isFinite(n) ? n : 0;
-}
-
-function extractPRRef(cmd) {
-  // `gh pr ready` optionally accepts a PR number or URL as its first
-  // positional argument. When omitted, gh picks the PR for the current
-  // branch. We don't need to resolve the current branch ourselves —
-  // gh pr view with no ref does the same.
-  const m = cmd.match(/\bgh\s+pr\s+ready\s+(\S+)/);
-  if (!m) return null;
-  const candidate = m[1];
-  // Ignore flag-starting tokens (`--confirm`, etc.)
-  if (candidate.startsWith("-")) return null;
-  return candidate;
 }
 
 function fetchBody(prRef) {
@@ -212,28 +288,8 @@ function summarize(ref, body) {
   return [head, headingLine, todoLine, tail].join("\n");
 }
 
-// Minimal quote-stripper so mentions of our match phrase inside quoted
-// args (echo, git commit -m, etc.) don't false-positive the hook.
-// Handles '...' and "..." with backslash escapes inside double quotes;
-// unclosed quote → return input unchanged (upstream regex decides).
-function stripQuoted(cmd) {
-  let out = "";
-  let quote = null;
-  for (let i = 0; i < cmd.length; i++) {
-    const c = cmd[i];
-    if (quote) {
-      if (c === quote) quote = null;
-      else if (c === "\\" && quote === '"' && i + 1 < cmd.length) i++;
-      continue;
-    }
-    if (c === "'" || c === '"') {
-      quote = c;
-      continue;
-    }
-    out += c;
-  }
-  return quote === null ? out : cmd;
-}
+// ---------------------------------------------------------------------
+// Output helpers
 
 function block(reason) {
   process.stderr.write(`pr-ready-guard: ${reason}\n`);
