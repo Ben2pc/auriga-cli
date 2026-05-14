@@ -57,9 +57,9 @@ The block list is conservative and based on filesystem / git state only — no b
 - **Route A**: `gh pr ready` (Draft → Ready transition)
 - **Route B**: `gh pr create` without `--draft` / `-d` (creates Ready directly, bypassing Route A). The explicit `--draft=<value>` form follows cobra `BoolVar` semantics — truthy values (`1` / `t` / `true`, case-insensitive) opt out of Route B; falsy values (`0` / `f` / `false`) and empty values trigger the same structural enforcement as no flag at all.
 
-1. **Stray planning docs at repo root** (both routes): `findings.md`, `progress.md`, `task_plan.md`. These are session-ephemeral artifacts (e.g., from `planning-with-files` or `brainstorming`) and must be archived to `docs/worklog/worklog-<YYYY-MM-DD>-<branch-name>/` (or deleted) before marking ready.
+1. **Stray planning docs at repo root** (both routes): `findings.md`, `progress.md`, `task_plan.md`. These are session-ephemeral artifacts (e.g., from `planning-with-files` or `spec-design`) and must be archived to `docs/worklog/worklog-<YYYY-MM-DD>-<branch-name>/` (or deleted) before marking ready.
 2. **Stray spec docs under `docs/superpowers/specs/`** (both routes): same lifecycle as above.
-3. **Unfinalized active specs under `docs/specs/`** (both routes): that directory is the dev-only temp workspace for `brainstorming` outputs; by PR Ready every spec must be either promoted to `docs/architecture/`, archived to `docs/worklog/`, or deleted.
+3. **Unfinalized active specs under `docs/specs/`** (both routes): that directory is the dev-only temp workspace for `spec-design` outputs; by PR Ready every spec must be either promoted to `docs/architecture/`, archived to `docs/worklog/`, or deleted.
 4. **Unpushed commits on the current branch** (Route A only, and only when no PR ref is passed): the remote-side PR can't reflect what isn't pushed yet. Route B skips this check because `gh pr create` pushes on demand.
 
 On Route B, the block message also lists the `--draft` escape hatch as an alternative remediation — passing `--draft` defers the Ready transition to a separate `gh pr ready`, which still enforces the same structural checks (plus the unpushed-commit check).
