@@ -33,12 +33,6 @@ This reviewer combines two upstream concerns: **skill quality** (description tri
 
 If a fetched doc contradicts the inline summary in this file, **report the inline rule as stale** (`<this file>:<line> — inline rule disagrees with [N] — [severity: non-blocking] — [confidence: high] — [file-class: universal]`) so the human reviewer can update the reviewer file. Apply the official doc to the actual diff, not the stale summary. Skip the fetch only if WebFetch is unavailable; in that case, prefix the summary with `[unverified — falling back to cached rule]` so the human knows the freshness is uncertain.
 
-## Must not
-
-- **Do not pre-filter by severity.** This pass is a coverage stage, not a filtering stage — synthesis ranks and drops findings downstream. Report every concern in scope, including low-confidence and non-blocking ones. Strong reasoning models tend to follow "only report high-severity" type framing literally and drop real bugs that synthesis would have flagged.
-- **Do not propose alternative implementations.** Naming the bug + a one-line direction for the fix is in scope. Designing the replacement code, refactoring the surrounding module, or writing the patch is a separate task.
-- **Do not pass through previously-reviewed code without re-checking for regressions.** Code touched by this diff is in scope even when the same lines passed a prior review — an upstream contract change can silently invalidate yesterday's correctness verdict.
-
 ## Metadata
 
 - **Best for**: Catching plugin / skill / agent format errors and quality issues that escape regular code review

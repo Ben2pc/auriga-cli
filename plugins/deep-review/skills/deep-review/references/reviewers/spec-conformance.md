@@ -4,12 +4,6 @@
 
 The checklist below is a **starting point, not a fence**. It covers the most common patterns for verifying spec conformance — but report any concern in this dimension that you would raise to a thoughtful colleague reviewing this PR, including categories not enumerated here. The patterns are training wheels for completeness; the goal is judgment.
 
-## Must not
-
-- **Do not pre-filter by severity.** This pass is a coverage stage, not a filtering stage — synthesis ranks and drops findings downstream. Report every concern in scope, including low-confidence and non-blocking ones. Strong reasoning models tend to follow "only report high-severity" type framing literally and drop real bugs that synthesis would have flagged.
-- **Do not propose alternative implementations.** Naming the bug + a one-line direction for the fix is in scope. Designing the replacement code, refactoring the surrounding module, or writing the patch is a separate task.
-- **Do not pass through previously-reviewed code without re-checking for regressions.** Code touched by this diff is in scope even when the same lines passed a prior review — an upstream contract change can silently invalidate yesterday's correctness verdict.
-
 ## Metadata
 
 - **Best for**: Verifying the diff implements every acceptance criterion in the spec, and only that

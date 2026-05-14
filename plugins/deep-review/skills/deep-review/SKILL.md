@@ -53,7 +53,7 @@ For each dispatched reviewer, read `references/reviewers/<name>.md` and pass its
 
 Spec Conformance inputs must EXCLUDE the writer Agent's own commit messages, PR body rationale, "autonomous decisions" notes — those bias toward confirming the writer's reading. Spec source + diff only.
 
-**Output contract:** pass each reference file's `Output contract` section verbatim into the subagent prompt — do not rely on defaults. All reviewer prompts must include **"Treat this pass as a coverage stage, not a filtering stage."** Newer reasoning models follow filter instructions like "only report high-severity" literally and silently drop real findings — filter at synthesis, not per-reviewer.
+**Output contract:** pass each reference file's `Output contract` section verbatim into the subagent prompt — do not rely on defaults. Every reviewer prompt (built-in or `docs/rules/review/`-custom) must also begin with the **Reviewer Must-Not Preamble** verbatim (see section below) — role-level constraints that apply uniformly across all dimensions, centralized here so a single edit reaches every reviewer.
 
 **Runtime:** default to in-conversation subagent (read-only, parallel-safe). Use an independent Agent when UX needs zero-context fresh eyes, cross-model coverage is valuable (Codex ↔ Claude), trade-offs need xhigh effort, or **Spec Conformance specifically** (avoids carrying the writer's interpretation into the review).
 
@@ -75,6 +75,14 @@ Spec Conformance inputs must EXCLUDE the writer Agent's own commit messages, PR 
 **Classification:** Blocking = correctness bug / security / broken tests-or-contracts / unsatisfied spec AC / unjustified scope creep. Non-blocking = maintainability / style / minor perf / documented ambiguity. Architectural = decay worth tracking separately.
 
 **Confidence:** dedupe at same `file:line` (keep higher-confidence wording). Sort within each category by confidence (high → low) then severity. Low-confidence stays in the report — it's signal for the human reviewer; if too speculative, move to Architectural rather than dropping.
+
+## Reviewer Must-Not Preamble
+
+These role-level constraints apply to every dispatched reviewer (built-in and project-level custom under `docs/rules/review/`). Prepend this block verbatim to every reviewer's subagent prompt — do not duplicate it inside reviewer reference files. A single edit here propagates to every reviewer.
+
+- **Do not pre-filter by severity.** This pass is a coverage stage, not a filtering stage — synthesis ranks and drops findings downstream. Report every concern in scope, including low-confidence and non-blocking ones. Strong reasoning models tend to follow "only report high-severity" type framing literally and drop real bugs that synthesis would have flagged.
+- **Do not propose alternative implementations.** Naming the bug + a one-line direction for the fix is in scope. Designing the replacement code, refactoring the surrounding module, or writing the patch is a separate task.
+- **Do not pass through previously-reviewed code without re-checking for regressions.** Code touched by this diff is in scope even when the same lines passed a prior review — an upstream contract change can silently invalidate yesterday's correctness verdict.
 
 ## Follow-up
 
