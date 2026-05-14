@@ -22,7 +22,8 @@ A workflow skill that drives the Agent forward along the auriga workflow (`CLAUD
 - **Installed to user project**: materialized by `claude plugins install auriga-go@auriga-cli` under the Claude Code plugin directory. Claude Code auto-discovers `skills/` subdirectories inside installed plugins.
 - **Install mechanism**: Claude Code plugin system.
   - Repo-root `.claude-plugin/marketplace.json` lists the plugin (`"source": "./plugins/auriga-go"`).
-  - `.claude/plugins.json` advertises `auriga-go@auriga-cli` with `marketplace: { name: "auriga-cli", source: "Ben2pc/auriga-cli" }` so `npx auriga-cli` → Plugins offers it.
+  - `.agents/plugins/marketplace.json` lists the Codex side of the same repo-owned plugin.
+  - `extra_plugin_configs.json` is reserved for external plugins and `defaultOn` overrides; `auriga-go` needs no extra entry because both marketplace manifests already advertise it.
   - User-facing install: `claude plugins marketplace add Ben2pc/auriga-cli` + `claude plugins install auriga-go@auriga-cli`, or just `npx auriga-cli`.
 - **Tier**: plugin — first-party, shipped as a default-offered option.
 
@@ -81,6 +82,6 @@ What ship had that `/goal` does not, and what we chose to drop:
 - `plugins/auriga-go/README.md` — plugin overview and manual install instructions
 - Repo-root `.claude-plugin/marketplace.json` — Claude Code marketplace manifest listing auriga-go
 - `.agents/plugins/marketplace.json` — Codex marketplace manifest listing auriga-go
-- `.claude/plugins.json` — entry for `auriga-go@auriga-cli` so `npx auriga-cli` → Plugins offers it
+- `extra_plugin_configs.json` — no auriga-go entry required; only external plugins and default-policy overrides live there
 - Root `CLAUDE.md` / `CLAUDE.zh-CN.md` do **not** reference auriga-go — the dedicated "Workflow Autopilot" section was removed in the CLAUDE.md slim pass (PR #46) to keep the workflow spec minimal. auriga-go is now surfaced only via the Plugins table in `README.md` / `README.zh-CN.md` and the marketplace manifests.
 - `.claude/CLAUDE.md` dev-guide documents the plugin-owned authoring convention and the `${CLAUDE_SKILL_DIR}` bug workaround.

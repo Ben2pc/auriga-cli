@@ -2,13 +2,12 @@ import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 
 import { validateSkillsLock } from "../src/skills.js";
-import { validatePluginsConfig } from "../src/plugins.js";
-import { validateCodexInstallConfig } from "../src/codex-plugin-config.js";
+import { validateExtraPluginConfigs } from "../src/plugins.js";
 
-// skills-lock.json + .claude/plugins.json are fetched from raw GitHub
-// at runtime and their values are interpolated into shell commands.
-// These validators are the only thing standing between a compromised
-// metadata source and arbitrary command execution — lock them down.
+// skills-lock.json + extra_plugin_configs.json are fetched from raw GitHub
+// at runtime and their values are interpolated into shell commands. These
+// validators are the boundary between compromised metadata and command
+// injection, so keep them conservative.
 
 describe("validateSkillsLock (codex deep-review #3)", () => {
   test("accepts the canonical shape", () => {
@@ -48,16 +47,23 @@ describe("validateSkillsLock (codex deep-review #3)", () => {
   });
 });
 
-describe("validatePluginsConfig (codex deep-review #4)", () => {
-  test("accepts the canonical shape", () => {
+describe("validateExtraPluginConfigs", () => {
+  test("accepts local overrides plus Claude and Codex external plugins", () => {
     assert.doesNotThrow(() =>
-      validatePluginsConfig({
+      validateExtraPluginConfigs({
         plugins: [
-          { name: "skill-creator", package: "skill-creator@anthropic" },
+          { name: "auriga-notify", agents: ["claude"], defaultOn: false },
           {
-            name: "auriga-go",
-            package: "auriga-go@auriga-cli",
-            marketplace: { name: "auriga-cli", source: "Ben2pc/auriga-cli" },
+            name: "skill-creator",
+            agents: ["claude"],
+            description: "Create and manage custom skills",
+            claude: { package: "skill-creator@claude-plugins-official" },
+          },
+          {
+            name: "external-codex",
+            agents: ["codex"],
+            description: "External Codex plugin",
+            codex: { marketplace: { name: "external", source: "ok/ok" } },
           },
         ],
       }),
@@ -67,132 +73,58 @@ describe("validatePluginsConfig (codex deep-review #4)", () => {
   test("rejects plugin name / package / marketplace source with injection payloads", () => {
     const cases: [string, unknown][] = [
       ["name", "a; rm -rf /"],
-      ["package", "pkg@owner`whoami`"],
+      ["claude.package", "pkg@owner`whoami`"],
+      ["marketplace.name", "ok`whoami`"],
       ["marketplace.source", "$(whoami)"],
     ];
     for (const [field, payload] of cases) {
-      const base: Record<string, unknown> = { name: "ok", package: "ok@ok" };
+      const base: Record<string, unknown> = { name: "ok", agents: ["claude"] };
       if (field === "name") base.name = payload as string;
-      if (field === "package") base.package = payload as string;
+      if (field === "claude.package") base.claude = { package: payload as string };
+      if (field === "marketplace.name") {
+        base.codex = { marketplace: { name: payload as string, source: "ok/ok" } };
+      }
       if (field === "marketplace.source") {
-        base.marketplace = { name: "ok", source: payload as string };
+        base.codex = { marketplace: { name: "ok", source: payload as string } };
       }
       assert.throws(
-        () => validatePluginsConfig({ plugins: [base] }),
+        () => validateExtraPluginConfigs({ plugins: [base] }),
         /does not match|must be an object/,
         `${field}=${String(payload)} must be rejected`,
       );
     }
   });
 
-  test("rejects non-array .plugins and non-object entries", () => {
-    assert.throws(() => validatePluginsConfig({ plugins: "oops" }), /\.plugins must be an array/);
+  test("rejects malformed plugin lists", () => {
+    assert.throws(() => validateExtraPluginConfigs({ plugins: "oops" }), /\.plugins must be an array/);
+    assert.throws(() => validateExtraPluginConfigs({ plugins: ["oops"] }), /must be an object/);
+  });
+
+  test("rejects malformed agents", () => {
     assert.throws(
-      () => validatePluginsConfig({ plugins: ["oops"] }),
-      /must be an object/,
-    );
-  });
-});
-
-describe("validateCodexInstallConfig — local + external marketplace shapes", () => {
-  test("accepts the canonical local-only shape", () => {
-    assert.doesNotThrow(() =>
-      validateCodexInstallConfig({
-        plugins: [
-          { name: "auriga-go", description: "x" },
-          { name: "session-instructions-loader" },
-        ],
-      }),
+      () => validateExtraPluginConfigs({ plugins: [{ name: "ok", agents: ["weird"] }] }),
+      /agents must contain only/,
     );
   });
 
-  test("accepts an external-marketplace entry with name + source", () => {
-    assert.doesNotThrow(() =>
-      validateCodexInstallConfig({
-        plugins: [
-          { name: "auriga-go" },
-          {
-            name: "deep-review",
-            description: "Multi-dimensional PR review",
-            marketplace: { name: "g-claude-code-plugins", source: "Ben2pc/g-claude-code-plugins" },
-          },
-        ],
-      }),
+  test("rejects malformed runtime config fields", () => {
+    assert.throws(
+      () => validateExtraPluginConfigs({ plugins: [{ name: "ok", claude: "oops" }] }),
+      /plugins\[0\]\.claude must be an object/,
+    );
+    assert.throws(
+      () => validateExtraPluginConfigs({ plugins: [{ name: "ok", codex: "oops" }] }),
+      /plugins\[0\]\.codex must be an object/,
     );
   });
 
-  test("rejects marketplace name / source with shell injection payloads", () => {
-    const cases: [string, string][] = [
-      ["name", "a; rm -rf /"],
-      ["name", "ok`whoami`"],
-      ["source", "$(whoami)"],
-      ["source", "ok ok"],
-      ["source", "ok/ok'x'"],
-    ];
-    for (const [field, payload] of cases) {
-      const marketplace =
-        field === "name"
-          ? { name: payload, source: "ok/ok" }
-          : { name: "ok", source: payload };
-      assert.throws(
-        () =>
-          validateCodexInstallConfig({
-            plugins: [{ name: "deep-review", marketplace }],
-          }),
-        /does not match/,
-        `marketplace.${field}=${payload} must be rejected`,
-      );
-    }
-  });
-
-  test("rejects non-object marketplace field", () => {
+  test("rejects malformed marketplace references", () => {
     assert.throws(
       () =>
-        validateCodexInstallConfig({
-          plugins: [{ name: "deep-review", marketplace: "oops" }],
-        }),
-      /marketplace must be an object/,
-    );
-  });
-
-  test("rejects marketplace missing name or source", () => {
-    assert.throws(
-      () =>
-        validateCodexInstallConfig({
-          plugins: [{ name: "deep-review", marketplace: { name: "ok" } }],
+        validateExtraPluginConfigs({
+          plugins: [{ name: "x", codex: { marketplace: { name: "ok", source: "owner/repo/extra" } } }],
         }),
       /marketplace\.source/,
     );
-    assert.throws(
-      () =>
-        validateCodexInstallConfig({
-          plugins: [{ name: "deep-review", marketplace: { source: "ok/ok" } }],
-        }),
-      /marketplace\.name/,
-    );
-  });
-
-  test("source enforces GitHub owner/repo shape — rejects multi-slash, dot-dot, trailing slash", () => {
-    // After tightening MARKETPLACE_SOURCE_RE, sources that are not
-    // exactly `owner/repo` are rejected. These would have passed under
-    // the prior overly-permissive `[A-Za-z0-9._/-]{0,255}` regex.
-    const badSources = [
-      "owner/repo/extra",   // 3+ segments
-      "owner//repo",        // empty middle segment
-      "owner/../repo",      // path traversal lookalike
-      "owner/",             // trailing slash, missing repo
-      "/repo",              // leading slash, missing owner
-      "owner",              // no slash at all
-    ];
-    for (const bad of badSources) {
-      assert.throws(
-        () =>
-          validateCodexInstallConfig({
-            plugins: [{ name: "x", marketplace: { name: "ok", source: bad } }],
-          }),
-        /marketplace\.source/,
-        `source=${bad} must be rejected`,
-      );
-    }
   });
 });

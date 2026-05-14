@@ -35,8 +35,12 @@ auriga-cli/
 │       ├── planning-with-files/
 │       └── playwright-cli/
 ├── .claude/
-│   ├── settings.json          # 项目级 Claude Code 配置
-│   └── plugins.json           # 推荐 plugin 清单（CLI 消费）
+│   └── settings.json          # 项目级 Claude Code 配置
+├── .claude-plugin/
+│   └── marketplace.json       # Claude 本仓库插件清单
+├── .agents/plugins/
+│   └── marketplace.json       # Codex 本仓库插件清单
+├── extra_plugin_configs.json  # 外部插件与 defaultOn 覆盖
 └── README.md
 ```
 
@@ -62,33 +66,63 @@ auriga-cli/
 
 ### Plugins
 
-- **内容**：`.claude/plugins.json` 中的推荐列表
-- **安装方式**：`claude plugins install <package> --scope <user|project>`
-- **Scope 选择**：user（默认）或 project
-- **Marketplace 处理**：新 marketplace 自动执行 `claude plugins marketplace add`；已存在的自动执行 `claude plugins marketplace update` 以拾取上游更新（重命名、新增插件等）
-- **冲突处理**：通过 `claude plugins list` 检查，已安装的跳过
+- **内容**：本仓库插件来自 `.claude-plugin/marketplace.json` 和 `.agents/plugins/marketplace.json`；外部插件和 `defaultOn` 覆盖来自 `extra_plugin_configs.json`
+- **安装方式**：Claude 走 `claude plugins install <package> --scope <user|project>`；Codex 走 `codex plugin marketplace add/upgrade` 后写入 `~/.codex/config.toml`
+- **Scope 选择**：Claude 支持 user（默认）或 project；Codex 插件启用写入用户级 `~/.codex/config.toml`
+- **Marketplace 处理**：Claude 新 marketplace 自动执行 `claude plugins marketplace add`，已存在的执行 `claude plugins marketplace update`；Codex 执行 `codex plugin marketplace add/upgrade` 并从 Codex marketplace cache 复制本仓库插件 payload
+- **冲突处理**：Claude 通过 `claude plugins list` 检查；Codex 通过 marketplace 注册结果和 `~/.codex/config.toml` 收敛
 - **交互**：展示 plugin 列表（名称 + 描述），用户 checkbox 多选
 
-## plugins.json 格式
+## 插件来源文件
 
 ```json
 {
-  "plugins": [
-    {
-      "name": "skill-creator",
-      "package": "skill-creator@claude-plugins-official",
-      "description": "创建和管理自定义 skills"
-    },
-    {
-      "name": "codex",
-      "package": "codex@openai-codex",
-      "description": "Codex 跨模型协作",
-      "marketplace": {
-        "name": "openai-codex",
-        "source": "openai/codex-plugin-cc"
+  ".claude-plugin/marketplace.json": {
+    "name": "auriga-cli",
+    "plugins": [
+      {
+        "name": "auriga-go",
+        "description": "Workflow autopilot for the auriga workflow.",
+        "source": "./plugins/auriga-go"
       }
-    }
-  ]
+    ]
+  },
+  ".agents/plugins/marketplace.json": {
+    "name": "auriga-cli",
+    "plugins": [
+      {
+        "name": "auriga-go",
+        "source": {
+          "source": "local",
+          "path": "./plugins/auriga-go"
+        }
+      }
+    ]
+  },
+  "extra_plugin_configs.json": {
+    "plugins": [
+      {
+        "name": "skill-creator",
+        "agents": ["claude"],
+        "description": "Create and manage custom skills",
+        "claude": {
+          "package": "skill-creator@claude-plugins-official"
+        }
+      },
+      {
+        "name": "codex",
+        "agents": ["claude"],
+        "description": "Cross-model collaboration with Codex",
+        "claude": {
+          "package": "codex@openai-codex",
+          "marketplace": {
+            "name": "openai-codex",
+            "source": "openai/codex-plugin-cc"
+          }
+        }
+      }
+    ]
+  }
 }
 ```
 

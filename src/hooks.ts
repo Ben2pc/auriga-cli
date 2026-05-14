@@ -90,11 +90,11 @@ export interface SettingsFile {
 }
 
 // --- Registry validation ---
-// hooks.json is fetched at runtime from raw.githubusercontent.com, so any
-// downstream code that interpolates registry values into shell commands or
-// filesystem paths is one force-push away from RCE / arbitrary-file-write
-// for every user running `npx auriga-cli`. Validate every untrusted value
-// once at load time, then trust it through the rest of the install flow.
+// The root hooks registry is legacy-only, but when present it may still be
+// loaded from runtime-fetched content. Any downstream code that interpolates
+// registry values into shell commands or filesystem paths is one bad config
+// away from RCE / arbitrary-file-write. Validate every untrusted value once at
+// load time, then trust it through the rest of the install flow.
 
 const HOOK_NAME_RE = /^[a-z][a-z0-9-]*$/;
 // Matches a flat brew formula name (`jq`, `pngquant`) OR a fully
@@ -564,12 +564,11 @@ function preflightDeps(hook: HookDef): boolean {
  * Lazy-fetch a hook's payload files into `packageRoot` so they can be
  * copied from there into the user's target directory.
  *
- * IMPORTANT: in production, `packageRoot` is the temp dir created by
- * `fetchContentRoot()` (utils.ts) — not the npm package install dir.
- * Only `.claude/hooks/hooks.json` is preloaded by `CONTENT_FILES`; we
- * fetch each hook's individual files on demand here so users who pick
- * no hooks pay no network cost. In DEV mode `packageRoot` is the live
- * repo root, so the files are already on disk and we skip the fetch.
+ * IMPORTANT: this is retained for legacy root-hook installs. New hooks should
+ * ship inside plugins instead. In production, `packageRoot` is the temp dir
+ * created by `fetchContentRoot()` (utils.ts) — not the npm package install
+ * dir. In DEV mode `packageRoot` is the live repo root, so the files are
+ * already on disk and we skip the fetch.
  *
  * The hook payload list is owned by `hook.files` in `hooks.json`, which
  * loadHooksConfig already validated for path-traversal safety, so each
@@ -691,6 +690,7 @@ function writeMergedSettings(
 
 export function loadHooksConfig(packageRoot: string): HooksConfig {
   const configPath = path.join(packageRoot, ".claude", "hooks", "hooks.json");
+  if (!fs.existsSync(configPath)) return { hooks: [] };
   const raw = JSON.parse(fs.readFileSync(configPath, "utf-8")) as { hooks?: unknown };
   if (!raw || !Array.isArray(raw.hooks)) {
     throw new Error(`${configPath} must have a "hooks" array at the top level`);

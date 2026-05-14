@@ -7,7 +7,7 @@ Multi-dimensional PR review orchestrator for the [auriga workflow](https://githu
 Invoke `/deep-review <PR#>` (or say "run a formal review on PR N" / "deep review this PR"). The orchestrator:
 
 1. Classifies the PR by tags (`logic`, `auth-sensitive`, `ui`, `perf`, `structure`) and triviality.
-2. Dispatches in parallel: 3 always-fire reviewers (`spec-conformance`, `correctness`, `docs-sync`), tag-conditional reviewers (`robustness` / `security` / `ux` / `performance` / `structure`), non-trivial reviewers (`test-quality`, `code-quality`), and the detection-driven `skill-plugin-quality` reviewer when the diff touches plugin / skill / agent files.
+2. Dispatches fresh-context reviewers in parallel: 3 always-fire reviewers (`spec-conformance`, `correctness`, `docs-sync`), tag-conditional reviewers (`robustness` / `security` / `ux` / `performance` / `structure`), non-trivial reviewers (`test-quality`, `code-quality`), and the detection-driven `skill-plugin-quality` reviewer when the diff touches plugin / skill / agent files.
 3. Synthesizes findings into Blocking / Non-blocking / Architectural categories with severity + confidence.
 
 Drives the formal-review phase of `CLAUDE.md` in projects that adopt the auriga workflow.

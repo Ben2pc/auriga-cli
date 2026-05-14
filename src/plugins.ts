@@ -7,26 +7,24 @@ import type { TomlTable } from "smol-toml";
 import {
   codexLocalPluginPath,
   codexManifestPath,
-  validateCodexInstallConfig,
   validateCodexMarketplace,
-  type CodexInstallConfig,
-  type CodexInstallPlugin,
   type CodexMarketplace,
   type CodexMarketplacePlugin,
 } from "./codex-plugin-config.js";
 import { validateMarketplaceField, type MarketplaceRef } from "./marketplace.js";
-import { atomicWriteFile, exec, execAsync, fetchExtraContent, log, withEsc } from "./utils.js";
+import { atomicWriteFile, exec, execAsync, log, withEsc } from "./utils.js";
 import type { InstallOpts, PluginAgent, PluginsConfig, PluginDef } from "./utils.js";
 
 // Plugin names and plugin-package names end up in `claude plugins ...`
-// shell commands via string interpolation. .claude/plugins.json is
-// fetched from raw GitHub at runtime, so every value must pass a
+// shell commands via string interpolation. Marketplace and extra config
+// files are fetched from raw GitHub at runtime, so every value must pass a
 // conservative whitelist before composing the command. Without this a
-// compromised plugins.json would execute arbitrary commands via shell
+// compromised config would execute arbitrary commands via shell
 // metachar injection. Marketplace shape (name + source) lives in
 // `./marketplace.js` so Claude and Codex sides share one validator.
 const PLUGIN_NAME_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
 const PLUGIN_PACKAGE_RE = /^[A-Za-z0-9][A-Za-z0-9._@/-]{0,255}$/;
+const LOCAL_MARKETPLACE_SOURCE = "Ben2pc/auriga-cli";
 const MIGRATED_WORKFLOW_SKILLS = [
   "incremental-impl",
   "test-designer",
@@ -36,36 +34,121 @@ const NOTIFY_PLUGIN_NAME = "auriga-notify";
 const WORKFLOW_SKILLS_PLUGIN_NAME = "auriga-workflow-skills";
 const LEGACY_NOTIFY_MARKER = "auriga:notify";
 const CODEX_PLUGIN_VERSION_RE = /^[A-Za-z0-9][A-Za-z0-9._+-]{0,127}$/;
-type PluginRuntime = "claude" | "codex";
+export type PluginRuntime = "claude" | "codex";
 
-export function validatePluginsConfig(raw: unknown): asserts raw is PluginsConfig {
+export interface ClaudeMarketplacePlugin {
+  name: string;
+  description?: string;
+  source?: string;
+}
+
+export interface ClaudeMarketplace {
+  name: string;
+  plugins: ClaudeMarketplacePlugin[];
+}
+
+export interface ExtraPluginConfig {
+  name: string;
+  agents?: PluginRuntime[];
+  description?: string;
+  defaultOn?: boolean;
+  claude?: {
+    package?: string;
+    marketplace?: MarketplaceRef;
+  };
+  codex?: {
+    marketplace?: MarketplaceRef;
+  };
+}
+
+export interface ExtraPluginConfigs {
+  plugins: ExtraPluginConfig[];
+}
+
+interface CodexInstallPlugin {
+  name: string;
+  description?: string;
+  defaultOn?: boolean;
+  marketplace?: MarketplaceRef;
+}
+
+interface CodexInstallConfig {
+  plugins: CodexInstallPlugin[];
+}
+
+function validateClaudeMarketplace(raw: unknown): asserts raw is ClaudeMarketplace {
   if (!raw || typeof raw !== "object") {
-    throw new Error("plugins.json: root must be an object");
+    throw new Error("Claude marketplace.json: root must be an object");
   }
   const cfg = raw as Record<string, unknown>;
+  if (typeof cfg.name !== "string" || !PLUGIN_NAME_RE.test(cfg.name)) {
+    throw new Error("Claude marketplace.json: root must include a safe name");
+  }
   if (!Array.isArray(cfg.plugins)) {
-    throw new Error("plugins.json: .plugins must be an array");
+    throw new Error("Claude marketplace.json: .plugins must be an array");
   }
   cfg.plugins.forEach((p, i) => {
     if (!p || typeof p !== "object") {
-      throw new Error(`plugins.json: plugins[${i}] must be an object`);
+      throw new Error(`Claude marketplace.json: plugins[${i}] must be an object`);
     }
     const plugin = p as Record<string, unknown>;
     if (typeof plugin.name !== "string" || !PLUGIN_NAME_RE.test(plugin.name)) {
       throw new Error(
-        `plugins.json: plugins[${i}].name ${JSON.stringify(plugin.name)} does not match ${PLUGIN_NAME_RE}`,
+        `Claude marketplace.json: plugins[${i}].name ${JSON.stringify(plugin.name)} does not match ${PLUGIN_NAME_RE}`,
       );
     }
-    if (typeof plugin.package !== "string" || !PLUGIN_PACKAGE_RE.test(plugin.package)) {
+    if (plugin.description !== undefined && typeof plugin.description !== "string") {
+      throw new Error(`Claude marketplace.json: plugins[${i}].description must be a string`);
+    }
+  });
+}
+
+export function validateExtraPluginConfigs(raw: unknown): asserts raw is ExtraPluginConfigs {
+  if (!raw || typeof raw !== "object") {
+    throw new Error("extra_plugin_configs.json: root must be an object");
+  }
+  const cfg = raw as Record<string, unknown>;
+  if (!Array.isArray(cfg.plugins)) {
+    throw new Error("extra_plugin_configs.json: .plugins must be an array");
+  }
+  cfg.plugins.forEach((p, i) => {
+    if (!p || typeof p !== "object") {
+      throw new Error(`extra_plugin_configs.json: plugins[${i}] must be an object`);
+    }
+    const plugin = p as Record<string, unknown>;
+    if (typeof plugin.name !== "string" || !PLUGIN_NAME_RE.test(plugin.name)) {
       throw new Error(
-        `plugins.json: plugins[${i}].package ${JSON.stringify(plugin.package)} does not match ${PLUGIN_PACKAGE_RE}`,
+        `extra_plugin_configs.json: plugins[${i}].name ${JSON.stringify(plugin.name)} does not match ${PLUGIN_NAME_RE}`,
       );
     }
-    if (plugin.marketplace !== undefined) {
-      validateMarketplaceField(`plugins.json: plugins[${i}]`, plugin.marketplace);
+    if (plugin.agents !== undefined) {
+      if (!Array.isArray(plugin.agents) || !plugin.agents.every((agent) => agent === "claude" || agent === "codex")) {
+        throw new Error(`extra_plugin_configs.json: plugins[${i}].agents must contain only claude/codex`);
+      }
+    }
+    if (plugin.description !== undefined && typeof plugin.description !== "string") {
+      throw new Error(`extra_plugin_configs.json: plugins[${i}].description must be a string`);
     }
     if (plugin.defaultOn !== undefined && typeof plugin.defaultOn !== "boolean") {
-      throw new Error(`plugins.json: plugins[${i}].defaultOn must be a boolean`);
+      throw new Error(`extra_plugin_configs.json: plugins[${i}].defaultOn must be a boolean`);
+    }
+    for (const runtime of ["claude", "codex"] as const) {
+      const runtimeCfg = plugin[runtime];
+      if (runtimeCfg === undefined) continue;
+      if (!runtimeCfg || typeof runtimeCfg !== "object") {
+        throw new Error(`extra_plugin_configs.json: plugins[${i}].${runtime} must be an object`);
+      }
+      const runtimeRecord = runtimeCfg as Record<string, unknown>;
+      if (runtime === "claude" && runtimeRecord.package !== undefined) {
+        if (typeof runtimeRecord.package !== "string" || !PLUGIN_PACKAGE_RE.test(runtimeRecord.package)) {
+          throw new Error(
+            `extra_plugin_configs.json: plugins[${i}].claude.package ${JSON.stringify(runtimeRecord.package)} does not match ${PLUGIN_PACKAGE_RE}`,
+          );
+        }
+      }
+      if (runtimeRecord.marketplace !== undefined) {
+        validateMarketplaceField(`extra_plugin_configs.json: plugins[${i}].${runtime}`, runtimeRecord.marketplace);
+      }
     }
   });
 }
@@ -146,6 +229,83 @@ function getInstalledMarketplaces(): Set<string> {
   }
 }
 
+export function loadExtraPluginConfigs(packageRoot: string): ExtraPluginConfigs {
+  const configPath = path.join(packageRoot, "extra_plugin_configs.json");
+  if (!fs.existsSync(configPath)) return { plugins: [] };
+  const raw: unknown = JSON.parse(fs.readFileSync(configPath, "utf-8"));
+  validateExtraPluginConfigs(raw);
+  return raw;
+}
+
+export function extraAppliesTo(extra: ExtraPluginConfig, runtime: PluginRuntime): boolean {
+  return extra.agents === undefined || extra.agents.includes(runtime);
+}
+
+export function extraByNameForRuntime(
+  extras: ExtraPluginConfigs,
+  runtime: PluginRuntime,
+): Map<string, ExtraPluginConfig> {
+  return new Map(
+    extras.plugins
+      .filter((extra) => extraAppliesTo(extra, runtime))
+      .map((extra) => [extra.name, extra]),
+  );
+}
+
+export function applyExtraPluginFields<T extends { name: string; description?: string; defaultOn?: boolean }>(
+  plugin: T,
+  extra: ExtraPluginConfig | undefined,
+): T {
+  if (!extra) return plugin;
+  return {
+    ...plugin,
+    ...(extra.description !== undefined ? { description: extra.description } : {}),
+    ...(extra.defaultOn !== undefined ? { defaultOn: extra.defaultOn } : {}),
+  };
+}
+
+export function loadClaudeMarketplace(packageRoot: string): ClaudeMarketplace | null {
+  const marketplacePath = path.join(packageRoot, ".claude-plugin", "marketplace.json");
+  if (!fs.existsSync(marketplacePath)) return null;
+  const raw: unknown = JSON.parse(fs.readFileSync(marketplacePath, "utf-8"));
+  validateClaudeMarketplace(raw);
+  return raw;
+}
+
+function loadClaudePluginsConfig(packageRoot: string): PluginsConfig | null {
+  const extras = loadExtraPluginConfigs(packageRoot);
+  const extraByName = extraByNameForRuntime(extras, "claude");
+  const marketplace = loadClaudeMarketplace(packageRoot);
+  const plugins = new Map<string, PluginDef>();
+
+  if (marketplace) {
+    for (const plugin of marketplace.plugins) {
+      plugins.set(
+        plugin.name,
+        applyExtraPluginFields({
+          name: plugin.name,
+          package: `${plugin.name}@${marketplace.name}`,
+          description: plugin.description ?? plugin.name,
+          marketplace: { name: marketplace.name, source: LOCAL_MARKETPLACE_SOURCE },
+        }, extraByName.get(plugin.name)),
+      );
+    }
+  }
+
+  for (const extra of extras.plugins) {
+    if (!extraAppliesTo(extra, "claude") || !extra.claude?.package) continue;
+    plugins.set(extra.name, {
+      name: extra.name,
+      package: extra.claude.package,
+      description: extra.description ?? extra.name,
+      ...(extra.defaultOn !== undefined ? { defaultOn: extra.defaultOn } : {}),
+      ...(extra.claude.marketplace ? { marketplace: extra.claude.marketplace } : {}),
+    });
+  }
+
+  return plugins.size > 0 ? { plugins: [...plugins.values()] } : null;
+}
+
 function loadCodexMarketplace(packageRoot: string): CodexMarketplace | null {
   const marketplacePath = path.join(packageRoot, ".agents", "plugins", "marketplace.json");
   if (!fs.existsSync(marketplacePath)) return null;
@@ -155,11 +315,33 @@ function loadCodexMarketplace(packageRoot: string): CodexMarketplace | null {
 }
 
 function loadCodexInstallConfig(packageRoot: string): CodexInstallConfig | null {
-  const installPath = path.join(packageRoot, ".agents", "plugins", "install.json");
-  if (!fs.existsSync(installPath)) return null;
-  const raw: unknown = JSON.parse(fs.readFileSync(installPath, "utf-8"));
-  validateCodexInstallConfig(raw);
-  return raw;
+  const extras = loadExtraPluginConfigs(packageRoot);
+  const extraByName = extraByNameForRuntime(extras, "codex");
+  const marketplace = loadCodexMarketplace(packageRoot);
+  const plugins = new Map<string, CodexInstallPlugin>();
+
+  if (marketplace) {
+    for (const plugin of marketplace.plugins) {
+      plugins.set(
+        plugin.name,
+        applyExtraPluginFields({
+          name: plugin.name,
+        }, extraByName.get(plugin.name)),
+      );
+    }
+  }
+
+  for (const extra of extras.plugins) {
+    if (!extraAppliesTo(extra, "codex") || !extra.codex?.marketplace) continue;
+    plugins.set(extra.name, {
+      name: extra.name,
+      description: extra.description,
+      ...(extra.defaultOn !== undefined ? { defaultOn: extra.defaultOn } : {}),
+      marketplace: extra.codex.marketplace,
+    });
+  }
+
+  return plugins.size > 0 ? { plugins: [...plugins.values()] } : null;
 }
 
 function resolveCodexPluginSelection(
@@ -180,6 +362,21 @@ function resolveCodexPluginSelection(
 
 function codexHome(): string {
   return process.env.CODEX_HOME || path.join(os.homedir(), ".codex");
+}
+
+function codexMarketplaceCacheRoot(marketplaceName: string): string {
+  return path.join(codexHome(), ".tmp", "marketplaces", marketplaceName);
+}
+
+function resolveCodexMarketplaceContentRoot(packageRoot: string, marketplaceName: string): string {
+  const cachedRoot = codexMarketplaceCacheRoot(marketplaceName);
+  if (fs.existsSync(path.join(cachedRoot, ".agents", "plugins", "marketplace.json"))) {
+    return cachedRoot;
+  }
+  throw new Error(
+    `Codex marketplace ${marketplaceName} cache missing at ${cachedRoot}. ` +
+      "Run `codex plugin marketplace add/upgrade` successfully before materializing local plugins.",
+  );
 }
 
 function shellQuote(value: string): string {
@@ -372,7 +569,7 @@ function codexMarketplaceAddCommand(packageRoot: string): string {
 }
 
 function codexExternalMarketplaceAddCommand(source: string): string {
-  // `source` is validated by validateCodexInstallConfig against
+  // `source` is validated by validateExtraPluginConfigs against
   // MARKETPLACE_SOURCE_RE (alphanumerics + `._/-`) — no shell metachars
   // can reach this string. URL form deliberately mirrors
   // codexMarketplaceAddCommand's hardcoded production branch.
@@ -402,8 +599,11 @@ function isCodexMarketplaceAlreadyAdded(error: unknown, marketplaceName: string)
     `marketplace ['"]?${escapeRegex(marketplaceName)}['"]? is already added`,
     "i",
   );
-  return marketplacePattern.test(text)
-    || /already added from a different source/i.test(text);
+  return marketplacePattern.test(text);
+}
+
+function isCodexMarketplaceDifferentSource(error: unknown): boolean {
+  return /already added from a different source/i.test(commandErrorText(error));
 }
 
 function pluginHasHooks(packageRoot: string, plugin: CodexMarketplacePlugin): boolean {
@@ -425,23 +625,23 @@ function resolveSelectedCodexMarketplacePlugins(
   return localSelected.map((p) => {
     const plugin = localMpByName.get(p.name);
     if (!plugin) {
-      throw new Error(`Codex install.json: plugin ${p.name} is not present in marketplace.json`);
+      throw new Error(`Codex plugin ${p.name} is selected but not present in marketplace.json`);
     }
     return plugin;
   });
 }
 
-async function ensureCodexPluginManifests(
+function ensureCodexPluginManifests(
   packageRoot: string,
   plugins: CodexMarketplacePlugin[],
-): Promise<void> {
+): void {
   for (const plugin of plugins) {
     const manifestPath = codexManifestPath(plugin);
     if (!manifestPath) {
       throw new Error(`Codex marketplace.json: plugin ${plugin.name} must use a local source.path`);
     }
     if (fs.existsSync(path.join(packageRoot, manifestPath))) continue;
-    await fetchExtraContent(packageRoot, manifestPath);
+    throw new Error(`Codex plugin ${plugin.name} manifest missing at ${manifestPath}`);
   }
 }
 
@@ -625,7 +825,13 @@ async function addCodexMarketplaceWithRetry(
     log.ok(`Codex marketplace ${marketplaceName} added`);
     return;
   } catch (e) {
-    if (opts.interactive || isCodexMarketplaceAlreadyAdded(e, marketplaceName)) {
+    if (isCodexMarketplaceDifferentSource(e)) {
+      const msg = `Codex marketplace ${marketplaceName} is already added from a different source`;
+      log.error(`${msg}\n${commandErrorText(e)}`);
+      failures.push(msg);
+      return;
+    }
+    if (isCodexMarketplaceAlreadyAdded(e, marketplaceName)) {
       try {
         exec(codexMarketplaceUpgradeCommand(marketplaceName), marketplaceExecOpts);
         log.ok(`Codex marketplace ${marketplaceName} upgraded`);
@@ -652,15 +858,15 @@ type ExternalSelection = CodexInstallPlugin & { marketplace: MarketplaceRef };
 
 // Builds the `<name>@<marketplace>` config keys + decides whether
 // features.plugin_hooks needs to flip on. Local plugins resolve through
-// this repo's marketplace.json and require a manifest fetch + hooks
-// inspection; external plugins emit a key directly from install.json
+// this repo's marketplace.json and require a manifest check + hooks
+// inspection; external plugins emit a key directly from extra_plugin_configs.json
 // (Codex CLI fetches the upstream manifest itself). External plugins do
 // NOT flip plugin_hooks today — we don't have access to the upstream
 // manifest at install time. Acceptable while no external plugin ships
 // hooks; once one does, prefer fetching the manifest or adding an
-// explicit `requiresPluginHooks: true` field on the install.json entry.
+// explicit `requiresPluginHooks: true` field on the extra config entry.
 async function composeCodexPluginKeys(
-  packageRoot: string,
+  pluginContentRoot: string,
   localMarketplace: CodexMarketplace | null,
   selectedMarketplacePlugins: CodexMarketplacePlugin[],
   externalSelected: ExternalSelection[],
@@ -671,7 +877,7 @@ async function composeCodexPluginKeys(
   if (localMarketplace) {
     for (const plugin of selectedMarketplacePlugins) {
       pluginKeys.push(`${plugin.name}@${localMarketplace.name}`);
-      if (pluginHasHooks(packageRoot, plugin)) needsPluginHooks = true;
+      if (pluginHasHooks(pluginContentRoot, plugin)) needsPluginHooks = true;
     }
   }
 
@@ -688,7 +894,7 @@ async function installCodexPlugins(
 ): Promise<void> {
   const installConfig = loadCodexInstallConfig(packageRoot);
   if (!installConfig) {
-    const msg = "No .agents/plugins/install.json found";
+    const msg = "No Codex plugins found in .agents/plugins/marketplace.json or extra_plugin_configs.json";
     if (!opts.interactive) throw new Error(msg);
     log.warn(msg);
     return;
@@ -710,11 +916,10 @@ async function installCodexPlugins(
     return;
   }
 
-  // Local plugins are described by this repo's .agents/plugins/marketplace.json
-  // and need a manifest fetch + hooks-detection. External plugins point to a
-  // different GitHub-hosted Codex marketplace and are resolved by Codex CLI
-  // itself when the marketplace is added — we only need to register the
-  // marketplace and emit the right `<name>@<marketplace>` plugin key.
+  // Local plugins are described by this repo's .agents/plugins/marketplace.json.
+  // External plugins come from extra_plugin_configs.json and are resolved by
+  // Codex CLI itself when their marketplace is added — we only need to
+  // register that marketplace and emit the right `<name>@<marketplace>` key.
   let localSelected = selected.filter((p) => p.marketplace === undefined);
   const externalSelected: ExternalSelection[] = selected.filter(
     (p): p is ExternalSelection => p.marketplace !== undefined,
@@ -772,20 +977,26 @@ async function installCodexPlugins(
   }
 
   if (failures.length === 0) {
-    const selectedMarketplacePlugins = localMarketplace
-      ? resolveSelectedCodexMarketplacePlugins(localMarketplace, localSelected)
+    const localMarketplaceContentRoot = localMarketplace
+      ? resolveCodexMarketplaceContentRoot(packageRoot, localMarketplace.name)
+      : packageRoot;
+    const effectiveLocalMarketplace = localMarketplace
+      ? loadCodexMarketplace(localMarketplaceContentRoot) ?? localMarketplace
+      : null;
+    const selectedMarketplacePlugins = effectiveLocalMarketplace
+      ? resolveSelectedCodexMarketplacePlugins(effectiveLocalMarketplace, localSelected)
       : [];
-    await ensureCodexPluginManifests(packageRoot, selectedMarketplacePlugins);
-    if (localMarketplace) {
+    ensureCodexPluginManifests(localMarketplaceContentRoot, selectedMarketplacePlugins);
+    if (effectiveLocalMarketplace) {
       materializeLocalCodexPluginCache(
-        packageRoot,
-        localMarketplace.name,
+        localMarketplaceContentRoot,
+        effectiveLocalMarketplace.name,
         selectedMarketplacePlugins,
       );
     }
     const { pluginKeys, needsPluginHooks } = await composeCodexPluginKeys(
-      packageRoot,
-      localMarketplace,
+      localMarketplaceContentRoot,
+      effectiveLocalMarketplace,
       selectedMarketplacePlugins,
       externalSelected,
     );
@@ -854,19 +1065,14 @@ export async function installPlugins(
   }
 
   const failures: string[] = [];
-  const configPath = path.join(packageRoot, ".claude", "plugins.json");
-  let config: PluginsConfig | null = null;
-  if (!fs.existsSync(configPath)) {
-    log.warn("No .claude/plugins.json found");
+  let config: PluginsConfig | null = loadClaudePluginsConfig(packageRoot);
+  if (!config) {
+    log.warn("No Claude plugins found in .claude-plugin/marketplace.json or extra_plugin_configs.json");
     if (agent === "both") failures.push("Claude Code plugins config missing");
     else return;
   } else {
-    const raw: unknown = JSON.parse(fs.readFileSync(configPath, "utf-8"));
-    validatePluginsConfig(raw);
-    config = raw;
-
     if (config.plugins.length === 0) {
-      log.warn("No plugins defined in plugins.json");
+      log.warn("No Claude plugins defined");
       if (agent === "both") failures.push("Claude Code plugins config empty");
       else return;
       config = null;

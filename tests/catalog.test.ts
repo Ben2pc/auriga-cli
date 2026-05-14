@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
+import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 
 import type { Catalog, CatalogEntry } from "../src/catalog.js";
@@ -10,6 +12,11 @@ import { renderTypeHelp } from "../src/help.js";
 // Covers spec §5.4 "Catalog 生成"
 
 const REPO_ROOT = path.resolve(new URL(".", import.meta.url).pathname, "..", "..");
+
+function writeJson(file: string, value: unknown): void {
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, `${JSON.stringify(value, null, 2)}\n`);
+}
 
 function assertEntriesShape(entries: CatalogEntry[], label: string): void {
   for (const e of entries) {
@@ -88,9 +95,8 @@ describe("generateCatalog (build-time)", () => {
       catalog.plugins.find((e) => e.name === "session-instructions-loader")?.description ?? "",
       /^\(Codex\)/,
     );
-    // deep-review is dual-Agent and locally bundled (registered in
-    // .claude/plugins.json + .agents/plugins/install.json, sourced from
-    // .claude-plugin/marketplace.json + .agents/plugins/marketplace.json).
+    // deep-review is dual-Agent and locally bundled, sourced from both
+    // repo marketplace manifests.
     assert.match(
       catalog.plugins.find((e) => e.name === "deep-review")?.description ?? "",
       /^\(Claude\/Codex\)/,
@@ -101,6 +107,33 @@ describe("generateCatalog (build-time)", () => {
     );
   });
 
+  test("external Codex plugins from extra_plugin_configs appear in catalog/help", () => {
+    const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), "auriga-catalog-extra-codex-"));
+    writeJson(path.join(repoRoot, "skills-lock.json"), { skills: {} });
+    writeJson(path.join(repoRoot, "extra_plugin_configs.json"), {
+      plugins: [
+        {
+          name: "external-codex-plugin",
+          agents: ["codex"],
+          description: "External Codex plugin from extra config",
+          codex: {
+            marketplace: {
+              name: "external-marketplace",
+              source: "owner/repo",
+            },
+          },
+        },
+      ],
+    });
+
+    const extraCatalog = generateCatalog(repoRoot);
+    const entry = extraCatalog.plugins.find((p) => p.name === "external-codex-plugin");
+    assert.deepEqual(entry?.agents, ["codex"]);
+    assert.equal(entry?.external, true);
+    assert.match(entry?.description ?? "", /^\(Codex\) External Codex plugin from extra config$/);
+    assert.match(renderTypeHelp(extraCatalog, "plugins", "0.0.0-test"), /external-codex-plugin/);
+  });
+
   test("hooks: notify is no longer exposed as a traditional hook", () => {
     assert.equal(catalog.hooks.length, 0);
     const names = catalog.hooks.map((e) => e.name).sort();
@@ -109,9 +142,9 @@ describe("generateCatalog (build-time)", () => {
   });
 
   test("plugins carry baked agents map (build-time, no runtime IO)", () => {
-    // rationale: scan-catalog used to read .claude/plugins.json +
-    // .agents/plugins/install.json at runtime to derive the agent map.
-    // Those files are NOT in the npm tarball (`files` only ships dist/), so
+    // rationale: scan-catalog used to derive the agent map from non-tarball
+    // plugin config files at runtime. Those files are NOT in the npm tarball
+    // (`files` only ships dist/), so
     // installed users had every plugin default to ["claude"] — dual-Agent
     // plugins (auriga-go etc.) mis-classified as Claude-only. The fix bakes
     // `agents` at build time. This pins the contract per plugin.

@@ -6,15 +6,19 @@ import matter from "gray-matter";
 import type { Catalog, CatalogEntry } from "../catalog.js";
 import {
   codexManifestPath,
-  validateCodexInstallConfig,
   validateCodexMarketplace,
-  type CodexInstallConfig,
   type CodexMarketplace,
   type CodexMarketplacePlugin,
 } from "../codex-plugin-config.js";
-import type { PluginsConfig, SkillsLock } from "../utils.js";
+import type { SkillsLock } from "../utils.js";
 import { WORKFLOW_SKILLS as WORKFLOW_SKILL_LIST, validateSkillsLock } from "../skills.js";
-import { validatePluginsConfig } from "../plugins.js";
+import {
+  applyExtraPluginFields,
+  extraAppliesTo,
+  extraByNameForRuntime,
+  loadClaudeMarketplace,
+  loadExtraPluginConfigs,
+} from "../plugins.js";
 
 const WORKFLOW_SKILLS = new Set(WORKFLOW_SKILL_LIST);
 
@@ -45,7 +49,7 @@ const CATALOG_OVERRIDES: Record<string, string> = {
 // Pulls a description from a local plugin's `.codex-plugin/plugin.json`
 // (interface.shortDescription preferred, falling back to top-level
 // description). Returns undefined when the manifest is absent or has
-// neither field — caller falls back to the install.json description.
+// neither field — caller falls back to marketplace / extra config metadata.
 function readLocalCodexManifestDescription(
   repoRoot: string,
   plugin: CodexMarketplacePlugin,
@@ -116,52 +120,57 @@ export function generateCatalog(repoRoot: string): Catalog {
     else recommendedSkills.push(entry);
   }
 
-  const pluginsPath = path.join(repoRoot, ".claude", "plugins.json");
-  const pluginsRaw: unknown = JSON.parse(fs.readFileSync(pluginsPath, "utf-8"));
-  validatePluginsConfig(pluginsRaw);
-  const pluginsCfg = pluginsRaw as PluginsConfig;
+  const extraConfigs = loadExtraPluginConfigs(repoRoot);
+  const claudeExtraByName = extraByNameForRuntime(extraConfigs, "claude");
   const pluginByName = new Map<string, CatalogEntry>();
-  for (const p of pluginsCfg.plugins) {
-    const local = pluginHasLocalManifest(repoRoot, p.name);
+  const claudeMarketplace = loadClaudeMarketplace(repoRoot);
+  if (claudeMarketplace) {
+    for (const marketplacePlugin of claudeMarketplace.plugins) {
+      const p = applyExtraPluginFields<{
+        name: string;
+        description: string;
+        defaultOn?: boolean;
+      }>({
+        name: marketplacePlugin.name,
+        description: marketplacePlugin.description ?? marketplacePlugin.name,
+      }, claudeExtraByName.get(marketplacePlugin.name));
+      pluginByName.set(p.name, {
+        name: p.name,
+        description: p.defaultOn === false ? `(opt-in) ${p.description}` : p.description,
+        agents: ["claude"],
+      });
+    }
+  }
+  for (const p of extraConfigs.plugins) {
+    if (!extraAppliesTo(p, "claude") || !p.claude?.package) continue;
     pluginByName.set(p.name, {
       name: p.name,
-      description: p.defaultOn === false ? `(opt-in) ${p.description}` : p.description,
+      description: p.defaultOn === false
+        ? `(opt-in) ${p.description ?? p.name}`
+        : p.description ?? p.name,
       agents: ["claude"],
-      ...(local ? {} : { external: true }),
+      external: true,
     });
   }
 
   const codexMarketplacePath = path.join(repoRoot, ".agents", "plugins", "marketplace.json");
-  const codexInstallPath = path.join(repoRoot, ".agents", "plugins", "install.json");
-  if (fs.existsSync(codexMarketplacePath) && fs.existsSync(codexInstallPath)) {
+  if (fs.existsSync(codexMarketplacePath)) {
     const codexMarketplaceRaw: unknown = JSON.parse(fs.readFileSync(codexMarketplacePath, "utf-8"));
-    const codexInstallRaw: unknown = JSON.parse(fs.readFileSync(codexInstallPath, "utf-8"));
     validateCodexMarketplace(codexMarketplaceRaw);
-    validateCodexInstallConfig(codexInstallRaw);
     const codexMarketplace = codexMarketplaceRaw as CodexMarketplace;
-    const codexInstall = codexInstallRaw as CodexInstallConfig;
-    const marketplaceByName = new Map(codexMarketplace.plugins.map((p) => [p.name, p]));
-    for (const p of codexInstall.plugins) {
+    const codexExtraByName = extraByNameForRuntime(extraConfigs, "codex");
+    for (const marketplacePlugin of codexMarketplace.plugins) {
+      const p = applyExtraPluginFields<{
+        name: string;
+        description: string;
+        defaultOn?: boolean;
+      }>({
+        name: marketplacePlugin.name,
+        description: readLocalCodexManifestDescription(repoRoot, marketplacePlugin)
+          ?? marketplacePlugin.name,
+      }, codexExtraByName.get(marketplacePlugin.name));
       const existing = pluginByName.get(p.name);
-      let description = typeof p.description === "string" && p.description.length > 0
-        ? p.description
-        : "Codex plugin";
-
-      // External-marketplace entries don't appear in our local marketplace.json;
-      // their manifest lives at the upstream's .codex-plugin/plugin.json which
-      // we deliberately don't fetch at build time. Description falls back to
-      // install.json's own value (or "(Claude/Codex)" reuse when also listed
-      // in .claude/plugins.json) — same shape humans / Agents see in --help.
-      if (p.marketplace === undefined) {
-        const marketplacePlugin = marketplaceByName.get(p.name);
-        if (!marketplacePlugin) {
-          throw new Error(`generate-catalog: Codex install plugin '${p.name}' missing from marketplace.json`);
-        }
-        if (description === "Codex plugin") {
-          const manifestDescription = readLocalCodexManifestDescription(repoRoot, marketplacePlugin);
-          if (manifestDescription) description = manifestDescription;
-        }
-      }
+      const description = p.description;
 
       // Agent map: if existing came from the Claude pass it's ["claude"]; this
       // pass adds "codex". Codex-only entries get ["codex"].
@@ -182,10 +191,24 @@ export function generateCatalog(repoRoot: string): Catalog {
       });
     }
   }
+  for (const p of extraConfigs.plugins) {
+    if (!extraAppliesTo(p, "codex") || !p.codex?.marketplace) continue;
+    const existing = pluginByName.get(p.name);
+    pluginByName.set(p.name, {
+      name: p.name,
+      description: existing
+        ? `(Claude/Codex) ${existing.description}`
+        : `(Codex) ${p.description ?? p.name}`,
+      agents: existing ? ["claude", "codex"] : ["codex"],
+      external: true,
+    });
+  }
   const plugins: CatalogEntry[] = [...pluginByName.values()];
 
   const hooksPath = path.join(repoRoot, ".claude", "hooks", "hooks.json");
-  const hooksCfg = JSON.parse(fs.readFileSync(hooksPath, "utf-8")) as HooksConfig;
+  const hooksCfg = fs.existsSync(hooksPath)
+    ? JSON.parse(fs.readFileSync(hooksPath, "utf-8")) as HooksConfig
+    : { hooks: [] };
   const hooks: CatalogEntry[] = hooksCfg.hooks.map((h) => ({
     name: h.name,
     description: h.defaultOn === false ? `(opt-in) ${h.description}` : h.description,
