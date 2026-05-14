@@ -983,7 +983,7 @@ export async function installPlugins(
         console.log(`\n${isUpdate ? "Updating" : "Installing"} ${plugin.name}...`);
         try {
           const cmd = `claude plugins ${action} ${plugin.package} --scope ${scope}`;
-          const cmdOpts = { cwd: installTargetCwd(opts) };
+          const cmdOpts = { cwd: targetCwd };
           if (opts.onLog) {
             opts.onLog(`▸ ${cmd}`, "stdout");
             await execAsync(cmd, { ...cmdOpts, onLine: opts.onLog });
@@ -992,8 +992,8 @@ export async function installPlugins(
           }
           log.ok(`${plugin.name} ${isUpdate ? "updated" : "installed"}`);
           runPostInstallMigration(plugin.name, { ...opts, scope }, ["claude"]);
-        } catch {
-          log.error(`Failed to ${action}: ${plugin.name}`);
+        } catch (e) {
+          log.error(`Failed to ${action}: ${plugin.name}\n${commandErrorText(e)}`);
           failures.push(plugin.name);
         }
       }
