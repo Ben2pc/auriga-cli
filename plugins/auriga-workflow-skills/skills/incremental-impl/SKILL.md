@@ -220,6 +220,13 @@ Risk-first is **execution order**, not slicing axis. It composes with both verti
 
 If a command (build, test, type check) ran successfully and the code hasn't changed since, don't re-run it. Re-running on unchanged code adds no information and burns context. Re-run only after edits that could affect the command's result.
 
+## Must not (per-slice worker scope)
+
+The execution discipline above frames the rules positively. These are the corresponding negative-space rules for every worker — subagent or main-Agent inline — running a single slice.
+
+- **Worker must not declare "feature done".** Slice-level "done" means this slice's diff compiles, tests pass, and the handoff is filled in. Whether the feature as a whole meets acceptance criteria is judged by `verification-before-completion` and (after PR Ready) by `deep-review` — not by the worker. A worker that self-certifies "done" creates the Self-Evaluation Bias trap the workflow is engineered to avoid.
+- **Worker must not refactor adjacent code outside the assigned slice's scope.** Even when adjacent code is clearly improvable, surface it via the `NOTICED BUT NOT TOUCHING` pattern under Scope Discipline — do not silently expand the slice. Scope creep inside a slice breaks both the Rollback-Friendly contract (a delete-and-replace in the same commit becomes unrevertable) and the Parallel Dispatch Iron Law (a slice that mutates files outside its declared assignment is a collision waiting to happen with a parallel slice).
+
 ## Anti-patterns
 
 - ❌ Starting implementation without checking size (Step 1) — leads to over-slicing trivial work or under-slicing L-sized features

@@ -24,6 +24,13 @@ Independent test-design orchestrator. Encodes Independent Evaluation: the agent 
 
 Violating this = tests that pass because they mirror the buggy implementation.
 
+## Must not (orchestrator scope)
+
+The Iron Law above frames the discipline positively. These are the corresponding negative-space rules for the **main Agent invoking this skill** — distinct from the *Process constraints* that target the dispatched agent inside Step 3.
+
+- **Do not invoke this skill if you've already implemented or sketched the feature.** Same-context test design — whether by you or by a subagent spawned from this conversation — inherits the blind spots of whatever implementation you've already discussed. Once implementation context exists, the Independent-Evaluation guarantee is gone; defer test coverage to `deep-review`'s `test-quality` reviewer at PR time instead.
+- **Do not amend the requirement or acceptance criteria to fit a sketched implementation before dispatching.** The dispatched agent's input must be the requirement as the user stated it, not a version already mapped into code. If the requirement is ambiguous, ask the user — don't disambiguate it via implementation choices that then leak into the test design.
+
 ## Steps
 
 ### Step 1: Assemble the dispatch package
