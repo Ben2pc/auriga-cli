@@ -80,6 +80,14 @@ function renameCodexMarketplace(packageRoot: string, name: string): void {
   writeJson(marketplacePath, marketplace);
 }
 
+function seedCodexMarketplaceCache(packageRoot: string, codexHome: string): string {
+  const marketplacePath = path.join(packageRoot, ".agents/plugins/marketplace.json");
+  const marketplace = JSON.parse(fs.readFileSync(marketplacePath, "utf-8")) as { name: string };
+  const cacheRoot = path.join(codexHome, ".tmp", "marketplaces", marketplace.name);
+  fs.cpSync(packageRoot, cacheRoot, { recursive: true });
+  return cacheRoot;
+}
+
 function makeClaudePluginsConfig(): string {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "auriga-claude-plugin-test-"));
   writeJson(path.join(root, ".claude/plugins.json"), {
@@ -236,6 +244,7 @@ describe("installPlugins — Codex target", () => {
     const packageRoot = makeCodexMarketplace();
     const codexHome = fs.mkdtempSync(path.join(os.tmpdir(), "auriga-codex-home-"));
     process.env.CODEX_HOME = codexHome;
+    seedCodexMarketplaceCache(packageRoot, codexHome);
     const commands: string[] = [];
     const { installPlugins } = await importPlugins((cmd) => {
       commands.push(cmd);
@@ -263,6 +272,7 @@ describe("installPlugins — Codex target", () => {
       const packageRoot = makeCodexMarketplace();
       const codexHome = fs.mkdtempSync(path.join(os.tmpdir(), "auriga-codex-home-"));
       process.env.CODEX_HOME = codexHome;
+      seedCodexMarketplaceCache(packageRoot, codexHome);
       const commands: string[] = [];
       const { installPlugins } = await importPlugins((cmd) => {
         commands.push(cmd);
@@ -291,6 +301,7 @@ describe("installPlugins — Codex target", () => {
       const packageRoot = makeCodexMarketplace();
       const codexHome = fs.mkdtempSync(path.join(os.tmpdir(), "auriga-codex-home-"));
       process.env.CODEX_HOME = codexHome;
+      seedCodexMarketplaceCache(packageRoot, codexHome);
       const commands: string[] = [];
       const { installPlugins } = await importPlugins((cmd) => {
         commands.push(cmd);
@@ -328,6 +339,7 @@ describe("installPlugins — Codex target", () => {
       const packageRoot = makeCodexMarketplace();
       const codexHome = fs.mkdtempSync(path.join(os.tmpdir(), "auriga-codex-home-"));
       process.env.CODEX_HOME = codexHome;
+      seedCodexMarketplaceCache(packageRoot, codexHome);
       const calls: Array<{ cmd: string; inherit?: boolean }> = [];
       const { installPlugins } = await importPlugins((cmd, opts) => {
         calls.push({ cmd, inherit: opts?.inherit });
@@ -368,6 +380,7 @@ describe("installPlugins — Codex target", () => {
       renameCodexMarketplace(packageRoot, "forked-marketplace");
       const codexHome = fs.mkdtempSync(path.join(os.tmpdir(), "auriga-codex-home-"));
       process.env.CODEX_HOME = codexHome;
+      seedCodexMarketplaceCache(packageRoot, codexHome);
       const commands: string[] = [];
       const { installPlugins } = await importPlugins((cmd) => {
         commands.push(cmd);
@@ -405,6 +418,7 @@ describe("installPlugins — Codex target", () => {
     const packageRoot = makeCodexMarketplace();
     const codexHome = fs.mkdtempSync(path.join(os.tmpdir(), "auriga-codex-home-"));
     process.env.CODEX_HOME = codexHome;
+    seedCodexMarketplaceCache(packageRoot, codexHome);
     const atomicWrites: string[] = [];
     const { installPlugins } = await importPlugins(() => "", {
       atomicWriteFile: (filePath, content) => {
@@ -426,6 +440,7 @@ describe("installPlugins — Codex target", () => {
     const packageRoot = makeCodexMarketplace();
     const codexHome = fs.mkdtempSync(path.join(os.tmpdir(), "auriga-codex-home-"));
     process.env.CODEX_HOME = codexHome;
+    seedCodexMarketplaceCache(packageRoot, codexHome);
     const { installPlugins } = await importPlugins(() => "");
 
     await installPlugins(packageRoot, {
@@ -455,10 +470,67 @@ describe("installPlugins — Codex target", () => {
     );
   });
 
+  test("materializes local Codex plugins from the refreshed marketplace cache when present", async () => {
+    const packageRoot = makeCodexMarketplace();
+    const codexHome = fs.mkdtempSync(path.join(os.tmpdir(), "auriga-codex-home-"));
+    process.env.CODEX_HOME = codexHome;
+    seedCodexMarketplaceCache(packageRoot, codexHome);
+
+    const refreshedMarketplaceRoot = path.join(codexHome, ".tmp/marketplaces/auriga-cli");
+    fs.cpSync(packageRoot, refreshedMarketplaceRoot, { recursive: true });
+    writeJson(
+      path.join(
+        refreshedMarketplaceRoot,
+        "plugins/session-instructions-loader/.codex-plugin/plugin.json",
+      ),
+      {
+        name: "session-instructions-loader",
+        version: "2.0.0",
+        hooks: "./hooks/hooks.json",
+      },
+    );
+    fs.writeFileSync(
+      path.join(
+        refreshedMarketplaceRoot,
+        "plugins/session-instructions-loader/skills/session-loader/SKILL.md",
+      ),
+      "# session loader from refreshed marketplace\n",
+    );
+
+    const { installPlugins } = await importPlugins(() => "");
+
+    await installPlugins(packageRoot, {
+      interactive: false,
+      agent: "codex",
+      selected: ["session-instructions-loader"],
+    });
+
+    const cachedPluginRoot = path.join(
+      codexHome,
+      "plugins/cache/auriga-cli/session-instructions-loader/2.0.0",
+    );
+    assert.equal(
+      fs.existsSync(path.join(cachedPluginRoot, ".codex-plugin/plugin.json")),
+      true,
+      "selected plugin should be materialized under the refreshed marketplace version",
+    );
+    assert.equal(
+      fs.readFileSync(path.join(cachedPluginRoot, "skills/session-loader/SKILL.md"), "utf-8"),
+      "# session loader from refreshed marketplace\n",
+      "selected plugin content should come from the refreshed Codex marketplace cache",
+    );
+    assert.equal(
+      fs.existsSync(path.join(codexHome, "plugins/cache/auriga-cli/session-instructions-loader/1.0.0")),
+      false,
+      "stale packageRoot plugin version should not be materialized when refreshed marketplace content exists",
+    );
+  });
+
   test("uses the auriga Codex install list instead of installing every marketplace plugin by default", async () => {
     const packageRoot = makeCodexMarketplace();
     const codexHome = fs.mkdtempSync(path.join(os.tmpdir(), "auriga-codex-home-"));
     process.env.CODEX_HOME = codexHome;
+    seedCodexMarketplaceCache(packageRoot, codexHome);
     const { installPlugins } = await importPlugins(() => "");
 
     await installPlugins(packageRoot, {
@@ -476,6 +548,7 @@ describe("installPlugins — Codex target", () => {
     const packageRoot = makeCodexMarketplace();
     const codexHome = fs.mkdtempSync(path.join(os.tmpdir(), "auriga-codex-home-"));
     process.env.CODEX_HOME = codexHome;
+    seedCodexMarketplaceCache(packageRoot, codexHome);
     fs.writeFileSync(
       path.join(codexHome, "config.toml"),
       'features = { plugins = false }\n\n[profiles.default]\nmodel = "gpt-5"\n',
@@ -514,32 +587,20 @@ describe("installPlugins — Codex target", () => {
     );
   });
 
-  test("fetches selected Codex plugin manifests lazily when the content root did not preload them", async () => {
+  test("fails local Codex plugin install when the refreshed marketplace cache is missing", async () => {
     const packageRoot = makeCodexMarketplace();
-    fs.rmSync(path.join(packageRoot, "plugins"), { recursive: true, force: true });
     const codexHome = fs.mkdtempSync(path.join(os.tmpdir(), "auriga-codex-home-"));
     process.env.CODEX_HOME = codexHome;
-    const fetched: string[] = [];
-    const { installPlugins } = await importPlugins(() => "", {
-      fetchExtraContent: async (tmpDir, file) => {
-        fetched.push(file);
-        writeJson(path.join(tmpDir, file), {
-          name: "session-instructions-loader",
-          version: "1.0.0",
-          hooks: "./hooks/hooks.json",
-        });
-      },
-    });
+    const { installPlugins } = await importPlugins(() => "");
 
-    await installPlugins(packageRoot, {
-      interactive: false,
-      agent: "codex",
-      selected: ["session-instructions-loader"],
-    });
-
-    assert.deepEqual(fetched, ["plugins/session-instructions-loader/.codex-plugin/plugin.json"]);
-    const config = fs.readFileSync(path.join(codexHome, "config.toml"), "utf-8");
-    assert.match(config, /plugin_hooks = true/);
+    await assert.rejects(
+      () => installPlugins(packageRoot, {
+        interactive: false,
+        agent: "codex",
+        selected: ["session-instructions-loader"],
+      }),
+      /marketplace auriga-cli cache missing/i,
+    );
   });
 
   test("fails non-interactive Codex install when neither install.json nor marketplace.json exists", async () => {
@@ -597,6 +658,7 @@ describe("installPlugins — Codex target", () => {
       });
       const codexHome = fs.mkdtempSync(path.join(os.tmpdir(), "auriga-codex-home-"));
       process.env.CODEX_HOME = codexHome;
+      seedCodexMarketplaceCache(packageRoot, codexHome);
       const commands: string[] = [];
       const { installPlugins } = await importPlugins((cmd) => {
         commands.push(cmd);
@@ -647,6 +709,7 @@ describe("installPlugins — Codex target", () => {
       });
       const codexHome = fs.mkdtempSync(path.join(os.tmpdir(), "auriga-codex-home-"));
       process.env.CODEX_HOME = codexHome;
+      seedCodexMarketplaceCache(packageRoot, codexHome);
       const commands: string[] = [];
       const { installPlugins } = await importPlugins((cmd) => {
         commands.push(cmd);
@@ -834,6 +897,7 @@ describe("installPlugins — Codex target", () => {
     });
     const codexHome = fs.mkdtempSync(path.join(os.tmpdir(), "auriga-codex-home-"));
     process.env.CODEX_HOME = codexHome;
+    seedCodexMarketplaceCache(packageRoot, codexHome);
     const commands: string[] = [];
     const { installPlugins } = await importPlugins((cmd) => {
       commands.push(cmd);
@@ -864,6 +928,7 @@ describe("installPlugins — Codex target", () => {
     const packageRoot = makeCodexMarketplace();
     const codexHome = fs.mkdtempSync(path.join(os.tmpdir(), "auriga-codex-home-"));
     process.env.CODEX_HOME = codexHome;
+    seedCodexMarketplaceCache(packageRoot, codexHome);
     const commands: string[] = [];
     const { installPlugins } = await importPlugins((cmd) => {
       commands.push(cmd);
@@ -940,6 +1005,7 @@ describe("installPlugins — Claude target", () => {
     const cwd = fs.mkdtempSync(path.join(os.tmpdir(), "auriga-migrated-skills-project-"));
     const codexHome = fs.mkdtempSync(path.join(os.tmpdir(), "auriga-codex-home-"));
     process.env.CODEX_HOME = codexHome;
+    seedCodexMarketplaceCache(packageRoot, codexHome);
     for (const name of [
       "incremental-impl",
       "test-designer",
@@ -1001,6 +1067,7 @@ describe("installPlugins — Claude target", () => {
     const cwd = fs.mkdtempSync(path.join(os.tmpdir(), "auriga-migrated-skills-codex-only-"));
     const codexHome = fs.mkdtempSync(path.join(os.tmpdir(), "auriga-codex-home-"));
     process.env.CODEX_HOME = codexHome;
+    seedCodexMarketplaceCache(packageRoot, codexHome);
     for (const name of ["incremental-impl", "test-designer", "session-compound"]) {
       seedLegacySkill(cwd, name);
     }
@@ -1033,6 +1100,7 @@ describe("installPlugins — Claude target", () => {
     const cwd = fs.mkdtempSync(path.join(os.tmpdir(), "auriga-migrated-skills-dev-symlink-"));
     const codexHome = fs.mkdtempSync(path.join(os.tmpdir(), "auriga-codex-home-"));
     process.env.CODEX_HOME = codexHome;
+    seedCodexMarketplaceCache(packageRoot, codexHome);
     for (const name of ["incremental-impl", "test-designer", "session-compound"]) {
       const pluginSkillDir = path.join(cwd, "plugins", "auriga-workflow-skills", "skills", name);
       fs.mkdirSync(pluginSkillDir, { recursive: true });
@@ -1068,6 +1136,7 @@ describe("installPlugins — Claude target", () => {
     const cwd = fs.mkdtempSync(path.join(os.tmpdir(), "auriga-migrated-skills-quiet-"));
     const codexHome = fs.mkdtempSync(path.join(os.tmpdir(), "auriga-codex-home-"));
     process.env.CODEX_HOME = codexHome;
+    seedCodexMarketplaceCache(packageRoot, codexHome);
     const logs: string[] = [];
     const { installPlugins } = await importPlugins((cmd) => {
       if (cmd === "claude plugins list --json") return "[]";

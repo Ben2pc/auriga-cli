@@ -15,7 +15,7 @@ import {
   type CodexMarketplacePlugin,
 } from "./codex-plugin-config.js";
 import { validateMarketplaceField, type MarketplaceRef } from "./marketplace.js";
-import { atomicWriteFile, exec, execAsync, fetchExtraContent, log, withEsc } from "./utils.js";
+import { atomicWriteFile, exec, execAsync, log, withEsc } from "./utils.js";
 import type { InstallOpts, PluginAgent, PluginsConfig, PluginDef } from "./utils.js";
 
 // Plugin names and plugin-package names end up in `claude plugins ...`
@@ -180,6 +180,21 @@ function resolveCodexPluginSelection(
 
 function codexHome(): string {
   return process.env.CODEX_HOME || path.join(os.homedir(), ".codex");
+}
+
+function codexMarketplaceCacheRoot(marketplaceName: string): string {
+  return path.join(codexHome(), ".tmp", "marketplaces", marketplaceName);
+}
+
+function resolveCodexMarketplaceContentRoot(packageRoot: string, marketplaceName: string): string {
+  const cachedRoot = codexMarketplaceCacheRoot(marketplaceName);
+  if (fs.existsSync(path.join(cachedRoot, ".agents", "plugins", "marketplace.json"))) {
+    return cachedRoot;
+  }
+  throw new Error(
+    `Codex marketplace ${marketplaceName} cache missing at ${cachedRoot}. ` +
+      "Run `codex plugin marketplace add/upgrade` successfully before materializing local plugins.",
+  );
 }
 
 function shellQuote(value: string): string {
@@ -431,17 +446,17 @@ function resolveSelectedCodexMarketplacePlugins(
   });
 }
 
-async function ensureCodexPluginManifests(
+function ensureCodexPluginManifests(
   packageRoot: string,
   plugins: CodexMarketplacePlugin[],
-): Promise<void> {
+): void {
   for (const plugin of plugins) {
     const manifestPath = codexManifestPath(plugin);
     if (!manifestPath) {
       throw new Error(`Codex marketplace.json: plugin ${plugin.name} must use a local source.path`);
     }
     if (fs.existsSync(path.join(packageRoot, manifestPath))) continue;
-    await fetchExtraContent(packageRoot, manifestPath);
+    throw new Error(`Codex plugin ${plugin.name} manifest missing at ${manifestPath}`);
   }
 }
 
@@ -660,7 +675,7 @@ type ExternalSelection = CodexInstallPlugin & { marketplace: MarketplaceRef };
 // hooks; once one does, prefer fetching the manifest or adding an
 // explicit `requiresPluginHooks: true` field on the install.json entry.
 async function composeCodexPluginKeys(
-  packageRoot: string,
+  pluginContentRoot: string,
   localMarketplace: CodexMarketplace | null,
   selectedMarketplacePlugins: CodexMarketplacePlugin[],
   externalSelected: ExternalSelection[],
@@ -671,7 +686,7 @@ async function composeCodexPluginKeys(
   if (localMarketplace) {
     for (const plugin of selectedMarketplacePlugins) {
       pluginKeys.push(`${plugin.name}@${localMarketplace.name}`);
-      if (pluginHasHooks(packageRoot, plugin)) needsPluginHooks = true;
+      if (pluginHasHooks(pluginContentRoot, plugin)) needsPluginHooks = true;
     }
   }
 
@@ -772,20 +787,26 @@ async function installCodexPlugins(
   }
 
   if (failures.length === 0) {
-    const selectedMarketplacePlugins = localMarketplace
-      ? resolveSelectedCodexMarketplacePlugins(localMarketplace, localSelected)
+    const localMarketplaceContentRoot = localMarketplace
+      ? resolveCodexMarketplaceContentRoot(packageRoot, localMarketplace.name)
+      : packageRoot;
+    const effectiveLocalMarketplace = localMarketplace
+      ? loadCodexMarketplace(localMarketplaceContentRoot) ?? localMarketplace
+      : null;
+    const selectedMarketplacePlugins = effectiveLocalMarketplace
+      ? resolveSelectedCodexMarketplacePlugins(effectiveLocalMarketplace, localSelected)
       : [];
-    await ensureCodexPluginManifests(packageRoot, selectedMarketplacePlugins);
-    if (localMarketplace) {
+    ensureCodexPluginManifests(localMarketplaceContentRoot, selectedMarketplacePlugins);
+    if (effectiveLocalMarketplace) {
       materializeLocalCodexPluginCache(
-        packageRoot,
-        localMarketplace.name,
+        localMarketplaceContentRoot,
+        effectiveLocalMarketplace.name,
         selectedMarketplacePlugins,
       );
     }
     const { pluginKeys, needsPluginHooks } = await composeCodexPluginKeys(
-      packageRoot,
-      localMarketplace,
+      localMarketplaceContentRoot,
+      effectiveLocalMarketplace,
       selectedMarketplacePlugins,
       externalSelected,
     );
