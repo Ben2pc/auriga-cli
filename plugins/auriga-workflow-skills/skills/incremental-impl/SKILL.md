@@ -123,8 +123,9 @@ For every dispatched slice, decide:
 
 - **Output format** the subagent must return (unified diff + rationale / full file + role / config section verbatim / test file + requirement map)
 - **Verify command** the main Agent will run when the diff comes back (`npm test -- path`, `tsc --noEmit`, build for affected package, minimal smoke test)
+- **Handoff block** (mandatory) — every dispatched subagent must emit the structured handoff block from § 4.8 as the **absolute final** part of its response, after the slice-specific output above. The next slice reads this block, not the prior trajectory.
 
-Without an output format, the subagent dumps verbose context and cancels the dispatch benefit. Without a verify command, the main Agent accepts whatever the subagent claims and merges blind.
+Without an output format, the subagent dumps verbose context and cancels the dispatch benefit. Without a verify command, the main Agent accepts whatever the subagent claims and merges blind. Without the handoff block, the next slice has no carry-forward except the file diff itself — issues found, commands run, and procedure deviations are lost.
 
 ### 3.6 Emit the dispatch plan
 
@@ -145,7 +146,7 @@ Applies to **every** slice that runs through the skill — single-writer or disp
 ### 4.1 Increment Cycle
 
 ```
-Implement → Test → Verify → Commit → Next slice
+Implement → Test → Verify → Commit → Handoff → Next slice
 ```
 
 This is the core loop. Each slice runs the full cycle before moving on.
@@ -154,7 +155,8 @@ This is the core loop. Each slice runs the full cycle before moving on.
 - **Test** — run the relevant test suite, or write a failing test first per `test-driven-development`
 - **Verify** — tests pass, build succeeds, type checks clean, manual check where applicable
 - **Commit** — one atomic commit per slice (see `git-workflow` for commit message rules)
-- **Next slice** — carry forward, don't restart
+- **Handoff** — emit the structured handoff block (§ 4.8). For dispatched subagent slices this is the final part of the returned response; for inline slices the main Agent writes the block into the conversation transcript before moving on
+- **Next slice** — carry forward the handoff block, not the trajectory
 
 Each slice leaves the system in a working, testable state. No half-done slices.
 
@@ -220,6 +222,82 @@ Risk-first is **execution order**, not slicing axis. It composes with both verti
 
 If a command (build, test, type check) ran successfully and the code hasn't changed since, don't re-run it. Re-running on unchanged code adds no information and burns context. Re-run only after edits that could affect the command's result.
 
+### 4.8 Per-Slice Handoff Schema
+
+Each slice — dispatched subagent or inline — ends with a structured handoff block. The next slice reads this block, not the prior trajectory. Externalizing slice state into a fixed-shape document replaces "agent remembers what just happened" with a parseable carry-forward.
+
+**Schema** (markdown, copy this shape verbatim):
+
+```markdown
+## Handoff: <slice-name>
+**completed**:
+  - <bullets — what landed, name files where useful>
+**not_completed**:
+  - <bullets — attempted but didn't finish, each with one-line reason>
+**commands_executed**:
+  - `<cmd>` → exit <code> [<one-line outcome>]
+**issues_found**: <bullets, or `none`>
+**procedure_compliance**: <`followed` | `deviated: <reason>`>
+```
+
+**Filled-in example** (worked example — a hypothetical slice 1 of the validation-contract feature):
+
+```markdown
+## Handoff: validation-contract-frontmatter
+**completed**:
+  - Added optional `validationContract:` field to `SpecMeta` in `src/types.ts`
+  - Updated `src/build/generate-catalog.ts` to surface the field into `dist/catalog.json`
+  - Added presence + absence cases to `tests/catalog.test.ts`
+**not_completed**:
+  - Web UI rendering of the field — out of slice scope; next slice owner
+**commands_executed**:
+  - `npm test -- catalog` → exit 0 [3 tests pass]
+  - `npm run build` → exit 0 [dist/catalog.json regenerated]
+**issues_found**:
+  - `tests/fixtures/` naming convention isn't documented in the test file (surface only; not fixing here)
+**procedure_compliance**: followed
+```
+
+**Why this shape:**
+
+- The next slice's subagent reads the block, not the prior conversation — no agent has to "remember"
+- `commands_executed` with exit codes is the audit trail; "tests pass" without a recorded command is not enough
+- `procedure_compliance` makes deviations explicit instead of buried — "deviated: created `tests/fixtures/foo.json` without prior approval because the fixture didn't exist" is the kind of thing the next slice owner needs to see, not infer
+- `not_completed` is mandatory even when empty — leaving it blank when something was punted is a discipline failure
+- Five fields is the minimum that still survives a model swap; expanding the schema in this skill should require a corresponding change in dispatched-prompt templates
+
+**Roles** (writer / broker / reader):
+
+```
+   slice N                       slice N+1
+   (Writer)       ╳ no direct    (Reader)
+      │                             ▲
+      │ handoff at                  │ handoff in
+      │ end of response             │ dispatch prompt
+      │                             │
+      └──────▶ Main Agent ──────────┘
+               (Broker — sees every
+                handoff, pastes into
+                next slice's prompt)
+```
+
+For inline slices, the main Agent plays all three roles: writes the block to the transcript, then reads it back when starting the next slice.
+
+**Inter-slice flow:**
+
+When the main Agent dispatches slice N+1, it copies slice N's handoff block(s) verbatim into the N+1 subagent's dispatch prompt — alongside the slice N+1 spec and verify command. The subagent receives the handoff as data; no paraphrasing, no summarizing.
+
+For inline (main-Agent-writes) slices, the main Agent emits the same block into the conversation transcript before moving to the next slice. Same discipline, no dispatch ceremony.
+
+**Order discipline**: handoff is filled in **after** Verify completes successfully. Handoff documents what passed, not what was attempted. If verify failed, the slice isn't done — fix or back out before writing the handoff.
+
+## Must not (per-slice worker scope)
+
+The execution discipline above frames the rules positively. These are the corresponding negative-space rules for every worker — subagent or main-Agent inline — running a single slice.
+
+- **Worker must not declare "feature done".** Slice-level "done" means this slice's diff compiles, tests pass, and the handoff is filled in. Whether the feature as a whole meets acceptance criteria is judged by `verification-before-completion` and (after PR Ready) by `deep-review` — not by the worker. A worker that self-certifies "done" creates the Self-Evaluation Bias trap the workflow is engineered to avoid.
+- **Worker must not refactor adjacent code outside the assigned slice's scope.** Even when adjacent code is clearly improvable, surface it via the `NOTICED BUT NOT TOUCHING` pattern under Scope Discipline — do not silently expand the slice. Scope creep inside a slice breaks both the Rollback-Friendly contract (a delete-and-replace in the same commit becomes unrevertable) and the Parallel Dispatch Iron Law (a slice that mutates files outside its declared assignment is a collision waiting to happen with a parallel slice).
+
 ## Anti-patterns
 
 - ❌ Starting implementation without checking size (Step 1) — leads to over-slicing trivial work or under-slicing L-sized features
@@ -231,6 +309,8 @@ If a command (build, test, type check) ran successfully and the code hasn't chan
 - ❌ "Cleaning up adjacent code while I'm here" — scope discipline violation (4.3)
 - ❌ Dispatched slice without anti-hardcoding guard — subagent in isolation may hardcode values or weaken tests to turn green. The main Agent's dispatch prompt should carry: "implement the general logic; do not hardcode values or weaken tests; if a test looks wrong, surface it instead of patching around it"
 - ❌ Attempting to coordinate subagents mid-flight via shared state — no current CLI runtime (Claude Code, Codex CLI, etc.) has an agent-to-agent channel; serialize through the main Agent or merge into a single-writer slice
+- ❌ Skipping the handoff block (§ 4.8) — the next slice loses the audit trail (commands + exit codes), the issues-found list, and any procedure-compliance flag. The diff alone is not a handoff
+- ❌ Writing the handoff before Verify passes — handoff documents what passed, not what was attempted; pre-emptive handoffs hide failures behind a clean-looking block
 
 ## Relationship to other skills
 

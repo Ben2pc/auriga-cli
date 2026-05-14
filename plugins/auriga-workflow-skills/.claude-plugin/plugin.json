@@ -1,6 +1,6 @@
 {
   "name": "auriga-workflow-skills",
-  "version": "1.0.0",
+  "version": "1.0.2",
   "description": "Bundles the auriga-owned workflow execution skills: incremental-impl, test-designer, and session-compound.",
   "author": {
     "name": "Ben2pc",
