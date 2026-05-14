@@ -84,7 +84,7 @@ Print a short summary:
 - ❌ Using a built-in's name — orchestrator skips collisions and warns
 - ❌ Trigger `always` for narrow concerns — every PR pays the dispatch cost; prefer `detection-driven` with specific signals
 - ❌ Skipping the Detection signals — required for `detection-driven`; valuable as focus hints elsewhere
-- ❌ Removing the "starting point, not a fence" Scope preamble — reviewers without it tend to miss findings outside the listed checklist (Opus 4.7+ behavior)
+- ❌ Removing the "starting point, not a fence" Scope preamble — reviewers without it tend to miss findings outside the listed checklist (newer reasoning models tend to treat enumerated lists as closed sets)
 - ❌ Re-implementing a built-in dimension with project-specific narrowing (e.g., a "correctness for our payment module" reviewer) — instead, document the project-specific rules in `docs/rules/` (without `review/`) and let `correctness` reviewer pick them up via the codebase. Custom reviewers are for *new dimensions*
 
 ## Example session

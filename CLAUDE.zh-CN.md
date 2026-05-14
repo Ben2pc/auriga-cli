@@ -18,7 +18,7 @@
 
 9. PR就绪：在验证完成、基准分支确认无误，并且 PR 描述已补全五要素——变更范围、验收标准、设计决策、风险、剩余 TODO 之前，保持 PR 为 Draft。完成这些条件后，将 PR 标记为 Ready for Review。如果 `brainstorming` 或 `planning-with-files` 产生了设计文档（specs）、findings.md、progress.md、task_plan.md 等产物，用 `AskUserQuestion` 询问用户：删除还是存档到 `docs/worklog/worklog-<YYYY-MM-DD>-<分支名>/` 目录下便于回溯。
 
-10. PR评审：Draft PR 阶段可以先获取早期反馈。PR 标记为 Ready for Review 后，正式 review 必须通过 `deep-review` plugin（其中打包了 `deep-review` skill）发起。`/review` 保留作为轻量 fallback。**评审 Agent 必须报告所有 finding 并附 severity + confidence，不要按重要性预过滤**——Opus 4.7 会字面执行 "only report high-severity" 类指令，导致真实 bug 召回下降；过滤交给人来做。
+10. PR评审：Draft PR 阶段可以先获取早期反馈。PR 标记为 Ready for Review 后，正式 review 必须通过 `deep-review` plugin（其中打包了 `deep-review` skill）发起。`/review` 保留作为轻量 fallback。**评审 Agent 必须报告所有 finding 并附 severity + confidence，不要按重要性预过滤**——强推理模型会字面执行 "only report high-severity" 类指令，导致真实 bug 召回下降；过滤交给人来做。
 
 11. 合并后复利：PR 合并完成的那一刻，用 `AskUserQuestion` 主动询问用户是否运行 `session-compound` skill。该 skill 把本次会话沉淀为自包含的交互式 HTML 报告（叙事时间线 + token / cache / 工具健康度 + playground 面板，列出生态 skill 安装、AGENTS.md 修改、缺失 skill 等可勾选候选项），让本次会话的洞察落到对的位置，而不是合并完就蒸发。每次合并询问一次；不要静默执行，用户拒绝后也不要反复追问。
 
@@ -72,7 +72,7 @@
 对话内 subagent 共享主 Agent 的工作目录。核心规则：
 
 - **并行写必须隔离**：并行写代码**必须**使用 `isolation: "worktree"`；单个写者无需隔离。切片决策（轴向选择、粒度、并行与否、碰撞合并、大小过滤）由 `incremental-impl` skill 负责。派遣门槛未达标时 skill 终止并行路径，主 Agent 顺序写。
-- **按任务选模型和 effort**：模型（Claude sonnet / opus，或 Codex 旗舰 / mini）与 effort 按任务选。**Effort 默认值：写代码 / agentic 子任务用 `xhigh`；设计与正式评审用 `high`；只有短小、范围明确的查询才用 `medium`；只有当 `xhigh` 仍欠思考时才升 `max`。** Opus 4.7 严格遵守 `low` / `medium` 力度，复杂任务用低力度有欠思考风险。
+- **按任务选模型和 effort**：模型（Claude sonnet / opus，或 Codex 旗舰 / mini）与 effort 按任务选。**Effort 默认值：写代码 / agentic 子任务用 `xhigh`；设计与正式评审用 `high`；只有短小、范围明确的查询才用 `medium`；只有当 `xhigh` 仍欠思考时才升 `max`。** 强推理模型严格遵守 `low` / `medium` 力度，复杂任务用低力度有欠思考风险。
   - ✅ "给 cli.ts 的 `parseArgs()` 加输入校验" → sonnet @ xhigh
   - ✅ "设计插件依赖解析策略" → opus @ xhigh
   - ✅ 涉及大量架构权衡的复杂 review → Codex 旗舰 @ high，跨模型盲区覆盖

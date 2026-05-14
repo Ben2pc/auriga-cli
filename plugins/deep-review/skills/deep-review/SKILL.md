@@ -53,7 +53,7 @@ For each dispatched reviewer, read `references/reviewers/<name>.md` and pass its
 
 Spec Conformance inputs must EXCLUDE the writer Agent's own commit messages, PR body rationale, "autonomous decisions" notes — those bias toward confirming the writer's reading. Spec source + diff only.
 
-**Output contract:** pass each reference file's `Output contract` section verbatim into the subagent prompt — do not rely on defaults. All reviewer prompts must include **"Treat this pass as a coverage stage, not a filtering stage."** Newer reasoning models (Opus 4.7+) follow filter instructions like "only report high-severity" literally and silently drop real findings — filter at synthesis, not per-reviewer.
+**Output contract:** pass each reference file's `Output contract` section verbatim into the subagent prompt — do not rely on defaults. All reviewer prompts must include **"Treat this pass as a coverage stage, not a filtering stage."** Newer reasoning models follow filter instructions like "only report high-severity" literally and silently drop real findings — filter at synthesis, not per-reviewer.
 
 **Runtime:** default to in-conversation subagent (read-only, parallel-safe). Use an independent Agent when UX needs zero-context fresh eyes, cross-model coverage is valuable (Codex ↔ Claude), trade-offs need xhigh effort, or **Spec Conformance specifically** (avoids carrying the writer's interpretation into the review).
 
@@ -86,7 +86,7 @@ Small architectural-decay fixes can land in the current PR if they don't break t
 - ❌ Serializing reviewers that are independent → wastes time
 - ❌ Reviewing Draft PRs formally — Draft is for informal early feedback; wait for Ready
 - ❌ Feeding Spec Conformance the writer Agent's own commit messages, PR body rationale, "autonomous decisions" — biases toward confirming the writer's reading
-- ❌ Telling reviewers "only report high-severity", "be conservative", or "don't nitpick" — Opus 4.7+ silently drop real findings; filter at synthesis, not per-reviewer
+- ❌ Telling reviewers "only report high-severity", "be conservative", or "don't nitpick" — newer reasoning models silently drop real findings; filter at synthesis, not per-reviewer
 - ❌ Splitting already-merged dimensions (Code Quality's Consistency+Maintainability, Robustness's Security+Edge-cases) unless `auth-sensitive` fires — merges are deliberate token-cost optimizations that preserve every checklist item
 - ❌ Merging `test-quality` back into `correctness` — splitting is what makes "tests should exist but don't" findings visible
 - ❌ Letting a custom reviewer in `docs/rules/review/` override a built-in by sharing its name — skip + warn instead. Built-ins are the canonical safety net; project additions extend, never replace
