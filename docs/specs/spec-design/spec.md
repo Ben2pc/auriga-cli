@@ -187,7 +187,7 @@ VAL 的 `Tool` 字段必须从下列**类别**里选一个，不写具体工具�
 
 - 路径：`plugins/auriga-workflow-skills/skills/spec-design/SKILL.md` (+ 必要的 `references/` 子文件)
 - 双 manifest 同步 bump：`.claude-plugin/plugin.json` 与 `.codex-plugin/plugin.json` 的 version 由 1.0.2 → 1.0.3 (或更高，根据 PR 合并顺序)
-- 本地开发期符号链接：`.claude/skills/spec-design` 与 `.agents/skills/spec-design` 指向 plugin 内目录 (与 `incremental-impl` / `test-designer` 同模式)
+- **不需要** `.claude/skills/spec-design` 或 `.agents/skills/spec-design` 符号链接：那两个目录是给 standalone (即 `skills-lock.json` 注册的) skill 用的；plugin-bundled skill 通过 plugin 的 marketplace + `skills:` manifest 字段直接被 Agent 发现
 - `dist/catalog.json` 在 `npm run build` 后自动收录 spec-design 描述 (来自 SKILL.md frontmatter)
 
 **10.6 `deep-review` 的 `spec-conformance` reviewer 升级**：把 reviewer 的主要输入从 "spec.md 散文" 调整为 "`validation-contract.md` 的 VAL 列表"。reviewer 必须对照 PR diff 逐条核验 VAL 是否被实现满足 (Behavior 命中 / Tool 与 Evidence 可被现有测试或检查覆盖)；`spec.md` 仍保留为 Why 上下文与 Out-of-scope 判定来源。任何 VAL 漏覆盖一律算 blocking，写入 deep-review 报告时附 `VAL-XXX-NNN` 编号定位。文件路径：`plugins/deep-review/skills/deep-review/references/reviewers/spec-conformance.md`。该 reviewer 的 Detection table、Output contract、worked scenarios 都需同步更新。
