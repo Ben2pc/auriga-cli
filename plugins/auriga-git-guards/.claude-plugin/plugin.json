@@ -1,6 +1,6 @@
 {
   "name": "auriga-git-guards",
-  "version": "1.3.1",
+  "version": "1.2.0",
   "description": "Workflow guardrails for the git lifecycle: structural blocks on PR Ready transitions via both `gh pr ready` and `gh pr create` without `--draft`, a Conventional Commits title check on `gh pr create`, PR-body snapshot injection, and a commit-reminder hook that nudges agents at semantic boundaries.",
   "author": {
     "name": "Ben2pc",
