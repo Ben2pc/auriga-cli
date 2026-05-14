@@ -8,6 +8,12 @@ This reviewer covers **two scenarios**: tests-present (quality review) and tests
 
 The §1–§8 rubric in Scenario A mirrors the `test-designer` skill's Step 3 *Test quality constraints* — front (design time) and back (review time) carry the same standards independently. Concept names align so findings from one inform the other; wording lives in each component's own file because they ship through different distribution channels (auriga-cli skills vs this plugin).
 
+## Must not
+
+- **Do not pre-filter by severity.** This pass is a coverage stage, not a filtering stage — synthesis ranks and drops findings downstream. Report every concern in scope, including low-confidence and non-blocking ones. Opus 4.7 follows "only report high-severity" type instructions literally, which measurably lowers recall on real bugs.
+- **Do not propose alternative implementations.** Naming the bug + a one-line direction for the fix is in scope. Designing the replacement code, refactoring the surrounding module, or writing the patch is a separate task.
+- **Do not pass through previously-reviewed code without re-checking for regressions.** Code touched by this diff is in scope even when the same lines passed a prior review — an upstream contract change can silently invalidate yesterday's correctness verdict.
+
 ## Metadata
 
 - **Best for**: Both reviewing test quality and surfacing missing coverage on new production behavior

@@ -6,6 +6,12 @@ The checklist below is a **starting point, not a fence**. It covers the most com
 
 This reviewer covers three sub-focuses — apply the one(s) matching the changed surface: **Web/Frontend**, **Mobile**, **Backend/CLI/Data**.
 
+## Must not
+
+- **Do not pre-filter by severity.** This pass is a coverage stage, not a filtering stage — synthesis ranks and drops findings downstream. Report every concern in scope, including low-confidence and non-blocking ones. Opus 4.7 follows "only report high-severity" type instructions literally, which measurably lowers recall on real bugs.
+- **Do not propose alternative implementations.** Naming the bug + a one-line direction for the fix is in scope. Designing the replacement code, refactoring the surrounding module, or writing the patch is a separate task.
+- **Do not pass through previously-reviewed code without re-checking for regressions.** Code touched by this diff is in scope even when the same lines passed a prior review — an upstream contract change can silently invalidate yesterday's correctness verdict.
+
 ## Metadata
 
 - **Best for**: Catching latency / memory / battery regressions before they reach a user-noticeable threshold
