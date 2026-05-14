@@ -1326,6 +1326,75 @@ describe("installPlugins — Claude target", () => {
     );
   });
 
+  test("reinstall upgrades an already-installed plugin at the target scope via `plugins update`", async () => {
+    const packageRoot = makeClaudePluginsConfigWithMarketplace();
+    const cwd = fs.mkdtempSync(path.join(os.tmpdir(), "auriga-claude-plugin-reinstall-"));
+    const installed = [
+      {
+        id: "auriga-go@auriga-cli",
+        scope: "project",
+        projectPath: cwd,
+      },
+    ];
+    const commands: string[] = [];
+    const { installPlugins } = await importPlugins((cmd) => {
+      commands.push(cmd);
+      if (cmd === "claude plugins list --json") return JSON.stringify(installed);
+      if (cmd === "claude plugins marketplace list") return "❯ auriga-cli\n";
+      return "";
+    });
+
+    await installPlugins(packageRoot, {
+      interactive: false,
+      agent: "claude",
+      selected: ["auriga-go"],
+      cwd,
+    });
+
+    assert.ok(
+      commands.includes("claude plugins update auriga-go@auriga-cli --scope project"),
+      `expected plugin update call when plugin is already installed at target scope; got: ${commands.join(" | ")}`,
+    );
+    assert.ok(
+      !commands.some((cmd) => cmd.startsWith("claude plugins install auriga-go@auriga-cli")),
+      `must not call install for an already-installed plugin (no-op for upgrade); got: ${commands.join(" | ")}`,
+    );
+  });
+
+  test("reinstall still calls `plugins install` when plugin is only present at a different scope", async () => {
+    const packageRoot = makeClaudePluginsConfigWithMarketplace();
+    const cwd = fs.mkdtempSync(path.join(os.tmpdir(), "auriga-claude-plugin-cross-scope-"));
+    const installed = [
+      {
+        id: "auriga-go@auriga-cli",
+        scope: "user",
+      },
+    ];
+    const commands: string[] = [];
+    const { installPlugins } = await importPlugins((cmd) => {
+      commands.push(cmd);
+      if (cmd === "claude plugins list --json") return JSON.stringify(installed);
+      if (cmd === "claude plugins marketplace list") return "❯ auriga-cli\n";
+      return "";
+    });
+
+    await installPlugins(packageRoot, {
+      interactive: false,
+      agent: "claude",
+      selected: ["auriga-go"],
+      cwd,
+    });
+
+    assert.ok(
+      commands.includes("claude plugins install auriga-go@auriga-cli --scope project"),
+      `expected plugin install for new project-scope target when only user-scope is present; got: ${commands.join(" | ")}`,
+    );
+    assert.ok(
+      !commands.some((cmd) => cmd.startsWith("claude plugins update")),
+      `must not call update for a fresh-at-target-scope install; got: ${commands.join(" | ")}`,
+    );
+  });
+
   test("records marketplace update failure but still attempts plugin install", async () => {
     const packageRoot = makeClaudePluginsConfigWithMarketplace();
     const commands: string[] = [];

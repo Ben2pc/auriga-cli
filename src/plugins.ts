@@ -91,15 +91,14 @@ interface SettingsFile {
   [key: string]: unknown;
 }
 
-function getInstalledPlugins(): Map<string, string[]> {
+function getInstalledPlugins(cwd: string = process.cwd()): Map<string, string[]> {
   try {
     const output = exec("claude plugins list --json");
     const plugins: PluginInfo[] = JSON.parse(output);
-    const cwd = process.cwd();
     const installed = new Map<string, string[]>();
 
     for (const p of plugins) {
-      // project scope 只匹配当前目录
+      // project scope 只匹配目标目录
       if (p.scope === "project" && p.projectPath !== cwd) continue;
 
       const scopes = installed.get(p.id) || [];
@@ -886,7 +885,8 @@ export async function installPlugins(
     : opts.scope ?? "project";
 
   if (config) {
-    const installed = getInstalledPlugins();
+    const targetCwd = installTargetCwd(opts);
+    const installed = getInstalledPlugins(targetCwd);
 
     let selected: PluginDef[];
     try {
@@ -970,11 +970,19 @@ export async function installPlugins(
         }
       }
 
-      // Install plugins
+      // Install or upgrade plugins. `claude plugins install` is a no-op
+      // when the plugin is already installed at the target scope, so a
+      // reinstall would silently skip the upgrade — even after the
+      // marketplace was refreshed above. Branch to `claude plugins update`
+      // for already-installed-at-target-scope plugins so the cached
+      // version actually advances. Mirrors the marketplace add/update
+      // branching right above.
       for (const plugin of selected) {
-        console.log(`\nInstalling ${plugin.name}...`);
+        const isUpdate = installed.get(plugin.package)?.includes(scope) ?? false;
+        const action = isUpdate ? "update" : "install";
+        console.log(`\n${isUpdate ? "Updating" : "Installing"} ${plugin.name}...`);
         try {
-          const cmd = `claude plugins install ${plugin.package} --scope ${scope}`;
+          const cmd = `claude plugins ${action} ${plugin.package} --scope ${scope}`;
           const cmdOpts = { cwd: installTargetCwd(opts) };
           if (opts.onLog) {
             opts.onLog(`▸ ${cmd}`, "stdout");
@@ -982,10 +990,10 @@ export async function installPlugins(
           } else {
             exec(cmd, { ...cmdOpts, inherit: true });
           }
-          log.ok(`${plugin.name} installed`);
+          log.ok(`${plugin.name} ${isUpdate ? "updated" : "installed"}`);
           runPostInstallMigration(plugin.name, { ...opts, scope }, ["claude"]);
         } catch {
-          log.error(`Failed to install: ${plugin.name}`);
+          log.error(`Failed to ${action}: ${plugin.name}`);
           failures.push(plugin.name);
         }
       }
