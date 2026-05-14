@@ -165,16 +165,27 @@ VAL 的 `Tool` 字段必须从下列**类别**里选一个，不写具体工具�
 - `build` — 构建产物正确性 (tsc / npm pack / artifact shape)
 - `manual` — 人工验证 (仅用于无法自动化的 UX 判断；要写清"看到什么算通过")
 
-### 10. 下游集成 (Section 4 待展开)
+### 10. 下游集成
 
-本节占位，将在 brainstorming 的 Section 4 讨论后补全。预期触及：
+**10.1 `test-designer` 输入契约**：升级为"**VAL 优先 + spec 散文兜底**"。test-designer 默认读 `validation-contract.md` 的 VAL 列表作为行为契约来源；当独立评估 agent 发现某条 VAL 的 Behavior 不够单义、或某个隐含行为未被任何 VAL 覆盖时，可回到 `spec.md` 散文段落补抽。两份文档对独立评估 agent 都可见。test-designer 在感到 VAL 严重不足时仍可退回 spec-design 修改 spec，而非自行展开。
 
-- `test-designer` 的输入契约升级 (从读 spec.md 散文改为读 validation-contract.md)
-- `goalify` 在 spec 阶段的注入逻辑
-- `CLAUDE.md` / `CLAUDE.zh-CN.md` 的需求澄清 + 规划阶段重写
-- `skills-lock.json` 中 upstream brainstorming 的移除
-- `.agents/skills/brainstorming/` 的清理
-- 新 skill 在 `plugins/auriga-workflow-skills/` 中的目录与 plugin manifest
+**10.2 `goalify` 集成**：`spec-design` **不**调 goalify；workflow 也**不**嵌入 goalify。仅在 `goalify/SKILL.md` 内说明输入来源 = `spec.md` + `validation-contract.md`，并标注典型使用时机为 **PR Ready 阶段** (整理 PR 时把目标翻译成 `/goal` 文本给用户)。原因：goalify 本质是 how 的末端翻译，过早自动调会产生 throwaway 的 /goal 文本；当前 goalify 稳定度尚不足以嵌入 workflow。
+
+**10.3 `CLAUDE.md` / `CLAUDE.zh-CN.md` 改动**：
+
+- 在 Requirement Clarification 步 (Step 1) 内追加一行 bullet：`spec = why+what; plan = how。若改动不影响外部行为契约，可跳过 spec 直接进 plan。`
+- 把"Use `brainstorming` to clarify requirements"替换为"Use `spec-design` to clarify requirements"。
+- 不新增独立小节 (保持文件精简)。
+- 中英两份必须同步改 (按 `feedback_plan_language` 与 README/CLAUDE 双语同步规则)。
+
+**10.4 upstream `brainstorming` 退役**：直接删除——`skills-lock.json` 移除条目；`.agents/skills/brainstorming/` 目录删除；`README.md` / `README.zh-CN.md` 的 Skills 表格中 brainstorming 行替换为 spec-design 行。**Release notes** 在版本 bump 时显式标注："Removed external `brainstorming` skill; replaced by auriga-owned `spec-design` (bundled in `auriga-workflow-skills` plugin)."
+
+**10.5 新 skill 落点**：
+
+- 路径：`plugins/auriga-workflow-skills/skills/spec-design/SKILL.md` (+ 必要的 `references/` 子文件)
+- 双 manifest 同步 bump：`.claude-plugin/plugin.json` 与 `.codex-plugin/plugin.json` 的 version 由 1.0.2 → 1.0.3 (或更高，根据 PR 合并顺序)
+- 本地开发期符号链接：`.claude/skills/spec-design` 与 `.agents/skills/spec-design` 指向 plugin 内目录 (与 `incremental-impl` / `test-designer` 同模式)
+- `dist/catalog.json` 在 `npm run build` 后自动收录 spec-design 描述 (来自 SKILL.md frontmatter)
 
 ## Out of scope
 
@@ -185,12 +196,12 @@ VAL 的 `Tool` 字段必须从下列**类别**里选一个，不写具体工具�
 - 替换或干预 `test-designer` / `incremental-impl` 的内部逻辑 (只升级契约)
 - 多人协作下的 spec 合并 / 冲突解决 (单作者模型)
 - 自动判断 "需要拆分 spec" 时的细粒度跨子 spec 共享 VAL 机制 (Shared VAL 已显式禁用)
+- **修改已存在 spec** 的轻量循环 (本 skill 是创建新 spec 的流程；针对小修改的 spec 维护按 PR 内常规编辑处理，不另起一遍 4 阶段流程)
 
 ## Open questions
 
-留给 Section 4 与后续 plan 阶段澄清：
+留给 plan 阶段 (writing-plans) 澄清：
 
-1. `goalify` 的 `/goal` 文本是否需要在 spec 阶段就生成，还是 plan 阶段才介入？
-2. `CLAUDE.md` 重写时，spec / plan 边界规则放到 workflow 头还是单独一节？
-3. `skills-lock.json` 中 brainstorming 移除后，是否需要在 README 表格留一行"deprecated, replaced by …"作为迁移指引？
-4. spec-design 在 dual-Agent (Claude Code + Codex) 下的差异化：是否需要在 Codex 端缩减 Q+GUESS 轮数以适配其 hook 反馈通道差异？
+1. **dual-Agent 差异**：spec-design 在 Codex 端是否需要缩减 Q+GUESS 轮数以适配其 hook 反馈通道差异 (Codex 当前在 PreToolUse `additionalContext` 上 fail-open)？
+2. **B0 拆分后 PR 链路**：一次 spec-design 产出 N 个子 spec 时，是 N 个独立 Draft PR 串行，还是一个 umbrella PR + N 个 follow-up issue？取决于 `incremental-impl` 是否能跨 spec 复用 slice 计划。
+3. **spec-design 自身的 dogfood 顺序**：是否先用一份手写 spec-design SKILL.md 走第一轮实现，再回头用最终 spec-design 跑自己一次作为 regression？

@@ -7,17 +7,17 @@
 
 | 范围 | VAL 区间 |
 |---|---|
-| Skill 内部 4 阶段行为 (Discover / Decide & Design / Write / Gate & Handoff) | VAL-WORK-001 ~ VAL-WORK-014 |
-| 下游集成 (workflow 文档、上游 brainstorming 退役、plugin manifest、test-designer 契约) | VAL-DEP-001 ~ VAL-DEP-006 |
+| Skill 内部 4 阶段行为 (Discover / Decide & Design / Write / Gate & Handoff) | VAL-WORK-001 ~ VAL-WORK-015 |
+| 下游集成 (workflow 文档、上游 brainstorming 退役、plugin manifest、test-designer 契约、goalify 标注、release notes) | VAL-DEP-001 ~ VAL-DEP-008 |
 
 ## Assertions
 
 ### Skill 行为 (VAL-WORK-*)
 
 #### VAL-WORK-001
-- **Behavior**: skill 在被调用时如果检测到用户输入为空 / 仅一个泛词 (例如只说"加个功能")，必须先进入 A1 Pre-research，而不是直接进 A2 提问
+- **Behavior**: skill 被调用时**必须先执行 A1 Pre-research** (读 README / docs / 近期 commits 或用户给定文件) 才进入 A2 提问；唯一例外是用户输入显式自带充分上下文 (含具体文件路径与改动范围)
 - **Tool**: e2e-cli
-- **Evidence**: skill 调用日志首个 tool 调用是 Read/Grep/git 类操作 (Pre-research)，不是 AskUserQuestion
+- **Evidence**: skill 调用日志中 AskUserQuestion 之前至少有一次 Read/Grep/git 读取调用；例外路径需在 skill 文本里有显式声明 "skipping Pre-research because user supplied …"
 
 #### VAL-WORK-002
 - **Behavior**: 当用户输入引用了仓库文件 / docs 路径 / commit hash，A1 必须真的去读这些资源，不能仅复述
@@ -84,12 +84,17 @@
 - **Tool**: e2e-cli
 - **Evidence**: skill 最后一条文本包含 `docs/specs/<topic>/spec.md` 路径；下一个 skill 调用必须在用户回复"是/可以/ready"等明确认可之后
 
+#### VAL-WORK-015
+- **Behavior**: 当 A1.5 / B0 触发 spec 拆分时，C2.5 必须额外产出 `umbrella.md`，且 umbrella 内含"子 spec 列表"表格与"拆分轴"段落；不拆分则不应产出 umbrella.md
+- **Tool**: repo-check
+- **Evidence**: 拆分触发的会话中 `docs/specs/<topic>/umbrella.md` 存在且含 `## 子 spec 列表` 与 `## 拆分轴` 两段；未触发的会话该文件不存在
+
 ### 下游集成 (VAL-DEP-*)
 
 #### VAL-DEP-001
-- **Behavior**: `CLAUDE.md` 与 `CLAUDE.zh-CN.md` 的需求澄清阶段引用 `spec-design`，不再引用 `brainstorming`；并新增 "spec = why+what; plan = how" 的边界规则段落
+- **Behavior**: `CLAUDE.md` 与 `CLAUDE.zh-CN.md` 的需求澄清阶段 (Step 1) 引用 `spec-design`，不再引用 `brainstorming`；并在 Step 1 内追加一行 bullet 表达 "spec = why+what; plan = how；若改动不影响外部行为契约，可跳过 spec 直接进 plan"
 - **Tool**: repo-check
-- **Evidence**: 两文件中 `grep -c brainstorming` == 0 (或仅出现在 deprecated 标记里)；两文件均含 spec / plan 边界规则段落
+- **Evidence**: 两文件 Step 1 段落同时含 `spec-design` 与该边界规则 bullet；全文 `grep -c brainstorming` == 0 (或仅出现在 release notes / 迁移说明里)
 
 #### VAL-DEP-002
 - **Behavior**: `skills-lock.json` 移除 upstream `brainstorming` 条目；`.agents/skills/brainstorming/` 不再存在
@@ -102,9 +107,9 @@
 - **Evidence**: 路径存在并有 SKILL.md；`.claude-plugin/plugin.json` 与 `.codex-plugin/plugin.json` 的 version 字段相等且大于此前版本
 
 #### VAL-DEP-004
-- **Behavior**: `test-designer/SKILL.md` 的输入契约更新为"读 `validation-contract.md` 的 VAL 列表"，且保留对 spec.md 的引用作为业务上下文
+- **Behavior**: `test-designer/SKILL.md` 的输入契约更新为"VAL 优先 + spec 散文兜底"：默认读 `validation-contract.md` 的 VAL 列表；允许在 VAL 不充分时回退读 `spec.md` 散文段补充
 - **Tool**: repo-check
-- **Evidence**: SKILL.md 内同时提及 `validation-contract.md` 与 spec.md；存在一段说明 VAL → 失败测试 的映射规则
+- **Evidence**: SKILL.md 内同时提及 `validation-contract.md` 与 spec.md；含"VAL 优先 / fallback"语义的说明段；存在一段说明 VAL → 失败测试 的映射规则
 
 #### VAL-DEP-005
 - **Behavior**: `package.json` CLI 版本号根据"一 PR 一次累积 bump"规则上调一次 (因 CLAUDE.md / skills-lock.json / plugin manifest 都属于 user-visible state)
@@ -115,3 +120,13 @@
 - **Behavior**: `dist/catalog.json` 重新生成后包含 spec-design 条目 (来自新 plugin)，并不再包含 brainstorming 条目
 - **Tool**: build
 - **Evidence**: `npm run build` 后 `grep -c spec-design dist/catalog.json` ≥1；`grep -c '"brainstorming"' dist/catalog.json` == 0
+
+#### VAL-DEP-007
+- **Behavior**: `goalify/SKILL.md` 在文档头明确标注输入来源为 `spec.md` + `validation-contract.md`，并标注典型使用时机为 PR Ready 阶段；workflow (`CLAUDE.md`) 不嵌入 goalify 调用
+- **Tool**: repo-check
+- **Evidence**: SKILL.md 提及两份输入文件路径与 "PR Ready" 关键字；`CLAUDE.md` 在需求澄清 / 规划阶段 grep goalify == 0
+
+#### VAL-DEP-008
+- **Behavior**: 版本 release notes / CHANGELOG (或 git tag 的 release body) 在引入 spec-design 的版本里显式标注"removed brainstorming, replaced by spec-design"
+- **Tool**: gh-state
+- **Evidence**: `gh release view v<new-version>` 的 body 含"brainstorming"与"spec-design"两个关键字
