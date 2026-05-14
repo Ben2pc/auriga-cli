@@ -18,7 +18,6 @@ const stub = (source: string) => ({
 // a plugin, not a skill, and lives in this repo). When in doubt, keep
 // names + sources aligned with skills-lock.json.
 const LOCK: SkillsLock["skills"] = {
-  brainstorming: stub("obra/superpowers"),
   "systematic-debugging": stub("obra/superpowers"),
   "test-driven-development": stub("obra/superpowers"),
   "verification-before-completion": stub("obra/superpowers"),
@@ -39,44 +38,44 @@ describe("planSkillInstallCommands", () => {
       migrated.filter((name) => WORKFLOW_SKILLS.includes(name)),
       [],
     );
-    assert.ok(WORKFLOW_SKILLS.includes("brainstorming"));
+    assert.ok(WORKFLOW_SKILLS.includes("systematic-debugging"));
     assert.ok(WORKFLOW_SKILLS.includes("test-driven-development"));
   });
 
   test("single source, single skill → one command with npx -y", () => {
-    const batches = planSkillInstallCommands(["brainstorming"], LOCK, "");
+    const batches = planSkillInstallCommands(["systematic-debugging"], LOCK, "");
     assert.equal(batches.length, 1);
     assert.equal(batches[0].source, "obra/superpowers");
-    assert.deepEqual(batches[0].skills, ["brainstorming"]);
+    assert.deepEqual(batches[0].skills, ["systematic-debugging"]);
     assert.match(batches[0].command, /^npx -y skills add /);
-    assert.match(batches[0].command, / --skill brainstorming /);
+    assert.match(batches[0].command, / --skill systematic-debugging /);
     assert.match(batches[0].command, / --agent claude-code codex /);
     assert.match(batches[0].command, / --yes$/);
   });
 
   test("single source, multiple skills → merged --skill list, space-separated", () => {
     const batches = planSkillInstallCommands(
-      ["brainstorming", "systematic-debugging", "test-driven-development"],
+      ["systematic-debugging", "systematic-debugging", "test-driven-development"],
       LOCK,
       "",
     );
     assert.equal(batches.length, 1);
     assert.equal(batches[0].source, "obra/superpowers");
     assert.deepEqual(batches[0].skills, [
-      "brainstorming",
+      "systematic-debugging",
       "systematic-debugging",
       "test-driven-development",
     ]);
     assert.match(
       batches[0].command,
-      / --skill brainstorming systematic-debugging test-driven-development /,
+      / --skill systematic-debugging systematic-debugging test-driven-development /,
     );
   });
 
   test("multiple sources → one batch per source, grouping is stable", () => {
     const batches = planSkillInstallCommands(
       [
-        "brainstorming",
+        "systematic-debugging",
         "claude-code-agent",
         "systematic-debugging",
         "codex-agent",
@@ -88,7 +87,7 @@ describe("planSkillInstallCommands", () => {
     assert.equal(batches.length, 3);
     const bySource = Object.fromEntries(batches.map((b) => [b.source, b.skills]));
     assert.deepEqual(bySource["obra/superpowers"], [
-      "brainstorming",
+      "systematic-debugging",
       "systematic-debugging",
     ]);
     assert.deepEqual(bySource["Ben2pc/g-claude-code-plugins"], [
@@ -107,7 +106,7 @@ describe("planSkillInstallCommands", () => {
 
   test("globalFlag threads into every command", () => {
     const batches = planSkillInstallCommands(
-      ["brainstorming", "claude-code-agent"],
+      ["systematic-debugging", "claude-code-agent"],
       LOCK,
       " -g",
     );
@@ -117,19 +116,19 @@ describe("planSkillInstallCommands", () => {
   });
 
   test("no globalFlag → no trailing -g in the source slot", () => {
-    const batches = planSkillInstallCommands(["brainstorming"], LOCK, "");
+    const batches = planSkillInstallCommands(["systematic-debugging"], LOCK, "");
     assert.doesNotMatch(batches[0].command, / -g /);
   });
 
   test("unknown skill name is ignored (defensive — caller filters first, but planner must not crash)", () => {
     const batches = planSkillInstallCommands(
-      ["brainstorming", "not-a-real-skill"],
+      ["systematic-debugging", "not-a-real-skill"],
       LOCK,
       "",
     );
     // Only the known skill survives; no throw.
     assert.equal(batches.length, 1);
-    assert.deepEqual(batches[0].skills, ["brainstorming"]);
+    assert.deepEqual(batches[0].skills, ["systematic-debugging"]);
   });
 
   test("empty selection → empty plan", () => {

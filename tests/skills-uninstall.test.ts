@@ -66,9 +66,9 @@ describe("uninstallSkill — exec success path", () => {
       return "";
     });
 
-    await uninstallSkill("brainstorming", { cwd });
+    await uninstallSkill("systematic-debugging", { cwd });
 
-    assert.deepEqual(calls, ["npx -y skills remove brainstorming"]);
+    assert.deepEqual(calls, ["npx -y skills remove systematic-debugging"]);
   });
 
   test("forwards arbitrary exec errors (non-fallback failures propagate)", async () => {
@@ -78,7 +78,7 @@ describe("uninstallSkill — exec success path", () => {
     });
 
     await assert.rejects(
-      () => uninstallSkill("brainstorming", { cwd }),
+      () => uninstallSkill("systematic-debugging", { cwd }),
       /ENETDOWN/,
     );
   });
@@ -104,34 +104,34 @@ describe("uninstallSkill — fallback path", () => {
   // signaling the subcommand isn't supported. We simulate the upstream
   // CLI's "Unknown command remove" output.
   function makeRemoveUnsupportedError(): Error {
-    const err = new Error("Command failed: npx -y skills remove brainstorming");
+    const err = new Error("Command failed: npx -y skills remove systematic-debugging");
     (err as Error & { stderr?: string }).stderr = "Unknown command 'remove'";
     return err;
   }
 
   test("falls back to manual cleanup when CLI doesn't support remove", async () => {
     const cwd = makeScratchLock({
-      brainstorming: { source: "obra/superpowers" },
+      "systematic-debugging": { source: "obra/superpowers" },
       "deep-review": { source: "Ben2pc/g-claude-code-plugins" },
     });
-    fs.mkdirSync(path.join(cwd, ".claude/skills/brainstorming"), { recursive: true });
-    fs.writeFileSync(path.join(cwd, ".claude/skills/brainstorming/SKILL.md"), "x");
-    fs.mkdirSync(path.join(cwd, ".agents/skills/brainstorming"), { recursive: true });
-    fs.writeFileSync(path.join(cwd, ".agents/skills/brainstorming/SKILL.md"), "x");
+    fs.mkdirSync(path.join(cwd, ".claude/skills/systematic-debugging"), { recursive: true });
+    fs.writeFileSync(path.join(cwd, ".claude/skills/systematic-debugging/SKILL.md"), "x");
+    fs.mkdirSync(path.join(cwd, ".agents/skills/systematic-debugging"), { recursive: true });
+    fs.writeFileSync(path.join(cwd, ".agents/skills/systematic-debugging/SKILL.md"), "x");
 
     const { uninstallSkill } = await importSkills(() => {
       throw makeRemoveUnsupportedError();
     });
 
-    await uninstallSkill("brainstorming", { cwd });
+    await uninstallSkill("systematic-debugging", { cwd });
 
     // Directories gone
-    assert.equal(fs.existsSync(path.join(cwd, ".claude/skills/brainstorming")), false);
-    assert.equal(fs.existsSync(path.join(cwd, ".agents/skills/brainstorming")), false);
+    assert.equal(fs.existsSync(path.join(cwd, ".claude/skills/systematic-debugging")), false);
+    assert.equal(fs.existsSync(path.join(cwd, ".agents/skills/systematic-debugging")), false);
 
-    // Lockfile mutated: brainstorming gone, deep-review preserved
+    // Lockfile mutated: systematic-debugging gone, deep-review preserved
     const lock = JSON.parse(fs.readFileSync(path.join(cwd, "skills-lock.json"), "utf-8")) as SkillsLock;
-    assert.equal("brainstorming" in lock.skills, false);
+    assert.equal("systematic-debugging" in lock.skills, false);
     assert.equal("deep-review" in lock.skills, true);
   });
 
@@ -141,8 +141,8 @@ describe("uninstallSkill — fallback path", () => {
       throw makeRemoveUnsupportedError();
     });
 
-    // brainstorming was never installed — fallback must succeed silently
-    await uninstallSkill("brainstorming", { cwd });
+    // systematic-debugging was never installed — fallback must succeed silently
+    await uninstallSkill("systematic-debugging", { cwd });
 
     // Lockfile untouched (deep-review still there)
     const lock = JSON.parse(fs.readFileSync(path.join(cwd, "skills-lock.json"), "utf-8")) as SkillsLock;
@@ -151,29 +151,29 @@ describe("uninstallSkill — fallback path", () => {
 
   test("fallback handles missing lockfile (cleans dirs only)", async () => {
     const cwd = fs.mkdtempSync(path.join(os.tmpdir(), "auriga-uninstall-skill-nolock-"));
-    fs.mkdirSync(path.join(cwd, ".claude/skills/brainstorming"), { recursive: true });
-    fs.writeFileSync(path.join(cwd, ".claude/skills/brainstorming/SKILL.md"), "x");
+    fs.mkdirSync(path.join(cwd, ".claude/skills/systematic-debugging"), { recursive: true });
+    fs.writeFileSync(path.join(cwd, ".claude/skills/systematic-debugging/SKILL.md"), "x");
 
     const { uninstallSkill } = await importSkills(() => {
       throw makeRemoveUnsupportedError();
     });
 
-    await uninstallSkill("brainstorming", { cwd });
+    await uninstallSkill("systematic-debugging", { cwd });
 
-    assert.equal(fs.existsSync(path.join(cwd, ".claude/skills/brainstorming")), false);
+    assert.equal(fs.existsSync(path.join(cwd, ".claude/skills/systematic-debugging")), false);
     assert.equal(fs.existsSync(path.join(cwd, "skills-lock.json")), false);
   });
 
   test("onLog stream records the fallback decision", async () => {
-    const cwd = makeScratchLock({ brainstorming: { source: "obra/superpowers" } });
-    fs.mkdirSync(path.join(cwd, ".claude/skills/brainstorming"), { recursive: true });
+    const cwd = makeScratchLock({ systematic-debugging: { source: "obra/superpowers" } });
+    fs.mkdirSync(path.join(cwd, ".claude/skills/systematic-debugging"), { recursive: true });
 
     const logs: string[] = [];
     const { uninstallSkill } = await importSkills(() => {
       throw makeRemoveUnsupportedError();
     });
 
-    await uninstallSkill("brainstorming", { cwd, onLog: (l: string) => logs.push(l) });
+    await uninstallSkill("systematic-debugging", { cwd, onLog: (l: string) => logs.push(l) });
 
     assert.ok(
       logs.some((l) => /fall(ing|back|\s+back)/i.test(l)),
@@ -200,9 +200,9 @@ describe("uninstallSkill — scope forwarding (user scope)", () => {
       return "";
     });
 
-    await uninstallSkill("brainstorming", { cwd, scope: "user" });
+    await uninstallSkill("systematic-debugging", { cwd, scope: "user" });
 
-    assert.deepEqual(calls, ["npx -y skills remove brainstorming -g"]);
+    assert.deepEqual(calls, ["npx -y skills remove systematic-debugging -g"]);
   });
 
   test("project scope (default) omits the -g flag", async () => {
@@ -213,9 +213,9 @@ describe("uninstallSkill — scope forwarding (user scope)", () => {
       return "";
     });
 
-    await uninstallSkill("brainstorming", { cwd, scope: "project" });
+    await uninstallSkill("systematic-debugging", { cwd, scope: "project" });
 
-    assert.deepEqual(calls, ["npx -y skills remove brainstorming"]);
+    assert.deepEqual(calls, ["npx -y skills remove systematic-debugging"]);
   });
 
   test("scope:'user' fallback cleans ~/.claude/skills/<name> + ~/.agents/skills/<name>", async () => {
@@ -225,16 +225,16 @@ describe("uninstallSkill — scope forwarding (user scope)", () => {
       return err;
     }
 
-    const cwd = makeScratchLock({ brainstorming: { source: "x/y" } });
+    const cwd = makeScratchLock({ systematic-debugging: { source: "x/y" } });
     const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), "auriga-skill-user-"));
 
     // Seed BOTH project (must NOT be touched) and user (must be removed)
-    fs.mkdirSync(path.join(cwd, ".claude/skills/brainstorming"), { recursive: true });
-    fs.writeFileSync(path.join(cwd, ".claude/skills/brainstorming/SKILL.md"), "x");
-    fs.mkdirSync(path.join(tmpHome, ".claude/skills/brainstorming"), { recursive: true });
-    fs.writeFileSync(path.join(tmpHome, ".claude/skills/brainstorming/SKILL.md"), "x");
-    fs.mkdirSync(path.join(tmpHome, ".agents/skills/brainstorming"), { recursive: true });
-    fs.writeFileSync(path.join(tmpHome, ".agents/skills/brainstorming/SKILL.md"), "x");
+    fs.mkdirSync(path.join(cwd, ".claude/skills/systematic-debugging"), { recursive: true });
+    fs.writeFileSync(path.join(cwd, ".claude/skills/systematic-debugging/SKILL.md"), "x");
+    fs.mkdirSync(path.join(tmpHome, ".claude/skills/systematic-debugging"), { recursive: true });
+    fs.writeFileSync(path.join(tmpHome, ".claude/skills/systematic-debugging/SKILL.md"), "x");
+    fs.mkdirSync(path.join(tmpHome, ".agents/skills/systematic-debugging"), { recursive: true });
+    fs.writeFileSync(path.join(tmpHome, ".agents/skills/systematic-debugging/SKILL.md"), "x");
 
     const { uninstallSkill } = await importSkills(() => {
       throw makeRemoveUnsupportedError();
@@ -243,14 +243,14 @@ describe("uninstallSkill — scope forwarding (user scope)", () => {
     const originalHome = process.env.HOME;
     process.env.HOME = tmpHome;
     try {
-      await uninstallSkill("brainstorming", { cwd, scope: "user" });
+      await uninstallSkill("systematic-debugging", { cwd, scope: "user" });
 
       // user-scope dirs gone
-      assert.equal(fs.existsSync(path.join(tmpHome, ".claude/skills/brainstorming")), false);
-      assert.equal(fs.existsSync(path.join(tmpHome, ".agents/skills/brainstorming")), false);
+      assert.equal(fs.existsSync(path.join(tmpHome, ".claude/skills/systematic-debugging")), false);
+      assert.equal(fs.existsSync(path.join(tmpHome, ".agents/skills/systematic-debugging")), false);
       // project-scope dir untouched (user explicitly chose user scope)
       assert.equal(
-        fs.existsSync(path.join(cwd, ".claude/skills/brainstorming")),
+        fs.existsSync(path.join(cwd, ".claude/skills/systematic-debugging")),
         true,
         "project dir must NOT be removed when scope:'user'",
       );
@@ -265,20 +265,20 @@ describe("uninstallSkill — scope forwarding (user scope)", () => {
 describe("uninstallSkillManual — direct entry point", () => {
   test("removes .claude + .agents + lockfile entry in one pass", async () => {
     const cwd = makeScratchLock({
-      brainstorming: { source: "obra/superpowers" },
+      "systematic-debugging": { source: "obra/superpowers" },
       "deep-review": { source: "Ben2pc/g-claude-code-plugins" },
     });
-    fs.mkdirSync(path.join(cwd, ".claude/skills/brainstorming"), { recursive: true });
-    fs.writeFileSync(path.join(cwd, ".claude/skills/brainstorming/SKILL.md"), "x");
-    fs.mkdirSync(path.join(cwd, ".agents/skills/brainstorming"), { recursive: true });
-    fs.writeFileSync(path.join(cwd, ".agents/skills/brainstorming/SKILL.md"), "y");
+    fs.mkdirSync(path.join(cwd, ".claude/skills/systematic-debugging"), { recursive: true });
+    fs.writeFileSync(path.join(cwd, ".claude/skills/systematic-debugging/SKILL.md"), "x");
+    fs.mkdirSync(path.join(cwd, ".agents/skills/systematic-debugging"), { recursive: true });
+    fs.writeFileSync(path.join(cwd, ".agents/skills/systematic-debugging/SKILL.md"), "y");
 
     const { uninstallSkillManual } = await importSkills(() => "");
 
-    await uninstallSkillManual("brainstorming", cwd);
+    await uninstallSkillManual("systematic-debugging", cwd);
 
-    assert.equal(fs.existsSync(path.join(cwd, ".claude/skills/brainstorming")), false);
-    assert.equal(fs.existsSync(path.join(cwd, ".agents/skills/brainstorming")), false);
+    assert.equal(fs.existsSync(path.join(cwd, ".claude/skills/systematic-debugging")), false);
+    assert.equal(fs.existsSync(path.join(cwd, ".agents/skills/systematic-debugging")), false);
     const lock = JSON.parse(fs.readFileSync(path.join(cwd, "skills-lock.json"), "utf-8")) as SkillsLock;
     assert.deepEqual(Object.keys(lock.skills), ["deep-review"]);
   });

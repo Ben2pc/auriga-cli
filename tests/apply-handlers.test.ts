@@ -164,10 +164,10 @@ describe("buildDefaultApplyHandlers — skill (workflow set)", () => {
       cwd: "/proj",
       pluginAgentsByName: new Map(),
     });
-    await handlers.skill("install", "brainstorming", noopLog());
+    await handlers.skill("install", "systematic-debugging", noopLog());
     assert.equal(calls.installSkills.length, 1);
     const opts = calls.installSkills[0].opts as { selected: string[] };
-    assert.deepEqual(opts.selected, ["brainstorming"]);
+    assert.deepEqual(opts.selected, ["systematic-debugging"]);
     assert.equal(calls.installRecommendedSkills.length, 0);
   });
 
@@ -179,9 +179,9 @@ describe("buildDefaultApplyHandlers — skill (workflow set)", () => {
       cwd: "/proj",
       pluginAgentsByName: new Map(),
     });
-    await handlers.skill("uninstall", "brainstorming", noopLog());
+    await handlers.skill("uninstall", "systematic-debugging", noopLog());
     assert.equal(calls.uninstallSkill.length, 1);
-    assert.equal(calls.uninstallSkill[0].name, "brainstorming");
+    assert.equal(calls.uninstallSkill[0].name, "systematic-debugging");
   });
 });
 
@@ -364,7 +364,7 @@ describe("buildDefaultApplyHandlers — scope forwarding on uninstall", () => {
       cwd: "/proj",
       pluginAgentsByName: new Map(),
     });
-    await handlers.skill("uninstall", "brainstorming", {
+    await handlers.skill("uninstall", "systematic-debugging", {
       onLog: () => {},
       scope: "user",
     });
@@ -493,7 +493,7 @@ describe("buildDefaultApplyHandlers — handler logging", () => {
       seen.push(line);
     };
     await handlers.workflow("install", "default-workflow", { onLog });
-    await handlers.skill("install", "brainstorming", { onLog });
+    await handlers.skill("install", "systematic-debugging", { onLog });
     await handlers.plugin("install", "deep-review", { onLog });
     assert.ok(seen.length >= 3, `expected ≥3 log lines, got ${seen.length}`);
   });

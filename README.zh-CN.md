@@ -11,7 +11,7 @@
 | 模块 | 说明 |
 |---|---|
 | **Workflow** | `CLAUDE.md` 里的 auriga 工作流：需求澄清 → TDD → Review，Harness 原则，Subagent 使用指南 |
-| **Skills** | 外部开发流程 skills —— brainstorming、systematic-debugging、TDD、verification、planning、playwright |
+| **Skills** | 外部开发流程 skills —— systematic-debugging、TDD、verification、planning、playwright（spec 撰写由 `auriga-workflow-skills` 插件内的 `spec-design` skill 提供）|
 | **Recommended Skills** | 可选的工具类 skills（如 `codex-agent`、`claude-code-agent`），在 workflow skills 之外按需追加 |
 | **Plugins** | 推荐的 Claude Code 和 Codex 插件 —— skill-creator、claude-md-management、codex、auriga-go、auriga-git-guards、auriga-workflow-skills、auriga-notify、session-instructions-loader、deep-review |
 | **Hooks** | 传统 Claude Code hook 安装器。目前没有仓库自维护 hook 暴露在这里；`notify` 已迁移为 `auriga-notify` 插件。 |
@@ -96,7 +96,6 @@ npx auriga-cli
 
 | Skill | 来源 | 说明 |
 |---|---|---|
-| brainstorming | [obra/superpowers](https://github.com/obra/superpowers) | 需求澄清与设计探索 |
 | systematic-debugging | [obra/superpowers](https://github.com/obra/superpowers) | 系统化调试，先找根因再修复 |
 | test-driven-development | [obra/superpowers](https://github.com/obra/superpowers) | 测试驱动开发流程 |
 | verification-before-completion | [obra/superpowers](https://github.com/obra/superpowers) | 完成前验证，用证据说话 |

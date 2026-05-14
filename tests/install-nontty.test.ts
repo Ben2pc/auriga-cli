@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { afterEach, describe, mock, test } from "node:test";
 const CATALOG = {
   generatedAt: "2026-04-21T00:00:00.000Z",
-  workflowSkills: [{ name: "brainstorming", description: "x" }],
+  workflowSkills: [{ name: "systematic-debugging", description: "x" }],
   recommendedSkills: [{ name: "codex-agent", description: "x" }],
   plugins: [
     { name: "auriga-go", description: "x" },

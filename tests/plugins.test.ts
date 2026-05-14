@@ -1182,7 +1182,7 @@ describe("installPlugins — Claude target", () => {
       "incremental-impl",
       "test-designer",
       "session-compound",
-      "brainstorming",
+      "systematic-debugging",
       "planning-with-files",
     ]) {
       seedLegacySkill(cwd, name);
@@ -1194,7 +1194,7 @@ describe("installPlugins — Claude target", () => {
           "incremental-impl",
           "test-designer",
           "session-compound",
-          "brainstorming",
+          "systematic-debugging",
           "planning-with-files",
         ].map((name) => [
           name,
@@ -1220,7 +1220,7 @@ describe("installPlugins — Claude target", () => {
       assert.equal(fs.existsSync(path.join(cwd, ".claude", "skills", name)), false);
       assert.equal(fs.existsSync(path.join(cwd, ".agents", "skills", name)), false);
     }
-    for (const name of ["brainstorming", "planning-with-files"]) {
+    for (const name of ["systematic-debugging", "planning-with-files"]) {
       assert.equal(
         fs.existsSync(path.join(cwd, ".claude", "skills", name)),
         true,
@@ -1231,7 +1231,7 @@ describe("installPlugins — Claude target", () => {
     const lock = JSON.parse(fs.readFileSync(path.join(cwd, "skills-lock.json"), "utf-8")) as {
       skills: Record<string, unknown>;
     };
-    assert.deepEqual(Object.keys(lock.skills).sort(), ["brainstorming", "planning-with-files"]);
+    assert.deepEqual(Object.keys(lock.skills).sort(), ["systematic-debugging", "planning-with-files"]);
   });
 
   test("auriga-workflow-skills Codex-only install preserves Claude legacy fallback", async () => {

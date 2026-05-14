@@ -896,7 +896,7 @@ async function runLegacyMenu(): Promise<number> {
     message: "Select module types to install:",
     choices: [
       { name: "Workflow — CLAUDE.md + AGENTS.md", value: "workflow" as const, checked: true },
-      { name: "Skills — Development process skills (brainstorming, TDD, debugging...)", value: "skills" as const, checked: true },
+      { name: "Skills — Development process skills (TDD, debugging, verification, planning...)", value: "skills" as const, checked: true },
       { name: "Recommended Skills — Extra utility skills (claude-code-agent, codex-agent...)", value: "recommended" as const, checked: true },
       { name: "Plugins — Claude Code / Codex plugins (skill-creator, codex, auriga-go...)", value: "plugins" as const, checked: true },
       { name: "Hooks — Claude Code hooks (notifications, etc.)", value: "hooks" as const, checked: true },

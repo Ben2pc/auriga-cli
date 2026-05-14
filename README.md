@@ -11,7 +11,7 @@ This repo itself is a fully configured harness project. You can clone it to see 
 | Module | Description |
 |---|---|
 | **Workflow** | `CLAUDE.md` auriga workflow: requirement clarification -> TDD -> Review, Harness principles, Subagent usage guide |
-| **Skills** | External development process skills — brainstorming, systematic-debugging, TDD, verification, planning, playwright |
+| **Skills** | External development process skills — systematic-debugging, TDD, verification, planning, playwright (spec authoring ships as the `spec-design` skill inside the `auriga-workflow-skills` plugin) |
 | **Recommended Skills** | Optional utility skills (e.g. `codex-agent`, `claude-code-agent`) you can add on top of the workflow skills |
 | **Plugins** | Recommended Claude Code and Codex plugins — skill-creator, claude-md-management, codex, auriga-go, auriga-git-guards, auriga-workflow-skills, auriga-notify, session-instructions-loader, deep-review |
 | **Hooks** | Legacy Claude Code hook installer. No repo-owned hooks are currently exposed here; `notify` ships as the `auriga-notify` plugin. |
@@ -96,7 +96,6 @@ Installs selected skills via `npx skills add`, targeting both Claude Code and Co
 
 | Skill | Source | Description |
 |---|---|---|
-| brainstorming | [obra/superpowers](https://github.com/obra/superpowers) | Requirement clarification and design exploration |
 | systematic-debugging | [obra/superpowers](https://github.com/obra/superpowers) | Systematic debugging — find root cause before fixing |
 | test-driven-development | [obra/superpowers](https://github.com/obra/superpowers) | Test-driven development workflow |
 | verification-before-completion | [obra/superpowers](https://github.com/obra/superpowers) | Pre-completion verification — evidence before assertions |

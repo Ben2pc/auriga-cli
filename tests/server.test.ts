@@ -202,7 +202,7 @@ describe("POST /api/apply (spec §6.1 / §6.4)", () => {
     await withServer(async ({ baseUrl, token }) => {
       const body = {
         items: [
-          { category: "skill", name: "brainstorming", action: "install" },
+          { category: "skill", name: "systematic-debugging", action: "install" },
           { category: "hook", name: "notify", action: "uninstall" },
         ],
       };

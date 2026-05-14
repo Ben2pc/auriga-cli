@@ -487,12 +487,12 @@ describe("scanState — #7 Skills / user scope happy path", () => {
     // rationale: catches scanner still consulting skills-lock.json
     const home = makeScratch("home7");
     redirectHome(home);
-    const content = "---\nname: brainstorming\nversion: 1.0.0\n---\nbody";
-    writeSkill(path.join(home, ".claude", "skills", "brainstorming"), content);
+    const content = "---\nname: systematic-debugging\nversion: 1.0.0\n---\nbody";
+    writeSkill(path.join(home, ".claude", "skills", "systematic-debugging"), content);
 
     const catalog = makeCatalog({
       skills: {
-        brainstorming: { description: "B", isWorkflow: true },
+        "systematic-debugging": { description: "B", isWorkflow: true },
       },
     });
     const report = await scan(makeScratch("proj7"), catalog, {
@@ -500,7 +500,7 @@ describe("scanState — #7 Skills / user scope happy path", () => {
       homeDir: home,
     });
 
-    const s = report.skills.find((x: SkillState) => x.name === "brainstorming");
+    const s = report.skills.find((x: SkillState) => x.name === "systematic-debugging");
     assert.ok(s, "skill row present");
     assert.equal(s!.status, "installed");
     assert.equal((s! as any).observedScope, "user");
@@ -515,12 +515,12 @@ describe("scanState — #8 Skills / user scope partial", () => {
     // rationale: catches scanner short-circuiting whole category when one skill missing
     const home = makeScratch("home8");
     redirectHome(home);
-    const content = "---\nname: brainstorming\n---\nbody";
-    writeSkill(path.join(home, ".claude", "skills", "brainstorming"), content);
+    const content = "---\nname: systematic-debugging\n---\nbody";
+    writeSkill(path.join(home, ".claude", "skills", "systematic-debugging"), content);
 
     const catalog = makeCatalog({
       skills: {
-        brainstorming: { description: "", isWorkflow: true },
+        "systematic-debugging": { description: "", isWorkflow: true },
         "not-on-disk": { description: "", isWorkflow: true },
       },
     });
@@ -529,7 +529,7 @@ describe("scanState — #8 Skills / user scope partial", () => {
       homeDir: home,
     });
 
-    const present = report.skills.find((x) => x.name === "brainstorming")!;
+    const present = report.skills.find((x) => x.name === "systematic-debugging")!;
     const missing = report.skills.find((x) => x.name === "not-on-disk")!;
     assert.equal(present.status, "installed");
     assert.equal(missing.status, "not-installed");
@@ -549,12 +549,12 @@ describe("scanState — #9 Skills / project scope", () => {
     const home = makeScratch("home9");
     redirectHome(home);
     const proj = makeScratch("proj9");
-    const content = "---\nname: brainstorming\n---\nbody";
-    writeSkill(path.join(proj, ".claude", "skills", "brainstorming"), content);
+    const content = "---\nname: systematic-debugging\n---\nbody";
+    writeSkill(path.join(proj, ".claude", "skills", "systematic-debugging"), content);
 
     const catalog = makeCatalog({
       skills: {
-        brainstorming: { description: "", isWorkflow: true },
+        "systematic-debugging": { description: "", isWorkflow: true },
       },
     });
     const report = await scan(proj, catalog, {
@@ -562,7 +562,7 @@ describe("scanState — #9 Skills / project scope", () => {
       homeDir: home,
     });
 
-    const s = report.skills.find((x) => x.name === "brainstorming")!;
+    const s = report.skills.find((x) => x.name === "systematic-debugging")!;
     assert.equal(s.status, "installed");
     assert.equal((s as any).observedScope, "project");
   });
@@ -577,15 +577,15 @@ describe("scanState — #10 Skills malformed (dir present, SKILL.md missing)", (
     // row, leaving the user unable to repair
     const home = makeScratch("home10");
     redirectHome(home);
-    // brainstorming: dir exists but SKILL.md does NOT
-    fs.mkdirSync(path.join(home, ".claude", "skills", "brainstorming"), { recursive: true });
+    // systematic-debugging: dir exists but SKILL.md does NOT
+    fs.mkdirSync(path.join(home, ".claude", "skills", "systematic-debugging"), { recursive: true });
     // healthy skill so we can assert isolation
     const healthyContent = "---\nname: healthy\n---\nok";
     writeSkill(path.join(home, ".claude", "skills", "healthy"), healthyContent);
 
     const catalog = makeCatalog({
       skills: {
-        brainstorming: { description: "", isWorkflow: true },
+        "systematic-debugging": { description: "", isWorkflow: true },
         healthy: { description: "", isWorkflow: false },
       },
     });
@@ -597,7 +597,7 @@ describe("scanState — #10 Skills malformed (dir present, SKILL.md missing)", (
       });
     }, "scanState must not throw on malformed skill");
 
-    const broken = report!.skills.find((x) => x.name === "brainstorming")!;
+    const broken = report!.skills.find((x) => x.name === "systematic-debugging")!;
     const ok = report!.skills.find((x) => x.name === "healthy")!;
     assert.ok(broken, "row present for malformed skill so user can repair");
     assert.equal(broken.status, "installed", "directory presence means installed; SKILL.md missing → warning");
@@ -621,12 +621,12 @@ describe("scanState — #11 Skills presence-only (no content drift)", () => {
     // regression that re-introduces hash comparison would fail here.
     const home = makeScratch("home11");
     redirectHome(home);
-    const onDisk = "---\nname: brainstorming\nversion: 0.9.0\n---\nold";
-    writeSkill(path.join(home, ".claude", "skills", "brainstorming"), onDisk);
+    const onDisk = "---\nname: systematic-debugging\nversion: 0.9.0\n---\nold";
+    writeSkill(path.join(home, ".claude", "skills", "systematic-debugging"), onDisk);
 
     const catalog = makeCatalog({
       skills: {
-        brainstorming: { description: "", isWorkflow: true },
+        "systematic-debugging": { description: "", isWorkflow: true },
       },
     });
     const report = await scan(makeScratch("proj11"), catalog, {
@@ -634,7 +634,7 @@ describe("scanState — #11 Skills presence-only (no content drift)", () => {
       homeDir: home,
     });
 
-    const s = report.skills.find((x) => x.name === "brainstorming")!;
+    const s = report.skills.find((x) => x.name === "systematic-debugging")!;
     assert.equal(
       s.status,
       "installed",
@@ -1028,7 +1028,7 @@ describe("scanState — #21 No Claude install detected at all", () => {
 
     const catalog = makeCatalog({
       skills: {
-        brainstorming: { description: "", isWorkflow: true },
+        "systematic-debugging": { description: "", isWorkflow: true },
       },
       hooks: { notify: { description: "" } },
     });
@@ -1076,18 +1076,18 @@ describe("scanState — #22 Default scopes when opts.scopes omitted", () => {
     const home = makeScratch("home22s");
     redirectHome(home);
     const proj = makeScratch("proj22s");
-    const projContent = "---\nname: brainstorming\n---\nproj";
-    const userContent = "---\nname: brainstorming\n---\nuser";
-    writeSkill(path.join(proj, ".claude", "skills", "brainstorming"), projContent);
-    writeSkill(path.join(home, ".claude", "skills", "brainstorming"), userContent);
+    const projContent = "---\nname: systematic-debugging\n---\nproj";
+    const userContent = "---\nname: systematic-debugging\n---\nuser";
+    writeSkill(path.join(proj, ".claude", "skills", "systematic-debugging"), projContent);
+    writeSkill(path.join(home, ".claude", "skills", "systematic-debugging"), userContent);
 
     const catalog = makeCatalog({
       skills: {
-        brainstorming: { description: "", isWorkflow: true },
+        "systematic-debugging": { description: "", isWorkflow: true },
       },
     });
     const report = await scan(proj, catalog, { homeDir: home });
-    const s = report.skills.find((x) => x.name === "brainstorming")!;
+    const s = report.skills.find((x) => x.name === "systematic-debugging")!;
     assert.equal((s as any).observedScope, "project");
     assert.equal(s.status, "installed", "must have hashed project content, not user content");
   });
@@ -1152,13 +1152,13 @@ describe("scanState — #23 Per-category scope picker independence", () => {
     //   counter-evidence at project: <proj>/CLAUDE.md v0.0.1
     writeWorkflowFile(path.join(proj, "CLAUDE.md"), "0.0.1");
 
-    // skills = 'project'        → <proj>/.claude/skills/brainstorming/SKILL.md
-    const projSkillContent = "---\nname: brainstorming\n---\nproject";
-    writeSkill(path.join(proj, ".claude", "skills", "brainstorming"), projSkillContent);
+    // skills = 'project'        → <proj>/.claude/skills/systematic-debugging/SKILL.md
+    const projSkillContent = "---\nname: systematic-debugging\n---\nproject";
+    writeSkill(path.join(proj, ".claude", "skills", "systematic-debugging"), projSkillContent);
     //   counter-evidence at user: different content
     writeSkill(
-      path.join(home, ".claude", "skills", "brainstorming"),
-      "---\nname: brainstorming\n---\nuser",
+      path.join(home, ".claude", "skills", "systematic-debugging"),
+      "---\nname: systematic-debugging\n---\nuser",
     );
 
     // plugins = 'user'          → execPluginList called with 'user'
@@ -1179,7 +1179,7 @@ describe("scanState — #23 Per-category scope picker independence", () => {
 
     const catalog = makeCatalog({
       skills: {
-        brainstorming: { description: "", isWorkflow: true },
+        "systematic-debugging": { description: "", isWorkflow: true },
       },
       plugins: { "auriga-go@auriga-cli": { description: "", agents: ["claude"] } },
       hooks: { notify: { description: "" } },
@@ -1203,7 +1203,7 @@ describe("scanState — #23 Per-category scope picker independence", () => {
     assert.equal(report.workflow.status, "installed");
 
     // Skills: read project scope (matches catalog hash) — installed.
-    const sk = report.skills.find((x) => x.name === "brainstorming")!;
+    const sk = report.skills.find((x) => x.name === "systematic-debugging")!;
     assert.equal((sk as any).observedScope, "project");
     assert.equal(sk.status, "installed");
 
