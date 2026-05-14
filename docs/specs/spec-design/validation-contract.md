@@ -7,7 +7,7 @@
 
 | 范围 | VAL 区间 |
 |---|---|
-| Skill 内部 4 阶段行为 (Discover / Decide & Design / Write / Gate & Handoff) | VAL-WORK-001 ~ VAL-WORK-015 |
+| Skill 内部 4 阶段行为 (Discover / Decide & Design / Write / Gate & Handoff) | VAL-WORK-001 ~ VAL-WORK-016 |
 | 下游集成 (workflow 文档、上游 brainstorming 退役、plugin manifest、test-designer 契约、goalify 标注、release notes、deep-review spec-conformance) | VAL-DEP-001 ~ VAL-DEP-009 |
 
 ## Assertions
@@ -88,6 +88,11 @@
 - **Behavior**: 当 A1.5 / B0 触发 spec 拆分时，C2.5 必须额外产出 `umbrella.md`，且 umbrella 内含"子 spec 列表"表格与"拆分轴"段落；不拆分则不应产出 umbrella.md
 - **Tool**: repo-check
 - **Evidence**: 拆分触发的会话中 `docs/specs/<topic>/umbrella.md` 存在且含 `## 子 spec 列表` 与 `## 拆分轴` 两段；未触发的会话该文件不存在
+
+#### VAL-WORK-016
+- **Behavior**: D1 自检通过后、D2 explicit-yes gate 之前，skill 必须发起一次 `AskUserQuestion` 询问 review aid 三选一 (skip / playground / 静态 HTML)；选项顺序 skip 在最前 (size-aware 默认)；playground 选项仅在 `playground:playground` skill 已可用时呈现；选择 (a) 后必须调用 `playground:playground` 并把 spec.md + validation-contract.md (+ umbrella.md 若拆分) 作为输入路径传入；选择 (b) 后必须在 `docs/specs/<topic>/review.html` 生成 self-contained 单文件
+- **Tool**: e2e-cli
+- **Evidence**: D1 与 D2 之间存在一次 AskUserQuestion 调用，question 文本含 "playground" 与 "HTML" 关键字；options 数组首项为 skip 语义；选择 playground 路径时下游有 `playground:playground` 调用且参数含两份 spec 文件路径；选择静态 HTML 路径时 `docs/specs/<topic>/review.html` 存在且为单文件 (无外部 CSS/JS 引用)；选择 skip 时 review.html 不存在且无 playground 调用
 
 ### 下游集成 (VAL-DEP-*)
 

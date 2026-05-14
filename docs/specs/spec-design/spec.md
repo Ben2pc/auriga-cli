@@ -54,6 +54,7 @@ A. Discover   →  B. Decide & Design  →  C. Write   →  D. Gate & Handoff
 |  | C2 | 写 `validation-contract.md` (Coverage map + Assertions) |
 |  | C2.5 | 如果 B0 触发了拆分，再写 `umbrella.md` 串起所有子 spec |
 | **D. Gate & Handoff** | D1 | Handoff review：从下游消费者视角自检 spec (见 §8 checklist) |
+|  | D1.5 | Offer review aid：询问用户三选一 (见 §11)：(a) 调 `playground:playground` 生成 document-critique HTML 做交互式 review、(b) 生成一份静态 HTML 整体浏览、(c) 跳过文本流直接进 D2 |
 |  | D2 | Explicit-yes gate：把 spec 文件路径交给用户，等待明确认可才进入下一阶段 |
 |  | D3 | Handoff：按 scope triage 结果，把 spec 交给 plan / 直接进入 Pre-coding (QDF) |
 
@@ -191,6 +192,31 @@ VAL 的 `Tool` 字段必须从下列**类别**里选一个，不写具体工具�
 
 **10.6 `deep-review` 的 `spec-conformance` reviewer 升级**：把 reviewer 的主要输入从 "spec.md 散文" 调整为 "`validation-contract.md` 的 VAL 列表"。reviewer 必须对照 PR diff 逐条核验 VAL 是否被实现满足 (Behavior 命中 / Tool 与 Evidence 可被现有测试或检查覆盖)；`spec.md` 仍保留为 Why 上下文与 Out-of-scope 判定来源。任何 VAL 漏覆盖一律算 blocking，写入 deep-review 报告时附 `VAL-XXX-NNN` 编号定位。文件路径：`plugins/deep-review/skills/deep-review/references/reviewers/spec-conformance.md`。该 reviewer 的 Detection table、Output contract、worked scenarios 都需同步更新。
 
+**10.7 `playground` plugin 作为 D1.5 的可选依赖**：spec-design 在 D1.5 提供"调 playground"选项，依赖 Anthropic 官方 `claude-plugins-official/playground` plugin 的 `playground:playground` skill (推荐使用 `document-critique` 模板对 spec 各节 + VAL 逐条 approve/reject/comment)。该依赖是**软依赖**：plugin 未安装时，D1.5 询问选项中应隐藏 playground 项 (或显式提示 "需先 `npx auriga-cli` 装 playground")；不强制要求用户必须安装才能跑 spec-design。spec-design 自己**不**实现 playground 逻辑，只负责把 spec.md + validation-contract.md 路径作为 source-of-truth 传给 playground skill，并接收 playground 输出的"反馈 prompt"作为 D2 之前的最后一轮就地修改触发点。
+
+### 11. D1.5 — Offer review aid (三选一)
+
+D1 内部自检结束后、进入 D2 explicit-yes gate 之前，spec-design 必须显式地把"是否需要可视化整体 review"的决策权交给用户。三个选项：
+
+**(a) Playground (交互 review)**
+- 用 `AskUserQuestion` 触发 `playground:playground` skill；建议模板：`document-critique`
+- 输入：`docs/specs/<topic>/spec.md` + `docs/specs/<topic>/validation-contract.md` (拆分场景再加 `umbrella.md`)
+- 用户在 HTML 里逐节 / 逐 VAL 勾选 approve / reject / comment；最终点 Copy 把"反馈 prompt"贴回 spec-design 对话
+- spec-design 解析 prompt 中的 reject / comment 项，就地修 spec / VAL，再回到 D1 跑一次 self-review；通过后进 D2
+- 仅在 `playground` plugin 已安装时呈现此选项 (软依赖)
+
+**(b) 静态 HTML (整体浏览)**
+- 不依赖 playground plugin；spec-design 自己生成一份 self-contained HTML 文件 (`docs/specs/<topic>/review.html`)
+- 内容：spec.md 与 validation-contract.md 的 markdown 渲染 + 章节锚点 + VAL 列表表格 (Behavior / Tool / Evidence 三列)；无交互控件、无 prompt 输出
+- 用途：用户只想一眼通读、打印或贴给同事；不带 approve/reject 闭环
+- 生成后 `open <file>.html` 在浏览器打开 (与 playground 一致的行为)
+
+**(c) 跳过文本继续**
+- 用户已经在对话里读过、不需要可视化辅助；spec-design 直接进入 D2
+- 默认推荐选项 (避免无谓产物)；对小 spec (VAL ≤5、单文件) 应预先建议跳过
+
+D1.5 的输出形态固定使用 `AskUserQuestion`，options 顺序：(c) skip → (a) playground (若已装) → (b) 静态 HTML。把"跳过"放第一位是为了 size-aware 默认：小 spec 不该被强推交互工具。
+
 ## Out of scope
 
 本次 spec-design skill 的实现 **不包含**：
@@ -217,3 +243,4 @@ VAL 的 `Tool` 字段必须从下列**类别**里选一个，不写具体工具�
 - **spec-driven-development** — `https://github.com/addyosmani/agent-skills/blob/main/skills/spec-driven-development/SKILL.md` (用户在 Section 1 提供)。借鉴：surface-findings 纪律、模糊需求 reframe 成可测试断言、把 spec 当"活文档"维护的姿态。
 - **incremental-impl** — 本仓库 `plugins/auriga-workflow-skills/skills/incremental-impl/SKILL.md`。复用 §7 五条 slicing axes (Walking Skeleton / By risk / Horizontal sweep / Branch by Abstraction / Vertical slice)，spec 层定的轴下游 plan / impl 阶段直接沿用。
 - **brainstorming (upstream，待退役)** — `https://github.com/addyosmani/agent-skills/blob/main/skills/brainstorming/SKILL.md`。本 skill 上线后，按 §10.4 直接删 lock 条目 + `.agents/skills/brainstorming/`，release notes 标注迁移路径。
+- **playground (Anthropic 官方 plugin)** — `claude-plugins-official` marketplace 内的 `playground:playground` skill (用户在 D1.5 review 阶段提供)。借鉴：document-critique 模板 (approve/reject/comment 工作流)、self-contained 单文件 HTML、Copy-back-prompt 闭环。作为 D1.5 的软依赖，未安装时 spec-design 隐藏该选项；spec-design 不重新实现 playground 逻辑，仅作为 source-of-truth 文件路径传入方。
