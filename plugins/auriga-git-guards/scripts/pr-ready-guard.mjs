@@ -108,10 +108,18 @@ function handlePrCreateGoingReady() {
 // Command parsing
 
 function hasDraftFlag(stripped) {
-  // gh supports --draft (long form) and -d (short form); --draft can
-  // also appear as --draft=true. Anchor on whitespace boundaries so we
-  // don't false-match nonexistent flags like --draft-something.
-  return /(?:^|\s)(?:--draft(?:=\S*)?|-d)(?:\s|$)/.test(stripped);
+  // gh follows cobra BoolVar semantics for `--draft`:
+  //   - bare `--draft` / `-d`           → true (draft)
+  //   - `--draft=<truthy>` (1/t/true)   → true (draft)
+  //   - `--draft=<falsy>`  (0/f/false)  → false (Ready PR)
+  // Match the truthy paths only; falsy values must NOT silently bypass
+  // Route B's structural checks — that's exactly the case Route B exists
+  // to catch. The match is case-insensitive to mirror Go's strconv.ParseBool.
+  // Anchored on whitespace boundaries so we don't false-match `--draft-something`.
+  if (/(?:^|\s)(?:--draft|-d)(?:\s|$)/.test(stripped)) return true;
+  const m = stripped.match(/(?:^|\s)--draft=(\S*)(?:\s|$)/);
+  if (m) return /^(?:1|t|true)$/i.test(m[1]);
+  return false;
 }
 
 function extractPRRef(cmd) {

@@ -10,6 +10,7 @@
 
 import { spawnSync } from "node:child_process";
 import fs from "node:fs";
+import os from "node:os";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 
@@ -23,12 +24,47 @@ const ENTRY = path.resolve(
   "pr-create-guard.mjs",
 );
 
-function run(payload) {
+function run(payload, opts = {}) {
   const r = spawnSync("node", [ENTRY], {
     input: JSON.stringify(payload),
     encoding: "utf8",
+    env: opts.env ?? process.env,
   });
   return { status: r.status, stdout: r.stdout ?? "", stderr: r.stderr ?? "" };
+}
+
+// Portable fake-gh: writes a node script that exits with predefined
+// stdout, drops it into a tmpdir, and returns the dir + a PATH-prepended
+// env so callers can spawn pr-create-guard.mjs with gh shimmed to our
+// fixture. Lets us exercise the title-check + summarize() happy path
+// that otherwise needs real gh auth.
+function makeFakeGh(body, title) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "pr-create-guard-fake-gh-"));
+  const binDir = path.join(dir, "bin");
+  fs.mkdirSync(binDir, { recursive: true });
+  const ghPath = path.join(binDir, "gh");
+  // Use node + JSON.stringify for safe payload encoding — covers titles
+  // with quotes, newlines, backticks, etc. without shell-escape grief.
+  const payload = JSON.stringify({ body: body ?? "", title: title ?? "" });
+  const script =
+    `#!/usr/bin/env node\n` +
+    `process.stdout.write(${JSON.stringify(payload)});\n`;
+  fs.writeFileSync(ghPath, script);
+  fs.chmodSync(ghPath, 0o755);
+  return {
+    dir,
+    env: { ...process.env, PATH: `${binDir}:${process.env.PATH ?? ""}` },
+  };
+}
+
+// Standard payload shape for "gh pr create succeeded → URL is in tool_response"
+function createSuccessPayload(prUrl) {
+  return {
+    hook_event_name: "PostToolUse",
+    tool_name: "Bash",
+    tool_input: { command: 'gh pr create --title foo --body "x"' },
+    tool_response: { stdout: `${prUrl}\n`, exit_code: 0 },
+  };
 }
 
 const cases = [
@@ -169,6 +205,8 @@ const cases = [
 
 let failed = 0;
 let passed = 0;
+const cleanupFakeGhDirs = [];
+
 for (const c of cases) {
   const r = run(c.payload);
   const checks = [];
@@ -202,12 +240,123 @@ for (const c of cases) {
   }
 }
 
-// Source-level regression guard: the title-format check inside the
-// summarize() path runs only when gh auth is available (real PR
-// fetch returns a valid title), which the smoke harness can't satisfy.
-// Read the script source and assert the CC regex + title-format
-// reminder text are both present — protects against future edits that
-// drop the title check.
+// Behavioral tests for the title-fetched happy path. The fake gh
+// installed under PATH=<tmp>/bin returns predefined JSON, so the script
+// exercises its real summarize() + CC check branch end-to-end. Each
+// case asserts the warning (or its absence) for one CC-conformance
+// scenario.
+const ccCases = [
+  // ---- Non-conforming titles → warning expected ----
+  {
+    name: "title-check: non-CC title 'Migrate plugins' emits Title format ⚠ warning",
+    title: "Migrate plugins",
+    body: "## Summary\n- thing",
+    expect: { stdoutIncludes: "Title format: ⚠" },
+  },
+  {
+    name: "title-check: capital 'Feat: x' rejected (CC types are lowercase)",
+    title: "Feat: x",
+    body: "",
+    expect: { stdoutIncludes: "Title format: ⚠" },
+  },
+  {
+    name: "title-check: 'feat: ' (empty subject) rejected",
+    title: "feat: ",
+    body: "",
+    expect: { stdoutIncludes: "Title format: ⚠" },
+  },
+  {
+    name: "title-check: 'feat:foo' (no space after colon) rejected",
+    title: "feat:foo",
+    body: "",
+    expect: { stdoutIncludes: "Title format: ⚠" },
+  },
+  {
+    name: "title-check: 'wip: something' (non-CC type) rejected",
+    title: "wip: something",
+    body: "",
+    expect: { stdoutIncludes: "Title format: ⚠" },
+  },
+
+  // ---- Conforming titles → NO warning ----
+  {
+    name: "title-check: 'feat: a' (minimal 1-char subject) accepted",
+    title: "feat: a",
+    body: "",
+    expect: { stdoutNotIncludes: "Title format: ⚠" },
+  },
+  {
+    name: "title-check: 'feat!: breaking change' (breaking, no scope) accepted",
+    title: "feat!: breaking change",
+    body: "",
+    expect: { stdoutNotIncludes: "Title format: ⚠" },
+  },
+  {
+    name: "title-check: 'feat(api): foo:bar' (colon in subject) accepted",
+    title: "feat(api): foo:bar",
+    body: "",
+    expect: { stdoutNotIncludes: "Title format: ⚠" },
+  },
+  {
+    name: "title-check: 'fix(deep/scope): x' (slash in scope) accepted",
+    title: "fix(deep/scope): x",
+    body: "",
+    expect: { stdoutNotIncludes: "Title format: ⚠" },
+  },
+  {
+    name: "title-check: 'perf: speed up x' (extended CC type) accepted",
+    title: "perf: speed up x",
+    body: "",
+    expect: { stdoutNotIncludes: "Title format: ⚠" },
+  },
+  {
+    name: "title-check: 'revert: foo' (extended CC type) accepted",
+    title: "revert: foo",
+    body: "",
+    expect: { stdoutNotIncludes: "Title format: ⚠" },
+  },
+  // ---- Empty title (gh returned empty) → silently skip the check ----
+  {
+    name: "title-check: empty title silently skipped (parse hiccup, not violation)",
+    title: "",
+    body: "## Summary",
+    expect: { stdoutNotIncludes: "Title format: ⚠" },
+  },
+];
+
+for (const c of ccCases) {
+  const { env, dir } = makeFakeGh(c.body, c.title);
+  cleanupFakeGhDirs.push(dir);
+  const r = run(createSuccessPayload("https://github.com/o/r/pull/42"), { env });
+  const checks = [];
+  // Status 0 because PostToolUse never blocks.
+  checks.push({ ok: r.status === 0, msg: `status=${r.status} (want 0)` });
+  if (c.expect.stdoutIncludes !== undefined) {
+    checks.push({
+      ok: r.stdout.includes(c.expect.stdoutIncludes),
+      msg: `stdout includes "${c.expect.stdoutIncludes}" (got "${r.stdout.slice(0, 200)}")`,
+    });
+  }
+  if (c.expect.stdoutNotIncludes !== undefined) {
+    checks.push({
+      ok: !r.stdout.includes(c.expect.stdoutNotIncludes),
+      msg: `stdout does NOT include "${c.expect.stdoutNotIncludes}" (got "${r.stdout.slice(0, 200)}")`,
+    });
+  }
+  const allOk = checks.every((x) => x.ok);
+  if (allOk) {
+    passed++;
+    console.log(`  ✓ ${c.name}`);
+  } else {
+    failed++;
+    console.error(`  ✗ ${c.name}`);
+    for (const ch of checks) console.error(`      ${ch.ok ? "ok  " : "fail"}  ${ch.msg}`);
+  }
+}
+
+// Source-level regression guard: defense-in-depth alongside the
+// behavioral tests above. Catches removals of the CC infrastructure
+// even if behavioral tests were also accidentally deleted/disabled.
 {
   const src = fs.readFileSync(ENTRY, "utf8");
   const checks = [
@@ -226,6 +375,11 @@ for (const c of cases) {
       );
     }
   }
+}
+
+// Cleanup fake-gh tmpdirs
+for (const d of cleanupFakeGhDirs) {
+  try { fs.rmSync(d, { recursive: true, force: true }); } catch {}
 }
 
 console.log(`\n${passed} passed, ${failed} failed`);

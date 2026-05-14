@@ -4,7 +4,7 @@ Three hooks plus a bundled skill that guard the auriga workflow across the git l
 
 | Hook | Event | Fires on | Action |
 |---|---|---|---|
-| `commit-reminder` | `PostToolUse` | `Edit` / `Write` / `MultiEdit` (Claude Code) · `apply_patch` (Codex's canonical file-edit tool) | When uncommitted diff vs `HEAD` exceeds 200 lines or 8 files **and** the last reminder was ≥ 60 s ago, injects `additionalContext` nudging the agent to commit at the next semantic boundary. Never blocks. Silent outside a git repo. |
+| `commit-reminder` | `PostToolUse` | `Edit` / `Write` / `MultiEdit` (Claude Code) · `apply_patch` (Codex's canonical file-edit tool) | When uncommitted diff vs `HEAD` exceeds 200 lines or 8 files **and** the last reminder was ≥ 5 minutes ago, injects `additionalContext` nudging the agent to commit at the next semantic boundary. Never blocks. Silent outside a git repo. |
 | `pr-create-guard` | `PostToolUse` | `gh pr create` | Fetches the new PR's body + title via `gh pr view`, injects a snapshot (headings + TODO counts) so the agent can self-verify against the five-element PR description contract (scope / acceptance criteria / design decisions / risks / TODOs). Also flags titles that don't match Conventional Commits format (`<type>(<scope>)?: <subject>`) with a soft nudge. Never blocks. |
 | `pr-ready-guard` | `PreToolUse` | `gh pr ready` · `gh pr create` (when `--draft` / `-d` absent) | Hard-blocks (exit 2) on **structural** issues: stray `findings.md` / `progress.md` / `task_plan.md` at repo root, unarchived specs under `docs/superpowers/specs/`, unfinalized active specs under `docs/specs/`, or unpushed commits (`gh pr ready` only — `gh pr create` push is gh's responsibility). On `gh pr ready` otherwise injects a body snapshot; on `gh pr create` without `--draft` clean-repo case exits silently (PostToolUse pr-create-guard handles the snapshot). |
 
@@ -55,7 +55,7 @@ The remaining fail-open differs only in the **PreToolUse `additionalContext` inf
 The block list is conservative and based on filesystem / git state only — no body-text regex. `pr-ready-guard` fires on two routes — both publish a Ready PR, so both must enforce the same structural baseline:
 
 - **Route A**: `gh pr ready` (Draft → Ready transition)
-- **Route B**: `gh pr create` without `--draft` / `-d` (creates Ready directly, bypassing Route A)
+- **Route B**: `gh pr create` without `--draft` / `-d` (creates Ready directly, bypassing Route A). The explicit `--draft=<value>` form follows cobra `BoolVar` semantics — truthy values (`1` / `t` / `true`, case-insensitive) opt out of Route B; falsy values (`0` / `f` / `false`) and empty values trigger the same structural enforcement as no flag at all.
 
 1. **Stray planning docs at repo root** (both routes): `findings.md`, `progress.md`, `task_plan.md`. These are session-ephemeral artifacts (e.g., from `planning-with-files` or `brainstorming`) and must be archived to `docs/worklog/worklog-<YYYY-MM-DD>-<branch-name>/` (or deleted) before marking ready.
 2. **Stray spec docs under `docs/superpowers/specs/`** (both routes): same lifecycle as above.

@@ -253,6 +253,65 @@ const cases = [
     expect: { status: 0, stdoutEq: "", stderrNotIncludes: "pr-ready-guard" },
   },
   {
+    name: "gh pr create with --draft=1 / --draft=t / --draft=TRUE (case-insensitive truthy) passes through",
+    setup: () => {
+      const dir = makeRepo();
+      fs.writeFileSync(path.join(dir, "findings.md"), "# stray but truthy\n");
+      // Pick one form per test; here case-insensitive TRUE + short t.
+      return { cwd: dir, cmd: 'gh pr create --draft=TRUE --title foo' };
+    },
+    expect: { status: 0, stdoutEq: "", stderrNotIncludes: "pr-ready-guard" },
+  },
+  {
+    name: "gh pr create with --draft=false BLOCKS on stray (cobra falsy → Ready PR)",
+    setup: () => {
+      const dir = makeRepo();
+      fs.writeFileSync(path.join(dir, "findings.md"), "# stray\n");
+      // --draft=false semantically creates a NON-draft (Ready) PR per
+      // cobra BoolVar; Route B must fire and block on the stray doc.
+      return { cwd: dir, cmd: 'gh pr create --draft=false --title foo --body "x"' };
+    },
+    expect: { status: 2, stderrIncludes: "stray planning docs" },
+  },
+  {
+    name: "gh pr create with --draft=0 BLOCKS on stray (falsy → Ready PR)",
+    setup: () => {
+      const dir = makeRepo();
+      fs.writeFileSync(path.join(dir, "findings.md"), "# stray\n");
+      return { cwd: dir, cmd: 'gh pr create --draft=0 --title foo' };
+    },
+    expect: { status: 2, stderrIncludes: "stray planning docs" },
+  },
+  {
+    name: "gh pr create with --draft= (empty value) BLOCKS on stray (empty → falsy)",
+    setup: () => {
+      const dir = makeRepo();
+      fs.writeFileSync(path.join(dir, "findings.md"), "# stray\n");
+      // --draft= with no value is not a valid cobra invocation but we
+      // err on the side of "treat as non-draft" since it's not truthy.
+      return { cwd: dir, cmd: 'gh pr create --draft= --title foo' };
+    },
+    expect: { status: 2, stderrIncludes: "stray planning docs" },
+  },
+  {
+    name: "gh pr create --draft at end of command passes through silently (no trailing whitespace)",
+    setup: () => {
+      const dir = makeRepo();
+      fs.writeFileSync(path.join(dir, "findings.md"), "# stray but --draft at end\n");
+      return { cwd: dir, cmd: 'gh pr create --title foo --draft' };
+    },
+    expect: { status: 0, stdoutEq: "", stderrNotIncludes: "pr-ready-guard" },
+  },
+  {
+    name: "gh pr create -d at end of command passes through silently",
+    setup: () => {
+      const dir = makeRepo();
+      fs.writeFileSync(path.join(dir, "findings.md"), "# stray but -d at end\n");
+      return { cwd: dir, cmd: 'gh pr create --title foo -d' };
+    },
+    expect: { status: 0, stdoutEq: "", stderrNotIncludes: "pr-ready-guard" },
+  },
+  {
     name: "gh pr create without --draft + clean repo passes silently",
     setup: () => ({
       cwd: makeRepo(),
@@ -361,6 +420,41 @@ try {
     console.error(
       '  ✗ pr-ready-guard source references git-workflow skill — "git-workflow" not found in script',
     );
+  }
+}
+
+// Structural regression guard for hooks.json: assert pr-ready-guard.mjs
+// is registered for BOTH `gh pr ready` AND `gh pr create`. A regression
+// that drops the `gh pr create` entry would silently disable Route B
+// with no test catching it — this guard is the safety net.
+{
+  const hooksJsonPath = path.resolve(
+    path.dirname(ENTRY),
+    "..",
+    "hooks",
+    "hooks.json",
+  );
+  const config = JSON.parse(fs.readFileSync(hooksJsonPath, "utf8"));
+  const preToolBash = (config.hooks?.PreToolUse ?? []).find(
+    (e) => e.matcher === "Bash",
+  );
+  const entries = preToolBash?.hooks ?? [];
+  const matchers = entries
+    .filter((h) => (h.command ?? "").includes("pr-ready-guard.mjs"))
+    .map((h) => h.if);
+
+  for (const expected of ["Bash(gh pr ready)", "Bash(gh pr create)"]) {
+    if (matchers.includes(expected)) {
+      passed++;
+      console.log(
+        `  ✓ hooks.json registers pr-ready-guard.mjs for ${expected}`,
+      );
+    } else {
+      failed++;
+      console.error(
+        `  ✗ hooks.json missing pr-ready-guard.mjs registration for ${expected} (found: [${matchers.join(", ")}])`,
+      );
+    }
   }
 }
 
