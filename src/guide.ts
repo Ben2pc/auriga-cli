@@ -114,10 +114,11 @@ Action:
 
 ${h("## Step 5 — Verify install")}
 
-Expected artifacts:
+Expected artifacts/checks:
   - CLAUDE.md                 (workflow manifesto)
   - AGENTS.md -> CLAUDE.md    (symlink)
   - .agents/skills/<name>/    (one per installed skill)
+  - claude plugins list       (shows Claude plugins, if Claude plugins selected)
   - ~/.codex/config.toml      (Codex plugin enablement, if Codex plugins selected)
   - .claude/settings.json     (updated hook/plugin registrations, if selected)
   - .claude/auriga-notify/    (project notify config, if auriga-notify selected)

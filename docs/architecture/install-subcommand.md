@@ -214,9 +214,9 @@ Exit codes:
 
 ## Step 4 — Reload session (REQUIRED when installed non-interactively)
 
-`CLAUDE.md`, `.agents/skills/`, `.claude/plugins.json`, Codex plugin
-config, and hook/plugin registrations (`.claude/settings.json`) are all loaded
-at Claude Code session startup. If you ran
+`CLAUDE.md`, `.agents/skills/`, Claude/Codex plugin enablement, and
+hook/plugin registrations (`.claude/settings.json`) are all loaded
+at agent session startup. If you ran
 `npx -y auriga-cli install` inside an existing Claude Code session
 (e.g., `claude -p` / `claude -p --worktree`), **the current session
 will NOT see the new harness.**
@@ -228,11 +228,12 @@ Action:
 
 ## Step 5 — Verify install
 
-Expected artifacts:
+Expected artifacts/checks:
   - CLAUDE.md                 (workflow manifesto)
   - AGENTS.md -> CLAUDE.md    (symlink)
   - .agents/skills/<name>/    (one per installed skill)
-  - .claude/plugins.json
+  - claude plugins list       (shows Claude plugins, if Claude plugins selected)
+  - ~/.codex/config.toml      (Codex plugin enablement, if Codex plugins selected)
   - .claude/settings.json     (updated plugin/hook registrations, if selected)
   - .claude/auriga-notify/    (project notify config, if auriga-notify selected)
 
@@ -354,7 +355,7 @@ More: https://github.com/Ben2pc/auriga-cli
 - Install 前提（例：plugins 需 `claude` CLI 在 PATH）**不写进 help**；在安装阶段被检测到再报错，避免 help 膨胀
 - **描述的真源**：build-time 从各类元数据读取后内嵌到 `dist/catalog.json`：
   - workflow skills / recommended skills → `.agents/skills/<name>/SKILL.md` 的 YAML frontmatter `description`
-  - plugins → `.claude/plugins.json` 的 `plugins[].description`
+  - plugins → `.claude-plugin/marketplace.json`、`.agents/plugins/marketplace.json` 与 `extra_plugin_configs.json`
   - hooks → `.claude/hooks/hooks.json` 的 `hooks[].description`（legacy，目前为空）
 - 本文档 §4.2 的 CATALOG 段是**示意**，不是手写真源；实际 help 里的描述按以上映射取自源文件并截断到 50 列
 
@@ -480,7 +481,9 @@ exit 2
 **输入：**
 
 - `.agents/skills/<name>/SKILL.md` YAML frontmatter 的 `description` 字段
-- `.claude/plugins.json` 的 `plugins[].description`
+- `.claude-plugin/marketplace.json` 的 Claude 本仓库插件描述
+- `.agents/plugins/marketplace.json` 的 Codex 本仓库插件清单
+- `extra_plugin_configs.json` 的外部插件描述与 `defaultOn` 覆盖
 - `.claude/hooks/hooks.json` 的 `hooks[].description`（legacy，目前为空）
 - `src/skills.ts` 的 `WORKFLOW_SKILLS` 数组（决定归 `workflowSkills` 还是 `recommendedSkills`）
 
@@ -598,7 +601,7 @@ README 更新：
 3. **Session reload 感知**（spike #2 已验证 2026-04-21）：实测确认 **CLAUDE.md / skills / plugins 三类均在 session 启动时加载，不支持热重载**——子 `claude -p` 自省 system prompt 明确："启动时 cwd 里没有 CLAUDE.md，刚才的 cp 是会话开始后发生的，不会被追加到已锁定的 system prompt"。当前 spec 设计（install 成功后 stderr 打印 reload 提醒 + guide SOP Step 4 明说 REQUIRED）成立。**已知限制**，由 guide SOP 强制告知 Agent。若将来 Claude Code 支持热加载，重新评估降级措辞。
 4. **`npx skills add --yes` 的幂等**：重复跑不应炸但可能有输出噪音；作为已知行为不处理。
 5. **`--skill foo`（不存在名）的校验依赖 catalog**：若 catalog 漏生成（发布失误），校验会误报"未知 skill"。§5.4 已约定 CI 发布前校验 `dist/catalog.json` 存在。
-6. **`.claude/plugins.json` 描述手写**：和上游 plugin 真实 metadata 可能漂移。**原则**：catalog 只信 repo 内部源（`plugins.json` / `hooks.json` / `SKILL.md` frontmatter）；新增插件 PR 同步 `plugins.json` 的 `description` 字段。
+6. **插件目录源漂移**：本仓库插件以 Claude/Codex 官方 marketplace manifest 为真源，外部插件与 `defaultOn` 覆盖放在 `extra_plugin_configs.json`。新增插件 PR 必须同步对应 manifest 或 extra config，避免 help/catalog 与实际安装入口漂移。
 7. **`--skill` 等 filter flag 的值里含类似类别名的 skill**（理论可能，例如将来若有 skill 叫 `plugins`）：当前 nargs terminator 基于 `--` 前缀，不把类别名算作 terminator，所以安全。catalog 校验会挡住误用。
 8. **Guide SOP 漂移**：SOP 静态模板写在 `src/guide.ts`，与实际 `install --all` 行为硬编码对齐。若将来改 exit code 语义或 install 流程，guide 得同步改。缓解：test 覆盖——`tests/guide.test.ts` 快照 guide 输出，修改时触发审阅。
 
