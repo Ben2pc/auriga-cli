@@ -4,7 +4,7 @@
 
 2. 方案计划：完成需求澄清后，先做一次**规模判定**再决定 plan 方式。**满足以下三条全部成立**才走快速开发流程（详见下文「快速开发流程」段；跳过 planning，直接进入 pre-coding / 建分支阶段）：(a) 工作落在单一模块或单一概念内；(b) 验收标准 ≤5 条 bullet；(c) 不涉及跨边界接口改动（公共 API、schema、共享模块）。把判定结果记进任务追踪器（例：「规模判定 → QDF：单模块，3 条验收，无接口改动」）。任一不成立或拿不准，就走完整路径：用 `AskUserQuestion` 询问用什么方式来 plan，比如中等复杂度任务用内置 Plan；长程任务用 `planning-with-files` 做本地持久跟踪。计划、设计决策、技术债务应作为仓库内的版本化产物，方便后续 Agent 推理上下文。
 
-3. 编码前准备1：**开始写代码前，先从 main 创建开发分支**，所有 commit 在分支上完成，禁止直接提交到 main。分支命名规范：`feat/`（新功能）、`fix/`（修复）、`docs/`（文档）、`refactor/`（重构）、`chore/`（杂项）。
+3. 编码前准备1：**开始写代码前，先从 main 创建开发分支**，所有 commit 在分支上完成，禁止直接提交到 main。分支命名规范：`feat/`（新功能）、`fix/`（修复）、`docs/`（文档）、`refactor/`（重构）、`chore/`（杂项）。所有 git/gh 操作（建分支、commit、PR create/ready、review 后处理）都使用 `git-workflow` skill（随 `auriga-git-guards` 插件分发）。
 
 4. 编码前准备2：创建开发分支并完成第一个有意义的 commit 后，尽早创建 Draft Pull Request，让 CI、范围对齐和增量反馈在实现完成前就可以开始。
 
@@ -41,7 +41,7 @@
 |---|---|---|
 | `docs/worklog/worklog-<YYYY-MM-DD>-<branch-name>/` | 已归档的 session-ephemeral planning 产物（`findings.md`、`progress.md`、`task_plan.md`、设计 spec）。在 PR-readiness 阶段归档。一个 PR 一个子目录，`docs/worklog/` 作为统一父目录，方便集中查阅 | PR merge 后永久保留 |
 | `docs/rules/` | 编码规范、review checklist、命名 / 风格约定 | 长期维护 |
-| `docs/specs/` | **`brainstorming` 输出的默认归宿。** 开发期间存放活跃 spec / 需求澄清的临时工作区。**PR Ready 前必须清空**——每个 spec 晋升到 `docs/architecture/`（长期参考）、归档到 `docs/worklog/worklog-<YYYY-MM-DD>-<branch-name>/`（历史轨迹），或删除。由 `pr-ready-guard` 强制 | 开发期临时 |
+| `docs/specs/` | **`brainstorming` 输出的默认归宿。** 开发期间存放活跃 spec / 需求澄清的临时工作区。**PR Ready 前必须清空**——每个 spec 晋升到 `docs/architecture/`（长期参考）、归档到 `docs/worklog/worklog-<YYYY-MM-DD>-<branch-name>/`（历史轨迹），或删除。由 `pr-ready-guard` 强制（同时覆盖 `gh pr ready` 和不带 `--draft` 的 `gh pr create`） | 开发期临时 |
 | `docs/architecture/` | 稳定、长期的设计文档（模块布局、数据流、组件职责）。新条目通常由 `docs/specs/` 晋升而来 | 长期 |
 | `docs/` 其他 | 按需新增：`runbooks/`（运维流程）、`adr/`（架构决策记录）、`onboarding/` 等。一类文档一个目录，不混放 | 因类而异 |
 

@@ -73,8 +73,9 @@ test(auth): add unit tests for refresh token rotation logic
 <body: motivation, key design decisions, known limitations>
 ```
 
-- `type` follows Conventional Commits: `feat` / `fix` / `refactor` / `docs` / `test` / `chore`
-- `scope` is optional
+- `type` follows Conventional Commits — accepted types: `feat` / `fix` / `docs` / `refactor` / `chore` / `test` / `perf` / `style` / `build` / `ci` / `revert`. `pr-create-guard` enforces this same list against the PR title (see Phase 5)
+- `scope` is optional (any non-`)` characters inside parens, e.g. `feat(api): …` or `fix(deep/scope): …`)
+- Optional `!` before the colon marks a breaking change: `feat!: …` or `feat(api)!: …`
 - The body is a natural-language paragraph — explain **why**, not what (the diff already shows what)
 - Task IDs (Jira / Linear) can be mentioned in the body or in the PR description
 
@@ -95,7 +96,7 @@ Mark checkpoint commits with a recognisable prefix (e.g. `wip:`) or use `git com
 
 ### `commit-reminder` hook (mechanical nudge)
 
-When uncommitted diff vs `HEAD` exceeds 200 lines or 8 files **and** the last reminder was ≥ 60 s ago, the `commit-reminder` hook injects an informational reminder via `additionalContext`. Non-blocking. Acts as a safety net for runaway working trees — but the per-commit boundary decision still belongs to the agent.
+When uncommitted diff vs `HEAD` exceeds 200 lines or 8 files **and** the last reminder was ≥ 5 minutes ago, the `commit-reminder` hook injects an informational reminder via `additionalContext`. Non-blocking. Acts as a safety net for runaway working trees — but the per-commit boundary decision still belongs to the agent.
 
 The hook fires on `PostToolUse` for `Edit` / `Write` / `MultiEdit` (Claude Code's file-edit `tool_name`s) and `apply_patch` (Codex's canonical file-edit `tool_name`), so it works the same way in both runtimes.
 
@@ -187,17 +188,22 @@ Open the PR as Draft early so CI starts running and incremental feedback is poss
 gh pr create --draft --title "<type>: <subject>" --body-file <body.md>
 ```
 
+The `--draft` requirement is mechanically enforced: `pr-ready-guard` also fires `PreToolUse` on `gh pr create` and runs the same structural checks (stray planning docs, unfinalized active specs) when `--draft` is absent. Both `--draft` and the short form `-d` opt out of that path, as do truthy values for the explicit `--draft=<value>` form (`=1` / `=t` / `=true`, case-insensitive). Falsy values (`=false` / `=0`) are treated as Ready-PR creation and gated identically to `gh pr ready`.
+
 ---
 
 ## Phase 5: Post-create reflection
 
 The `pr-create-guard` hook fires `PostToolUse` on `gh pr create`. It:
 
-- Fetches the created PR's body via `gh pr view`
+- Fetches the created PR's body **and title** via `gh pr view --json body,title`
 - Lists the `##` headings it finds and the TODO checkbox counts
+- Tests the title against Conventional Commits format (`<type>(<scope>)?(!)?: <subject>` — same type list as Phase 2); when the title doesn't match, injects a `Title format: ⚠ ...` line suggesting `gh pr edit --title "<type>: ..."`. Soft nudge only
 - Reminds you to verify the five elements are covered and that the description language matches the team's convention
 
-Non-blocking. If a heading is missing or the language is inconsistent, fix it with `gh pr edit --body-file <new-body.md>`.
+Non-blocking. If a heading is missing, the title is non-CC, or the language is inconsistent, fix it with `gh pr edit --title "<type>: ..."` and/or `gh pr edit --body-file <new-body.md>`.
+
+Note: a separate guard (`pr-ready-guard`, see Phase 4) also fires `PreToolUse` on `gh pr create` to **block** structural problems before the PR is created. Phase 5 covers the informational post-create reflection; the pre-create blocking belongs to Phase 4.
 
 ---
 

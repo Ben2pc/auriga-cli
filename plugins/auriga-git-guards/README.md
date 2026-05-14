@@ -4,9 +4,9 @@ Three hooks plus a bundled skill that guard the auriga workflow across the git l
 
 | Hook | Event | Fires on | Action |
 |---|---|---|---|
-| `commit-reminder` | `PostToolUse` | `Edit` / `Write` / `MultiEdit` (Claude Code) · `apply_patch` (Codex's canonical file-edit tool) | When uncommitted diff vs `HEAD` exceeds 200 lines or 8 files **and** the last reminder was ≥ 60 s ago, injects `additionalContext` nudging the agent to commit at the next semantic boundary. Never blocks. Silent outside a git repo. |
-| `pr-create-guard` | `PostToolUse` | `gh pr create` | Fetches the new PR's body via `gh pr view`, injects a snapshot (headings + TODO counts) so the agent can self-verify against the five-element PR description contract (scope / acceptance criteria / design decisions / risks / TODOs). Never blocks. |
-| `pr-ready-guard` | `PreToolUse` | `gh pr ready` | Hard-blocks (exit 2) on **structural** issues: stray `findings.md` / `progress.md` / `task_plan.md` at repo root, unarchived specs under `docs/superpowers/specs/`, unfinalized active specs under `docs/specs/`, or unpushed commits. Otherwise injects a body snapshot. |
+| `commit-reminder` | `PostToolUse` | `Edit` / `Write` / `MultiEdit` (Claude Code) · `apply_patch` (Codex's canonical file-edit tool) | When uncommitted diff vs `HEAD` exceeds 200 lines or 8 files **and** the last reminder was ≥ 5 minutes ago, injects `additionalContext` nudging the agent to commit at the next semantic boundary. Never blocks. Silent outside a git repo. |
+| `pr-create-guard` | `PostToolUse` | `gh pr create` | Fetches the new PR's body + title via `gh pr view`, injects a snapshot (headings + TODO counts) so the agent can self-verify against the five-element PR description contract (scope / acceptance criteria / design decisions / risks / TODOs). Also flags titles that don't match Conventional Commits format (`<type>(<scope>)?: <subject>`) with a soft nudge. Never blocks. |
+| `pr-ready-guard` | `PreToolUse` | `gh pr ready` · `gh pr create` (when `--draft` / `-d` absent) | Hard-blocks (exit 2) on **structural** issues: stray `findings.md` / `progress.md` / `task_plan.md` at repo root, unarchived specs under `docs/superpowers/specs/`, unfinalized active specs under `docs/specs/`, or unpushed commits (`gh pr ready` only — `gh pr create` push is gh's responsibility). On `gh pr ready` otherwise injects a body snapshot; on `gh pr create` without `--draft` clean-repo case exits silently (PostToolUse pr-create-guard handles the snapshot). |
 
 The bundled `git-workflow` skill describes the matching workflow (branch → atomic / checkpoint commits → optional rebase cleanup → PR body five-element structure → batch comment update after Ready). Designed for the auriga workflow in [auriga-cli](https://github.com/Ben2pc/auriga-cli).
 
@@ -45,18 +45,34 @@ Both Agents share the same plugin payload and the same `${CLAUDE_PLUGIN_ROOT}` s
 | `commit-reminder` → inject reminder (PostToolUse `additionalContext`) | ✅ | ✅ Codex reports file edits as `tool_name: "apply_patch"`; the hook's allowlist accepts both naming schemes, and `PostToolUse` `additionalContext` is surfaced. |
 | `gh pr create` → inject body snapshot (PostToolUse `additionalContext`) | ✅ | ✅ |
 | `gh pr ready` → block on structural issues (exit 2 + stderr) | ✅ | ✅ |
+| `gh pr create` without `--draft` → block on structural issues (exit 2 + stderr) | ✅ | ✅ |
 | `gh pr ready` → inject body snapshot when passing (PreToolUse `additionalContext`) | ✅ | ⚠️ Currently fail-open: Codex parses the field but does not surface it to the model yet. The block path is unaffected. |
 
 The remaining fail-open differs only in the **PreToolUse `additionalContext` informational path** for `pr-ready-guard`: structural blocks fire identically, and the two PostToolUse hooks (`commit-reminder`, `pr-create-guard`) are at full parity.
 
 ## Block signals (pr-ready-guard)
 
-The block list is conservative and based on filesystem / git state only — no body-text regex.
+The block list is conservative and based on filesystem / git state only — no body-text regex. `pr-ready-guard` fires on two routes — both publish a Ready PR, so both must enforce the same structural baseline:
 
-1. **Stray planning docs at repo root**: `findings.md`, `progress.md`, `task_plan.md`. These are session-ephemeral artifacts (e.g., from `planning-with-files` or `brainstorming`) and must be archived to `docs/worklog/worklog-<YYYY-MM-DD>-<branch-name>/` (or deleted) before marking ready.
-2. **Stray spec docs under `docs/superpowers/specs/`**: same lifecycle as above.
-3. **Unfinalized active specs under `docs/specs/`**: that directory is the dev-only temp workspace for `brainstorming` outputs; by PR Ready every spec must be either promoted to `docs/architecture/`, archived to `docs/worklog/`, or deleted.
-4. **Unpushed commits on the current branch** (only when no PR ref is passed): the remote-side PR can't reflect what isn't pushed yet.
+- **Route A**: `gh pr ready` (Draft → Ready transition)
+- **Route B**: `gh pr create` without `--draft` / `-d` (creates Ready directly, bypassing Route A). The explicit `--draft=<value>` form follows cobra `BoolVar` semantics — truthy values (`1` / `t` / `true`, case-insensitive) opt out of Route B; falsy values (`0` / `f` / `false`) and empty values trigger the same structural enforcement as no flag at all.
+
+1. **Stray planning docs at repo root** (both routes): `findings.md`, `progress.md`, `task_plan.md`. These are session-ephemeral artifacts (e.g., from `planning-with-files` or `brainstorming`) and must be archived to `docs/worklog/worklog-<YYYY-MM-DD>-<branch-name>/` (or deleted) before marking ready.
+2. **Stray spec docs under `docs/superpowers/specs/`** (both routes): same lifecycle as above.
+3. **Unfinalized active specs under `docs/specs/`** (both routes): that directory is the dev-only temp workspace for `brainstorming` outputs; by PR Ready every spec must be either promoted to `docs/architecture/`, archived to `docs/worklog/`, or deleted.
+4. **Unpushed commits on the current branch** (Route A only, and only when no PR ref is passed): the remote-side PR can't reflect what isn't pushed yet. Route B skips this check because `gh pr create` pushes on demand.
+
+On Route B, the block message also lists the `--draft` escape hatch as an alternative remediation — passing `--draft` defers the Ready transition to a separate `gh pr ready`, which still enforces the same structural checks (plus the unpushed-commit check).
+
+## Title format check (pr-create-guard)
+
+After fetching the new PR's body, `pr-create-guard` also reads the title and tests it against Conventional Commits format:
+
+```
+<type>(<scope>)?: <subject>
+```
+
+Accepted types: `feat` · `fix` · `docs` · `refactor` · `chore` · `test` · `perf` · `style` · `build` · `ci` · `revert`. Optional `(scope)`; optional `!` before the colon for breaking changes. When the title doesn't match, the injected `additionalContext` adds a `Title format: ⚠ ...` line suggesting `gh pr edit <pr> --title "<type>: ..."`. This is a **soft nudge only** — PostToolUse never blocks, and not every team treats CC as mandatory.
 
 ## Reminder thresholds (commit-reminder)
 

@@ -6,8 +6,10 @@
 //
 // If gh pr create succeeded:
 //   - extract the PR URL/number from the tool_response
-//   - gh pr view --json body to get the real body
+//   - gh pr view --json body,title to get the real fields
 //   - scan ^## / ^### headings, count TODO checkboxes
+//   - check title against Conventional Commits format (soft nudge —
+//     informational, never a block)
 //   - inject `hookSpecificOutput.additionalContext` with the snapshot
 //
 // If gh pr create failed, or we can't determine the PR, or gh is
@@ -15,6 +17,25 @@
 // already ran, so the value is informational only.
 
 import { spawnSync } from "node:child_process";
+
+// Standard Conventional Commits types. Mirrors what the `git-workflow`
+// skill prescribes for commit + PR title prefixes.
+const CC_TYPES = [
+  "feat",
+  "fix",
+  "docs",
+  "refactor",
+  "chore",
+  "test",
+  "perf",
+  "style",
+  "build",
+  "ci",
+  "revert",
+];
+const CC_RE = new RegExp(
+  `^(?:${CC_TYPES.join("|")})(?:\\([^)]+\\))?!?:\\s\\S`,
+);
 
 let input = "";
 process.stdin.setEncoding("utf8");
@@ -39,20 +60,20 @@ process.stdin.on("end", () => {
       // Can't identify which PR was created (unusual — gh pr create
       // normally prints the URL). Fall back to a passive nudge.
       return inject(
-        "[pr-create-guard] PR created, but could not identify it from gh output. Verify the body covers the five elements (scope / acceptance criteria / design decisions / risks / remaining TODOs). Check the PR description language matches the team's convention.",
+        `[pr-create-guard] PR created, but could not identify it from gh output. Verify the body covers the five elements (scope / acceptance criteria / design decisions / risks / remaining TODOs). Check the title follows Conventional Commits (\`<type>(<scope>)?: <subject>\`) and the description language matches the team's convention. Follow the \`git-workflow\` skill for the five-element PR body.`,
       );
     }
 
-    const body = fetchBody(prRef);
-    if (body === null) {
+    const fields = fetchPrFields(prRef);
+    if (fields === null) {
       // gh unavailable or not authenticated. Don't pretend to know
       // anything; remind the Agent to self-verify.
       return inject(
-        `[pr-create-guard] PR ${prRef} created (body could not be fetched via gh). Verify the five elements (scope / acceptance criteria / design decisions / risks / remaining TODOs) and check the language matches the team's convention.`,
+        `[pr-create-guard] PR ${prRef} created (fields could not be fetched via gh). Verify the five elements (scope / acceptance criteria / design decisions / risks / remaining TODOs), the title follows Conventional Commits, and the language matches the team's convention. Follow the \`git-workflow\` skill for the five-element PR body.`,
       );
     }
 
-    inject(summarize(prRef, body));
+    inject(summarize(prRef, fields));
   } catch {
     // Never block on our own parse errors.
     exit0();
@@ -131,20 +152,31 @@ function stripQuoted(cmd) {
   return quote === null ? out : cmd;
 }
 
-function fetchBody(prRef) {
+// Fetch title + body in one round-trip. gh returns JSON; we parse it
+// directly so a malformed payload becomes `null` rather than a partial
+// object. Returns null on any failure path — gh missing, unauth, parse
+// error, etc. — so callers stay on the graceful-degrade branch.
+function fetchPrFields(prRef) {
   try {
-    const r = spawnSync("gh", ["pr", "view", prRef, "--json", "body", "-q", ".body"], {
-      encoding: "utf8",
-      timeout: 5000,
-    });
+    const r = spawnSync(
+      "gh",
+      ["pr", "view", prRef, "--json", "body,title"],
+      { encoding: "utf8", timeout: 5000 },
+    );
     if (r.status !== 0) return null;
-    return typeof r.stdout === "string" ? r.stdout : null;
+    if (typeof r.stdout !== "string") return null;
+    const parsed = JSON.parse(r.stdout);
+    if (!parsed || typeof parsed !== "object") return null;
+    const body = typeof parsed.body === "string" ? parsed.body : "";
+    const title = typeof parsed.title === "string" ? parsed.title : "";
+    return { body, title };
   } catch {
     return null;
   }
 }
 
-function summarize(prRef, body) {
+function summarize(prRef, fields) {
+  const { body, title } = fields;
   const lines = body.split(/\r?\n/);
   const headings = lines
     .map((l) => l.trim())
@@ -160,12 +192,25 @@ function summarize(prRef, body) {
       ? "  Headings: (none found)"
       : "  Headings:\n" + headings.map((h) => `    - ${h}`).join("\n");
   const todoLine = `  TODO checkboxes: ${unchecked} unchecked, ${checked} checked`;
+
+  // Title format: soft nudge only. PostToolUse can't block, and the
+  // CC convention is a style choice — flag it, don't fail the PR.
+  // Skip silently when title is empty (means parse hiccup, not violation).
+  const titleLine =
+    title && !CC_RE.test(title)
+      ? `  Title format: ⚠ "${title}" doesn't match Conventional Commits (\`<type>(<scope>)?: <subject>\`, types: ${CC_TYPES.join(" / ")}). Fix via \`gh pr edit ${prRef} --title "<type>: ..."\` if appropriate.`
+      : null;
+
   const tail = [
     "Verify the five PR-body elements are covered: scope / acceptance criteria / design decisions / risks / remaining TODOs.",
     "If the PR description language is inconsistent with the team's convention, fix it via `gh pr edit`.",
+    "Follow the `git-workflow` skill for the five-element PR body.",
   ].join(" ");
 
-  return [head, headingLine, todoLine, tail].join("\n");
+  const parts = [head, headingLine, todoLine];
+  if (titleLine) parts.push(titleLine);
+  parts.push(tail);
+  return parts.join("\n");
 }
 
 function inject(message) {

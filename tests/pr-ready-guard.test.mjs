@@ -216,6 +216,158 @@ const cases = [
     // fail in test env so we only assert: no block on unpushed.
     expect: { status: 0, stderrNotIncludes: "unpushed" },
   },
+
+  // ---- Route B: gh pr create without --draft -----------------------
+  // pr-ready-guard also fires on `gh pr create` to catch the case where
+  // an agent publishes a Ready PR directly (skipping `gh pr ready`).
+  // Below: --draft / -d should silently pass; missing --draft should
+  // trigger the same structural docs checks as Route A; B1 unpushed is
+  // intentionally NOT checked here because gh handles push on create.
+  {
+    name: "gh pr create with --draft passes through silently (Route B opt-out)",
+    setup: () => {
+      const dir = makeRepo();
+      // Plant stray docs to prove --draft genuinely opts OUT of the
+      // structural check (not just absent of docs).
+      fs.writeFileSync(path.join(dir, "findings.md"), "# stray but draft\n");
+      return { cwd: dir, cmd: 'gh pr create --draft --title foo --body "x"' };
+    },
+    expect: { status: 0, stdoutEq: "", stderrNotIncludes: "pr-ready-guard" },
+  },
+  {
+    name: "gh pr create with -d short flag passes through silently",
+    setup: () => {
+      const dir = makeRepo();
+      fs.writeFileSync(path.join(dir, "findings.md"), "# stray but -d\n");
+      return { cwd: dir, cmd: 'gh pr create -d --title foo --body "x"' };
+    },
+    expect: { status: 0, stdoutEq: "", stderrNotIncludes: "pr-ready-guard" },
+  },
+  {
+    name: "gh pr create with --draft=true passes through silently",
+    setup: () => {
+      const dir = makeRepo();
+      fs.writeFileSync(path.join(dir, "findings.md"), "# stray but --draft=true\n");
+      return { cwd: dir, cmd: 'gh pr create --draft=true --title foo --body "x"' };
+    },
+    expect: { status: 0, stdoutEq: "", stderrNotIncludes: "pr-ready-guard" },
+  },
+  {
+    name: "gh pr create with --draft=1 / --draft=t / --draft=TRUE (case-insensitive truthy) passes through",
+    setup: () => {
+      const dir = makeRepo();
+      fs.writeFileSync(path.join(dir, "findings.md"), "# stray but truthy\n");
+      // Pick one form per test; here case-insensitive TRUE + short t.
+      return { cwd: dir, cmd: 'gh pr create --draft=TRUE --title foo' };
+    },
+    expect: { status: 0, stdoutEq: "", stderrNotIncludes: "pr-ready-guard" },
+  },
+  {
+    name: "gh pr create with --draft=false BLOCKS on stray (cobra falsy → Ready PR)",
+    setup: () => {
+      const dir = makeRepo();
+      fs.writeFileSync(path.join(dir, "findings.md"), "# stray\n");
+      // --draft=false semantically creates a NON-draft (Ready) PR per
+      // cobra BoolVar; Route B must fire and block on the stray doc.
+      return { cwd: dir, cmd: 'gh pr create --draft=false --title foo --body "x"' };
+    },
+    expect: { status: 2, stderrIncludes: "stray planning docs" },
+  },
+  {
+    name: "gh pr create with --draft=0 BLOCKS on stray (falsy → Ready PR)",
+    setup: () => {
+      const dir = makeRepo();
+      fs.writeFileSync(path.join(dir, "findings.md"), "# stray\n");
+      return { cwd: dir, cmd: 'gh pr create --draft=0 --title foo' };
+    },
+    expect: { status: 2, stderrIncludes: "stray planning docs" },
+  },
+  {
+    name: "gh pr create with --draft= (empty value) BLOCKS on stray (empty → falsy)",
+    setup: () => {
+      const dir = makeRepo();
+      fs.writeFileSync(path.join(dir, "findings.md"), "# stray\n");
+      // --draft= with no value is not a valid cobra invocation but we
+      // err on the side of "treat as non-draft" since it's not truthy.
+      return { cwd: dir, cmd: 'gh pr create --draft= --title foo' };
+    },
+    expect: { status: 2, stderrIncludes: "stray planning docs" },
+  },
+  {
+    name: "gh pr create --draft at end of command passes through silently (no trailing whitespace)",
+    setup: () => {
+      const dir = makeRepo();
+      fs.writeFileSync(path.join(dir, "findings.md"), "# stray but --draft at end\n");
+      return { cwd: dir, cmd: 'gh pr create --title foo --draft' };
+    },
+    expect: { status: 0, stdoutEq: "", stderrNotIncludes: "pr-ready-guard" },
+  },
+  {
+    name: "gh pr create -d at end of command passes through silently",
+    setup: () => {
+      const dir = makeRepo();
+      fs.writeFileSync(path.join(dir, "findings.md"), "# stray but -d at end\n");
+      return { cwd: dir, cmd: 'gh pr create --title foo -d' };
+    },
+    expect: { status: 0, stdoutEq: "", stderrNotIncludes: "pr-ready-guard" },
+  },
+  {
+    name: "gh pr create without --draft + clean repo passes silently",
+    setup: () => ({
+      cwd: makeRepo(),
+      cmd: 'gh pr create --title foo --body "x"',
+    }),
+    expect: { status: 0, stdoutEq: "", stderrNotIncludes: "pr-ready-guard" },
+  },
+  {
+    name: "gh pr create without --draft + stray findings.md blocks",
+    setup: () => {
+      const dir = makeRepo();
+      fs.writeFileSync(path.join(dir, "findings.md"), "# notes\n");
+      return { cwd: dir, cmd: 'gh pr create --title foo --body "x"' };
+    },
+    expect: {
+      status: 2,
+      stderrIncludes: "stray planning docs",
+    },
+  },
+  {
+    name: "gh pr create without --draft + active spec blocks with create-route remediation (--draft alternative)",
+    setup: () => {
+      const dir = makeRepo();
+      const activeDir = path.join(dir, "docs", "specs");
+      fs.mkdirSync(activeDir, { recursive: true });
+      fs.writeFileSync(path.join(activeDir, "feature-x.md"), "# spec\n");
+      return { cwd: dir, cmd: 'gh pr create --title foo --body "x"' };
+    },
+    expect: {
+      status: 2,
+      // Verifies remediation mentions BOTH the doc resolution paths
+      // AND the --draft escape hatch unique to Route B.
+      stderrIncludes: "pass --draft",
+    },
+  },
+  {
+    name: "gh pr create without --draft + active spec includes promote remediation (B4 promote-able)",
+    setup: () => {
+      const dir = makeRepo();
+      const activeDir = path.join(dir, "docs", "specs");
+      fs.mkdirSync(activeDir, { recursive: true });
+      fs.writeFileSync(path.join(activeDir, "feature-x.md"), "# spec\n");
+      return { cwd: dir, cmd: 'gh pr create --title foo --body "x"' };
+    },
+    expect: { status: 2, stderrIncludes: "promote to docs/architecture/" },
+  },
+  {
+    name: "echo containing 'gh pr create' does NOT trigger Route B",
+    setup: () => {
+      const dir = makeRepo();
+      // Plant stray to prove the quote-strip prevents this from firing.
+      fs.writeFileSync(path.join(dir, "findings.md"), "# would block if hook fired\n");
+      return { cwd: dir, cmd: `echo "remember to gh pr create later"` };
+    },
+    expect: { status: 0, stdoutEq: "", stderrNotIncludes: "pr-ready-guard" },
+  },
 ];
 
 let failed = 0;
@@ -250,6 +402,59 @@ try {
 } finally {
   for (const d of cleanupDirs) {
     fs.rmSync(d, { recursive: true, force: true });
+  }
+}
+
+// Source-level regression guard: summarize() runs only when gh auth is
+// available, so it can't be exercised end-to-end in the smoke harness.
+// Read the script source and assert the git-workflow reference is
+// present — protects against future edits that drop the skill pointer.
+{
+  const src = fs.readFileSync(ENTRY, "utf8");
+  const ok = src.includes("git-workflow");
+  if (ok) {
+    passed++;
+    console.log("  ✓ pr-ready-guard source references git-workflow skill");
+  } else {
+    failed++;
+    console.error(
+      '  ✗ pr-ready-guard source references git-workflow skill — "git-workflow" not found in script',
+    );
+  }
+}
+
+// Structural regression guard for hooks.json: assert pr-ready-guard.mjs
+// is registered for BOTH `gh pr ready` AND `gh pr create`. A regression
+// that drops the `gh pr create` entry would silently disable Route B
+// with no test catching it — this guard is the safety net.
+{
+  const hooksJsonPath = path.resolve(
+    path.dirname(ENTRY),
+    "..",
+    "hooks",
+    "hooks.json",
+  );
+  const config = JSON.parse(fs.readFileSync(hooksJsonPath, "utf8"));
+  const preToolBash = (config.hooks?.PreToolUse ?? []).find(
+    (e) => e.matcher === "Bash",
+  );
+  const entries = preToolBash?.hooks ?? [];
+  const matchers = entries
+    .filter((h) => (h.command ?? "").includes("pr-ready-guard.mjs"))
+    .map((h) => h.if);
+
+  for (const expected of ["Bash(gh pr ready)", "Bash(gh pr create)"]) {
+    if (matchers.includes(expected)) {
+      passed++;
+      console.log(
+        `  ✓ hooks.json registers pr-ready-guard.mjs for ${expected}`,
+      );
+    } else {
+      failed++;
+      console.error(
+        `  ✗ hooks.json missing pr-ready-guard.mjs registration for ${expected} (found: [${matchers.join(", ")}])`,
+      );
+    }
   }
 }
 
