@@ -311,11 +311,11 @@ describe(
     });
 
     test(
-      "install plugins --plugin auriga-go → plugin registered in .claude/settings.json",
+      "install plugins --plugin auriga-workflow → plugin registered in .claude/settings.json",
       { skip: CLAUDE_AVAILABLE ? undefined : "requires 'claude' CLI", timeout: TIMEOUT },
       () => {
         const proj = setupProject(tarballPath!);
-        const r = runCli(proj, ["install", "plugins", "--plugin", "auriga-go"]);
+        const r = runCli(proj, ["install", "plugins", "--plugin", "auriga-workflow"]);
         assert.equal(
           r.status,
           0,
@@ -324,7 +324,7 @@ describe(
         const settings = path.join(proj, ".claude", "settings.json");
         assert.ok(fs.existsSync(settings), `.claude/settings.json missing at ${settings}`);
         const content = fs.readFileSync(settings, "utf-8");
-        assert.match(content, /auriga-go/, "auriga-go not mentioned in .claude/settings.json");
+        assert.match(content, /auriga-workflow/, "auriga-workflow not mentioned in .claude/settings.json");
       },
     );
 
@@ -439,29 +439,29 @@ describe(
         assert.ok(findSkillFile(proj, "systematic-debugging"), "systematic-debugging SKILL.md missing (skills category)");
 
         // Plugins category: `.claude/settings.json` exists AND mentions
-        // auriga-go. Gated above by CLAUDE_AVAILABLE so claude plugins
+        // auriga-workflow. Gated above by CLAUDE_AVAILABLE so claude plugins
         // install can actually write it.
         const settings = path.join(proj, ".claude", "settings.json");
         assert.ok(fs.existsSync(settings), ".claude/settings.json missing (plugins category)");
         const settingsContent = fs.readFileSync(settings, "utf-8");
         assert.match(
           settingsContent,
-          /auriga-go/,
-          "auriga-go plugin not registered in settings.json (plugins category silent-failed)",
+          /auriga-workflow/,
+          "auriga-workflow plugin not registered in settings.json (plugins category silent-failed)",
         );
         if (
-          !/auriga-workflow-skills/.test(settingsContent)
-          && isClaudeMarketplaceMissingPlugin(r.stderr, "auriga-workflow-skills")
+          !/auriga-workflow/.test(settingsContent)
+          && isClaudeMarketplaceMissingPlugin(r.stderr, "auriga-workflow")
         ) {
           t.skip(
-            "auriga-workflow-skills is present on this PR branch but not yet in the Claude marketplace default branch",
+            "auriga-workflow is present on this PR branch but not yet in the Claude marketplace default branch",
           );
           return;
         }
         assert.match(
           settingsContent,
-          /auriga-workflow-skills/,
-          "auriga-workflow-skills plugin not registered in settings.json (default plugin selection regressed)",
+          /auriga-workflow/,
+          "auriga-workflow plugin not registered in settings.json (default plugin selection regressed)",
         );
         assert.doesNotMatch(
           settingsContent,

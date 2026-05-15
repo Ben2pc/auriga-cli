@@ -5,10 +5,10 @@
   },
   "plugins": [
     {
-      "name": "auriga-go",
+      "name": "auriga-workflow",
       "source": {
         "source": "local",
-        "path": "./plugins/auriga-go"
+        "path": "./plugins/auriga-workflow"
       },
       "policy": {
         "installation": "AVAILABLE",
@@ -29,34 +29,10 @@
       "category": "Productivity"
     },
     {
-      "name": "auriga-workflow-skills",
-      "source": {
-        "source": "local",
-        "path": "./plugins/auriga-workflow-skills"
-      },
-      "policy": {
-        "installation": "AVAILABLE",
-        "authentication": "ON_INSTALL"
-      },
-      "category": "Productivity"
-    },
-    {
       "name": "session-instructions-loader",
       "source": {
         "source": "local",
         "path": "./plugins/session-instructions-loader"
-      },
-      "policy": {
-        "installation": "AVAILABLE",
-        "authentication": "ON_INSTALL"
-      },
-      "category": "Productivity"
-    },
-    {
-      "name": "deep-review",
-      "source": {
-        "source": "local",
-        "path": "./plugins/deep-review"
       },
       "policy": {
         "installation": "AVAILABLE",

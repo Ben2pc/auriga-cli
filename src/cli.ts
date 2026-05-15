@@ -383,7 +383,7 @@ function migratedPluginHint(type: CategoryName, name: string): string | undefine
     type === "skills" &&
     ["incremental-impl", "test-designer", "session-compound"].includes(name)
   ) {
-    return "This skill moved to the auriga-workflow-skills plugin; install it with `install plugins --plugin auriga-workflow-skills`.";
+    return "This skill moved to the auriga-workflow plugin; install it with `install plugins --plugin auriga-workflow`.";
   }
   if (type === "hooks" && name === "notify") {
     return "The notify hook moved to the auriga-notify plugin; install it with `install plugins --plugin auriga-notify`.";
@@ -898,7 +898,7 @@ async function runLegacyMenu(): Promise<number> {
       { name: "Workflow — CLAUDE.md + AGENTS.md", value: "workflow" as const, checked: true },
       { name: "Skills — Development process skills (TDD, debugging, verification, planning...)", value: "skills" as const, checked: true },
       { name: "Recommended Skills — Extra utility skills (claude-code-agent, codex-agent...)", value: "recommended" as const, checked: true },
-      { name: "Plugins — Claude Code / Codex plugins (skill-creator, codex, auriga-go...)", value: "plugins" as const, checked: true },
+      { name: "Plugins — Claude Code / Codex plugins (skill-creator, codex, auriga-workflow...)", value: "plugins" as const, checked: true },
       { name: "Hooks — Claude Code hooks (notifications, etc.)", value: "hooks" as const, checked: true },
     ],
   }));

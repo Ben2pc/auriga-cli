@@ -134,9 +134,9 @@ function makeMigratedAssetsPluginPackage(): string {
     name: "auriga-cli",
     plugins: [
       {
-        name: "auriga-workflow-skills",
+        name: "auriga-workflow",
         description: "Repo-owned workflow skills",
-        source: "./plugins/auriga-workflow-skills",
+        source: "./plugins/auriga-workflow",
       },
       {
         name: "auriga-notify",
@@ -163,14 +163,14 @@ function makeMigratedAssetsPluginPackage(): string {
     name: "auriga-cli",
     plugins: [
       {
-        name: "auriga-workflow-skills",
-        source: { source: "local", path: "./plugins/auriga-workflow-skills" },
+        name: "auriga-workflow",
+        source: { source: "local", path: "./plugins/auriga-workflow" },
         policy: { installation: "AVAILABLE", authentication: "ON_INSTALL" },
       },
     ],
   });
-  writeJson(path.join(root, "plugins/auriga-workflow-skills/.codex-plugin/plugin.json"), {
-    name: "auriga-workflow-skills",
+  writeJson(path.join(root, "plugins/auriga-workflow/.codex-plugin/plugin.json"), {
+    name: "auriga-workflow",
     version: "1.0.0",
     skills: "./skills/",
   });
@@ -1259,8 +1259,8 @@ describe("installPlugins — Claude target", () => {
 
     let installCalls = commands.filter((cmd) => cmd.startsWith("claude plugins install"));
     assert.ok(
-      installCalls.some((cmd) => cmd.includes("auriga-workflow-skills@auriga-cli")),
-      `default selection should include default-on auriga-workflow-skills; got: ${installCalls.join(" | ")}`,
+      installCalls.some((cmd) => cmd.includes("auriga-workflow@auriga-cli")),
+      `default selection should include default-on auriga-workflow; got: ${installCalls.join(" | ")}`,
     );
     assert.ok(
       installCalls.some((cmd) => cmd.includes("auriga-go@auriga-cli")),
@@ -1286,7 +1286,7 @@ describe("installPlugins — Claude target", () => {
     );
   });
 
-  test("auriga-workflow-skills install removes only migrated standalone skills from project scope", async () => {
+  test("auriga-workflow install removes only migrated standalone skills from project scope", async () => {
     const packageRoot = makeMigratedAssetsPluginPackage();
     const cwd = fs.mkdtempSync(path.join(os.tmpdir(), "auriga-migrated-skills-project-"));
     const codexHome = fs.mkdtempSync(path.join(os.tmpdir(), "auriga-codex-home-"));
@@ -1325,7 +1325,7 @@ describe("installPlugins — Claude target", () => {
     await installPlugins(packageRoot, {
       interactive: false,
       agent: "both",
-      selected: ["auriga-workflow-skills"],
+      selected: ["auriga-workflow"],
       cwd,
       scope: "project",
     });
@@ -1348,7 +1348,7 @@ describe("installPlugins — Claude target", () => {
     assert.deepEqual(Object.keys(lock.skills).sort(), ["planning-with-files", "systematic-debugging"]);
   });
 
-  test("auriga-workflow-skills Codex-only install preserves Claude legacy fallback", async () => {
+  test("auriga-workflow Codex-only install preserves Claude legacy fallback", async () => {
     const packageRoot = makeMigratedAssetsPluginPackage();
     const cwd = fs.mkdtempSync(path.join(os.tmpdir(), "auriga-migrated-skills-codex-only-"));
     const codexHome = fs.mkdtempSync(path.join(os.tmpdir(), "auriga-codex-home-"));
@@ -1362,7 +1362,7 @@ describe("installPlugins — Claude target", () => {
     await installPlugins(packageRoot, {
       interactive: false,
       agent: "codex",
-      selected: ["auriga-workflow-skills"],
+      selected: ["auriga-workflow"],
       cwd,
       scope: "project",
     });
@@ -1381,14 +1381,14 @@ describe("installPlugins — Claude target", () => {
     }
   });
 
-  test("auriga-workflow-skills cleanup preserves repo development symlinks", async () => {
+  test("auriga-workflow cleanup preserves repo development symlinks", async () => {
     const packageRoot = makeMigratedAssetsPluginPackage();
     const cwd = fs.mkdtempSync(path.join(os.tmpdir(), "auriga-migrated-skills-dev-symlink-"));
     const codexHome = fs.mkdtempSync(path.join(os.tmpdir(), "auriga-codex-home-"));
     process.env.CODEX_HOME = codexHome;
     seedCodexMarketplaceCache(packageRoot, codexHome);
     for (const name of ["incremental-impl", "test-designer", "session-compound"]) {
-      const pluginSkillDir = path.join(cwd, "plugins", "auriga-workflow-skills", "skills", name);
+      const pluginSkillDir = path.join(cwd, "plugins", "auriga-workflow", "skills", name);
       fs.mkdirSync(pluginSkillDir, { recursive: true });
       fs.writeFileSync(path.join(pluginSkillDir, "SKILL.md"), `# ${name}\n`);
       for (const agentDir of [".claude", ".agents"]) {
@@ -1406,7 +1406,7 @@ describe("installPlugins — Claude target", () => {
     await installPlugins(packageRoot, {
       interactive: false,
       agent: "both",
-      selected: ["auriga-workflow-skills"],
+      selected: ["auriga-workflow"],
       cwd,
       scope: "project",
     });
@@ -1417,7 +1417,7 @@ describe("installPlugins — Claude target", () => {
     }
   });
 
-  test("auriga-workflow-skills cleanup stays quiet when legacy skill dirs are absent", async () => {
+  test("auriga-workflow cleanup stays quiet when legacy skill dirs are absent", async () => {
     const packageRoot = makeMigratedAssetsPluginPackage();
     const cwd = fs.mkdtempSync(path.join(os.tmpdir(), "auriga-migrated-skills-quiet-"));
     const codexHome = fs.mkdtempSync(path.join(os.tmpdir(), "auriga-codex-home-"));
@@ -1433,7 +1433,7 @@ describe("installPlugins — Claude target", () => {
     await installPlugins(packageRoot, {
       interactive: false,
       agent: "both",
-      selected: ["auriga-workflow-skills"],
+      selected: ["auriga-workflow"],
       cwd,
       scope: "project",
       onLog: (line: string) => logs.push(line),

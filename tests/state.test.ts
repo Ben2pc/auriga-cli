@@ -351,7 +351,7 @@ describe("scanState — generated catalog migration surface", () => {
     assert.equal(report.hooks.some((h) => h.name === "notify"), false);
 
     const pluginNames = report.plugins.map((p) => p.id).sort();
-    assert.ok(pluginNames.includes("auriga-workflow-skills"));
+    assert.ok(pluginNames.includes("auriga-workflow"));
     assert.ok(pluginNames.includes("auriga-notify"));
   });
 });

@@ -31,7 +31,7 @@ const MIGRATED_WORKFLOW_SKILLS = [
   "session-compound",
 ];
 const NOTIFY_PLUGIN_NAME = "auriga-notify";
-const WORKFLOW_SKILLS_PLUGIN_NAME = "auriga-workflow-skills";
+const WORKFLOW_SKILLS_PLUGIN_NAME = "auriga-workflow";
 const LEGACY_NOTIFY_MARKER = "auriga:notify";
 const CODEX_PLUGIN_VERSION_RE = /^[A-Za-z0-9][A-Za-z0-9._+-]{0,127}$/;
 export type PluginRuntime = "claude" | "codex";
@@ -411,7 +411,7 @@ function isWorkflowPluginDevSymlink(skillPath: string, cwd: string, name: string
   if (!stat?.isSymbolicLink()) return false;
   const target = fs.readlinkSync(skillPath);
   const resolved = path.resolve(path.dirname(skillPath), target);
-  const expected = path.resolve(cwd, "plugins", "auriga-workflow-skills", "skills", name);
+  const expected = path.resolve(cwd, "plugins", "auriga-workflow", "skills", name);
   return resolved === expected;
 }
 

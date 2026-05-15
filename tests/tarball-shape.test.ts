@@ -105,11 +105,9 @@ describe("tarball-shape — dist/catalog.json carries everything the scanner nee
     // marketplaces. Pure UI hint since v1.19.0 (used to also gate
     // update-available reporting; that surface is gone).
     const owned = [
-      "auriga-go",
+      "auriga-workflow",
       "auriga-git-guards",
-      "auriga-workflow-skills",
       "auriga-notify",
-      "deep-review",
       "session-instructions-loader",
     ];
     const external = ["skill-creator", "claude-md-management", "codex"];

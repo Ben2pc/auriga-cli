@@ -1,0 +1,12 @@
+{
+  "name": "auriga-workflow",
+  "version": "2.0.0",
+  "description": "The auriga workflow skill bundle: incremental-impl (implementation slicing), test-designer (independent test design), spec-design (requirement clarification), session-compound (session compounding), goalify (autonomous /goal planning), deep-review (multi-dimensional PR review orchestrator), and reviewer-creator (custom reviewer scaffolding). Dual-Agent compatible (Claude Code + Codex).",
+  "author": {
+    "name": "Ben2pc",
+    "email": "pangcheng33@gmail.com"
+  },
+  "homepage": "https://github.com/Ben2pc/auriga-cli/tree/main/plugins/auriga-workflow",
+  "repository": "https://github.com/Ben2pc/auriga-cli",
+  "license": "MIT"
+}

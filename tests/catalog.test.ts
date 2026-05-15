@@ -42,7 +42,7 @@ describe("generateCatalog (build-time)", () => {
     assert.ok(typeof catalog.generatedAt === "string" && catalog.generatedAt.length > 0);
   });
 
-  test("workflow skills exclude repo-owned skills migrated into auriga-workflow-skills (and dropped retired brainstorming)", () => {
+  test("workflow skills exclude repo-owned skills migrated into auriga-workflow (and dropped retired brainstorming)", () => {
     assert.equal(catalog.workflowSkills.length, 5);
     const names = catalog.workflowSkills.map((e) => e.name).sort();
     assert.deepEqual(names, [
@@ -71,36 +71,26 @@ describe("generateCatalog (build-time)", () => {
   });
 
   test("plugins: Claude Code entries plus Codex-only entries plus migrated repo-owned assets", () => {
-    assert.equal(catalog.plugins.length, 9);
+    assert.equal(catalog.plugins.length, 7);
     const names = catalog.plugins.map((e) => e.name).sort();
     assert.deepEqual(names, [
       "auriga-git-guards",
-      "auriga-go",
       "auriga-notify",
-      "auriga-workflow-skills",
+      "auriga-workflow",
       "claude-md-management",
       "codex",
-      "deep-review",
       "session-instructions-loader",
       "skill-creator",
     ]);
     assertEntriesShape(catalog.plugins, "plugins");
     assert.match(
-      catalog.plugins.find((e) => e.name === "auriga-go")?.description ?? "",
-      /^\(Claude\/Codex\)/,
-    );
-    assert.match(
       catalog.plugins.find((e) => e.name === "session-instructions-loader")?.description ?? "",
       /^\(Codex\)/,
     );
-    // deep-review is dual-Agent and locally bundled, sourced from both
+    // auriga-workflow is dual-Agent and locally bundled, sourced from both
     // repo marketplace manifests.
     assert.match(
-      catalog.plugins.find((e) => e.name === "deep-review")?.description ?? "",
-      /^\(Claude\/Codex\)/,
-    );
-    assert.match(
-      catalog.plugins.find((e) => e.name === "auriga-workflow-skills")?.description ?? "",
+      catalog.plugins.find((e) => e.name === "auriga-workflow")?.description ?? "",
       /^\(Claude\/Codex\)/,
     );
   });
@@ -144,14 +134,12 @@ describe("generateCatalog (build-time)", () => {
     // plugin config files at runtime. Those files are NOT in the npm tarball
     // (`files` only ships dist/), so
     // installed users had every plugin default to ["claude"] — dual-Agent
-    // plugins (auriga-go etc.) mis-classified as Claude-only. The fix bakes
-    // `agents` at build time. This pins the contract per plugin.
+    // plugins (auriga-workflow etc.) mis-classified as Claude-only. The fix
+    // bakes `agents` at build time. This pins the contract per plugin.
     const expectedAgents: Record<string, ("claude" | "codex")[]> = {
-      "auriga-go": ["claude", "codex"],
+      "auriga-workflow": ["claude", "codex"],
       "auriga-git-guards": ["claude", "codex"],
-      "auriga-workflow-skills": ["claude", "codex"],
       "auriga-notify": ["claude"],
-      "deep-review": ["claude", "codex"],
       "session-instructions-loader": ["codex"],
       "skill-creator": ["claude"],
       "claude-md-management": ["claude"],
@@ -196,7 +184,7 @@ describe("generateCatalog (build-time)", () => {
     }
 
     const pluginHelp = renderTypeHelp(catalog, "plugins", "0.0.0-test");
-    assert.match(pluginHelp, /\bauriga-workflow-skills\b/);
+    assert.match(pluginHelp, /\bauriga-workflow\b/);
     assert.match(pluginHelp, /\bauriga-notify\b/);
 
     const hookHelp = renderTypeHelp(catalog, "hooks", "0.0.0-test");

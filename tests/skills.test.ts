@@ -30,7 +30,7 @@ const LOCK: SkillsLock["skills"] = {
 
 describe("planSkillInstallCommands", () => {
   test("repo-owned migrated workflow skills are not standalone workflow-skill defaults", () => {
-    // rationale: these three now ship through the auriga-workflow-skills
+    // rationale: these three now ship through the auriga-workflow
     // plugin, so bare `install skills` must not ask the skills CLI to add
     // them as standalone workflow skills.
     const migrated = ["incremental-impl", "test-designer", "session-compound"];

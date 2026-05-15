@@ -463,7 +463,7 @@ async function scanClaudePlugins(
   }
 
   // claude plugins list emits ids in `<plugin>@<marketplace>` form (e.g.
-  // `auriga-go@auriga-cli`). The auriga-cli catalog tracks plugins by bare
+  // `auriga-workflow@auriga-cli`). The auriga-cli catalog tracks plugins by bare
   // name. Index both forms so lookups succeed regardless of which side the
   // suffix is on.
   const installedById = new Map<string, any>();
@@ -568,9 +568,9 @@ async function scanCodexPlugins(
     fsVersions = new Map();
   }
 
-  // Mirror the Claude side: catalog tracks bare names (e.g. "auriga-go") but
+  // Mirror the Claude side: catalog tracks bare names (e.g. "auriga-workflow") but
   // ~/.codex/config.toml [plugins.*] sections and defaultReadCodexPluginsDir
-  // both emit `<plugin>@<marketplace>` keys (e.g. "auriga-go@auriga-cli").
+  // both emit `<plugin>@<marketplace>` keys (e.g. "auriga-workflow@auriga-cli").
   // Without dual indexing every dual-Agent plugin reports `not-installed` on
   // the Codex side, which `mergePluginsById` then folds into a permanent
   // `partial-install` even when both sides are genuinely installed.
