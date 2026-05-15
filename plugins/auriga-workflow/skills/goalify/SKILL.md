@@ -3,7 +3,7 @@ name: goalify
 description: Plan an autonomous goal from the current spec or work-in-progress and dispatch it via Claude Code's built-in /goal command. Trigger when the user wants the agent to "set a goal", "run autonomously", "autopilot", "跑到 Ready", "自动跑完", "自驱跑完这段", "goalify it", or otherwise asks the agent to plan + dispatch /goal rather than just discuss what to do.
 ---
 
-根据 spec 或者当前的工作进展，先 plan 出 goal 然后再 set goal 并启动，如果有疑问或者目标难以明确，在 set goal 前询问用户。
+根据 spec 或者当前的工作进展，先 plan 出 goal，再与用户确认 goal 要跑到哪个阶段为止，然后 set goal 并启动。如果有疑问或者目标难以明确，在 set goal 前询问用户。
 
 ## 定位
 
@@ -29,6 +29,17 @@ goalify 是**需求已经明确之后**用来驱动长程任务的工具——�
 - `docs/specs/<topic>/validation-contract.md` — 取 VAL 列表，作为 goal 的"完成判据"（每条 VAL 翻译成 goal 内的一个可验证 step；`Tool` 字段决定调哪类工具验证）
 
 没有 spec 包时，从用户对话里的目标描述 + 当前分支 / commit 历史 / PR 描述提炼。
+
+## 确定终点阶段
+
+set goal 之前必须和用户确认这个 goal 的终点——它要把 auriga workflow 推进到哪个阶段就停下。用 `AskUserQuestion` 给出选项，常见终点：
+
+- **跑到 Draft PR** — 建分支、首个有意义的 commit、开好 Draft PR 就停，留给用户审范围
+- **跑到验证完成** — 实现 + 测试全绿，PR 仍保持 Draft
+- **跑到 PR Ready** — 验证完成 + 补全 PR 描述五要素 + 标记 Ready for Review
+- **跑到合并** — 含评审与合并
+
+把用户选定的终点作为**显式终止条件**写进 `/goal` 文本：goal 跑到该阶段即停，不要越界继续推进。终点之后的阶段（评审、合并等）若不在范围内，goal 文本里要写明"到此为止，交回用户"。
 
 ## 其他规则
 
