@@ -3,7 +3,7 @@ name: reviewer-creator
 description: "为 deep-review 技能脚手架一个新的项目级自定义审查者。在 `docs/rules/review/<name>.md` 生成一个结构规范的审查者文件，deep-review 调度器会自动发现并分派它。当用户要求“创建自定义审查者”、“添加项目专属审查者”、“扩展 deep-review”，或调用 /reviewer-creator 时触发。"
 ---
 
-# 审查者创建器
+# Reviewer Creator
 
 为 `deep-review` 技能脚手架一个项目级自定义审查者文件。生成的文件位于 `docs/rules/review/<name>.md`，会在分派时被调度器自动发现（依据 `deep-review/SKILL.md` 第 2 步的发现规则）。
 

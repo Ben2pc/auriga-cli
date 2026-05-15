@@ -1,4 +1,4 @@
-# 技能 / 插件质量审查者（检测驱动）
+# Skill / Plugin Quality Reviewer (detection-driven)
 
 ## 范围
 

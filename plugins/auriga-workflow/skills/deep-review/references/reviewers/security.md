@@ -1,4 +1,4 @@
-# 安全性审查者（分离版）
+# Security Reviewer (split-out)
 
 ## 范围
 

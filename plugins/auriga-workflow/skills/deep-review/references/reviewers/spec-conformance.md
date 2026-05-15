@@ -1,4 +1,4 @@
-# 规范合规性审查者
+# Spec Conformance Reviewer
 
 ## 范围
 

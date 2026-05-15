@@ -3,7 +3,7 @@ name: deep-review
 description: "对拉取请求执行正式的多维度代码审查。分派并行审查者（spec-conformance、correctness、test-quality、docs-sync、robustness、security、ux、performance、architecture、code-quality、skill-plugin-quality），并将发现综合为问题清单。当用户要求审查拉取请求、执行 /deep-review、将拉取请求标记为待审、或请求正式/全面代码审查时触发。"
 ---
 
-# 深度审查
+# Deep Review
 
 多维度拉取请求审查调度器。每位审查者的检查清单、检测表、示例场景和输出契约保存在 `references/reviewers/<name>.md` 中——分派时请读取对应文件，并将其内容传入子代理提示词。
 
@@ -62,7 +62,7 @@ description: "对拉取请求执行正式的多维度代码审查。分派并行
 ### 3. 综合为问题清单
 
 ```
-## 深度审查：PR #<n> — <title>
+## Deep Review: PR #<n> — <title>
 **Tags**: <...>  |  **Reviewers**: <list>
 ### 阻塞项
 - [ ] <file:line> — <finding> — [confidence: high|med|low] (<reviewer>)

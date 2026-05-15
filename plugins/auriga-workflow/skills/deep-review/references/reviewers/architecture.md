@@ -1,4 +1,4 @@
-# 架构审查者
+# Architecture Reviewer
 
 ## 范围
 

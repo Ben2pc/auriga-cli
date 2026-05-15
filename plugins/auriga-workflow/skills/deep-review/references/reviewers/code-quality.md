@@ -1,4 +1,4 @@
-# 代码质量审查者
+# Code Quality Reviewer
 
 ## 范围
 

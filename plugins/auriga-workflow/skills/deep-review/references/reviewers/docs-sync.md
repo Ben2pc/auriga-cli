@@ -1,4 +1,4 @@
-# 文档同步审查者
+# Documentation Sync Reviewer
 
 ## 范围
 
