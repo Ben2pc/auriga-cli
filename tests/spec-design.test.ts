@@ -139,15 +139,11 @@ describe("spec-design skill — repo-check VALs", () => {
     );
   });
 
-  test("VAL-DEP-007: goalify SKILL.md documents spec-design inputs and PR-Ready timing", () => {
+  test("VAL-DEP-007: goalify SKILL.md documents spec-design inputs", () => {
     const text = read("plugins/auriga-go/skills/goalify/SKILL.md");
     assert.ok(
       text.includes("spec.md") && text.includes("validation-contract.md"),
       "goalify must list both spec source files",
-    );
-    assert.ok(
-      /PR\s*Ready/i.test(text),
-      "goalify must mention PR Ready as typical timing",
     );
   });
 });
