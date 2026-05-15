@@ -1,8 +1,9 @@
 # auriga-workflow
 
-The skill bundle for the [auriga workflow](https://github.com/Ben2pc/auriga-cli) —
-every auriga-owned workflow skill travels in this one plugin so they share the
-same distribution model as the rest of the auriga-owned runtime.
+The complete [auriga workflow](https://github.com/Ben2pc/auriga-cli) in one
+plugin — every auriga-owned workflow skill plus the git lifecycle hooks that
+enforce the workflow. Skills describe the workflow; hooks enforce it. Both
+travel together so they share one distribution model and one install step.
 
 ## Skills
 
@@ -11,10 +12,21 @@ same distribution model as the rest of the auriga-owned runtime.
 | `incremental-impl` | Size triage (XS–XL), slicing strategy, optional parallel subagent dispatch, per-slice Implement → Test → Verify → Commit discipline. |
 | `test-designer` | Independent test design — dispatches a context-free agent that sees only the requirement and code paths, returns executable failing tests. |
 | `spec-design` | Requirement clarification — produces `spec.md` + `validation-contract.md` under `docs/specs/<topic>/`. |
+| `arch-design` | Architecture-level design — module decomposition, dependency direction, candidate tradeoffs, migration path. |
+| `code-simplify` | Code-level simplification — identifies code smells and reduces maintenance cost. |
 | `session-compound` | Compounds a session into a self-contained interactive HTML report. |
 | `goalify` | Plans an autonomous goal from a spec or work-in-progress and dispatches it via Claude Code's built-in `/goal` command. |
 | `deep-review` | Multi-dimensional PR review orchestrator — dispatches parallel fresh-context reviewers per dimension and synthesizes findings into a Blocking / Non-blocking / Architectural punch list. |
 | `reviewer-creator` | Scaffolds a project-level custom reviewer at `docs/rules/review/<name>.md`; `deep-review` auto-discovers and dispatches it alongside the built-ins. |
+| `git-workflow` | The git lifecycle skill — branch hygiene, atomic / checkpoint commits, the five-element PR body. |
+
+## Hooks
+
+| Hook | Event | Fires on | Action |
+|---|---|---|---|
+| `commit-reminder` | `PostToolUse` | `Edit` / `Write` / `MultiEdit` (Claude Code) · `apply_patch` (Codex's canonical file-edit tool) | When uncommitted diff vs `HEAD` exceeds 200 lines or 8 files **and** the last reminder was ≥ 5 minutes ago, injects `additionalContext` nudging the agent to commit at the next semantic boundary. Never blocks. Silent outside a git repo. |
+| `pr-create-guard` | `PostToolUse` | `gh pr create` | Fetches the new PR's body + title via `gh pr view`, injects a snapshot (headings + TODO counts) so the agent can self-verify against the five-element PR description contract (scope / acceptance criteria / design decisions / risks / TODOs). Also flags titles that don't match Conventional Commits format with a soft nudge. Never blocks. |
+| `pr-ready-guard` | `PreToolUse` | `gh pr ready` · `gh pr create` (when `--draft` / `-d` absent) | Hard-blocks (exit 2) on **structural** issues: stray `findings.md` / `progress.md` / `task_plan.md` at repo root, unarchived specs under `docs/superpowers/specs/`, unfinalized active specs under `docs/specs/`, or unpushed commits (`gh pr ready` only). On `gh pr ready` otherwise injects a body snapshot. |
 
 ## Structure
 
@@ -22,8 +34,8 @@ same distribution model as the rest of the auriga-owned runtime.
 - `skills/deep-review/references/reviewers/<name>.md` — per-dimension reviewer
   reference files (checklist + Detection table + Output contract), read on
   dispatch and passed verbatim into the subagent prompt.
-
-No hooks — this plugin is pure skill orchestration.
+- `hooks/hooks.json` — hook registry, `command` paths use `${CLAUDE_PLUGIN_ROOT}`.
+- `scripts/*.mjs` — the three hook scripts.
 
 ## Install
 
@@ -42,4 +54,99 @@ codex plugin marketplace add https://github.com/Ben2pc/auriga-cli.git
 ```
 
 Then enable `auriga-workflow` from the Codex plugin directory. The Codex alpha
-also accepts `codex plugin add auriga-workflow@auriga-cli` directly.
+also accepts `codex plugin add auriga-workflow@auriga-cli` directly. Codex
+requires the hook system feature flag in `~/.codex/config.toml`:
+
+```toml
+[features]
+codex_hooks = true
+```
+
+## Behaviour parity between Claude Code and Codex
+
+Both Agents share the same plugin payload and the same `${CLAUDE_PLUGIN_ROOT}`
+substitution (Codex deliberately mirrors that name for OOTB compat with
+Claude-Code-style plugins). The scripts produce identical outputs given
+identical stdin payloads.
+
+| Behaviour | Claude Code | Codex |
+|---|---|---|
+| `commit-reminder` → inject reminder (PostToolUse `additionalContext`) | ✅ | ✅ Codex reports file edits as `tool_name: "apply_patch"`; the hook's allowlist accepts both naming schemes, and `PostToolUse` `additionalContext` is surfaced. |
+| `gh pr create` → inject body snapshot (PostToolUse `additionalContext`) | ✅ | ✅ |
+| `gh pr ready` → block on structural issues (exit 2 + stderr) | ✅ | ✅ |
+| `gh pr create` without `--draft` → block on structural issues (exit 2 + stderr) | ✅ | ✅ |
+| `gh pr ready` → inject body snapshot when passing (PreToolUse `additionalContext`) | ✅ | ⚠️ Currently fail-open: Codex parses the field but does not surface it to the model yet. The block path is unaffected. |
+
+The remaining fail-open differs only in the **PreToolUse `additionalContext`
+informational path** for `pr-ready-guard`: structural blocks fire identically,
+and the two PostToolUse hooks (`commit-reminder`, `pr-create-guard`) are at full
+parity.
+
+## Block signals (pr-ready-guard)
+
+The block list is conservative and based on filesystem / git state only — no
+body-text regex. `pr-ready-guard` fires on two routes — both publish a Ready PR,
+so both must enforce the same structural baseline:
+
+- **Route A**: `gh pr ready` (Draft → Ready transition)
+- **Route B**: `gh pr create` without `--draft` / `-d` (creates Ready directly,
+  bypassing Route A). The explicit `--draft=<value>` form follows cobra
+  `BoolVar` semantics — truthy values (`1` / `t` / `true`, case-insensitive) opt
+  out of Route B; falsy and empty values trigger the same structural
+  enforcement as no flag at all.
+
+1. **Stray planning docs at repo root** (both routes): `findings.md`,
+   `progress.md`, `task_plan.md`. Archive to
+   `docs/worklog/worklog-<YYYY-MM-DD>-<branch-name>/` (or delete) before ready.
+2. **Stray spec docs under `docs/superpowers/specs/`** (both routes): same
+   lifecycle. Scanned recursively, so nested `<sub>/*.md` are caught.
+3. **Unfinalized active specs under `docs/specs/`** (both routes): the dev-only
+   temp workspace for `spec-design` / `arch-design` outputs; by PR Ready every
+   spec must be promoted to `docs/architecture/`, archived to `docs/worklog/`,
+   or deleted. Scanned recursively, so nested `docs/specs/<topic>/*.md` are
+   caught.
+4. **Unpushed commits on the current branch** (Route A only, and only when no PR
+   ref is passed): the remote-side PR can't reflect what isn't pushed. Route B
+   skips this — `gh pr create` pushes on demand.
+
+On Route B, the block message also lists the `--draft` escape hatch as an
+alternative remediation.
+
+## Title format check (pr-create-guard)
+
+After fetching the new PR's body, `pr-create-guard` reads the title and tests it
+against Conventional Commits format `<type>(<scope>)?: <subject>`. Accepted
+types: `feat` · `fix` · `docs` · `refactor` · `chore` · `test` · `perf` ·
+`style` · `build` · `ci` · `revert`. When the title doesn't match, the injected
+`additionalContext` adds a soft `Title format: ⚠ ...` nudge — PostToolUse never
+blocks.
+
+## Reminder thresholds (commit-reminder)
+
+- **Lines**: uncommitted insertions + deletions > 200
+- **Files**: uncommitted file count > 8
+- **Rate limit**: ≥ 5 minutes since the last reminder (state in
+  `.git/auriga-commit-reminder.last`)
+
+Either threshold triggers the reminder. It is informational, never blocking.
+
+## Test
+
+```bash
+node tests/commit-reminder.test.mjs    # smoke tests
+node tests/pr-create-guard.test.mjs    # smoke tests
+node tests/pr-ready-guard.test.mjs     # smoke tests
+```
+
+Tests live at the repo root `tests/` directory (shared with the rest of
+auriga-cli) rather than inside the plugin folder, so plugin-only assets that
+ship to users stay self-contained while dev-only smoke tests remain at the repo
+level.
+
+## Limits
+
+- **Platform**: tested on macOS / Linux. Windows untested.
+- **gh CLI required for PR hooks**: body snapshots use `gh pr view`. If `gh` is
+  missing or unauthenticated, the PR hooks degrade gracefully, never crash.
+- **commit-reminder requires git**: outside a git work tree, the hook is a
+  silent no-op.

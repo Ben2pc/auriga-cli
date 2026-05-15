@@ -1,7 +1,7 @@
 {
   "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
   "name": "auriga-cli",
-  "description": "Plugins shipped by the auriga-cli Claude Code harness (auriga-workflow skill bundle, git guards, notifications).",
+  "description": "Plugins shipped by the auriga-cli Claude Code harness (auriga-workflow skills + git guards, notifications).",
   "owner": {
     "name": "Ben2pc",
     "email": "pangcheng33@gmail.com"
@@ -9,7 +9,7 @@
   "plugins": [
     {
       "name": "auriga-workflow",
-      "description": "The auriga workflow skill bundle: incremental-impl (implementation slicing), test-designer (independent test design), spec-design (requirement clarification), arch-design (architecture design), code-simplify (code simplification), session-compound (session compounding), goalify (autonomous /goal planning), deep-review (multi-dimensional PR review orchestrator), and reviewer-creator (custom reviewer scaffolding). Dual-Agent compatible (Claude Code + Codex).",
+      "description": "The auriga workflow plugin: workflow skills — incremental-impl (implementation slicing), test-designer (independent test design), spec-design (requirement clarification), arch-design (architecture design), code-simplify (code simplification), session-compound (session compounding), goalify (autonomous /goal planning), deep-review (multi-dimensional PR review orchestrator), reviewer-creator (custom reviewer scaffolding), git-workflow (git lifecycle skill) — plus the git lifecycle hooks that enforce them: commit-reminder, pr-create-guard, pr-ready-guard. Dual-Agent compatible (Claude Code + Codex).",
       "author": {
         "name": "Ben2pc",
         "email": "pangcheng33@gmail.com"
@@ -17,17 +17,6 @@
       "source": "./plugins/auriga-workflow",
       "category": "development",
       "homepage": "https://github.com/Ben2pc/auriga-cli/tree/main/plugins/auriga-workflow"
-    },
-    {
-      "name": "auriga-git-guards",
-      "description": "Git lifecycle guardrails: commit-reminder (PostToolUse on Edit/Write/MultiEdit/apply_patch) + pr-create-guard with PR-body snapshot and Conventional Commits title check (PostToolUse on `gh pr create`) + pr-ready-guard structural block at PR Ready transitions, firing on BOTH `gh pr ready` AND `gh pr create` without `--draft` (PreToolUse). Bundles the git-workflow skill. Dual-Agent compatible (Claude Code + Codex).",
-      "author": {
-        "name": "Ben2pc",
-        "email": "pangcheng33@gmail.com"
-      },
-      "source": "./plugins/auriga-git-guards",
-      "category": "development",
-      "homepage": "https://github.com/Ben2pc/auriga-cli/tree/main/plugins/auriga-git-guards"
     },
     {
       "name": "auriga-notify",
