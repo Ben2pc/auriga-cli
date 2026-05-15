@@ -10,7 +10,7 @@ Do not strip optional sections (`References`, `Findings` when sparse) — leave 
 ```markdown
 # <feature> — Spec (<功能> — 规范)
 
-> One-sentence elevator pitch (optional but recommended) / 一句话电梯演讲 (可选但推荐).
+> One-sentence elevator pitch (optional but recommended) / 一句话概括这个 spec 在做什么 (可选但推荐).
 
 ## Why (为什么做)
 <1–4 paragraphs: motivation, pain we're addressing, the inspiration / prior art if any.>
@@ -18,7 +18,7 @@ Do not strip optional sections (`References`, `Findings` when sparse) — leave 
 
 ## Findings (调研发现)
 <Bulleted past-facing observations from A1 research. Each bullet anchors to a specific source: file path, commit, doc, external URL.>
-<A1 调研得到的过去时观察，列表呈现。每条都锚定到具体来源：文件路径、commit、文档、外链。>
+<A1 调研阶段已经发现的事实，列表呈现 (描述"当前是什么样"，不写"将来要怎么做")。每条都锚定到具体来源：文件路径、commit、文档、外链。>
 
 ## What (做什么)
 <The external behavior contract. May be multiple subsections (### 1. …, ### 2. …) when the surface is broader than one cohesive concept. Stay above the implementation line.>
