@@ -74,7 +74,7 @@ Spec Conformance inputs must EXCLUDE the writer Agent's own commit messages, PR 
 - <one-line credit, e.g. "ACs #1–13 fully traced to file:line by spec-conformance">
 ```
 
-**Classification:** Blocking = correctness bug / security / broken tests-or-contracts / unsatisfied spec AC / unjustified scope creep. Non-blocking = maintainability / style / minor perf / documented ambiguity. Architectural = decay worth tracking separately.
+**Classification:** Blocking = correctness bug / security / broken tests-or-contracts / unsatisfied spec AC / unjustified scope creep / undocumented deviation from a still-valid design doc. Non-blocking = maintainability / style / minor perf / documented ambiguity / a design deviation resolved by updating the design doc. Architectural = decay worth tracking separately — see Follow-up for the fix-in-PR vs tracking-issue split.
 
 **Confidence:** dedupe at same `file:line` (keep higher-confidence wording). Sort within each category by confidence (high → low) then severity. Low-confidence stays in the report — it's signal for the human reviewer; if too speculative, move to Architectural rather than dropping.
 
@@ -90,7 +90,9 @@ These role-level constraints apply to every dispatched reviewer (built-in and pr
 
 ## Follow-up
 
-Small architectural-decay fixes can land in the current PR if they don't break tests. High-risk issues should become tracking issues, not bundled into a review-cycle PR. **`test-designer` boundary**: this skill's `test-quality` reviewer is **post-hoc** (reviews tests written + flags missing). Standalone `test-designer` skill is **TDD red-phase** (Independent Evaluation produces failing tests *before* implementation). Don't conflate.
+**Fix in this PR vs file a tracking issue.** Blocking findings are fixed before merge, every dimension, no exception. For the rest: a finding fixable *in place* without breaking tests lands in the current PR — a localized structural fix (misplaced layer, reimplementation, a lone shallow pass-through wrapper) or any non-blocking code-quality / maintainability item. A finding that needs module boundaries re-drawn becomes a tracking issue routed back to `arch-design`, never bundled into a review-cycle PR — god module, divergent change, shotgun surgery, a circular dependency spanning several modules. A design-conformance deviation splits the same way: design doc still valid → bring the code back here; implementation proved the design wrong → issue to revise the design doc.
+
+**`test-designer` boundary**: this skill's `test-quality` reviewer is **post-hoc** (reviews tests written + flags missing). Standalone `test-designer` skill is **TDD red-phase** (Independent Evaluation produces failing tests *before* implementation). Don't conflate.
 
 ## Anti-patterns
 
