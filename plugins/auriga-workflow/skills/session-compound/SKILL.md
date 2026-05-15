@@ -5,7 +5,7 @@ description: This skill should be used when the user asks to "复盘 / 总结 / 
 
 # Session Compound
 
-把单次 CLI 会话压缩成一份保存在当前目录下、可离线打开的 HTML 报告。报告分三个 tab：
+把单次 CLI 会话压缩成一份可离线打开的 HTML 报告（写到 `/tmp`，不落进项目仓库）。报告分三个 tab：
 
 - **Narrative** — 这次做了什么（时间线 + 关键反馈时刻 + Agent 撰写的叙事摘要）
 - **Health** — token / cache / 工具用量诊断
@@ -73,8 +73,10 @@ node <skill-dir>/analyzers/codex.mjs > /tmp/session-compound.json
 
 ### 步骤 3：复制模板到输出文件
 
+报告是一次性产物——写到 `/tmp`，不要放进项目目录，避免被 git 跟踪 / 误提交进用户仓库。
+
 ```sh
-cp <skill-dir>/template.html ./session-compound-$(date +%Y%m%d-%H%M).html
+cp <skill-dir>/template.html /tmp/session-compound-$(date +%Y%m%d-%H%M).html
 ```
 
 ### 步骤 4：基于数据预查 ecosystem skill
@@ -263,9 +265,9 @@ Schema：
 
 宁少勿滥。**3–8 条高价值候选** 胜过 20 条平庸候选。明显的别写——只保留**未来某次会话**会真正用到的。`skill-gap` 的标准最高，一次产出 0–2 条就够了。
 
-### 步骤 6：报告输出路径
+### 步骤 6：打开报告
 
-把保存的绝对路径报告给用户。**不要**打开它、**不要**预渲染。用户自己打开、在 Compound tab 勾选、行内编辑措辞、点 Copy，把生成的提示词粘回 Claude / Codex 那一句话就完成落库。
+替用户打开报告，并把 `/tmp` 下的绝对路径一并报告。**优先用内置浏览器**打开 `file://<绝对路径>`——不同 Agent 的内置浏览器工具不一样，用当前 Agent 可用的那个；没有内置浏览器时回退到系统命令（macOS `open <path>` / Linux `xdg-open <path>`）。**不要**预渲染候选（勾选交给用户）、**不要**把报告复制进项目仓库（它是一次性产物）。用户在 Compound tab 勾选、行内编辑措辞、点 Copy，把生成的提示词粘回 Claude / Codex 那一句话就完成落库。
 
 ---
 

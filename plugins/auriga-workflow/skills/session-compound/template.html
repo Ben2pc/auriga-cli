@@ -917,24 +917,36 @@
     return parts.join('\n\n');
   }
 
-  function buildPrompt(md) {
-    if (!md) return '';
-    return [
-      '请处理以下 session-compound 输出。每段对应一个沉淀路径，不要混淆：',
-      '',
+  // Per-type processing instructions for the copy-back prompt. buildPrompt
+  // emits only the blocks whose type is present in the current selection —
+  // shipping all three when the user picked one type wastes downstream tokens.
+  const TYPE_INSTRUCTIONS = {
+    'existing-skill': [
       '**`## existing-skill`** — 步骤 4 预查 ecosystem 时找到的可复用 skill。请直接执行每条 body 里附的 `npx -y skills add <owner/repo@skill> -a codex claude-code -y` 命令安装（`npx -y` 在前给 npx 自动升级用；`-a codex claude-code` 同时装到 codex 和 claude-code 两个 agent；末尾 `-y` 跳过 skills CLI 自己的确认）。安装成功后简短确认，无需再 scaffold 新 skill。',
-      '',
+    ],
+    'agent-md': [
       '**`## agent-md`** — 沉淀到 AGENTS.md 体系。每条 body 第一行已经声明 target（根 `AGENTS.md` / `docs/rules/<topic>.md` + 根 AGENTS.md 索引 / `<subdir>/AGENTS.md`）。按 target 把 body 里"要写入的内容"段逐字落到对应文件；target 是 `docs/rules/<topic>.md` 时同时在根 `AGENTS.md` 加索引行。若两者是软链则只写一处。',
-      '',
+    ],
+    'skill-gap': [
       '**`## skill-gap`** — 新 skill 候选。每条都已按 5 条 hard gate（多步骤 + 可重复 + 第三人称触发短语 + 可绑定资源 + ecosystem 没现成的）筛过，正文里附了触发短语 / find-skills 检查结果 / imperative 步骤 / bundled resources。请按以下顺序处理：',
       '  1. 调用 `find-skills` skill：用候选里给的关键词跑 `npx skills find` 再确认一次（候选作者的查可能不完整或过时；如果上面 `## existing-skill` 段已经覆盖了相同 query 范围，可跳过）；若发现现成可复用 skill，停在这里——把那个 skill 推荐给我，不要继续造轮子',
       '  2. 如果确认无现成可复用，调用 `skill-creator` skill 来 scaffold 新 skill。**不要直接现场写 SKILL.md**——skill-creator 会带你过完整的 capture-intent / interview / draft / test-prompts / eval 流程，并确保 description 用第三人称具体触发短语、body 用 imperative 风格、SKILL.md ≤2k 词且把细节拆到 references/（这些是 skill-development 文档的硬规范）',
       '  3. 在我确认 scope 之前不要落盘',
-      '',
-      '---',
-      '',
-      md,
-    ].join('\n');
+    ],
+  };
+
+  function buildPrompt(md) {
+    if (!md) return '';
+    const present = TYPE_ORDER.filter((t) =>
+      state.some((c) => c.selected && c.type === t),
+    );
+    const blocks = [];
+    for (const type of present) blocks.push(...TYPE_INSTRUCTIONS[type], '');
+    const intro =
+      present.length > 1
+        ? '请处理以下 session-compound 输出。每段对应一个沉淀路径，不要混淆：'
+        : '请处理以下 session-compound 输出：';
+    return [intro, '', ...blocks, '---', '', md].join('\n');
   }
 
   function updateOutputs() {
