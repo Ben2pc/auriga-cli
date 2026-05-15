@@ -50,13 +50,13 @@ describe("parseArgs", () => {
         cwd: process.cwd(),
       },
     });
-    assert.deepEqual(installArgs(["skills", "--scope", "user", "--skill", "brainstorming", "test-driven-development"]), {
+    assert.deepEqual(installArgs(["skills", "--scope", "user", "--skill", "systematic-debugging", "test-driven-development"]), {
       command: "install",
       install: {
         all: false,
         type: "skills",
         scope: "user",
-        filter: ["brainstorming", "test-driven-development"],
+        filter: ["systematic-debugging", "test-driven-development"],
       },
     });
     assert.deepEqual(installArgs(["recommended", "--recommended-skill", "codex-agent"]), {
@@ -126,17 +126,17 @@ describe("parseArgs", () => {
 
   // Covers spec §5.2 filter nargs terminator rules and the explicit `--` edge case.
   test("stops filter nargs at the next flag or explicit terminator", () => {
-    assert.deepEqual(installArgs(["skills", "--skill", "brainstorming", "systematic-debugging", "--scope", "user"]), {
+    assert.deepEqual(installArgs(["skills", "--skill", "systematic-debugging", "systematic-debugging", "--scope", "user"]), {
       command: "install",
       install: {
         all: false,
         type: "skills",
-        filter: ["brainstorming", "systematic-debugging"],
+        filter: ["systematic-debugging", "systematic-debugging"],
         scope: "user",
       },
     });
     expectParseError(
-      ["install", "skills", "--skill", "brainstorming", "--", "systematic-debugging"],
+      ["install", "skills", "--skill", "systematic-debugging", "--", "systematic-debugging"],
       /install takes one <type> at a time/i,
     );
   });
@@ -145,8 +145,8 @@ describe("parseArgs", () => {
   test("fail-fasts on illegal combinations, mismatched filters, and top-level misuse", () => {
     expectParseError(["install", "workflow", "skills"], /install takes one <type> at a time/i);
     expectParseError(["install", "--all", "recommended"], /--all is atomic; no extra types or filters/i);
-    expectParseError(["install", "--all", "--skill", "brainstorming"], /--all is atomic; no extra types or filters/i);
-    expectParseError(["install", "workflow", "--skill", "brainstorming"], /--skill requires 'install skills'/i);
+    expectParseError(["install", "--all", "--skill", "systematic-debugging"], /--all is atomic; no extra types or filters/i);
+    expectParseError(["install", "workflow", "--skill", "systematic-debugging"], /--skill requires 'install skills'/i);
     expectParseError(["install", "--recommended-skill", "codex-agent"], /--recommended-skill requires 'install recommended'/i);
     expectParseError(["install", "workflow", "--plugin", "auriga-go"], /--plugin requires 'install plugins'/i);
     expectParseError(["install", "workflow", "--hook", "notify"], /--hook requires 'install hooks'/i);
@@ -199,7 +199,7 @@ describe("parseArgs", () => {
 
   // Covers spec §7 catalog-backed validation, strict value validation, and guide arity fail-fast.
   test("validates names, language, scope, cwd, and guide arity", () => {
-    expectParseError(["install", "skills", "--skill", "foo"], /unknown skill 'foo'; available: .*brainstorming/i);
+    expectParseError(["install", "skills", "--skill", "foo"], /unknown skill 'foo'; available: .*systematic-debugging/i);
     expectParseError(["install", "recommended", "--recommended-skill", "foo"], /available: .*codex-agent/i);
     expectParseError(["install", "plugins", "--plugin", "foo"], /available: .*auriga-go/i);
     expectParseError(["install", "hooks", "--hook", "notify"], /auriga-notify/i);
@@ -239,9 +239,9 @@ describe("parseArgs", () => {
       command: "install",
       install: { all: false, type: "workflow", lang: "zh-CN", cwd: process.cwd() },
     });
-    assert.deepEqual(installArgs(["skills", "--scope=user", "--skill", "brainstorming"]), {
+    assert.deepEqual(installArgs(["skills", "--scope=user", "--skill", "systematic-debugging"]), {
       command: "install",
-      install: { all: false, type: "skills", scope: "user", filter: ["brainstorming"] },
+      install: { all: false, type: "skills", scope: "user", filter: ["systematic-debugging"] },
     });
     expectParseError(["install", "workflow", "--lang="], /--lang requires a value/i);
     expectParseError(["install", "plugins", "--scope="], /--scope requires a value/i);

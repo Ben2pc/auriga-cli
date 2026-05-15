@@ -1,11 +1,11 @@
 {
   "version": 1,
   "skills": {
-    "brainstorming": {
+    "systematic-debugging": {
       "source": "obra/superpowers",
       "sourceType": "github",
-      "skillPath": "skills/brainstorming/SKILL.md",
-      "computedHash": "hash-brainstorming-current"
+      "skillPath": "skills/systematic-debugging/SKILL.md",
+      "computedHash": "hash-systematic-debugging-current"
     },
     "test-driven-development": {
       "source": "obra/superpowers",

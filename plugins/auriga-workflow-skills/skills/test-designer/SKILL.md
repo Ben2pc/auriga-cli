@@ -37,9 +37,10 @@ The Iron Law above frames the discipline positively. These are the corresponding
 
 Collect **only these inputs** — nothing else:
 
-1. **Requirement description** — "what to do" and acceptance criteria (not "how to do")
-2. **Relevant code file paths** — read-only access to the code the feature will touch or integrate with
-3. **Edge case prompts** — categories the dispatched agent should enumerate:
+1. **Validation Contract (primary)** — `docs/specs/<topic>/validation-contract.md` from `spec-design`. The VAL list (`VAL-XXX-NNN: Behavior + Tool + Evidence`) **is the canonical contract**. Each VAL maps to one or more failing tests: pick a `Tool` category-appropriate test level and assert on the `Evidence` definition. The dispatched agent must enumerate failing tests by walking the VAL list, not by improvising behaviors of its own.
+2. **Requirement description (fallback context)** — `docs/specs/<topic>/spec.md`'s Why / Findings / What / Out of scope. Use this when a VAL's Behavior is too tight to interpret unambiguously, or when the VAL list appears incomplete (a behavior described in `spec.md` § What has no corresponding VAL). If you hit the fallback often, surface it — the spec contract is under-specified and `spec-design` should be re-invoked, not the gap papered over with improvised tests.
+3. **Relevant code file paths** — read-only access to the code the feature will touch or integrate with
+4. **Edge case prompts** — categories the dispatched agent should enumerate when VAL coverage on these axes is thin:
    - Boundary inputs (empty, max, min, off-by-one)
    - Concurrency / ordering (if applicable)
    - Resource lifecycle (cleanup on error, partial failure)
@@ -51,6 +52,8 @@ Collect **only these inputs** — nothing else:
 - Hints about which approach you've chosen
 - Code excerpts from a work-in-progress branch
 - Your own guesses about "the right way to test this"
+
+**VAL → test mapping rule:** one VAL may expand into N test assertions (1:N), never the reverse. Each generated test must trace back to a specific `VAL-XXX-NNN` id in a comment. Tests that don't trace are either (a) covering a Findings/§What item that has no VAL — surface as a `spec-design` gap, or (b) over-reach (testing implementation details) — drop them.
 
 ### Step 2: Choose the executor
 
@@ -236,7 +239,7 @@ These cover the **orchestration** of test design. Standards for individual tests
 
 ## Relationship to other skills
 
-- `brainstorming` → clarifies the requirement (upstream of `test-designer`)
+- `spec-design` → produces `validation-contract.md` (primary input) + `spec.md` (fallback context) consumed by this skill
 - `test-driven-development` → governs the red-green-refactor loop (downstream; consumes the failing tests)
 - `systematic-debugging` → kicks in if tests unexpectedly fail after implementation (downstream)
 - `verification-before-completion` → runs the tests at the "done" gate (downstream)

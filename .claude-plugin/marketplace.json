@@ -31,7 +31,7 @@
     },
     {
       "name": "auriga-workflow-skills",
-      "description": "Bundles the auriga-owned workflow execution skills: incremental-impl, test-designer, and session-compound. Dual-Agent compatible (Claude Code + Codex).",
+      "description": "Bundles the auriga-owned workflow execution skills: incremental-impl, test-designer, session-compound, and spec-design. Dual-Agent compatible (Claude Code + Codex).",
       "author": {
         "name": "Ben2pc",
         "email": "pangcheng33@gmail.com"

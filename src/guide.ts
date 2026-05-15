@@ -76,7 +76,7 @@ the legacy hooks category is currently empty; recommended skills are NOT include
 
 Targeted — single category, picking from the catalog surfaced in Step 2:
   ${cmd("npx -y auriga-cli install workflow --lang en")}
-  ${cmd("npx -y auriga-cli install skills --skill brainstorming test-driven-development")}
+  ${cmd("npx -y auriga-cli install skills --skill systematic-debugging test-driven-development")}
   ${cmd("npx -y auriga-cli install plugins --plugin skill-creator codex --scope user")}
   ${cmd("npx -y auriga-cli install plugins --agent codex --plugin session-instructions-loader")}
 

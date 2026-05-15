@@ -42,11 +42,10 @@ describe("generateCatalog (build-time)", () => {
     assert.ok(typeof catalog.generatedAt === "string" && catalog.generatedAt.length > 0);
   });
 
-  test("workflow skills exclude repo-owned skills migrated into auriga-workflow-skills", () => {
-    assert.equal(catalog.workflowSkills.length, 6);
+  test("workflow skills exclude repo-owned skills migrated into auriga-workflow-skills (and dropped retired brainstorming)", () => {
+    assert.equal(catalog.workflowSkills.length, 5);
     const names = catalog.workflowSkills.map((e) => e.name).sort();
     assert.deepEqual(names, [
-      "brainstorming",
       "planning-with-files",
       "playwright-cli",
       "systematic-debugging",

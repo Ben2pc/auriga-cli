@@ -76,7 +76,7 @@ Use your Agent's native task/todo tool. If the Agent has none, announce in natur
 
 ### Recommend next action
 
-Name the phase (in `CLAUDE.md`'s own terms) + the action or skill to invoke. Examples: "requirement clarification phase → invoke `brainstorming`", "TDD red phase → invoke `test-designer` with the spec", "formal review phase → invoke `deep-review`". The main Agent executes.
+Name the phase (in `CLAUDE.md`'s own terms) + the action or skill to invoke. Examples: "requirement clarification phase → invoke `spec-design`", "TDD red phase → invoke `test-designer` with the validation contract", "formal review phase → invoke `deep-review`". The main Agent executes.
 
 **Mandatory emissions before recommending green-phase code work** — at the TDD red phase + incremental-impl size gate named in CLAUDE.md. Both must be recorded in the task tracker as a single line each, *before* recommending any Write/Edit on production code:
 

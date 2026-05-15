@@ -24,7 +24,7 @@ Invoke for **any non-trivial implementation work**:
 
 ## Inputs
 
-- A task or spec from any planning source — built-in Plan, `planning-with-files`'s `task_plan.md`, a `brainstorming` spec under `docs/specs/`, or a task description from the user. The skill is agnostic to how the task was produced.
+- A task or spec from any planning source — built-in Plan, `planning-with-files`'s `task_plan.md`, a `spec-design` spec under `docs/specs/<topic>/`, or a task description from the user. The skill is agnostic to how the task was produced.
 - Acceptance criteria — what "done" looks like for this slice of work
 
 If acceptance criteria are missing or vague, return control to planning before continuing. Implementation needs a target.
@@ -314,7 +314,7 @@ The execution discipline above frames the rules positively. These are the corres
 
 ## Relationship to other skills
 
-- Upstream planning sources (any of) — built-in Plan, `planning-with-files`, `brainstorming`, or a direct user-given task; this skill is agnostic to the source
+- Upstream planning sources (any of) — built-in Plan, `planning-with-files`, `spec-design`, or a direct user-given task; this skill is agnostic to the source
 - `test-driven-development` — governs the red→green cycle within Step 4.1
 - `test-designer` — may produce the failing tests this skill's green phase satisfies
 - `systematic-debugging` — runs if any slice's result breaks regression

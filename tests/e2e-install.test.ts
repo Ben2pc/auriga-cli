@@ -296,7 +296,7 @@ describe(
         0,
         `install skills exited ${r.status}.\nstdout: ${r.stdout}\nstderr: ${r.stderr}`,
       );
-      assert.ok(findSkillFile(proj, "brainstorming"), "brainstorming SKILL.md missing");
+      assert.ok(findSkillFile(proj, "systematic-debugging"), "systematic-debugging SKILL.md missing");
     });
 
     test("install recommended --recommended-skill codex-agent → only codex-agent lands", { timeout: TIMEOUT }, () => {
@@ -398,18 +398,18 @@ describe(
       },
     );
 
-    test("install skills --skill brainstorming → filter actually filters (other skills absent)", { timeout: TIMEOUT }, () => {
+    test("install skills --skill systematic-debugging → filter actually filters (other skills absent)", { timeout: TIMEOUT }, () => {
       const proj = setupProject(tarballPath!);
-      const r = runCli(proj, ["install", "skills", "--skill", "brainstorming"]);
+      const r = runCli(proj, ["install", "skills", "--skill", "systematic-debugging"]);
       assert.equal(
         r.status,
         0,
-        `install skills --skill brainstorming exited ${r.status}.\nstdout: ${r.stdout}\nstderr: ${r.stderr}`,
+        `install skills --skill systematic-debugging exited ${r.status}.\nstdout: ${r.stdout}\nstderr: ${r.stderr}`,
       );
-      // brainstorming must be present — otherwise the filter-leak
+      // systematic-debugging must be present — otherwise the filter-leak
       // check below would pass vacuously if the whole install silently
       // errored out and produced no skills dir at all.
-      assert.ok(findSkillDir(proj, "brainstorming"), "brainstorming dir missing (filter test would be vacuous)");
+      assert.ok(findSkillDir(proj, "systematic-debugging"), "systematic-debugging dir missing (filter test would be vacuous)");
       // A random non-selected workflow skill must NOT be present —
       // proves the filter isn't a silent no-op that installs everything.
       assert.ok(
@@ -436,7 +436,7 @@ describe(
         const claudeMd = path.join(proj, "CLAUDE.md");
         assert.ok(fs.existsSync(claudeMd) && fs.statSync(claudeMd).size > 0, "CLAUDE.md missing/empty (workflow category)");
 
-        assert.ok(findSkillFile(proj, "brainstorming"), "brainstorming SKILL.md missing (skills category)");
+        assert.ok(findSkillFile(proj, "systematic-debugging"), "systematic-debugging SKILL.md missing (skills category)");
 
         // Plugins category: `.claude/settings.json` exists AND mentions
         // auriga-go. Gated above by CLAUDE_AVAILABLE so claude plugins
