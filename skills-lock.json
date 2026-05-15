@@ -53,7 +53,7 @@
       "source": "OthmanAdi/planning-with-files",
       "sourceType": "github",
       "skillPath": "skills/planning-with-files/SKILL.md",
-      "computedHash": "2a013f2cff21dbe6939a2336fcc6a98dab0cf1b3e97c88320258b98a76eeb850"
+      "computedHash": "bdd73f7761eb1a64d0b8e094b9d63067b256c3e146c0d2bab0afc627cedd5f56"
     },
     "playwright-cli": {
       "source": "microsoft/playwright-cli",
