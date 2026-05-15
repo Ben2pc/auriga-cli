@@ -28,7 +28,6 @@ auriga-cli/
 ├── skills-lock.json           # Skills 清单，npx skills experimental_install 消费
 ├── .agents/
 │   └── skills/
-│       ├── brainstorming/
 │       ├── systematic-debugging/
 │       ├── test-driven-development/
 │       ├── verification-before-completion/
@@ -133,7 +132,7 @@ $ npx auriga-cli
 
 ? 选择要安装的模块类型：（多选）
   ◉ Workflow — auriga 工作流 + Harness 原则 + Subagent 原则
-  ◉ Skills — 开发流程 skills（brainstorming, TDD, debugging 等）
+  ◉ Skills — 开发流程 skills（TDD, debugging, planning 等）
   ◉ Plugins — Claude Code 插件（skill-creator, hookify, codex 等）
 
 --- Workflow ---
@@ -149,14 +148,14 @@ $ npx auriga-cli
   ○ Global（用户级）
 
 ? 选择要安装的 Skills：（多选）
-  ◉ brainstorming — 需求澄清与设计探索
   ◉ systematic-debugging — 系统化调试
   ◉ test-driven-development — 测试驱动开发
+  ◉ verification-before-completion — 完成前自验证
   ...
 
-  → brainstorming: hash 一致，跳过
-  → systematic-debugging: 有更新，是否更新？[Y/n]
-  → test-driven-development: 新增
+  → systematic-debugging: hash 一致，跳过
+  → test-driven-development: 有更新，是否更新？[Y/n]
+  → verification-before-completion: 新增
   → 合并 skills-lock.json ✓
   → 执行 npx skills experimental_install ✓
 

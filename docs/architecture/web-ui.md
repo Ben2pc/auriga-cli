@@ -1,6 +1,6 @@
 # auriga-cli Web UI 设计文档（v0.1）
 
-> 状态：active spec（brainstorming 产出，待 PR Ready 时按 [Document Conventions](../../CLAUDE.md) 处置）
+> 状态：active spec（spec-design 产出，待 PR Ready 时按 [Document Conventions](../../CLAUDE.md) 处置）
 > 受众：实现该功能的工程师 / Agent
 > 语言：中文（代码、路径、字段名保留英文）
 

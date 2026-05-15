@@ -96,7 +96,7 @@ npx auriga-cli install plugins
 npx auriga-cli install hooks
 
 # 类内子项过滤
-npx auriga-cli install skills --skill brainstorming systematic-debugging
+npx auriga-cli install skills --skill test-driven-development systematic-debugging
 npx auriga-cli install plugins --plugin auriga-go
 npx auriga-cli install plugins --plugin auriga-notify
 npx auriga-cli install recommended --recommended-skill codex-agent
@@ -194,7 +194,7 @@ legacy empty category; recommended is NOT included):
 
 Targeted — single category:
   npx -y auriga-cli install workflow --lang en
-  npx -y auriga-cli install skills --skill brainstorming test-driven-development
+  npx -y auriga-cli install skills --skill systematic-debugging test-driven-development
   npx -y auriga-cli install plugins --plugin skill-creator codex --scope user
   npx -y auriga-cli install plugins --plugin auriga-notify
 
@@ -303,7 +303,6 @@ CATALOG (what each category contains)
 ──────────────────────────────────────────────────────
 
 Workflow skills (category: skills)  ← installed by --all
-  brainstorming                  Clarify requirements via dialogue before coding
   planning-with-files            Manus-style file-based planning for complex tasks
   playwright-cli                 Browser automation & testing verification
   systematic-debugging           Find root cause before fixing bugs
@@ -492,7 +491,7 @@ exit 2
 ```json
 {
   "generatedAt": "2026-04-21T...",
-  "workflowSkills": [{ "name": "brainstorming", "description": "..." }, ...],
+  "workflowSkills": [{ "name": "systematic-debugging", "description": "..." }, ...],
   "recommendedSkills": [{ "name": "claude-code-agent", "description": "..." }, ...],
   "plugins": [{ "name": "auriga-go", "description": "..." }, ...],
   "hooks": []
@@ -634,7 +633,7 @@ README 更新：
 
 在一个干净项目里、`claude -p --worktree` session 跑 `npx auriga-cli install --all` 后，**不退出 session**，紧接着：
 
-- 触发一个 skill（例：`/brainstorming` 或描述型触发），看能否识别
+- 触发一个 skill（例：`/systematic-debugging` 或描述型触发），看能否识别
 - 读 `CLAUDE.md`（`cat CLAUDE.md`），看 Agent 是否能感知新内容影响工作流
 - 跑一个依赖 plugin 的触发（例：`/auriga-go`），看 plugin 是否已注册
 
@@ -658,7 +657,7 @@ README 更新：
 - [ ] `npx auriga-cli guide foo` 任意参数 exit 1
 - [ ] `npx auriga-cli install --all` 在非 TTY 下装好 workflow / skills / plugins / hooks（不含 recommended）；成功输出末尾含 reload 提醒
 - [ ] `npx auriga-cli install workflow --lang zh-CN` 装中文 CLAUDE.md
-- [ ] `npx auriga-cli install skills --skill brainstorming test-driven-development` 只装两个 skill
+- [ ] `npx auriga-cli install skills --skill systematic-debugging test-driven-development` 只装两个 skill
 - [ ] `npx auriga-cli install`（TTY 无参）进 checkbox 菜单（现状行为）
 - [ ] `npx auriga-cli install`（非 TTY 无参）exit 1 + 正确错误串
 - [ ] `npx auriga-cli`（无参、TTY）进 checkbox 菜单（沿用现状，与 `install` 无参等价）
