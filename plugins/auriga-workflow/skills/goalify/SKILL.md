@@ -21,6 +21,10 @@ goalify 是**需求已经明确之后**用来驱动长程任务的工具——�
 
 **与 `incremental-impl` 的边界**：incremental-impl 管"怎么切片 + 切片内的纪律"；goalify 管"把一段已切好的、方向明确的长程工作打包成连续执行的 /goal 文本"。两者可以串联：incremental-impl 出 slice 计划 → goalify 把整个 slice 序列写成 /goal 文本 → 用户粘贴启动。
 
+## 选了 goalify 不等于跳过 plan
+
+用户在规划阶段选择 goalify，不代表跳过 plan。goalify 只是把工作交给自驱的 `/goal` 运行，那段运行中没有交互提示可用——所以**规划方式由 agent 自己定**：agent 自行判断该用内置 Plan、`planning-with-files`，还是先跑 `arch-design` 出架构设计，把选定的方式连同切片计划一起写进 `/goal` 文本再启动。换句话说，选 goalify 是把"怎么 plan、怎么往下推进"的决定权交给 agent 自驱完成，而不是取消这个决定。
+
 ## 输入来源
 
 优先从 `spec-design` 产出的 spec 包里取信息，两份文件都要看：
