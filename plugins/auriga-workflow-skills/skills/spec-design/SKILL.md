@@ -66,7 +66,7 @@ A. Discover   →  B. Decide & Design  →  C. Write   →  D. Gate & Handoff
 **A1. Pre-research + ingest + audit.**
 Before any clarification question:
 
-- Read repo entry points: `README.md`, `CLAUDE.md`, the relevant `docs/` subdirectories, recent commits via `git log`
+- Read repo entry points in this priority order: `AGENTS.md` and `CLAUDE.md` first (agent-facing source of truth), then the relevant `docs/` subdirectories, then recent commits via `git log`. Read `README.md` only when neither `AGENTS.md` nor `CLAUDE.md` exists (README is human-oriented and may be promotional or out of date relative to the agent contract).
 - If the user gave file paths / commits / issue numbers, *open them* — do not paraphrase
 - If the input is one of modes 2–4 (HTML / PRD / Figma), extract the key visible elements into a draft `## Findings` section
 - If the input is mode 5 (user-supplied spec), run the audit checklist below; any missing item becomes a Q in A2
@@ -118,7 +118,7 @@ If the user picks playground and provides reject/comment feedback prompts, parse
 
 **D3. Handoff.** Apply the scope triage in `CLAUDE.md`:
 - All three QDF predicates hold (single module, AC ≤ 5, no cross-boundary interface) → skip plan, go directly to Pre-coding / branch creation
-- Otherwise → invoke writing-plans / `planning-with-files` / built-in Plan to set the implementation strategy
+- Otherwise → hand off to the user's chosen plan-stage tool (built-in Plan, `planning-with-files`, or any downstream planning skill the user picks). Do not hardcode a specific plan-stage skill name; the workflow CLAUDE.md owns that decision.
 
 ## User-supplied spec audit
 
@@ -132,68 +132,15 @@ When the user says "here's my spec", verify each item below. Anything missing be
 
 ## Templates
 
-### spec.md
+The three Phase-C output templates live beside this file under `references/templates.md`:
 
-```markdown
-# <feature> — Spec
+- `spec.md` — Why / Findings / What / Out of scope / Open questions (+ References)
+- `validation-contract.md` — Coverage map + Assertions with `VAL-<CATEGORY>-<NNN>` numbering
+- `umbrella.md` — only emitted when B0 decomposition triggers (Sub-specs table + Slicing axis)
 
-> One-sentence elevator pitch (optional but recommended).
+Read `references/templates.md` before writing any Phase-C file. The skill body keeps the *intent* (what each section is for) but the *shape* (exact headings, placeholders, table layouts) is canonical there — copy the relevant block into `docs/specs/<topic>/<file>.md` and replace each `<placeholder>`.
 
-## Why
-<1–4 paragraphs: motivation, pain we're addressing, the inspiration / prior art if any.>
-
-## Findings
-<Bulleted past-facing observations from A1 research. Each bullet anchors to a specific source: file path, commit, doc, external URL.>
-
-## What
-<The external behavior contract. May be multiple subsections (### 1. …, ### 2. …) when the surface is broader than one cohesive concept. Stay above the implementation line.>
-
-## Out of scope
-<Explicit "this spec is not doing X / Y" list, with brief reason where useful.>
-
-## Open questions
-<What this spec leaves for plan / impl phase to resolve. Numbered list.>
-
-## References  (optional — required when any URL was supplied during clarification)
-<Bulleted external links + when they were supplied + their relevance to the design.>
-```
-
-### validation-contract.md
-
-```markdown
-# Validation Contract — <feature>
-
-> Pairs with spec.md. spec.md = why+what; this file = how-to-judge-pass.
-> Each VAL describes Behavior + Tool + Evidence only. Test design (function organization, fixtures, mocks) is `test-designer`'s job.
-
-## Coverage map
-| Range | VAL ids |
-|---|---|
-| <subject> | VAL-<CAT>-NNN ~ NNN |
-
-## Assertions
-
-### VAL-CAT-001
-- **Behavior**: <one sentence; external-observable, single-meaning>
-- **Tool**: <one entry from the tool vocabulary below>
-- **Evidence**: <what counts as a pass — exit code / regex / file existence / screenshot diff>
-```
-
-VAL numbering: `VAL-<CATEGORY>-<NNN>`. `CATEGORY` is a 3–5 letter uppercase tag (WORK / DEP / UI / CLI / …). `NNN` is zero-padded. Reuse a category across many VALs when they share a domain.
-
-### umbrella.md (decomposition only)
-
-```markdown
-# <feature> — umbrella
-
-## Sub-specs
-| Order | Sub-spec | Key VAL range | Status |
-|---|---|---|---|
-| 1 | `docs/specs/<feature-1>/` | VAL-X-001..NNN | spec / impl / merged |
-
-## Slicing axis
-<Walking Skeleton / By risk / Horizontal sweep / Branch by Abstraction / Vertical slice>. Why this axis fits.
-```
+VAL numbering convention applies wherever VALs are written: `VAL-<CATEGORY>-<NNN>`. `CATEGORY` is a 3–5 letter uppercase tag (`WORK` / `DEP` / `UI` / `CLI` / …). `NNN` is zero-padded. Reuse a category across many VALs when they share a domain; do not skip numbers (gaps imply deleted assertions and break grep-based traceability).
 
 ## Size gate for spec decomposition
 
@@ -262,7 +209,7 @@ Look from a downstream consumer's seat (test-designer, planner, you-in-a-month).
 
 - `test-designer` — consumes `validation-contract.md` as primary input (with `spec.md` prose as fallback context); writes failing tests
 - `incremental-impl` — picks up the same slicing-axis vocabulary chosen at B0; takes spec + plan into per-slice execution
-- `writing-plans` / `planning-with-files` / built-in Plan — downstream of D3 when scope triage says full plan path
+- Plan-stage tooling (built-in Plan, `planning-with-files`, or any planning skill the workflow CLAUDE.md names) — downstream of D3 when scope triage says full plan path
 - `deep-review`'s `spec-conformance` reviewer — validates PR diff against the VAL list; findings tag `VAL-XXX-NNN`
 - `playground:playground` (Anthropic official, soft dependency) — D1.5 review aid via `document-critique` template
 - `goalify` — once this skill's spec is settled, `goalify` consumes spec.md + validation-contract.md to package the long-running execution into a `/goal` script (autonomous continuous run, e.g. "drive this to PR Ready"). Out of band: not auto-invoked here; the user invokes it when they want unattended execution of an already-clarified requirement
