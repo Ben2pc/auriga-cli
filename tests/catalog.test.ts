@@ -55,12 +55,11 @@ describe("generateCatalog (build-time)", () => {
     assertEntriesShape(catalog.workflowSkills, "workflowSkills");
   });
 
-  test("recommended skills: 8 entries (cross-model delegators + frontend skills + code-simplification + deprecation-and-migration + documentation-and-adrs)", () => {
-    assert.equal(catalog.recommendedSkills.length, 8);
+  test("recommended skills: 7 entries (cross-model delegators + frontend skills + deprecation-and-migration + documentation-and-adrs)", () => {
+    assert.equal(catalog.recommendedSkills.length, 7);
     const names = catalog.recommendedSkills.map((e) => e.name).sort();
     assert.deepEqual(names, [
       "claude-code-agent",
-      "code-simplification",
       "codex-agent",
       "deprecation-and-migration",
       "design-taste-frontend",
