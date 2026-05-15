@@ -1,6 +1,6 @@
 {
   "name": "auriga-cli",
-  "version": "1.23.0",
+  "version": "1.24.0",
   "description": "Interactive CLI to install Claude Code harness modules (Workflow, Skills, Recommended Skills, Plugins, Hooks)",
   "license": "MIT",
   "repository": {
