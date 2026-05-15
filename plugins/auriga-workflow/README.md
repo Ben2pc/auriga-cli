@@ -35,9 +35,11 @@ claude plugins marketplace add Ben2pc/auriga-cli
 claude plugins install auriga-workflow@auriga-cli
 ```
 
-For Codex:
+For Codex, register the marketplace:
 
 ```bash
 codex plugin marketplace add https://github.com/Ben2pc/auriga-cli.git
-codex plugin install auriga-workflow@auriga-cli
 ```
+
+Then enable `auriga-workflow` from the Codex plugin directory. The Codex alpha
+also accepts `codex plugin add auriga-workflow@auriga-cli` directly.
