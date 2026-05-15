@@ -2,7 +2,7 @@
 
 主文档讲的是判断准则和流程,这份参考是**具体的简化前后对照**——TypeScript / JavaScript、Python、React。
 
-这些是模式示例,不是规则:**先跟随项目约定**(主文档铁律三)。同样的简化,在一个代码库里是改进,在另一个里可能违反既有风格——以代码库里邻近的写法为准。
+这些是模式示例,不是规则:**先跟随项目约定**(主文档铁律「跟随项目约定」)。同样的简化,在一个代码库里是改进,在另一个里可能违反既有风格——以代码库里邻近的写法为准。
 
 ## TypeScript / JavaScript
 
@@ -52,7 +52,7 @@ function isValid(input: string): boolean {
   return input.length > 0 && input.length < 100;
 }
 
-// 简化:密集的三元链 —— 清晰胜于聪明(主文档铁律六)
+// 简化:密集的三元链 —— 清晰胜于聪明(主文档铁律「清晰胜于聪明」)
 // 前
 const label = isNew ? 'New' : isUpdated ? 'Updated' : isArchived ? 'Archived' : 'Active';
 // 后
