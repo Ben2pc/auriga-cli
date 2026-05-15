@@ -589,17 +589,26 @@ function commandErrorText(error: unknown): string {
   return parts.join("\n");
 }
 
-function escapeRegex(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
-function isCodexMarketplaceAlreadyAdded(error: unknown, marketplaceName: string): boolean {
-  const text = commandErrorText(error);
-  const marketplacePattern = new RegExp(
-    `marketplace ['"]?${escapeRegex(marketplaceName)}['"]? is already added`,
-    "i",
-  );
-  return marketplacePattern.test(text);
+// Codex CLI records every added marketplace as `[marketplaces.<name>]` in
+// `~/.codex/config.toml`. The presence of that table is the authoritative
+// signal that the marketplace is already added — Codex's `add` command is
+// silently idempotent for an already-added marketplace (exit 0, prints to
+// stdout, no error) so the install path cannot rely on `add` failing to
+// detect the already-added case. Read this table to decide upfront whether
+// to call `add` (new marketplace) or `upgrade` (already registered).
+function isCodexMarketplaceRegistered(marketplaceName: string): boolean {
+  const configPath = path.join(codexHome(), "config.toml");
+  if (!fs.existsSync(configPath)) return false;
+  try {
+    const parsed = parseToml(fs.readFileSync(configPath, "utf-8")) as TomlTable;
+    const marketplaces = parsed.marketplaces;
+    if (typeof marketplaces !== "object" || marketplaces === null || Array.isArray(marketplaces)) {
+      return false;
+    }
+    return marketplaceName in (marketplaces as Record<string, unknown>);
+  } catch {
+    return false;
+  }
 }
 
 function isCodexMarketplaceDifferentSource(error: unknown): boolean {
@@ -820,31 +829,29 @@ async function addCodexMarketplaceWithRetry(
   marketplaceExecOpts: { inherit: true } | undefined,
   failures: string[],
 ): Promise<void> {
+  if (isCodexMarketplaceRegistered(marketplaceName)) {
+    try {
+      exec(codexMarketplaceUpgradeCommand(marketplaceName), marketplaceExecOpts);
+      log.ok(`Codex marketplace ${marketplaceName} upgraded`);
+    } catch (e) {
+      // Surface the underlying upgrade error so a 6-month-out reader
+      // can tell apart ENOENT / network / auth / git failures.
+      log.error(
+        `Failed to upgrade Codex marketplace: ${marketplaceName}\n${commandErrorText(e)}`,
+      );
+      failures.push(`codex marketplace ${marketplaceName}`);
+    }
+    return;
+  }
   try {
     exec(addCommand, marketplaceExecOpts);
     log.ok(`Codex marketplace ${marketplaceName} added`);
-    return;
   } catch (e) {
     if (isCodexMarketplaceDifferentSource(e)) {
       const msg = `Codex marketplace ${marketplaceName} is already added from a different source`;
       log.error(`${msg}\n${commandErrorText(e)}`);
       failures.push(msg);
       return;
-    }
-    if (isCodexMarketplaceAlreadyAdded(e, marketplaceName)) {
-      try {
-        exec(codexMarketplaceUpgradeCommand(marketplaceName), marketplaceExecOpts);
-        log.ok(`Codex marketplace ${marketplaceName} upgraded`);
-        return;
-      } catch (upgradeErr) {
-        // Surface the underlying upgrade error so a 6-month-out reader
-        // can tell apart ENOENT / network / auth / git failures.
-        log.error(
-          `Failed to upgrade Codex marketplace: ${marketplaceName}\n${commandErrorText(upgradeErr)}`,
-        );
-        failures.push(`codex marketplace ${marketplaceName}`);
-        return;
-      }
     }
     // Same: surface the add error rather than masking ENOENT / network / auth.
     log.error(
