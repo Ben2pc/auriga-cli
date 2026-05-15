@@ -77,6 +77,30 @@ describe("spec-design skill — repo-check VALs", () => {
     );
   });
 
+  test("validation-contract-template.md ships the ## Toolchain section", () => {
+    const text = read(
+      "plugins/auriga-workflow/skills/spec-design/references/validation-contract-template.md",
+    );
+    assert.ok(
+      text.includes("## Toolchain"),
+      "validation-contract template must include a ## Toolchain section",
+    );
+  });
+
+  test("spec-template.md Open questions placeholder requires a deferral owner and reason", () => {
+    const text = read(
+      "plugins/auriga-workflow/skills/spec-design/references/spec-template.md",
+    );
+    assert.ok(
+      text.includes("## Open questions"),
+      "spec template must keep the Open questions section",
+    );
+    assert.ok(
+      /name its owner/i.test(text) && /defer/i.test(text),
+      "Open questions placeholder must require a named owner and a deferral reason",
+    );
+  });
+
   test("VAL-DEP-001: CLAUDE.md (both languages) reference spec-design and not brainstorming", () => {
     for (const f of ["CLAUDE.md", "CLAUDE.zh-CN.md"]) {
       const text = read(f);

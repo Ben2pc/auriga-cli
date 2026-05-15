@@ -5,7 +5,7 @@ Copy this template into `docs/specs/<topic>/spec.md` and replace each `<placehol
 
 **Language rule / 语言规则**: section headers below are bilingual (English anchor + 中文 hint) and must be kept verbatim — tooling and reviewers grep on the English anchors. **Body content (the prose under each header) must be written in the user's conversation language.** If the conversation is in Chinese, write the Why / Findings / What sections in Chinese; if English, in English. Do not mix.
 
-Do not strip optional sections (`References`, `Findings` when sparse) — leave a one-line "none / 无" if genuinely absent so future readers don't wonder whether the section was simply forgotten.
+Do not strip optional sections (`References`, `Findings` when sparse, `Open questions`) — leave a one-line "none / 无" if genuinely absent so future readers don't wonder whether the section was simply forgotten. For `Open questions`, an empty "无" is a normal and common outcome for a well-clarified spec — not a sign of unfinished work.
 
 ```markdown
 # <feature> — Spec (<功能> — 规范)
@@ -29,8 +29,8 @@ Do not strip optional sections (`References`, `Findings` when sparse) — leave 
 <显式列出"本 spec 不做 X / Y"，必要时附简短理由。>
 
 ## Open questions (悬而未决)
-<What this spec leaves for plan / impl phase to resolve. Numbered list.>
-<本 spec 留给 plan / 实现阶段决定的问题。编号列表。>
+<Decisions this spec DELIBERATELY defers to plan / impl. NOT a parking lot for unresolved requirement ambiguity — if a question is about "what the user wants" and is still unanswered, it goes back to the A2 clarification loop, not here. Each entry MUST name its owner (plan / impl) and why it is deferred; if you cannot state both, it is not an open question. Numbered list; write "无" if there are none — that is a normal outcome.>
+<本 spec **有意**留给 plan / 实现阶段决定的问题。不是未澄清需求歧义的停车场——若问题是关于"用户想要什么"且尚未回答，回 A2 澄清循环，不写这里。每条**必须**写明归属（plan / impl）与推迟理由；两者都写不出，就不算悬而未决项。编号列表；没有则写"无"——这是正常结果。>
 
 ## References (参考资料 — optional / 可选；required when any URL was supplied during clarification / 澄清期间用户给过任何外链时必填)
 <Bulleted external links + when they were supplied + their relevance to the design.>

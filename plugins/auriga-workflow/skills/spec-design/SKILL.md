@@ -99,7 +99,7 @@ Estimate whether this needs decomposition (see `## Size gate`). If any signal tr
 
 **C1.** Author `docs/specs/<topic>/spec.md` per `references/spec-template.md`.
 
-**C2.** Author `docs/specs/<topic>/validation-contract.md` per `references/validation-contract-template.md`. Anti-pattern check: each VAL must say *what* counts as a pass, not *how* to test it — the latter is `test-designer`'s job.
+**C2.** Author `docs/specs/<topic>/validation-contract.md` per `references/validation-contract-template.md`. Anti-pattern check: each VAL must say *what* counts as a pass, not *how* to test it — the latter is `test-designer`'s job. Fill the `## Toolchain` table from A1 research (the repo's concrete tool per category) so the toolchain finding is carried forward instead of re-discovered downstream.
 
 **C2.5.** If B0 triggered decomposition, author `docs/specs/<topic>/umbrella.md` per `references/umbrella-template.md`.
 
@@ -185,6 +185,8 @@ VAL `Tool` field must pick one of the **categories** below — never name a spec
 | `build` | Build artifact correctness (tsc / npm pack / artifact shape) |
 | `manual` | Human verification only; must state "what counts as a pass" |
 
+The per-VAL `Tool` field stays a **category** — that keeps it grep-able and keeps the assertion implementation-agnostic. The repo's **concrete** tool for each category (which test runner, which browser driver, which build command) is a fact gathered during A1 research, not an implementation decision for this feature — record it **once** in the `## Toolchain` table of `validation-contract.md`, not per VAL. This carries the toolchain finding forward so `test-designer` can target the right runner / driver without re-inferring it (it still scans existing tests for fixture and naming conventions), and resolves real ambiguity inside a category (e.g. `e2e-browser` → Browser Use vs Playwright vs Chrome MCP, which have different evidence shapes). Only fill Toolchain rows for categories the contract's VALs actually use.
+
 ## Handoff review checklist (D1)
 
 Look from a downstream consumer's seat (test-designer, planner, you-in-a-month). Fix in place — do not redo.
@@ -193,8 +195,10 @@ Look from a downstream consumer's seat (test-designer, planner, you-in-a-month).
 - [ ] Why is intelligible to a blank-context agent
 - [ ] Each VAL's Behavior is single-meaning (two implementations cannot both rationalize a pass)
 - [ ] No VAL says how to test, only what counts as a pass
+- [ ] `validation-contract.md` has a `## Toolchain` table covering every category its VALs use, each row naming a concrete tool observed in A1 research (the repo's existing harness, not a design decision)
 - [ ] Out of scope covers everything that "looks like it should be in" but isn't
 - [ ] No What ↔ VAL contradiction
+- [ ] Open questions contains only deliberately-deferred downstream decisions, each with a named owner (plan / impl) and a stated reason — no unresolved requirement ambiguity hiding there
 - [ ] If decomposed, umbrella.md gives a complete overview without opening sub-specs
 
 ## Anti-patterns
@@ -204,6 +208,9 @@ Look from a downstream consumer's seat (test-designer, planner, you-in-a-month).
 - ❌ Writing implementation hints into `spec.md` ("we'll add a function `validateX` in `utils.ts`")
 - ❌ VALs that describe test mechanics ("call `assertEquals(parse(s), …)`") — those belong in test-designer
 - ❌ Padding VAL count to look thorough — fewer well-formed VALs beat many vague ones
+- ❌ Naming a concrete tool in a per-VAL `Tool` field — the concrete tool belongs once in the `## Toolchain` table
+- ❌ Manufacturing fake Open questions to fill the section — "无" is a valid and common result for a well-clarified spec
+- ❌ Dumping unresolved requirement ambiguity into Open questions instead of resolving it in the A2 loop — Open questions is for deliberately-deferred downstream decisions only
 - ❌ Accepting a user-supplied spec without running the audit
 - ❌ Skipping D1.5 silently — the option to review must be presented; the user may then skip
 - ❌ Splitting a small spec into sub-specs to look organized — the size gate is the gate

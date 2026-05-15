@@ -92,7 +92,9 @@ existing test conventions>
 Before drafting any test:
 1. Read the code paths; identify the public API / observable behavior surface.
 2. Scan existing test files in the repo; match their framework, runner,
-   fixture pattern, and naming style.
+   fixture pattern, and naming style. If `validation-contract.md` ships a
+   `## Toolchain` table, take the runner / driver from it and confirm by
+   scanning, rather than re-inferring the stack from scratch.
 3. Enumerate behaviors to be tested across the 5 scenario categories
    (happy / empty / boundary / error / concurrency).
 
