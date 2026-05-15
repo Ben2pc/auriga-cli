@@ -132,13 +132,15 @@ When the user says "here's my spec", verify each item below. Anything missing be
 
 ## Templates
 
-The three Phase-C output templates live beside this file under `references/templates.md`:
+The three Phase-C output templates each live in their own file beside this skill:
 
-- `spec.md` — Why / Findings / What / Out of scope / Open questions (+ References)
-- `validation-contract.md` — Coverage map + Assertions with `VAL-<CATEGORY>-<NNN>` numbering
-- `umbrella.md` — only emitted when B0 decomposition triggers (Sub-specs table + Slicing axis)
+| Output file | Template | When to use |
+|---|---|---|
+| `docs/specs/<topic>/spec.md` | `references/spec-template.md` | Always (Phase C1) |
+| `docs/specs/<topic>/validation-contract.md` | `references/validation-contract-template.md` | Always (Phase C2) |
+| `docs/specs/<topic>/umbrella.md` | `references/umbrella-template.md` | Only when B0 decomposition triggered (Phase C2.5) |
 
-Read `references/templates.md` before writing any Phase-C file. The skill body keeps the *intent* (what each section is for) but the *shape* (exact headings, placeholders, table layouts) is canonical there — copy the relevant block into `docs/specs/<topic>/<file>.md` and replace each `<placeholder>`.
+Read the relevant template file before writing the corresponding Phase-C output. The skill body keeps the *intent* (what each section is for); the *shape* (exact headings, placeholders, table layouts, numbering conventions) is canonical in the template files. Copy the template block into `docs/specs/<topic>/<file>.md` and replace each `<placeholder>`.
 
 VAL numbering convention applies wherever VALs are written: `VAL-<CATEGORY>-<NNN>`. `CATEGORY` is a 3–5 letter uppercase tag (`WORK` / `DEP` / `UI` / `CLI` / …). `NNN` is zero-padded. Reuse a category across many VALs when they share a domain; do not skip numbers (gaps imply deleted assertions and break grep-based traceability).
 
