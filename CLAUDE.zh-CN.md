@@ -18,7 +18,7 @@
 
 9. PR就绪：在验证完成、基准分支确认无误，并且 PR 描述已补全五要素——变更范围、验收标准、设计决策、风险、剩余 TODO 之前，保持 PR 为 Draft。完成这些条件后，将 PR 标记为 Ready for Review。如果 `spec-design`、`arch-design` 或 `planning-with-files` 产生了设计文档（`spec.md`、`arch_design.md`）、findings.md、progress.md、task_plan.md 等产物，用 `AskUserQuestion` 询问用户：删除还是存档到 `docs/worklog/worklog-<YYYY-MM-DD>-<分支名>/` 目录下便于回溯。
 
-10. PR评审：Draft PR 阶段可以先获取早期反馈。PR 标记为 Ready for Review 后，正式 review 必须通过 `deep-review` plugin（其中打包了 `deep-review` skill）发起。`/review` 保留作为轻量 fallback。**评审 Agent 必须报告所有 finding 并附 severity + confidence，不要按重要性预过滤**——强推理模型会字面执行 "only report high-severity" 类指令，导致真实 bug 召回下降；过滤交给人来做。
+10. PR评审：Draft PR 阶段可以先获取早期反馈。PR 标记为 Ready for Review 后，正式 review 必须通过 `deep-review` skill（打包在 `auriga-workflow` 插件中）发起。`/review` 保留作为轻量 fallback。**评审 Agent 必须报告所有 finding 并附 severity + confidence，不要按重要性预过滤**——强推理模型会字面执行 "only report high-severity" 类指令，导致真实 bug 召回下降；过滤交给人来做。
 
 11. 合并后复利：PR 合并完成的那一刻，用 `AskUserQuestion` 主动询问用户是否运行 `session-compound` skill。该 skill 把本次会话沉淀为自包含的交互式 HTML 报告（叙事时间线 + token / cache / 工具健康度 + playground 面板，列出生态 skill 安装、AGENTS.md 修改、缺失 skill 等可勾选候选项），让本次会话的洞察落到对的位置，而不是合并完就蒸发。每次合并询问一次；不要静默执行，用户拒绝后也不要反复追问。
 

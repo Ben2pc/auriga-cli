@@ -97,7 +97,7 @@ npx auriga-cli install hooks
 
 # 类内子项过滤
 npx auriga-cli install skills --skill test-driven-development systematic-debugging
-npx auriga-cli install plugins --plugin auriga-go
+npx auriga-cli install plugins --plugin auriga-workflow
 npx auriga-cli install plugins --plugin auriga-notify
 npx auriga-cli install recommended --recommended-skill codex-agent
 
@@ -314,15 +314,13 @@ Recommended skills (category: recommended)  ← NOT installed by --all
   codex-agent                    Delegate tasks to Codex CLI
 
 Plugins (category: plugins)
-  auriga-go                      Workflow autopilot — drives CLAUDE.md workflow forward
+  auriga-workflow                Bundled auriga-owned workflow skills (incl. deep-review, goalify)
   auriga-git-guards              Git lifecycle guardrails: commit-reminder + PR-create + PR-ready (Claude Code + Codex)
-  auriga-workflow-skills         Bundled auriga-owned execution skills
   auriga-notify                  (opt-in) macOS Notification hook plugin
   session-instructions-loader    Inject ancestor AGENTS.md + extra files on Codex SessionStart
   skill-creator                  Create / modify / measure skills
   claude-md-management           Audit & improve CLAUDE.md files
   codex                          Codex CLI integration (rescue, review, delegation)
-  deep-review                    Multi-dimensional PR review (parallel reviewers + punch list)
 
 Hooks (category: hooks)
   (none)                         Legacy category; repo-owned hooks ship as plugins
@@ -493,7 +491,7 @@ exit 2
   "generatedAt": "2026-04-21T...",
   "workflowSkills": [{ "name": "systematic-debugging", "description": "..." }, ...],
   "recommendedSkills": [{ "name": "claude-code-agent", "description": "..." }, ...],
-  "plugins": [{ "name": "auriga-go", "description": "..." }, ...],
+  "plugins": [{ "name": "auriga-workflow", "description": "..." }, ...],
   "hooks": []
 }
 ```
@@ -635,7 +633,7 @@ README 更新：
 
 - 触发一个 skill（例：`/systematic-debugging` 或描述型触发），看能否识别
 - 读 `CLAUDE.md`（`cat CLAUDE.md`），看 Agent 是否能感知新内容影响工作流
-- 跑一个依赖 plugin 的触发（例：`/auriga-go`），看 plugin 是否已注册
+- 跑一个依赖 plugin 的触发（例：`/deep-review`），看 plugin 是否已注册
 
 **三种可能分支：**
 

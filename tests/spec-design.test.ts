@@ -18,17 +18,17 @@ describe("spec-design skill — repo-check VALs", () => {
   test("VAL-DEP-003: SKILL.md exists at plugin-bundled path", () => {
     const p = path.join(
       repoRoot,
-      "plugins/auriga-workflow-skills/skills/spec-design/SKILL.md",
+      "plugins/auriga-workflow/skills/spec-design/SKILL.md",
     );
     assert.ok(fs.existsSync(p), `expected SKILL.md at ${p}`);
   });
 
   test("VAL-DEP-003: plugin manifest versions match (Claude + Codex)", () => {
     const claude = JSON.parse(
-      read("plugins/auriga-workflow-skills/.claude-plugin/plugin.json"),
+      read("plugins/auriga-workflow/.claude-plugin/plugin.json"),
     );
     const codex = JSON.parse(
-      read("plugins/auriga-workflow-skills/.codex-plugin/plugin.json"),
+      read("plugins/auriga-workflow/.codex-plugin/plugin.json"),
     );
     assert.equal(
       claude.version,
@@ -39,7 +39,7 @@ describe("spec-design skill — repo-check VALs", () => {
 
   test("SKILL.md frontmatter has name and description", () => {
     const text = read(
-      "plugins/auriga-workflow-skills/skills/spec-design/SKILL.md",
+      "plugins/auriga-workflow/skills/spec-design/SKILL.md",
     );
     assert.match(text, /^---[\s\S]*?\nname:\s*spec-design\s*\n/);
     assert.match(text, /\ndescription:\s*[^\s].+\n/);
@@ -47,7 +47,7 @@ describe("spec-design skill — repo-check VALs", () => {
 
   test("SKILL.md covers the 4 phases (A/B/C/D) of the spec", () => {
     const text = read(
-      "plugins/auriga-workflow-skills/skills/spec-design/SKILL.md",
+      "plugins/auriga-workflow/skills/spec-design/SKILL.md",
     );
     for (const phase of [
       "Phase A — Discover",
@@ -64,7 +64,7 @@ describe("spec-design skill — repo-check VALs", () => {
 
   test("SKILL.md documents the D1.5 review-aid three-way (skip / playground / static HTML)", () => {
     const text = read(
-      "plugins/auriga-workflow-skills/skills/spec-design/SKILL.md",
+      "plugins/auriga-workflow/skills/spec-design/SKILL.md",
     );
     assert.ok(text.includes("D1.5"), "must reference D1.5");
     assert.ok(
@@ -113,7 +113,7 @@ describe("spec-design skill — repo-check VALs", () => {
 
   test("VAL-DEP-004: test-designer SKILL.md mentions validation-contract.md as input", () => {
     const text = read(
-      "plugins/auriga-workflow-skills/skills/test-designer/SKILL.md",
+      "plugins/auriga-workflow/skills/test-designer/SKILL.md",
     );
     assert.ok(
       text.includes("validation-contract.md"),
@@ -127,7 +127,7 @@ describe("spec-design skill — repo-check VALs", () => {
 
   test("VAL-DEP-009: deep-review spec-conformance reviewer requires VAL tagging", () => {
     const text = read(
-      "plugins/deep-review/skills/deep-review/references/reviewers/spec-conformance.md",
+      "plugins/auriga-workflow/skills/deep-review/references/reviewers/spec-conformance.md",
     );
     assert.ok(
       text.includes("validation-contract.md"),
@@ -140,7 +140,7 @@ describe("spec-design skill — repo-check VALs", () => {
   });
 
   test("VAL-DEP-007: goalify SKILL.md documents spec-design inputs", () => {
-    const text = read("plugins/auriga-go/skills/goalify/SKILL.md");
+    const text = read("plugins/auriga-workflow/skills/goalify/SKILL.md");
     assert.ok(
       text.includes("spec.md") && text.includes("validation-contract.md"),
       "goalify must list both spec source files",

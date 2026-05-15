@@ -47,7 +47,7 @@ export interface ApplyHandlerContext {
   cwd: string;
   /** Resolves plugin name → the list of agents this plugin can install
    *  into. Built at boot from the same scan catalog the /api/state route
-   *  uses. dual-Agent plugins (e.g. `auriga-go`) yield `["claude","codex"]`
+   *  uses. dual-Agent plugins (e.g. `auriga-workflow`) yield `["claude","codex"]`
    *  and the handler iterates the list, installing to each agent in turn.
    *  Names not in the map default to `["claude"]` (existing CLI default). */
   pluginAgentsByName: Map<string, ("claude" | "codex")[]>;

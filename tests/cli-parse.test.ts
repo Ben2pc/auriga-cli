@@ -67,13 +67,13 @@ describe("parseArgs", () => {
         filter: ["codex-agent"],
       },
     });
-    assert.deepEqual(installArgs(["plugins", "--scope", "user", "--plugin", "auriga-go"]), {
+    assert.deepEqual(installArgs(["plugins", "--scope", "user", "--plugin", "auriga-workflow"]), {
       command: "install",
       install: {
         all: false,
         type: "plugins",
         scope: "user",
-        filter: ["auriga-go"],
+        filter: ["auriga-workflow"],
       },
     });
     assert.deepEqual(installArgs(["plugins", "--agent", "codex", "--plugin", "session-instructions-loader"]), {
@@ -85,13 +85,13 @@ describe("parseArgs", () => {
         filter: ["session-instructions-loader"],
       },
     });
-    assert.deepEqual(installArgs(["plugins", "--agent=both", "--plugin", "auriga-go"]), {
+    assert.deepEqual(installArgs(["plugins", "--agent=both", "--plugin", "auriga-workflow"]), {
       command: "install",
       install: {
         all: false,
         type: "plugins",
         agent: "both",
-        filter: ["auriga-go"],
+        filter: ["auriga-workflow"],
       },
     });
     assert.deepEqual(installArgs(["hooks", "--hook", "*"]), {
@@ -105,13 +105,13 @@ describe("parseArgs", () => {
   });
 
   test("parses migrated repo-owned assets through plugin filters only", () => {
-    assert.deepEqual(installArgs(["plugins", "--agent", "both", "--plugin", "auriga-workflow-skills"]), {
+    assert.deepEqual(installArgs(["plugins", "--agent", "both", "--plugin", "auriga-workflow"]), {
       command: "install",
       install: {
         all: false,
         type: "plugins",
         agent: "both",
-        filter: ["auriga-workflow-skills"],
+        filter: ["auriga-workflow"],
       },
     });
     assert.deepEqual(installArgs(["plugins", "--plugin", "auriga-notify"]), {
@@ -148,7 +148,7 @@ describe("parseArgs", () => {
     expectParseError(["install", "--all", "--skill", "systematic-debugging"], /--all is atomic; no extra types or filters/i);
     expectParseError(["install", "workflow", "--skill", "systematic-debugging"], /--skill requires 'install skills'/i);
     expectParseError(["install", "--recommended-skill", "codex-agent"], /--recommended-skill requires 'install recommended'/i);
-    expectParseError(["install", "workflow", "--plugin", "auriga-go"], /--plugin requires 'install plugins'/i);
+    expectParseError(["install", "workflow", "--plugin", "auriga-workflow"], /--plugin requires 'install plugins'/i);
     expectParseError(["install", "workflow", "--hook", "notify"], /--hook requires 'install hooks'/i);
     expectParseError(["install", "skills", "--lang", "en"], /--lang\/--cwd only apply to workflow/i);
     expectParseError(["install", "workflow", "--scope", "user"], /--scope does not apply to workflow/i);
@@ -201,11 +201,11 @@ describe("parseArgs", () => {
   test("validates names, language, scope, cwd, and guide arity", () => {
     expectParseError(["install", "skills", "--skill", "foo"], /unknown skill 'foo'; available: .*systematic-debugging/i);
     expectParseError(["install", "recommended", "--recommended-skill", "foo"], /available: .*codex-agent/i);
-    expectParseError(["install", "plugins", "--plugin", "foo"], /available: .*auriga-go/i);
+    expectParseError(["install", "plugins", "--plugin", "foo"], /available: .*auriga-workflow/i);
     expectParseError(["install", "hooks", "--hook", "notify"], /auriga-notify/i);
-    expectParseError(["install", "skills", "--skill", "incremental-impl"], /auriga-workflow-skills/i);
-    expectParseError(["install", "skills", "--skill", "test-designer"], /auriga-workflow-skills/i);
-    expectParseError(["install", "skills", "--skill", "session-compound"], /auriga-workflow-skills/i);
+    expectParseError(["install", "skills", "--skill", "incremental-impl"], /auriga-workflow/i);
+    expectParseError(["install", "skills", "--skill", "test-designer"], /auriga-workflow/i);
+    expectParseError(["install", "skills", "--skill", "session-compound"], /auriga-workflow/i);
     expectParseError(["install", "workflow", "--lang", "xx"], /en.*zh-CN|zh-CN.*en/i);
     expectParseError(["install", "plugins", "--scope", "team"], /scope/i);
     expectParseError(["install", "workflow", "--cwd", "/definitely/not/here"], /cwd|directory|exist/i);

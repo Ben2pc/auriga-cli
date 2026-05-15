@@ -17,7 +17,7 @@ Scaffolds a project-level custom reviewer file for the `deep-review` skill. The 
 
 ## Prerequisites
 
-- `deep-review` plugin installed (this skill ships alongside it)
+- `auriga-workflow` plugin installed (this skill ships alongside the `deep-review` skill in it)
 - `docs/rules/review/` will be created on demand if absent
 - `references/template.md` (in this skill's directory) is the canonical template
 

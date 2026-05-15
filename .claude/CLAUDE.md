@@ -41,16 +41,6 @@ ui/             — Vite + React 19 + Tailwind v4 subproject. Built artifacts sh
 tests/web-ui-e2e.test.ts — Hermetic end-to-end harness for `npx auriga-cli web-ui`. Spawns the real CLI in a HOME-redirected scratch dir, hits /api/state + /api/apply, asserts filesystem side effects in scratch and verifies the real $HOME stays untouched (canary). Not part of `npm test` — invoke via `npm run test:web-ui-e2e`.
 
 plugins/
-  auriga-go/    — Repo-owned dual-Agent plugin source. Structure:
-                    .claude-plugin/plugin.json  (plugin metadata)
-                    .codex-plugin/plugin.json   (Codex manifest)
-                    skills/auriga-go/SKILL.md   (workflow-navigator skill)
-                    skills/goalify/SKILL.md     (single-prompt skill that
-                                                 plans a goal and dispatches
-                                                 it via Claude Code's built-in
-                                                 /goal command)
-                  Two skills are bundled inside the plugin so their
-                  description-based NL triggers are preserved.
   auriga-git-guards/ — Repo-owned dual-Agent plugin (Claude Code + Codex).
                     .claude-plugin/plugin.json  (Claude Code manifest)
                     .codex-plugin/plugin.json   (Codex manifest)
@@ -68,29 +58,43 @@ plugins/
                     scripts/pr-ready-guard.mjs  (PreToolUse:  gh pr ready)
                     skills/git-workflow/SKILL.md (bundled skill — the same
                                                  plugin-embedded pattern as
-                                                 auriga-go)
+                                                 auriga-workflow)
                   Codex currently fail-opens on PreToolUse `additionalContext`
                   (parses but does not surface yet); block path is identical.
                   PostToolUse `additionalContext` is supported, so both
                   `commit-reminder` and `pr-create-guard` work at full parity.
-  auriga-workflow-skills/
-                  Repo-owned dual-Agent plugin for the workflow execution
-                  skills that used to live under root skills/.
+  auriga-workflow/
+                  Repo-owned dual-Agent plugin (Claude Code + Codex)
+                  bundling every auriga-owned workflow skill.
                     .claude-plugin/plugin.json
                     .codex-plugin/plugin.json
                     skills/incremental-impl/SKILL.md
                     skills/test-designer/SKILL.md
+                    skills/spec-design/SKILL.md  (+ references/)
                     skills/session-compound/
-                    skills/spec-design/SKILL.md (+ references/templates.md)
-                    skills/arch-design/SKILL.md (+ references/)
+                    skills/arch-design/SKILL.md  (+ references/)
                     skills/code-simplify/SKILL.md (+ references/)
-                  Historically the three older skills had dev-time symlinks
-                  under `.agents/skills/<name>` and `.claude/skills/<name>`.
-                  That convention is being retired: plugin-bundled skills are
+                    skills/goalify/SKILL.md      (plans a goal and dispatches
+                                                 it via Claude Code's built-in
+                                                 /goal command)
+                    skills/deep-review/          (PR review orchestrator +
+                                                 references/reviewers/<name>.md
+                                                 per-dimension reviewer files)
+                    skills/reviewer-creator/     (scaffolds project-level
+                                                 custom reviewers under
+                                                 docs/rules/review/)
+                  No hooks — pure skill orchestration. Formed by merging the
+                  former auriga-go (goalify only) and deep-review plugins
+                  into the renamed auriga-workflow-skills plugin; the
+                  standalone auriga-go workflow-navigator skill was dropped.
+                  Historically incremental-impl / session-compound /
+                  test-designer had dev-time symlinks under
+                  `.agents/skills/<name>` and `.claude/skills/<name>`. That
+                  convention is being retired: plugin-bundled skills are
                   discovered via the plugin's marketplace + `skills:` manifest
-                  field; new owned skills (e.g. `spec-design`) ship with NO
-                  symlinks. The remaining older symlinks are kept for
-                  back-compat but should not be reproduced for new skills.
+                  field; new owned skills ship with NO symlinks. The remaining
+                  older symlinks are kept for back-compat but should not be
+                  reproduced for new skills.
   auriga-notify/ Claude Code-only opt-in plugin for Notification events.
                     .claude-plugin/plugin.json
                     hooks/hooks.json
@@ -107,32 +111,15 @@ plugins/
                     scripts/session-start.mjs   (injects ancestor AGENTS.md
                                                  files plus repo-configured
                                                  extra instruction files)
-  deep-review/  — Repo-owned dual-Agent plugin (Claude Code + Codex).
-                    .claude-plugin/plugin.json  (Claude Code manifest)
-                    .codex-plugin/plugin.json   (Codex manifest)
-                    skills/deep-review/         (orchestrator skill +
-                                                 references/reviewers/<name>.md
-                                                 per-dimension reviewer files)
-                    skills/reviewer-creator/    (scaffolds project-level
-                                                 custom reviewers under
-                                                 docs/rules/review/)
-                  Owned in-tree. Originally vendored from
-                  Ben2pc/g-claude-code-plugins at v0.3.0; upstream has
-                  since deleted its copy (the 70fe9cf "migrated to
-                  auriga-cli" commit), so this repo is now the canonical
-                  source — edit plugins/deep-review/ directly and bump
-                  the plugin.json version when the contract changes.
-                  No hooks — pure orchestration.
-
 .claude-plugin/
-  marketplace.json — Marketplace manifest for this repo; lists auriga-go +
-                     auriga-git-guards + auriga-workflow-skills +
-                     auriga-notify + deep-review for Claude Code.
+  marketplace.json — Marketplace manifest for this repo; lists
+                     auriga-workflow + auriga-git-guards + auriga-notify
+                     for Claude Code.
 
 .agents/plugins/
   marketplace.json — Codex-native marketplace manifest for this repo; lists
-                     auriga-go + auriga-git-guards + auriga-workflow-skills +
-                     session-instructions-loader + deep-review.
+                     auriga-workflow + auriga-git-guards +
+                     session-instructions-loader.
                      Codex prefers this repo-scoped file when present instead
                      of falling back to the Claude-style marketplace.
 
@@ -163,12 +150,12 @@ tests/
 
 ## Key Conventions
 
-- **Skill categorization**: `WORKFLOW_SKILLS` in `skills.ts` is the curated default-on set for external workflow skills installed via `npx skills add`. Everything else in `skills-lock.json` is "recommended" (opt-in utilities). auriga-cli-owned workflow skills now live in `plugins/auriga-workflow-skills/` and install through the plugin path.
+- **Skill categorization**: `WORKFLOW_SKILLS` in `skills.ts` is the curated default-on set for external workflow skills installed via `npx skills add`. Everything else in `skills-lock.json` is "recommended" (opt-in utilities). auriga-cli-owned workflow skills now live in `plugins/auriga-workflow/` and install through the plugin path.
   - **Adding a workflow skill from an external repo**: author `SKILL.md` upstream and PR-merge → `npx skills add <repo> --skill <name> --agent claude-code codex --yes` to update `skills-lock.json` and populate `.agents/skills/` → add name to the `WORKFLOW_SKILLS` array in `src/skills.ts` → add a row to both README skills tables → reference it from the relevant `CLAUDE.md` step if the skill replaces prose there. **Do not edit `.agents/skills/<name>/SKILL.md` directly** — it is generated by `npx skills add` and silently clobbered on re-sync. To refresh an external skill after an upstream merge, **re-run `npx skills add <repo> --skill <name>` per skill** (not `npx skills update --project`) so the blast radius stays limited to the skill you actually want to update.
-  - **Editing an auriga-cli-owned workflow skill** (`incremental-impl`, `session-compound`, `test-designer`, `spec-design`, `arch-design`, `code-simplify`): edit the source under `plugins/auriga-workflow-skills/skills/<name>/`. The older three skills (`incremental-impl` / `session-compound` / `test-designer`) still have historical `.claude/skills/<name>` and `.agents/skills/<name>` symlinks for back-compat, but **new owned skills (e.g. `spec-design`) do NOT get those symlinks** — plugin-bundled skills are discovered through the plugin's marketplace + `skills:` manifest field. Do not add owned-skill names back to `skills-lock.json` or `WORKFLOW_SKILLS`; the user-facing install surface is the `auriga-workflow-skills` plugin.
-  - **Adding a new owned workflow skill**: add it under `plugins/auriga-workflow-skills/skills/<new-name>/` with its own `SKILL.md` (+ `references/` for progressive disclosure if the body would otherwise exceed ~500 lines). **Do NOT** create symlinks under `.claude/skills/` or `.agents/skills/` — the plugin manifest is the canonical discovery path. Bump the auriga-workflow-skills plugin manifests (both Claude + Codex) and the `auriga-workflow-skills` description in `.claude-plugin/marketplace.json` so the new skill propagates into `dist/catalog.json`. Update the root workflow only if the skill becomes part of the workflow contract.
+  - **Editing an auriga-cli-owned workflow skill** (`incremental-impl`, `session-compound`, `test-designer`, `spec-design`, `arch-design`, `code-simplify`): edit the source under `plugins/auriga-workflow/skills/<name>/`. The older three skills (`incremental-impl` / `session-compound` / `test-designer`) still have historical `.claude/skills/<name>` and `.agents/skills/<name>` symlinks for back-compat, but **new owned skills (e.g. `spec-design`) do NOT get those symlinks** — plugin-bundled skills are discovered through the plugin's marketplace + `skills:` manifest field. Do not add owned-skill names back to `skills-lock.json` or `WORKFLOW_SKILLS`; the user-facing install surface is the `auriga-workflow` plugin.
+  - **Adding a new owned workflow skill**: add it under `plugins/auriga-workflow/skills/<new-name>/` with its own `SKILL.md` (+ `references/` for progressive disclosure if the body would otherwise exceed ~500 lines). **Do NOT** create symlinks under `.claude/skills/` or `.agents/skills/` — the plugin manifest is the canonical discovery path. Bump the auriga-workflow plugin manifests (both Claude + Codex) and the `auriga-workflow` description in `.claude-plugin/marketplace.json` so the new skill propagates into `dist/catalog.json`. Update the root workflow only if the skill becomes part of the workflow contract.
   - **Adding a recommended skill**: `npx skills add <repo> --skill <name>` is enough — the skill's `SKILL.md` frontmatter description is picked up at build time by `src/build/generate-catalog.ts` and embedded into `dist/catalog.json`, which drives both `--help` output and the interactive menu. **Do not** hand-maintain a description list anywhere in code.
-- **Adding an auriga-cli-owned plugin** (e.g. `auriga-go` — skills only — or `auriga-git-guards` — skills + hooks): author at repo root `plugins/<name>/` — this repo *is* the source of truth. Required layout: `.claude-plugin/plugin.json` (metadata), optional `hooks/hooks.json` + hook scripts (see `plugins/auriga-git-guards/` for the canonical hook example), optional `skills/<skill-name>/SKILL.md` (+ optional `references/`). **Everything under `plugins/<name>/` ships to users** — keep dev-only assets (tests, generators) at repo-root `tests/`. Then: register in `.claude-plugin/marketplace.json` (listing `"source": "./plugins/<name>"`). If the plugin should also target Codex, register it in `.agents/plugins/marketplace.json` and add `.codex-plugin/plugin.json`. Use `extra_plugin_configs.json` only for policy overrides such as `defaultOn`, not as the local plugin source of truth. Users install via `npx auriga-cli` → Plugins.
+- **Adding an auriga-cli-owned plugin** (e.g. `auriga-workflow` — skills only — or `auriga-git-guards` — skills + hooks): author at repo root `plugins/<name>/` — this repo *is* the source of truth. Required layout: `.claude-plugin/plugin.json` (metadata), optional `hooks/hooks.json` + hook scripts (see `plugins/auriga-git-guards/` for the canonical hook example), optional `skills/<skill-name>/SKILL.md` (+ optional `references/`). **Everything under `plugins/<name>/` ships to users** — keep dev-only assets (tests, generators) at repo-root `tests/`. Then: register in `.claude-plugin/marketplace.json` (listing `"source": "./plugins/<name>"`). If the plugin should also target Codex, register it in `.agents/plugins/marketplace.json` and add `.codex-plugin/plugin.json`. Use `extra_plugin_configs.json` only for policy overrides such as `defaultOn`, not as the local plugin source of truth. Users install via `npx auriga-cli` → Plugins.
   - **Dual-Agent variant (Claude Code + Codex)**: Codex's hook system is schema-compatible with Claude Code (nested `hooks.<Event>[].matcher + hooks[]` shape, `${CLAUDE_PLUGIN_ROOT}` deliberately mirrored by Codex for OOTB compat, stdin/stdout contract identical). Register the plugin in both marketplaces: `.claude-plugin/marketplace.json` for Claude Code, and `.agents/plugins/marketplace.json` for Codex. Add a second manifest at `.codex-plugin/plugin.json` with the Codex-specific richer schema (`version`, `homepage`, `repository`, `license`, `keywords`, `interface` block with `displayName` / `category` / etc.); keep `.claude-plugin/plugin.json` minimal but mirror `version` for upgrade comparators. Same `hooks/hooks.json` payload, same `scripts/`, same README — see `plugins/auriga-git-guards/` as the canonical example. Caveat: Codex currently fail-opens on `hookSpecificOutput.additionalContext` for `PreToolUse` (parsed but not surfaced to the model); the block path (`exit 2 + stderr`, or `permissionDecision: "deny"`) works identically. Document this asymmetry in the plugin's README. Claude-Code-specific `if: "Bash(...)"` filtering inside `hooks/hooks.json` is kept (Codex docs don't reject unknown fields per general JSON registry behavior); if a future Codex version strictly validates and rejects `if`, drop it and rely on script-internal substring checks (no behavioral regression — scripts already validate their own command match).
 - **Adding an external-marketplace plugin** (a plugin authored in another GitHub repo that this CLI merely registers): no plugin source authored in this repo — the plugin lives upstream and we just register it in `extra_plugin_configs.json`. For Claude Code, set `claude.package` and, when the marketplace is not already known, `claude.marketplace`. For Codex, set `codex.marketplace`; auriga-cli runs `codex plugin marketplace add https://github.com/<source>.git` and then installs from Codex's marketplace cache. The `marketplace.{name, source}` shape is shared through `validateMarketplaceField` in `src/marketplace.ts`. **Skip upstream manifest fetch at build time** — `src/build/generate-catalog.ts` uses the extra config description for external entries because the upstream Codex manifest may not exist or may be resolved by the downstream CLI.
 - **Plugin-bundled hooks**: register hooks via `plugins/<name>/hooks/hooks.json` with `command: "${CLAUDE_PLUGIN_ROOT}/..."`. This substitution expands reliably in both `claude -p` and interactive mode (empirically verified). Skill-bundled hooks via `SKILL.md` frontmatter `hooks:` field can *also* register hooks, but `${CLAUDE_SKILL_DIR}` does NOT currently expand in the hook command string (Claude Code bug), and the hook's cwd is the project root rather than the skill dir, so the `./scripts/...` doc example also fails. Workaround when a skill needs a hook: bundle the skill inside a plugin and lift the hook to the plugin root (see `plugins/auriga-git-guards/` as the canonical dual-Agent example). Do not reintroduce a root `.claude/hooks/hooks.json` for new hooks; future hooks should distribute with plugins.
@@ -249,8 +236,8 @@ For unreleased work (no published version yet), swap `npx auriga-cli@<version>` 
 
 | File | Maintained by | Purpose |
 |------|--------------|---------|
-| `skills-lock.json` | `npx skills` CLI | External skill registry (do NOT edit structure manually). The synced copies under `.agents/skills/<name>/SKILL.md` are generated — do **not** edit them directly. auriga-cli-owned workflow skills live under `plugins/auriga-workflow-skills/` and must not be added back to the lock |
-| `plugins/<name>/` | Manual | auriga-cli-owned plugin source (e.g. `plugins/auriga-go/`). Distributed via the repo-root `.claude-plugin/marketplace.json`. Everything inside the dir ships to users — keep dev-only assets (tests) at repo-root `tests/` |
+| `skills-lock.json` | `npx skills` CLI | External skill registry (do NOT edit structure manually). The synced copies under `.agents/skills/<name>/SKILL.md` are generated — do **not** edit them directly. auriga-cli-owned workflow skills live under `plugins/auriga-workflow/` and must not be added back to the lock |
+| `plugins/<name>/` | Manual | auriga-cli-owned plugin source (e.g. `plugins/auriga-workflow/`). Distributed via the repo-root `.claude-plugin/marketplace.json`. Everything inside the dir ships to users — keep dev-only assets (tests) at repo-root `tests/` |
 | `.claude-plugin/marketplace.json` | Manual | Claude Code marketplace manifest for plugins shipped from this repo |
 | `.agents/plugins/marketplace.json` | Manual | Codex marketplace manifest for plugins shipped from this repo |
 | `extra_plugin_configs.json` | Manual | External plugin registry and default-policy overlay for marketplace plugins |
@@ -287,4 +274,4 @@ For unreleased work (no published version yet), swap `npx auriga-cli@<version>` 
 - Main menu order = execution order: Workflow -> Skills -> Recommended Skills -> Plugins -> Hooks.
 - ESM throughout (`"type": "module"`, `.js` extensions in imports).
 - **Runtime reads must hit shipped paths only.** `package.json` `files` allowlists exactly `dist/*.js`, `dist/*.d.ts`, `dist/catalog.json` (plus the npm-default `README*` / `LICENSE` / `package.json`). Everything else in this repo — `plugins/<name>/`, `.claude/`, `.agents/`, `skills/`, `src/` source TS — **does not exist** in the installed npm tarball. If `src/*.ts` resolves a path inside `packageRoot/<something-not-in-the-allowlist>/` at runtime, that read will silently fail for npm-installed users (`fs.readFile` → ENOENT → caught → degraded behavior). The dev environment hides the bug because `packageRoot === repoRoot` and the repo files exist there. Anything a runtime module needs from a non-shipped location must be **baked into `dist/catalog.json` at build time** (extend `CatalogEntry` if needed), **fetched from GitHub at runtime** via `CONTENT_FILES` when it is an auriga-cli install input (pinned to the `v<package.version>` tag by `fetchContentRoot`), or resolved from the Agent plugin marketplace cache when it is plugin payload (`claude plugins marketplace update` / `claude plugins update`; `codex plugin marketplace add/upgrade` then `~/.codex/.tmp/marketplaces/<marketplace>`). Do not add plugin payload files to `CONTENT_FILES`; plugin freshness belongs to the plugin marketplace, not the CLI tarball. Verify by extracting `npm pack`'s tarball and grepping for whatever you expect to read at runtime — *runtime correctness is a tarball-shape question, not a source-tree question*.
-  - Concrete example: plugin agents map (e.g. `auriga-go` targets both Claude and Codex) is derived from `.claude-plugin/marketplace.json`, `.agents/plugins/marketplace.json`, and `extra_plugin_configs.json` — all outside the tarball allowlist. `src/build/generate-catalog.ts` reads them at build time and bakes `agents` into each plugin's `CatalogEntry`; `src/scan-catalog.ts` consumes the baked field. Catalog regression in `tests/catalog.test.ts` + `tests/tarball-shape.test.ts` pin the contract. Historical note: v1.18.x also baked an `expectedVersion` field for update-available detection; v1.19.0 deprecated that surface and removed the field — see [`docs/worklog/worklog-2026-05-13-refactor-drop-update-status/web-ui-history.md`](../docs/worklog/worklog-2026-05-13-refactor-drop-update-status/web-ui-history.md) for the rollback story.
+  - Concrete example: plugin agents map (e.g. `auriga-workflow` targets both Claude and Codex) is derived from `.claude-plugin/marketplace.json`, `.agents/plugins/marketplace.json`, and `extra_plugin_configs.json` — all outside the tarball allowlist. `src/build/generate-catalog.ts` reads them at build time and bakes `agents` into each plugin's `CatalogEntry`; `src/scan-catalog.ts` consumes the baked field. Catalog regression in `tests/catalog.test.ts` + `tests/tarball-shape.test.ts` pin the contract. Historical note: v1.18.x also baked an `expectedVersion` field for update-available detection; v1.19.0 deprecated that surface and removed the field — see [`docs/worklog/worklog-2026-05-13-refactor-drop-update-status/web-ui-history.md`](../docs/worklog/worklog-2026-05-13-refactor-drop-update-status/web-ui-history.md) for the rollback story.

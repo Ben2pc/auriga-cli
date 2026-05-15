@@ -78,6 +78,8 @@ Spec Conformance inputs must EXCLUDE the writer Agent's own commit messages, PR 
 
 **Confidence:** dedupe at same `file:line` (keep higher-confidence wording). Sort within each category by confidence (high → low) then severity. Low-confidence stays in the report — it's signal for the human reviewer; if too speculative, move to Architectural rather than dropping.
 
+**Output language:** write the synthesized report in the language of the current conversation (e.g. a Chinese conversation gets a Chinese report). Keep `file:line` references, identifiers, and code verbatim.
+
 ## Reviewer Must-Not Preamble
 
 These role-level constraints apply to every dispatched reviewer (built-in and project-level custom under `docs/rules/review/`). Prepend this block verbatim to every reviewer's subagent prompt — do not duplicate it inside reviewer reference files. A single edit here propagates to every reviewer.

@@ -221,7 +221,7 @@ export interface SkillState {
 }
 
 export interface PluginState {
-  id: string;                  // 形如 "auriga-go@auriga-cli"
+  id: string;                  // 形如 "auriga-workflow@auriga-cli"
   description: string;
   status: ItemStatus;          // 聚合：所有 agent 都装 → installed; 都没装 → not-installed; 某 agent 装了某 agent 没装 → partial-install
   agents: ApplyAgent[];        // 该 plugin 在 catalog 注册的 agent 集合（dual = ["claude","codex"]）

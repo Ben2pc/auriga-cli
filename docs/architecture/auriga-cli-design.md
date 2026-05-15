@@ -80,9 +80,9 @@ auriga-cli/
     "name": "auriga-cli",
     "plugins": [
       {
-        "name": "auriga-go",
-        "description": "Workflow autopilot for the auriga workflow.",
-        "source": "./plugins/auriga-go"
+        "name": "auriga-workflow",
+        "description": "The auriga workflow skill bundle.",
+        "source": "./plugins/auriga-workflow"
       }
     ]
   },
@@ -90,10 +90,10 @@ auriga-cli/
     "name": "auriga-cli",
     "plugins": [
       {
-        "name": "auriga-go",
+        "name": "auriga-workflow",
         "source": {
           "source": "local",
-          "path": "./plugins/auriga-go"
+          "path": "./plugins/auriga-workflow"
         }
       }
     ]

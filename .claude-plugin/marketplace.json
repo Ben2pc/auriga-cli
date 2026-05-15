@@ -1,22 +1,22 @@
 {
   "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
   "name": "auriga-cli",
-  "description": "Plugins shipped by the auriga-cli Claude Code harness (auriga-go workflow autopilot, etc.)",
+  "description": "Plugins shipped by the auriga-cli Claude Code harness (auriga-workflow skill bundle, git guards, notifications).",
   "owner": {
     "name": "Ben2pc",
     "email": "pangcheng33@gmail.com"
   },
   "plugins": [
     {
-      "name": "auriga-go",
-      "description": "Workflow autopilot for the auriga workflow. Reminder-based navigation across CLAUDE.md's phases. Bundles a /goalify skill that plans an autonomous goal from a spec or work-in-progress and dispatches it via Claude Code's built-in /goal command.",
+      "name": "auriga-workflow",
+      "description": "The auriga workflow skill bundle: incremental-impl (implementation slicing), test-designer (independent test design), spec-design (requirement clarification), arch-design (architecture design), code-simplify (code simplification), session-compound (session compounding), goalify (autonomous /goal planning), deep-review (multi-dimensional PR review orchestrator), and reviewer-creator (custom reviewer scaffolding). Dual-Agent compatible (Claude Code + Codex).",
       "author": {
         "name": "Ben2pc",
         "email": "pangcheng33@gmail.com"
       },
-      "source": "./plugins/auriga-go",
+      "source": "./plugins/auriga-workflow",
       "category": "development",
-      "homepage": "https://github.com/Ben2pc/auriga-cli/tree/main/plugins/auriga-go"
+      "homepage": "https://github.com/Ben2pc/auriga-cli/tree/main/plugins/auriga-workflow"
     },
     {
       "name": "auriga-git-guards",
@@ -30,17 +30,6 @@
       "homepage": "https://github.com/Ben2pc/auriga-cli/tree/main/plugins/auriga-git-guards"
     },
     {
-      "name": "auriga-workflow-skills",
-      "description": "Bundles the auriga-owned workflow execution skills: incremental-impl, test-designer, session-compound, spec-design, arch-design, and code-simplify. Dual-Agent compatible (Claude Code + Codex).",
-      "author": {
-        "name": "Ben2pc",
-        "email": "pangcheng33@gmail.com"
-      },
-      "source": "./plugins/auriga-workflow-skills",
-      "category": "development",
-      "homepage": "https://github.com/Ben2pc/auriga-cli/tree/main/plugins/auriga-workflow-skills"
-    },
-    {
       "name": "auriga-notify",
       "description": "Opt-in macOS native notification hook for Claude Code Notification events.",
       "author": {
@@ -50,17 +39,6 @@
       "source": "./plugins/auriga-notify",
       "category": "productivity",
       "homepage": "https://github.com/Ben2pc/auriga-cli/tree/main/plugins/auriga-notify"
-    },
-    {
-      "name": "deep-review",
-      "description": "Multi-dimensional PR review orchestrator. Dispatches parallel reviewers (spec-conformance, correctness, test-quality, docs-sync, robustness, security, ux, performance, structure, code-quality, skill-plugin-quality) and synthesizes findings into an actionable punch list. Supports project-level custom reviewers via `docs/rules/review/` and ships a `reviewer-creator` skill for scaffolding them.",
-      "author": {
-        "name": "Ben2pc",
-        "email": "pangcheng33@gmail.com"
-      },
-      "source": "./plugins/deep-review",
-      "category": "development",
-      "homepage": "https://github.com/Ben2pc/auriga-cli/tree/main/plugins/deep-review"
     }
   ]
 }
