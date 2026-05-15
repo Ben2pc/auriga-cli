@@ -95,11 +95,13 @@ Estimate whether this needs decomposition (see `## Size gate`). If any signal tr
 
 ### Phase C — Write
 
-**C1.** Author `docs/specs/<topic>/spec.md` per the template below.
+**Language rule (applies to all of C1/C2/C2.5)**: the **section headers** in every template are bilingual (English anchor + 中文 hint) and must be kept verbatim — `test-designer` and `deep-review`'s `spec-conformance` reviewer grep on the English anchors, so they cannot be translated away. The **structural keywords** in `validation-contract.md` (`VAL-XXX-NNN`, `Behavior`, `Tool`, `Evidence`, the Tool category names) also stay in English. **All prose content** — Why / Findings / What body, VAL Behavior + Evidence descriptions, Slicing axis rationale, Open questions, etc. — must be written in the language the user is using in this conversation. Chinese conversation → write the body in Chinese; English conversation → English. Do not mix Chinese and English prose within a single paragraph.
 
-**C2.** Author `docs/specs/<topic>/validation-contract.md`. Anti-pattern check: each VAL must say *what* counts as a pass, not *how* to test it — the latter is `test-designer`'s job.
+**C1.** Author `docs/specs/<topic>/spec.md` per `references/spec-template.md`.
 
-**C2.5.** If B0 triggered decomposition, author `docs/specs/<topic>/umbrella.md` (template below).
+**C2.** Author `docs/specs/<topic>/validation-contract.md` per `references/validation-contract-template.md`. Anti-pattern check: each VAL must say *what* counts as a pass, not *how* to test it — the latter is `test-designer`'s job.
+
+**C2.5.** If B0 triggered decomposition, author `docs/specs/<topic>/umbrella.md` per `references/umbrella-template.md`.
 
 ### Phase D — Gate & Handoff
 
