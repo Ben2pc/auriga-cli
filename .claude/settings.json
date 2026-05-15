@@ -3,8 +3,7 @@
     "skill-creator@claude-plugins-official": true,
     "claude-md-management@claude-plugins-official": true,
     "codex@openai-codex": true,
-    "auriga-workflow@auriga-cli": true,
-    "auriga-git-guards@auriga-cli": true
+    "auriga-workflow@auriga-cli": true
   },
   "hooks": {}
 }

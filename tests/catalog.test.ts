@@ -71,10 +71,9 @@ describe("generateCatalog (build-time)", () => {
   });
 
   test("plugins: Claude Code entries plus Codex-only entries plus migrated repo-owned assets", () => {
-    assert.equal(catalog.plugins.length, 7);
+    assert.equal(catalog.plugins.length, 6);
     const names = catalog.plugins.map((e) => e.name).sort();
     assert.deepEqual(names, [
-      "auriga-git-guards",
       "auriga-notify",
       "auriga-workflow",
       "claude-md-management",
@@ -138,7 +137,6 @@ describe("generateCatalog (build-time)", () => {
     // bakes `agents` at build time. This pins the contract per plugin.
     const expectedAgents: Record<string, ("claude" | "codex")[]> = {
       "auriga-workflow": ["claude", "codex"],
-      "auriga-git-guards": ["claude", "codex"],
       "auriga-notify": ["claude"],
       "session-instructions-loader": ["codex"],
       "skill-creator": ["claude"],

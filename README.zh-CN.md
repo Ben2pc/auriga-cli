@@ -13,7 +13,7 @@
 | **Workflow** | `CLAUDE.md` 里的 auriga 工作流：需求澄清 → TDD → Review，Harness 原则，Subagent 使用指南 |
 | **Skills** | 外部开发流程 skills —— systematic-debugging、TDD、verification、planning、playwright（spec 撰写与架构设计由 `auriga-workflow` 插件内的 `spec-design`、`arch-design` skill 提供）|
 | **Recommended Skills** | 可选的工具类 skills（如 `codex-agent`、`claude-code-agent`），在 workflow skills 之外按需追加 |
-| **Plugins** | 推荐的 Claude Code 和 Codex 插件 —— skill-creator、claude-md-management、codex、auriga-git-guards、auriga-workflow、auriga-notify、session-instructions-loader |
+| **Plugins** | 推荐的 Claude Code 和 Codex 插件 —— skill-creator、claude-md-management、codex、auriga-workflow、auriga-notify、session-instructions-loader |
 | **Hooks** | 传统 Claude Code hook 安装器。目前没有仓库自维护 hook 暴露在这里；`notify` 已迁移为 `auriga-notify` 插件。 |
 
 ## 快速开始
@@ -126,7 +126,6 @@ npx auriga-cli
 npx -y auriga-cli install plugins --agent both --plugin auriga-workflow
 npx -y auriga-cli install plugins --plugin auriga-notify
 npx -y auriga-cli install plugins --agent codex --plugin session-instructions-loader
-npx -y auriga-cli install plugins --agent both --plugin auriga-git-guards
 ```
 
 | 插件 | 运行时 | 说明 |
@@ -134,8 +133,7 @@ npx -y auriga-cli install plugins --agent both --plugin auriga-git-guards
 | skill-creator | Claude Code | 创建和管理自定义 skills |
 | claude-md-management | Claude Code | 审计和改进 CLAUDE.md |
 | codex | Claude Code | Codex 跨模型协作 |
-| auriga-git-guards | Claude Code / Codex | 三个 git-lifecycle guardrail + 内置 `git-workflow` skill。Hooks：`commit-reminder`（Claude Code 下 PostToolUse 匹配 `Edit` / `Write` / `MultiEdit`，Codex 下匹配 `apply_patch`（Codex 文件编辑 canonical `tool_name`），两个 runtime 都触发 —— 未提交 diff 对比 `HEAD` 超过 200 行或 8 个文件，且距上次提醒 ≥ 60 s 时，注入提醒让 Agent 在下一个语义边界 commit）、`pr-create-guard`（`gh pr create` 的 PostToolUse —— 通过 `gh pr view` 拉真实 PR body，扫 `^##` / `^###` headings 并统计 `- [ ]` / `- [x]` 注入 `additionalContext`，让 Agent 对照五要素：scope / acceptance criteria / design decisions / risks / remaining TODOs）、`pr-ready-guard`（`gh pr ready` 的 PreToolUse —— 仅按结构信号拦截：游离 `findings.md` / `progress.md` / `task_plan.md` / `docs/superpowers/specs/*.md`、`docs/specs/*.md` 内未结案的活跃 spec、未 push commits；放行时注入 body 快照）。两个 PostToolUse hook 在 Claude Code / Codex 上完全对齐；Codex 仅对 `pr-ready-guard` 的 PreToolUse `additionalContext` 信息路径 fail-open（block 路径两边一致）。 |
-| auriga-workflow | Claude Code / Codex | auriga 工作流 skill 集合包：`incremental-impl`、`test-designer`、`spec-design`、`arch-design`、`code-simplify`、`session-compound`、`goalify`（plan 出自驱 goal 并通过 Claude Code 内置 `/goal` 命令分发执行）、`deep-review`（多维度 PR review 编排器——并行派发各维度 reviewer，汇总成可执行的 punch list）、`reviewer-creator`（在 `docs/rules/review/` 下生成项目级自定义 reviewer）。默认通过插件路径安装，不再通过 `install skills` 作为独立条目安装。 |
+| auriga-workflow | Claude Code / Codex | auriga 工作流插件 —— 工作流 skill 加上强制执行工作流的 git 生命周期 hook。Skills：`incremental-impl`、`test-designer`、`spec-design`、`arch-design`、`code-simplify`、`session-compound`、`goalify`（plan 出自驱 goal 并通过 Claude Code 内置 `/goal` 命令分发执行）、`deep-review`（多维度 PR review 编排器——并行派发各维度 reviewer，汇总成可执行的 punch list）、`reviewer-creator`（在 `docs/rules/review/` 下生成项目级自定义 reviewer）、`git-workflow`（git 生命周期 skill）。Hooks：`commit-reminder`（文件编辑的 PostToolUse —— Claude Code 匹配 `Edit` / `Write` / `MultiEdit`，Codex 匹配 `apply_patch` —— 未提交 diff 对比 `HEAD` 超过 200 行或 8 个文件时，提醒在下一个语义边界 commit）、`pr-create-guard`（`gh pr create` 的 PostToolUse —— 注入 PR body 快照供五要素自检，并对不符合 Conventional Commits 的标题提示）、`pr-ready-guard`（`gh pr ready` 与非 draft `gh pr create` 的 PreToolUse —— 拦截游离规划文档、`docs/specs/` 内未结案的活跃 spec、未 push commits）。两个 PostToolUse hook 在 Claude Code / Codex 上完全对齐；Codex 仅对 `pr-ready-guard` 的 PreToolUse `additionalContext` 信息路径 fail-open（block 路径两边一致）。默认通过插件路径安装。 |
 | auriga-notify *(opt-in)* | Claude Code | Claude Code `Notification` 事件的 macOS 原生通知插件。支持焦点感知仅提示音、点击唤起终端、按项目分组通知，并迁移旧 `config.json` / `icon.png`。不随 `install --all` 默认安装，需要显式执行 `install plugins --plugin auriga-notify`。 |
 | session-instructions-loader | Codex | Codex-only SessionStart 插件，注入上层目录的 `AGENTS.md` 和仓库配置的额外 instruction 文件。 |
 

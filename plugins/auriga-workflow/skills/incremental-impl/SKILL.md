@@ -319,4 +319,4 @@ The execution discipline above frames the rules positively. These are the corres
 - `test-designer` — may produce the failing tests this skill's green phase satisfies
 - `systematic-debugging` — runs if any slice's result breaks regression
 - `verification-before-completion` — final gate after all slices merge
-- `git-workflow` (auriga-git-guards plugin) — atomic commit rules referenced by 4.5
+- `git-workflow` (auriga-workflow plugin) — atomic commit rules referenced by 4.5
