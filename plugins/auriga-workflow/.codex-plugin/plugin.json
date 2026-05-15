@@ -1,7 +1,7 @@
 {
   "name": "auriga-workflow",
   "version": "2.0.0",
-  "description": "The auriga workflow skill bundle: incremental-impl (implementation slicing), test-designer (independent test design), spec-design (requirement clarification), arch-design (architecture design), session-compound (session compounding), goalify (autonomous /goal planning), deep-review (multi-dimensional PR review orchestrator), and reviewer-creator (custom reviewer scaffolding). Dual-Agent compatible (Claude Code + Codex).",
+  "description": "The auriga workflow skill bundle: incremental-impl (implementation slicing), test-designer (independent test design), spec-design (requirement clarification), arch-design (architecture design), code-simplify (code simplification), session-compound (session compounding), goalify (autonomous /goal planning), deep-review (multi-dimensional PR review orchestrator), and reviewer-creator (custom reviewer scaffolding). Dual-Agent compatible (Claude Code + Codex).",
   "author": {
     "name": "Ben2pc",
     "email": "pangcheng33@gmail.com",
@@ -21,7 +21,7 @@
   "interface": {
     "displayName": "auriga workflow",
     "shortDescription": "The auriga workflow skill bundle",
-    "longDescription": "Bundles every auriga-owned workflow skill in one plugin: incremental-impl for implementation slicing, test-designer for independent test design, spec-design for requirement clarification, arch-design for architecture design, session-compound for session compounding, goalify for planning and dispatching an autonomous /goal, deep-review as a multi-dimensional PR review orchestrator, and reviewer-creator for scaffolding project-level custom reviewers.",
+    "longDescription": "Bundles every auriga-owned workflow skill in one plugin: incremental-impl for implementation slicing, test-designer for independent test design, spec-design for requirement clarification, arch-design for architecture design, code-simplify for code simplification, session-compound for session compounding, goalify for planning and dispatching an autonomous /goal, deep-review as a multi-dimensional PR review orchestrator, and reviewer-creator for scaffolding project-level custom reviewers.",
     "developerName": "Ben2pc",
     "category": "Productivity",
     "capabilities": [

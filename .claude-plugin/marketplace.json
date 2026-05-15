@@ -9,7 +9,7 @@
   "plugins": [
     {
       "name": "auriga-workflow",
-      "description": "The auriga workflow skill bundle: incremental-impl (implementation slicing), test-designer (independent test design), spec-design (requirement clarification), arch-design (architecture design), session-compound (session compounding), goalify (autonomous /goal planning), deep-review (multi-dimensional PR review orchestrator), and reviewer-creator (custom reviewer scaffolding). Dual-Agent compatible (Claude Code + Codex).",
+      "description": "The auriga workflow skill bundle: incremental-impl (implementation slicing), test-designer (independent test design), spec-design (requirement clarification), arch-design (architecture design), code-simplify (code simplification), session-compound (session compounding), goalify (autonomous /goal planning), deep-review (multi-dimensional PR review orchestrator), and reviewer-creator (custom reviewer scaffolding). Dual-Agent compatible (Claude Code + Codex).",
       "author": {
         "name": "Ben2pc",
         "email": "pangcheng33@gmail.com"

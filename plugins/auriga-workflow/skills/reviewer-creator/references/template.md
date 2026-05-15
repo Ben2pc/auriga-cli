@@ -17,7 +17,7 @@ The checklist below is a **starting point, not a fence**. It covers common <DOMA
 <TODO: Replace this section with 5–10 specific, actionable review questions.
 
 Look at the built-in reviewers under
-plugins/deep-review/skills/deep-review/references/reviewers/ for examples
+plugins/auriga-workflow/skills/deep-review/references/reviewers/ for examples
 of the right level of specificity. Good checklists name concrete things to
 look for; bad checklists are abstract ("Is the code well-designed?").
 
