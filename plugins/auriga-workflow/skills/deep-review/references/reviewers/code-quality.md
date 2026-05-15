@@ -4,7 +4,7 @@
 
 The checklist below is a **starting point, not a fence**. It covers the most common code-quality patterns — but report any concern in this dimension that you would raise to a thoughtful colleague reviewing this PR, including categories not enumerated here. The patterns are training wheels for completeness; the goal is judgment.
 
-This reviewer is the **review-phase counterpart of the `code-simplify` skill**: `code-simplify` removes smells from module *internals*; this reviewer catches them as they enter, at PR time. Boundary-level structural concerns — module decomposition, dependency direction, layering — are out of scope here; they belong to the `arch-review` reviewer. The dividing line is the same one `code-simplify` and `arch-design` draw: module *internals* here, module *boundaries* there.
+This reviewer is the **review-phase counterpart of the `code-simplify` skill**: `code-simplify` removes smells from module *internals*; this reviewer catches them as they enter, at PR time. Boundary-level structural concerns — module decomposition, dependency direction, layering — are out of scope here; they belong to the `architecture` reviewer. The dividing line is the same one `code-simplify` and `arch-design` draw: module *internals* here, module *boundaries* there.
 
 This reviewer carries **two lenses**. Group your findings under the matching sub-heading so synthesis can classify them independently:
 
