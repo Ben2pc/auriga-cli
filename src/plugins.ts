@@ -561,19 +561,32 @@ function runPostInstallMigration(
   }
 }
 
+// Source string Codex CLI records in `~/.codex/config.toml`
+// `[marketplaces.<name>].source` after `marketplace add` succeeds. Used for
+// exact-string compare against the registered marketplace's source to detect
+// same-name-different-source hijack attempts before running `upgrade`.
+function codexLocalMarketplaceSource(packageRoot: string): string {
+  if (process.env.DEV === "1") return packageRoot;
+  return "https://github.com/Ben2pc/auriga-cli.git";
+}
+
+function codexExternalMarketplaceSource(source: string): string {
+  // `source` is validated by validateExtraPluginConfigs against
+  // MARKETPLACE_SOURCE_RE (alphanumerics + `._/-`) — no shell metachars
+  // can reach this string.
+  return `https://github.com/${source}.git`;
+}
+
 function codexMarketplaceAddCommand(packageRoot: string): string {
-  if (process.env.DEV === "1") {
-    return `codex plugin marketplace add ${shellQuote(packageRoot)}`;
-  }
-  return "codex plugin marketplace add https://github.com/Ben2pc/auriga-cli.git";
+  const source = codexLocalMarketplaceSource(packageRoot);
+  // DEV-mode local paths may contain spaces; URLs need no shell quoting.
+  return process.env.DEV === "1"
+    ? `codex plugin marketplace add ${shellQuote(source)}`
+    : `codex plugin marketplace add ${source}`;
 }
 
 function codexExternalMarketplaceAddCommand(source: string): string {
-  // `source` is validated by validateExtraPluginConfigs against
-  // MARKETPLACE_SOURCE_RE (alphanumerics + `._/-`) — no shell metachars
-  // can reach this string. URL form deliberately mirrors
-  // codexMarketplaceAddCommand's hardcoded production branch.
-  return `codex plugin marketplace add https://github.com/${source}.git`;
+  return `codex plugin marketplace add ${codexExternalMarketplaceSource(source)}`;
 }
 
 function codexMarketplaceUpgradeCommand(marketplaceName: string): string {
@@ -590,24 +603,31 @@ function commandErrorText(error: unknown): string {
 }
 
 // Codex CLI records every added marketplace as `[marketplaces.<name>]` in
-// `~/.codex/config.toml`. The presence of that table is the authoritative
-// signal that the marketplace is already added — Codex's `add` command is
+// `~/.codex/config.toml` with a `source` field. Returns that stored source
+// for an exact-string compare against the source we would `add`, or null
+// when the marketplace isn't registered or the entry is malformed.
+//
+// Why config.toml is the authoritative signal: Codex's `add` command is
 // silently idempotent for an already-added marketplace (exit 0, prints to
-// stdout, no error) so the install path cannot rely on `add` failing to
-// detect the already-added case. Read this table to decide upfront whether
-// to call `add` (new marketplace) or `upgrade` (already registered).
-function isCodexMarketplaceRegistered(marketplaceName: string): boolean {
+// stdout, no error), so we can't detect already-added by catching an
+// `add` failure. The stored source also lets us guard against same-name
+// hijack — a fork registered under our marketplace name would be invisible
+// to a presence-only check.
+function readCodexMarketplaceSource(marketplaceName: string): string | null {
   const configPath = path.join(codexHome(), "config.toml");
-  if (!fs.existsSync(configPath)) return false;
+  if (!fs.existsSync(configPath)) return null;
   try {
     const parsed = parseToml(fs.readFileSync(configPath, "utf-8")) as TomlTable;
     const marketplaces = parsed.marketplaces;
     if (typeof marketplaces !== "object" || marketplaces === null || Array.isArray(marketplaces)) {
-      return false;
+      return null;
     }
-    return marketplaceName in (marketplaces as Record<string, unknown>);
+    const entry = (marketplaces as Record<string, unknown>)[marketplaceName];
+    if (typeof entry !== "object" || entry === null || Array.isArray(entry)) return null;
+    const source = (entry as Record<string, unknown>).source;
+    return typeof source === "string" ? source : null;
   } catch {
-    return false;
+    return null;
   }
 }
 
@@ -825,11 +845,24 @@ function enableCodexPluginConfig(
 async function addCodexMarketplaceWithRetry(
   marketplaceName: string,
   addCommand: string,
+  expectedSource: string,
   opts: InstallOpts,
   marketplaceExecOpts: { inherit: true } | undefined,
   failures: string[],
 ): Promise<void> {
-  if (isCodexMarketplaceRegistered(marketplaceName)) {
+  const registeredSource = readCodexMarketplaceSource(marketplaceName);
+  if (registeredSource !== null) {
+    if (registeredSource !== expectedSource) {
+      // Supply-chain guard: a same-name marketplace pointing at a different
+      // source (e.g. a fork URL) must not be silently `upgrade`d — its
+      // content would be cached under our name and consumed downstream.
+      const msg = `Codex marketplace ${marketplaceName} is already added from a different source`;
+      log.error(
+        `${msg}\n  registered: ${registeredSource}\n  expected:   ${expectedSource}`,
+      );
+      failures.push(msg);
+      return;
+    }
     try {
       exec(codexMarketplaceUpgradeCommand(marketplaceName), marketplaceExecOpts);
       log.ok(`Codex marketplace ${marketplaceName} upgraded`);
@@ -848,12 +881,15 @@ async function addCodexMarketplaceWithRetry(
     log.ok(`Codex marketplace ${marketplaceName} added`);
   } catch (e) {
     if (isCodexMarketplaceDifferentSource(e)) {
+      // Defense-in-depth: config.toml didn't claim the name but Codex CLI
+      // refused with "different source" — rare divergence between Codex
+      // internal state and config.toml.
       const msg = `Codex marketplace ${marketplaceName} is already added from a different source`;
       log.error(`${msg}\n${commandErrorText(e)}`);
       failures.push(msg);
       return;
     }
-    // Same: surface the add error rather than masking ENOENT / network / auth.
+    // Surface the add error rather than masking ENOENT / network / auth.
     log.error(
       `Failed to add Codex marketplace: ${marketplaceName}\n${commandErrorText(e)}`,
     );
@@ -961,6 +997,7 @@ async function installCodexPlugins(
     await addCodexMarketplaceWithRetry(
       localMarketplace.name,
       codexMarketplaceAddCommand(packageRoot),
+      codexLocalMarketplaceSource(packageRoot),
       opts,
       marketplaceExecOpts,
       failures,
@@ -977,6 +1014,7 @@ async function installCodexPlugins(
     await addCodexMarketplaceWithRetry(
       mp.name,
       codexExternalMarketplaceAddCommand(mp.source),
+      codexExternalMarketplaceSource(mp.source),
       opts,
       marketplaceExecOpts,
       failures,

@@ -398,6 +398,94 @@ describe("installPlugins — Codex target", () => {
     }
   });
 
+  test("fails fast when registered marketplace points at a different source URL (supply-chain guard)", async () => {
+    const previousDev = process.env.DEV;
+    delete process.env.DEV;
+    try {
+      const packageRoot = makeCodexMarketplace();
+      const codexHome = fs.mkdtempSync(path.join(os.tmpdir(), "auriga-codex-home-"));
+      process.env.CODEX_HOME = codexHome;
+      seedCodexMarketplaceCache(packageRoot, codexHome);
+      // Hostile state: a fork has been registered under the same name.
+      // The install must refuse to upgrade it (which would materialize
+      // fork content into our local cache).
+      fs.writeFileSync(
+        path.join(codexHome, "config.toml"),
+        '[marketplaces.auriga-cli]\nsource = "https://github.com/attacker/fork.git"\n',
+      );
+      const commands: string[] = [];
+      const { installPlugins } = await importPlugins((cmd) => {
+        commands.push(cmd);
+        return "";
+      });
+
+      await assert.rejects(
+        () => installPlugins(packageRoot, {
+          interactive: false,
+          agent: "codex",
+          selected: ["session-instructions-loader"],
+        }),
+        /different source/i,
+      );
+
+      // Neither add nor upgrade was issued — the guard runs before either.
+      assert.deepEqual(commands, []);
+      // config.toml must not be rewritten with our plugin enabled — the
+      // hostile entry stays as-is, the user has to resolve it.
+      const config = fs.readFileSync(path.join(codexHome, "config.toml"), "utf-8");
+      assert.doesNotMatch(config, /session-instructions-loader/);
+    } finally {
+      if (previousDev === undefined) delete process.env.DEV;
+      else process.env.DEV = previousDev;
+    }
+  });
+
+  test("propagates upgrade failure (registered marketplace, exec throws) through the failures aggregator", async () => {
+    const previousDev = process.env.DEV;
+    delete process.env.DEV;
+    try {
+      const packageRoot = makeCodexMarketplace();
+      const codexHome = fs.mkdtempSync(path.join(os.tmpdir(), "auriga-codex-home-"));
+      process.env.CODEX_HOME = codexHome;
+      seedCodexMarketplaceCache(packageRoot, codexHome);
+      fs.writeFileSync(
+        path.join(codexHome, "config.toml"),
+        '[marketplaces.auriga-cli]\nsource = "https://github.com/Ben2pc/auriga-cli.git"\n',
+      );
+      const commands: string[] = [];
+      const { installPlugins } = await importPlugins((cmd) => {
+        commands.push(cmd);
+        if (cmd === "codex plugin marketplace upgrade 'auriga-cli'") {
+          const error = new Error("Command failed: simulated network error");
+          (error as Error & { stderr?: string }).stderr =
+            "fatal: unable to access 'https://github.com/Ben2pc/auriga-cli.git/'";
+          throw error;
+        }
+        return "";
+      });
+
+      await assert.rejects(
+        () => installPlugins(packageRoot, {
+          interactive: false,
+          agent: "codex",
+          selected: ["session-instructions-loader"],
+        }),
+        /codex marketplace auriga-cli/,
+      );
+
+      // Upgrade was attempted (and failed); the plugin enable step was skipped.
+      assert.deepEqual(commands, ["codex plugin marketplace upgrade 'auriga-cli'"]);
+      assert.equal(
+        fs.existsSync(path.join(codexHome, "plugins/cache/auriga-cli/session-instructions-loader")),
+        false,
+        "plugin payload must not be materialized when marketplace upgrade fails",
+      );
+    } finally {
+      if (previousDev === undefined) delete process.env.DEV;
+      else process.env.DEV = previousDev;
+    }
+  });
+
   test("keeps interactive Codex marketplace commands attached to the terminal", async () => {
     const previousDev = process.env.DEV;
     delete process.env.DEV;
