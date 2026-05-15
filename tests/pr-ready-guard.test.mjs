@@ -182,6 +182,19 @@ const cases = [
     expect: { status: 2, stderrIncludes: "docs/specs/feature-x/spec.md" },
   },
   {
+    name: "deeply-nested docs/specs/<topic>/<sub>/spec.md blocks (B4 recursion depth >1)",
+    setup: () => {
+      const dir = makeRepo();
+      const deepDir = path.join(dir, "docs", "specs", "feature-x", "references");
+      fs.mkdirSync(deepDir, { recursive: true });
+      fs.writeFileSync(path.join(deepDir, "spec.md"), "# deep spec\n");
+      return { cwd: dir, cmd: "gh pr ready" };
+    },
+    // The walk must descend more than one level — a single-level nested
+    // case would still pass if recursion were accidentally capped at depth 1.
+    expect: { status: 2, stderrIncludes: "docs/specs/feature-x/references/spec.md" },
+  },
+  {
     name: "nested spec docs/superpowers/specs/<sub>/design.md blocks (B3 recursive)",
     setup: () => {
       const dir = makeRepo();

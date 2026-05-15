@@ -174,11 +174,11 @@ function collectSpecMd(dir, relPrefix) {
   } catch {
     return []; // dir doesn't exist — nothing stray here
   }
-  let out = [];
+  const out = [];
   for (const ent of entries) {
     const childRel = `${relPrefix}/${ent.name}`;
     if (ent.isDirectory()) {
-      out = out.concat(collectSpecMd(path.join(dir, ent.name), childRel));
+      out.push(...collectSpecMd(path.join(dir, ent.name), childRel));
     } else if (/\.md$/i.test(ent.name) && !/\.bak$/i.test(ent.name)) {
       out.push(childRel);
     }
