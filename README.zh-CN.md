@@ -11,7 +11,7 @@
 | 模块 | 说明 |
 |---|---|
 | **Workflow** | `CLAUDE.md` 里的 auriga 工作流：需求澄清 → TDD → Review，Harness 原则，Subagent 使用指南 |
-| **Skills** | 外部开发流程 skills —— systematic-debugging、TDD、verification、planning、playwright（spec 撰写由 `auriga-workflow-skills` 插件内的 `spec-design` skill 提供）|
+| **Skills** | 外部开发流程 skills —— systematic-debugging、TDD、verification、planning、playwright（spec 撰写与架构设计由 `auriga-workflow-skills` 插件内的 `spec-design`、`arch-design` skill 提供）|
 | **Recommended Skills** | 可选的工具类 skills（如 `codex-agent`、`claude-code-agent`），在 workflow skills 之外按需追加 |
 | **Plugins** | 推荐的 Claude Code 和 Codex 插件 —— skill-creator、claude-md-management、codex、auriga-go、auriga-git-guards、auriga-workflow-skills、auriga-notify、session-instructions-loader、deep-review |
 | **Hooks** | 传统 Claude Code hook 安装器。目前没有仓库自维护 hook 暴露在这里；`notify` 已迁移为 `auriga-notify` 插件。 |
@@ -138,7 +138,7 @@ npx -y auriga-cli install plugins --agent both --plugin auriga-git-guards
 | codex | Claude Code | Codex 跨模型协作 |
 | auriga-go | Claude Code / Codex | auriga 工作流的自动驾驶：按 `CLAUDE.md` 的 phase 做 reminder-based 导航。内置两个 skill：`auriga-go`（按 description 的自然语言触发 + `/auriga-go` slash command）和 `/goalify`（根据 spec 或当前进展 plan 出 goal，并通过 Claude Code 内置的 `/goal` 命令分发执行）。 |
 | auriga-git-guards | Claude Code / Codex | 三个 git-lifecycle guardrail + 内置 `git-workflow` skill。Hooks：`commit-reminder`（Claude Code 下 PostToolUse 匹配 `Edit` / `Write` / `MultiEdit`，Codex 下匹配 `apply_patch`（Codex 文件编辑 canonical `tool_name`），两个 runtime 都触发 —— 未提交 diff 对比 `HEAD` 超过 200 行或 8 个文件，且距上次提醒 ≥ 60 s 时，注入提醒让 Agent 在下一个语义边界 commit）、`pr-create-guard`（`gh pr create` 的 PostToolUse —— 通过 `gh pr view` 拉真实 PR body，扫 `^##` / `^###` headings 并统计 `- [ ]` / `- [x]` 注入 `additionalContext`，让 Agent 对照五要素：scope / acceptance criteria / design decisions / risks / remaining TODOs）、`pr-ready-guard`（`gh pr ready` 的 PreToolUse —— 仅按结构信号拦截：游离 `findings.md` / `progress.md` / `task_plan.md` / `docs/superpowers/specs/*.md`、`docs/specs/*.md` 内未结案的活跃 spec、未 push commits；放行时注入 body 快照）。两个 PostToolUse hook 在 Claude Code / Codex 上完全对齐；Codex 仅对 `pr-ready-guard` 的 PreToolUse `additionalContext` 信息路径 fail-open（block 路径两边一致）。 |
-| auriga-workflow-skills | Claude Code / Codex | 打包 auriga 自维护的工作流执行 skills：`incremental-impl`、`test-designer`、`session-compound`、`spec-design`。默认通过插件路径安装，不再通过 `install skills` 作为独立条目安装。 |
+| auriga-workflow-skills | Claude Code / Codex | 打包 auriga 自维护的工作流执行 skills：`incremental-impl`、`test-designer`、`session-compound`、`spec-design`、`arch-design`。默认通过插件路径安装，不再通过 `install skills` 作为独立条目安装。 |
 | auriga-notify *(opt-in)* | Claude Code | Claude Code `Notification` 事件的 macOS 原生通知插件。支持焦点感知仅提示音、点击唤起终端、按项目分组通知，并迁移旧 `config.json` / `icon.png`。不随 `install --all` 默认安装，需要显式执行 `install plugins --plugin auriga-notify`。 |
 | session-instructions-loader | Codex | Codex-only SessionStart 插件，注入上层目录的 `AGENTS.md` 和仓库配置的额外 instruction 文件。 |
 | deep-review | Claude Code / Codex | 多维度 PR review 编排器 —— 并行派发各维度 reviewer（spec-conformance、correctness、test-quality、docs-sync，以及条件触发的 robustness/UX/performance/structure/code-quality/skill-plugin-quality），汇总成 punch list。同包内打包了 `reviewer-creator` skill，用于在 `docs/rules/review/` 下生成项目级自定义 reviewer。承担 `CLAUDE.md` 中的正式评审职责。 |

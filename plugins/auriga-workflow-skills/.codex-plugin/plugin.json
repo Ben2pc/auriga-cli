@@ -1,7 +1,7 @@
 {
   "name": "auriga-workflow-skills",
-  "version": "1.0.4",
-  "description": "Bundles the auriga-owned workflow execution skills: incremental-impl, test-designer, session-compound, and spec-design.",
+  "version": "1.1.0",
+  "description": "Bundles the auriga-owned workflow execution skills: incremental-impl, test-designer, session-compound, spec-design, and arch-design.",
   "author": {
     "name": "Ben2pc",
     "email": "pangcheng33@gmail.com",
@@ -20,7 +20,7 @@
   "interface": {
     "displayName": "auriga workflow skills",
     "shortDescription": "auriga workflow execution skills",
-    "longDescription": "Bundles the auriga-owned workflow execution skills used by the auriga workflow: incremental-impl for implementation slicing, test-designer for independent test design, session-compound for session compounding, and spec-design for requirement clarification.",
+    "longDescription": "Bundles the auriga-owned workflow execution skills used by the auriga workflow: incremental-impl for implementation slicing, test-designer for independent test design, session-compound for session compounding, spec-design for requirement clarification, and arch-design for architecture-level design.",
     "developerName": "Ben2pc",
     "category": "Productivity",
     "capabilities": [
