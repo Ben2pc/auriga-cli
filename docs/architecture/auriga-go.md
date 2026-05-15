@@ -29,7 +29,7 @@ A workflow skill that drives the Agent forward along the auriga workflow (`CLAUD
 
 > **Why a plugin (not a skill)?** Originally this *was* a skill with a `hooks:` block in its SKILL.md frontmatter. Claude Code's `${CLAUDE_SKILL_DIR}` substitution does not currently expand inside skill-bundled hook commands (empirically verified in both `claude -p` and interactive mode), and the hook's cwd is the project root (not the skill dir) so the documented `./scripts/...` form also fails. Plugins use `${CLAUDE_PLUGIN_ROOT}`, which expands reliably. That asymmetry drove the original promotion to a plugin. Even after the ship-mode Stop hook was removed (see below), the plugin form is kept so multiple skills can be bundled under one install + so future hooks remain an option without re-promoting.
 
-## Decisions locked in (brainstorming §1)
+## Decisions locked in
 
 | Area | Decision |
 |---|---|
@@ -46,7 +46,7 @@ A workflow skill that drives the Agent forward along the auriga workflow (`CLAUD
 | Area | Decision + rationale |
 |---|---|
 | Invocation | `/auriga-go` slash command **OR** natural-language trigger (e.g., "按照工作流继续", "continue the workflow"). Both paths enter the same skill. |
-| Relationship with other workflow skills | **Reminder-based, not orchestrating.** auriga-go inspects state and tells the main Agent which skill to invoke next (`brainstorming`, `planning-with-files`, `test-designer`, `deep-review`, etc.); it never dispatches those skills itself. Keeps the skill thin and lets the main Agent own tool choice. |
+| Relationship with other workflow skills | **Reminder-based, not orchestrating.** auriga-go inspects state and tells the main Agent which skill to invoke next (`spec-design`, `planning-with-files`, `test-designer`, `deep-review`, etc.); it never dispatches those skills itself. Keeps the skill thin and lets the main Agent own tool choice. |
 | CLAUDE.md integration | **Independent meta-tool** — not embedded in any numbered step. Referenced from the workflow as a compass/autopilot available at any point. |
 | Hard-stop enumeration | **No explicit whitelist.** The two contract classes (ambiguity / destructive-or-irreversible) stay as-is; rely on the model to recognize concrete commands in context. Rationale: destructive operations are low-frequency and context-sensitive — an enumeration would both miss cases and add maintenance drag. |
 | Fallback D state signals | **No fixed signal → workflow-step mapping table.** SKILL.md describes the fallback *intent* (probe git / filesystem / GitHub state → present findings → confirm with user → write todos → proceed); the model derives the concrete signals per situation. |
