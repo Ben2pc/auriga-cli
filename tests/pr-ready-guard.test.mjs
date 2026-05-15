@@ -168,6 +168,31 @@ const cases = [
     expect: { status: 0, stderrNotIncludes: "active specs" },
   },
   {
+    name: "nested active spec docs/specs/<topic>/spec.md blocks (B4 recursive)",
+    setup: () => {
+      const dir = makeRepo();
+      const topicDir = path.join(dir, "docs", "specs", "feature-x");
+      fs.mkdirSync(topicDir, { recursive: true });
+      fs.writeFileSync(path.join(topicDir, "spec.md"), "# nested spec\n");
+      return { cwd: dir, cmd: "gh pr ready" };
+    },
+    // spec-design / arch-design write docs/specs/<topic>/spec.md — never a
+    // flat docs/specs/*.md. The B4 scan must descend into <topic>/, and the
+    // reported path must be the full nested repo-relative path.
+    expect: { status: 2, stderrIncludes: "docs/specs/feature-x/spec.md" },
+  },
+  {
+    name: "nested spec docs/superpowers/specs/<sub>/design.md blocks (B3 recursive)",
+    setup: () => {
+      const dir = makeRepo();
+      const subDir = path.join(dir, "docs", "superpowers", "specs", "foo");
+      fs.mkdirSync(subDir, { recursive: true });
+      fs.writeFileSync(path.join(subDir, "design.md"), "# nested spec\n");
+      return { cwd: dir, cmd: "gh pr ready" };
+    },
+    expect: { status: 2, stderrIncludes: "docs/superpowers/specs/foo/design.md" },
+  },
+  {
     name: "archived worklog copy does NOT count as stray",
     setup: () => {
       const dir = makeRepo();
