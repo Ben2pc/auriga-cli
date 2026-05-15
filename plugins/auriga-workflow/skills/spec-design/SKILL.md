@@ -185,7 +185,7 @@ VAL `Tool` field must pick one of the **categories** below — never name a spec
 | `build` | Build artifact correctness (tsc / npm pack / artifact shape) |
 | `manual` | Human verification only; must state "what counts as a pass" |
 
-The per-VAL `Tool` field stays a **category** — that keeps it grep-able and keeps the assertion implementation-agnostic. The repo's **concrete** tool for each category (which test runner, which browser driver, which build command) is a fact gathered during A1 research, not an implementation decision for this feature — record it **once** in the `## Toolchain` table of `validation-contract.md`, not per VAL. This carries the toolchain finding forward so `test-designer` does not re-discover the stack, and resolves real ambiguity inside a category (e.g. `e2e-browser` → Browser Use vs Playwright vs Chrome MCP, which have different evidence shapes). Only fill Toolchain rows for categories the contract's VALs actually use.
+The per-VAL `Tool` field stays a **category** — that keeps it grep-able and keeps the assertion implementation-agnostic. The repo's **concrete** tool for each category (which test runner, which browser driver, which build command) is a fact gathered during A1 research, not an implementation decision for this feature — record it **once** in the `## Toolchain` table of `validation-contract.md`, not per VAL. This carries the toolchain finding forward so `test-designer` can target the right runner / driver without re-inferring it (it still scans existing tests for fixture and naming conventions), and resolves real ambiguity inside a category (e.g. `e2e-browser` → Browser Use vs Playwright vs Chrome MCP, which have different evidence shapes). Only fill Toolchain rows for categories the contract's VALs actually use.
 
 ## Handoff review checklist (D1)
 
@@ -195,7 +195,7 @@ Look from a downstream consumer's seat (test-designer, planner, you-in-a-month).
 - [ ] Why is intelligible to a blank-context agent
 - [ ] Each VAL's Behavior is single-meaning (two implementations cannot both rationalize a pass)
 - [ ] No VAL says how to test, only what counts as a pass
-- [ ] `validation-contract.md` has a `## Toolchain` table covering every category its VALs use, each row naming a concrete tool from A1 research
+- [ ] `validation-contract.md` has a `## Toolchain` table covering every category its VALs use, each row naming a concrete tool observed in A1 research (the repo's existing harness, not a design decision)
 - [ ] Out of scope covers everything that "looks like it should be in" but isn't
 - [ ] No What ↔ VAL contradiction
 - [ ] Open questions contains only deliberately-deferred downstream decisions, each with a named owner (plan / impl) and a stated reason — no unresolved requirement ambiguity hiding there
