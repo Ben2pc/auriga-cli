@@ -1,6 +1,6 @@
 ---
 name: spec-design
-description: Clarify requirements into a Validation-Contract-shaped spec — runs a 4-phase discovery → design → write → handoff loop that produces `spec.md` (why+what) and `validation-contract.md` (structured `VAL-XXX-NNN: behavior+tool+evidence` assertions) under `docs/specs/<topic>/`. Use at the requirement-clarification phase of the auriga workflow whenever a change introduces or modifies an external behavior contract — new feature, public API change, schema migration, CLI surface addition. 也用于澄清需求 / 写 spec / 拆需求 / 行为契约 / brainstorm a feature. Replaces the upstream `brainstorming` skill.
+description: Use before any feat/ or fix/ code change that introduces or modifies external behavior — public API, CLI, user-visible flow, file format, schema. Trigger when the user wants to brainstorm a feature, clarify a requirement, write a spec, or break down what to build — also 澄清需求 / 写 spec / 拆需求 / 行为契约. Input shapes: sentence / HTML mock / PRD / Figma link / user-supplied draft spec to audit. Produces `spec.md` + `validation-contract.md` (`VAL-XXX-NNN: behavior+tool+evidence`) under `docs/specs/<topic>/`. Skip refactors / library swaps with unchanged behavior (→ plan) and bug-fixes with a reproducer (→ systematic-debugging).
 ---
 
 # Spec Design
