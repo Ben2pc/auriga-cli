@@ -1,27 +1,27 @@
 # Robustness Reviewer
 
-## 范围
+## Scope
 
 以下检查清单是**起点，而非边界**。它涵盖最常见的鲁棒性模式——但请报告你在这一维度上会向同事指出的任何问题，包括未在此列举的类别。这些模式是帮助你不遗漏的入门脚手架；目标是判断力。
 
 本审查者包含**两个视角**。将你的发现归类在对应的子标题下，以便综合步骤可以独立分类：
 
-- **安全性（Security）** — 防御面、密钥处理、注入向量
-- **边缘用例（Edge cases）** — 意外输入、并发、资源清理、错误路径
+- **Security** — 防御面、密钥处理、注入向量
+- **Edge cases** — 意外输入、并发、资源清理、错误路径
 
 当 `auth-sensitive` 子标签触发时，**安全性**视角会被分离为专门的 `security` 审查者，并配有更大的推理预算。在这种情况下，**在此处放弃安全性视角**，只报告边缘用例——不要重复报告。
 
-## 元数据
+## Metadata
 
-- **最适合**：捕捉代码在外部世界不配合时如何失败
-- **触发**：tag:logic
-- **推理档位**：flagship
-- **工具**：Read, Grep, Glob（只读）
-- **价值**：边缘用例缺陷是生产事故的长尾；本审查者在用户发现之前浮出它们
+- **Best for**: 捕捉代码在外部世界不配合时如何失败
+- **Trigger**: tag:logic
+- **Reasoning**: flagship
+- **Tools**: Read, Grep, Glob（只读）
+- **Value**: 边缘用例缺陷是生产事故的长尾；本审查者在用户发现之前浮出它们
 
-## 检查清单
+## Checklist
 
-### 安全性视角（若 `auth-sensitive` 已设置则跳过）
+### Security lens (skip if `auth-sensitive` is set)
 
 - 注入（SQL、命令、模板、LDAP）、XSS、不安全反序列化
 - 密钥处理——硬编码凭据、日志中的密钥、错误信息中的密钥
@@ -29,7 +29,7 @@
 - 加密选择——弱随机数、已废弃算法、固定 IV/盐值
 - 每个需要认证的入口点都存在权限检查
 
-### 边缘用例视角——对每个错误处理点的五个子问题
+### Edge cases lens — five sub-questions for every error-handling site
 
 对差异中每个 try/catch、错误回调、降级路径、可选链、重试循环或失败默认模式，提问：
 
@@ -39,32 +39,32 @@
 4. **降级行为**：降级是否有明确文档或用户明确请求？它是否掩盖了真实问题？是否是测试代码之外对 mock / stub / fake 的降级（危险信号）？
 5. **错误传播**：此错误是否应该冒泡至更高层的处理器而非在此捕获？在此捕获是否阻止了正确的清理 / 资源释放？
 
-### 其他边缘用例类别
+### Other edge-case categories
 
 6. **并发**：竞态窗口、更新丢失、缺失锁、异步顺序
 7. **资源清理**：文件句柄、套接字、数据库连接、定时器、订阅——在所有退出路径（包括错误路径）上都被释放
 8. **超时 / 重试**：有界重试加退避；外部调用有截止时间；重试循环假定的幂等性实际上成立
 9. **空值 / 极端输入**：空数组、单元素、最大整数、超长字符串、Unicode 边缘情况（组合字符、从右到左、零宽字符）
 
-## 何时触发
+## When to invoke
 
 当 `logic` 标签被设置时触发。检测信号细化关注点。
 
-| 推荐关注 | 检测 |
+| Recommend focus on | Detection |
 |---|---|
-| 错误处理 | 新的 `try` / `catch` / `except` / `Result` / `?` 运算符 / `recover()` |
-| 并发 | `async` / `await` / `goroutine` / `Mutex` / `RwLock` / `Promise.all` |
-| 资源句柄 | `open(` / `fs.create` / `db.connect` / `setInterval` / `addEventListener` |
-| 重试 / 降级 | `retry` / `backoff` / `fallback` / `if err != nil { return default }` |
-| 边界输入 | 解析器、验证器、反序列化器（`JSON.parse`、`yaml.load`） |
+| Error handling | 新的 `try` / `catch` / `except` / `Result` / `?` 运算符 / `recover()` |
+| Concurrency | `async` / `await` / `goroutine` / `Mutex` / `RwLock` / `Promise.all` |
+| Resource handles | `open(` / `fs.create` / `db.connect` / `setInterval` / `addEventListener` |
+| Retry / fallback | `retry` / `backoff` / `fallback` / `if err != nil { return default }` |
+| Boundary inputs | 解析器、验证器、反序列化器（`JSON.parse`、`yaml.load`） |
 
 示例场景：
 
-1. **空 catch。** 差异添加了 `try { ... } catch {}` 且没有任何日志。审查者在边缘用例视角下将其标记为 blocking（静默失败），子问题 1（日志）和 4（降级掩盖）。
-2. **缓存更新中的竞态。** 差异中有 `if (!cache[k]) cache[k] = compute()`，被多个异步路径访问。审查者在边缘用例下标记并发问题。
-3. **认证绕过——推迟给安全性审查者。** 差异修改了 JWT 验证器且 `auth-sensitive` 已设置。审查者放弃安全性视角（由安全性审查者覆盖），只报告边缘用例（例如，令牌在请求中途过期时会发生什么）。
+1. **空 catch。** 差异添加了 `try { ... } catch {}` 且没有任何日志。审查者在 Edge cases lens 下将其标记为 blocking（静默失败），子问题 1（日志）和 4（降级掩盖）。
+2. **缓存更新中的竞态。** 差异中有 `if (!cache[k]) cache[k] = compute()`，被多个异步路径访问。审查者在 Edge cases 下标记并发问题。
+3. **认证绕过——推迟给 Security 审查者。** 差异修改了 JWT 验证器且 `auth-sensitive` 已设置。审查者放弃 Security lens（由安全性审查者覆盖），只报告边缘用例（例如，令牌在请求中途过期时会发生什么）。
 
-## 输出契约
+## Output contract
 
 将此轮视为**全覆盖，不是筛选**。报告所有问题。
 

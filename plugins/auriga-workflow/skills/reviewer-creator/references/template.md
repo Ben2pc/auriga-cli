@@ -1,24 +1,24 @@
 # <TITLE>
 
-## 范围
+## Scope
 
 以下检查清单是**起点，而非边界**。它涵盖常见的 <DOMAIN> 模式——但请报告你在这一维度上会向同事指出的任何问题，包括未在此列举的类别。这些模式是帮助你不遗漏的入门脚手架；目标是判断力。
 
-## 元数据
+## Metadata
 
-- **最适合**：<BEST_FOR>
-- **触发**：<TRIGGER>
-- **推理档位**：<REASONING>
-- **工具**：Read, Grep, Glob（只读）
-- **价值**：<TODO: 一句话价值陈述——这位审查者能防住什么内置审查者会漏掉的问题？>
+- **Best for**: <BEST_FOR>
+- **Trigger**: <TRIGGER>
+- **Reasoning**: <REASONING>
+- **Tools**: Read, Grep, Glob（只读）
+- **Value**: <TODO: 一句话价值陈述——这位审查者能防住什么内置审查者会漏掉的问题？>
 
-## 检查清单
+## Checklist
 
 <TODO: 用 5–10 条具体、可操作的审查问题替换本章节。
 
 参考 plugins/auriga-workflow/skills/deep-review/references/reviewers/ 下的内置审查者，
 了解恰当的具体程度。好的检查清单点名具体要找的东西；差的检查清单是抽象的
-（“代码设计得好吗？”）。
+（"代码设计得好吗？"）。
 
 如果你的审查者有多个视角，把条目归在子标题下（见 robustness.md 的双视角示例：
 安全性 + 边缘用例）。>
@@ -27,21 +27,21 @@
 2. **<类别>**：<具体检查>
 3. ...
 
-## 何时触发
+## When to invoke
 
-按上方的**触发**字段触发。下方的检测表指出分派后应聚焦哪些信号。
+按上方的 **Trigger** 字段触发。下方的 Detection 表指出分派后应聚焦哪些信号。
 
-| 推荐关注 | 检测 |
+| Recommend focus on | Detection |
 |---|---|
 <DETECTION_ROWS>
 
-示例场景：
+Worked scenarios:
 
 1. **<WORKED_SCENARIO_1>**
-2. <TODO: 补第 2 个示例场景——审查者会标记什么、为什么，给出具体的 file:line 式示例>
-3. <TODO: 补第 3 个示例场景——最好是边缘用例或险些漏过的情形>
+2. <TODO: 补第 2 个 Worked scenario——审查者会标记什么、为什么，给出具体的 file:line 式示例>
+3. <TODO: 补第 3 个 Worked scenario——最好是边缘用例或险些漏过的情形>
 
-## 输出契约
+## Output contract
 
 将此轮视为**全覆盖，不是筛选**。报告你发现的所有问题，包括你不确定的或认为低严重度的——综合步骤稍后会排序或筛除它们。让一个发现被筛掉，也好过悄悄漏掉一个真实关切。
 

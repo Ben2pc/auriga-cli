@@ -1,18 +1,18 @@
 # Spec Conformance Reviewer
 
-## 范围
+## Scope
 
 以下检查清单是**起点，而非边界**。它涵盖验证规范合规性的最常见模式——但请报告你在这一维度上会向同事指出的任何问题，包括未在此列举的类别。这些模式是帮助你不遗漏的入门脚手架；目标是判断力。
 
-## 元数据
+## Metadata
 
-- **最适合**：验证差异是否实现了验证契约中的每个 `VAL-XXX-NNN` 断言，且仅此而已
-- **触发**：always
-- **推理档位**：flagship
-- **工具**：Read, Grep, Glob（只读）
-- **价值**：捕捉遗漏的实现、范围蔓延和静默解决的规范歧义
+- **Best for**: 验证差异是否实现了验证契约中的每个 `VAL-XXX-NNN` 断言，且仅此而已
+- **Trigger**: always
+- **Reasoning**: flagship
+- **Tools**: Read, Grep, Glob（只读）
+- **Value**: 捕捉遗漏的实现、范围蔓延和静默解决的规范歧义
 
-## 输入
+## Inputs
 
 按顺序读取；若两者都存在，不要只读第一个就停止：
 
@@ -21,34 +21,34 @@
 
 当没有 `validation-contract.md` 时的回退（遗留规范或非 `spec-design` 的拉取请求）：使用 `spec.md`、`docs/architecture/*.md`、`docs/worklog/` 或拉取请求正文的 `## Acceptance criteria` 章节中的验收条件列表。与 VAL 相同的处理方式——逐一追溯，标记遗漏——但在摘要中注明本拉取请求早于验证契约格式。
 
-## 检查清单
+## Checklist
 
 对验证契约中的每个 VAL（或回退模式下的每个验收条件）：
 
-1. **已实现？** 将 `VAL-XXX-NNN` 追溯到差异中的 file:line。缺失或不完整 → blocking。
-2. **按原文实现？** 差异必须精确满足 VAL 的 `Behavior`，而非宽泛解读。`Tool: e2e-cli` 且 `Evidence` 要求"运行 `<cmd>` 后退出码 0"的 VAL，要求该命令存在并产生该退出码；某处的 `assert(ok)` 是不够的。
-3. **工具 / 证据对齐。** 拉取请求的测试 / 检查应与 VAL 声明的 `Tool` 类别匹配。标记为 `Tool: integration-test` 的 VAL 若只被单元测试 mock 覆盖——标记不匹配。
-4. **范围蔓延。** 差异添加了任何 VAL 之外的行为 → blocking，除非可从 `spec.md` § 内容中简单推断（即便如此，也标记以确认；缺失的 VAL 是规范缺口，而非隐含许可）。
-5. **静默解决。** 差异以某种方式解决了模糊的 VAL 行为。指出该解决方式；在差异/拉取请求正文中有明确记录时为 non-blocking，否则为 blocking。
-6. **范围之外违规。** 差异添加了 `spec.md` § 范围之外中明确列出的内容 → blocking；引用违规行。
+1. **Implemented?** 将 `VAL-XXX-NNN` 追溯到差异中的 file:line。缺失或不完整 → blocking。
+2. **Implemented as written?** 差异必须精确满足 VAL 的 `Behavior`，而非宽泛解读。`Tool: e2e-cli` 且 `Evidence` 要求"运行 `<cmd>` 后退出码 0"的 VAL，要求该命令存在并产生该退出码；某处的 `assert(ok)` 是不够的。
+3. **Tool / Evidence alignment.** 拉取请求的测试 / 检查应与 VAL 声明的 `Tool` 类别匹配。标记为 `Tool: integration-test` 的 VAL 若只被单元测试 mock 覆盖——标记不匹配。
+4. **Scope creep.** 差异添加了任何 VAL 之外的行为 → blocking，除非可从 `spec.md` § 内容中简单推断（即便如此，也标记以确认；缺失的 VAL 是规范缺口，而非隐含许可）。
+5. **Silent resolution.** 差异以某种方式解决了模糊的 VAL 行为。指出该解决方式；在差异/拉取请求正文中有明确记录时为 non-blocking，否则为 blocking。
+6. **Out-of-scope violation.** 差异添加了 `spec.md` § 范围之外中明确列出的内容 → blocking；引用违规行。
 
 若在任何输入位置都未找到规范/契约，原文返回：`No spec found — cannot evaluate conformance.` 不要从差异中自创 VAL 或验收条件。
 
 **关键输入隔离规则**：审查者输入必须排除写代码的 Agent 自身的提交信息、拉取请求正文的理由说明章节，以及任何"自主决策"备注——这些会使审查者偏向确认写代码的 Agent 的解读。只输入 `validation-contract.md` + `spec.md`（或回退验收条件来源）+ 差异。
 
-## 何时触发
+## When to invoke
 
 始终触发（必选审查者）。检测表指明**在哪里找到契约来源**，而非是否触发。
 
-| 推荐关注 | 检测 |
+| Recommend focus on | Detection |
 |---|---|
-| 主要验证契约 | `docs/specs/<topic>/validation-contract.md` |
-| 原因 / 范围之外上下文 | `docs/specs/<topic>/spec.md` |
-| 分解的总体规范 | `docs/specs/<topic>/umbrella.md`（子规范列表 + 切片轴） |
-| 架构规范（遗留或已提升） | `docs/architecture/*.md` |
-| 进行中分支的归档规范 | `docs/worklog/worklog-<date>-<branch>/*.md` |
-| 回退内联验收条件 | 拉取请求正文中的 `## Acceptance criteria` 或 `## ACs` 章节 |
-| 遗留关联 issue 规范 | 拉取请求描述中引用的 GitHub issue 正文 |
+| Primary Validation Contract | `docs/specs/<topic>/validation-contract.md` |
+| Why / Out-of-scope context | `docs/specs/<topic>/spec.md` |
+| Decomposed umbrella spec | `docs/specs/<topic>/umbrella.md`（子规范列表 + 切片轴） |
+| Architectural spec (legacy or promoted) | `docs/architecture/*.md` |
+| Archived spec for in-flight branch | `docs/worklog/worklog-<date>-<branch>/*.md` |
+| Fallback inline ACs | 拉取请求正文中的 `## Acceptance criteria` 或 `## ACs` 章节 |
+| Legacy linked-issue spec | 拉取请求描述中引用的 GitHub issue 正文 |
 
 示例场景：
 
@@ -58,7 +58,7 @@
 4. **范围之外违规。** `spec.md` § 范围之外写明"不自动拉取 Figma"；差异添加了一个 Figma 获取器。审查者标记 `spec.md:Out-of-scope — added Figma fetcher — [severity: blocking] — [confidence: high]`。
 5. **未找到规范。** 无 `validation-contract.md`，无 `spec.md`，无验收条件回退。审查者原文返回 `No spec found — cannot evaluate conformance.`
 
-## 输出契约
+## Output contract
 
 将此轮视为**全覆盖，不是筛选**。报告你发现的每个问题，包括你不确定或认为低严重度的——单独的综合步骤会排序或筛除它们。浮出一个被后续过滤的发现，胜过静默丢弃真实问题。
 
