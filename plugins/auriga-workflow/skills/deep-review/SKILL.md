@@ -1,6 +1,6 @@
 ---
 name: deep-review
-description: Run a formal, multi-dimensional code review of a pull request. Dispatches parallel reviewers (spec-conformance, correctness, test-quality, docs-sync, robustness, security, ux, performance, structure, code-quality, skill-plugin-quality) and synthesizes findings into a punch list. Use when the user asks to review a PR, run /deep-review, mark a PR as ready for review, or requests a formal/thorough code review.
+description: Run a formal, multi-dimensional code review of a pull request. Dispatches parallel reviewers (spec-conformance, correctness, test-quality, docs-sync, robustness, security, ux, performance, arch-review, code-quality, skill-plugin-quality) and synthesizes findings into a punch list. Use when the user asks to review a PR, run /deep-review, mark a PR as ready for review, or requests a formal/thorough code review.
 ---
 
 # Deep Review
@@ -25,7 +25,7 @@ Run `gh pr view --json number,title,body,baseRefName,headRefName` and `gh pr dif
 - **`auth-sensitive`** — sub-tag to `logic`; auth / crypto / secret / payment
 - **`ui`** — CLI / TUI / web / mobile UI surface
 - **`perf`** — frontend / mobile / backend performance-sensitive changes
-- **`structure`** — new files, module reorganization, dependency graph changes
+- **`arch`** — new files, module reorganization, dependency graph changes
 
 Also judge **trivial** (single-line, pure config/doc) vs **non-trivial** (any code logic change).
 
@@ -45,7 +45,7 @@ For each dispatched reviewer, read `references/reviewers/<name>.md` and pass its
 | `logic` + `auth-sensitive` | `security` (Robustness narrows to Edge-cases lens only) |
 | `ui` | `ux` |
 | `perf` | `performance` |
-| `structure` | `structure` |
+| `arch` | `arch-review` |
 
 **C. Non-trivial conditional (any non-trivial change):** `test-quality`, `code-quality`
 

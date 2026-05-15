@@ -4,6 +4,8 @@
 
 The checklist below is a **starting point, not a fence**. It covers the most common code-quality patterns — but report any concern in this dimension that you would raise to a thoughtful colleague reviewing this PR, including categories not enumerated here. The patterns are training wheels for completeness; the goal is judgment.
 
+This reviewer is the **review-phase counterpart of the `code-simplify` skill**: `code-simplify` removes smells from module *internals*; this reviewer catches them as they enter, at PR time. Boundary-level structural concerns — module decomposition, dependency direction, layering — are out of scope here; they belong to the `arch-review` reviewer. The dividing line is the same one `code-simplify` and `arch-design` draw: module *internals* here, module *boundaries* there.
+
 This reviewer carries **two lenses**. Group your findings under the matching sub-heading so synthesis can classify them independently:
 
 - **Consistency** — naming, style, project patterns, leftover refactoring debt
@@ -38,13 +40,21 @@ This reviewer carries **two lenses**. Group your findings under the matching sub
 6. **Dead code**: commented-out blocks, unused imports / functions / branches, feature flags whose other branch was deleted long ago.
 7. **YAGNI violations**: configuration / interface points / extension hooks added for a hypothetical future requirement that wasn't asked for.
 
-### Maintainability anti-patterns (concrete, simplifier-style)
+### Maintainability anti-patterns (the `code-simplify` quick-reference smells)
 
-8. **Nested ternaries**: `a ? b ? c : d : e` — replace with if/else or switch
-9. **Dense one-liners** that pack three operations into one expression for "fewer lines" — explicit intermediate variables are better
-10. **Redundant abstractions** — a wrapper class that just delegates every method to its single field; a function that just calls another function with the same arguments
-11. **Comments that restate the code** — `// increment counter` above `counter++`
-12. **Over-clever generics / metaprogramming** — code that requires the reader to mentally execute the type system to know what runs at runtime
+These mirror the `code-simplify` skill's quick-reference smell table — flag them here, fix them through `code-simplify`. (Comments that merely restate the code are already covered by **Comment quality** above.)
+
+8. **Deep nesting** (3+ levels) — control flow hard to trace; extract guard clauses or named helpers
+9. **Nested ternaries**: `a ? b ? c : d : e` — replace with if/else or switch
+10. **Boolean flag parameters**: `doThing(true, false)` — the call site reveals nothing; replace with an options object or split into separate functions
+11. **Repeated conditional**: the same `if` condition scattered across call sites — extract a named predicate
+12. **Dense one-liners** that pack three operations into one expression for "fewer lines" — explicit intermediate variables are better
+13. **Redundant abstractions** — a wrapper class that just delegates every method to its single field; a function that just calls another function with the same arguments
+14. **Over-clever generics / metaprogramming** — code that requires the reader to mentally execute the type system to know what runs at runtime
+
+## How to recommend
+
+Name the smell in `code-simplify`'s vocabulary, then point the fix at the `code-simplify` skill — do **not** rewrite the code here. Naming the smell plus a one-line direction is in scope; the cleanup itself runs through `code-simplify` separately, where the behavior-preservation discipline (small steps, test after each) lives. (Consistent with the Reviewer Must-Not Preamble.)
 
 ## When to invoke
 
@@ -61,7 +71,7 @@ Fires for any non-trivial change (same bar as `test-quality`). Detection signals
 
 Worked scenarios:
 
-1. **Maintainability — nested ternary.** Diff adds `const status = isActive ? (isPaid ? 'live' : 'trial') : 'inactive'`. Reviewer flags under Maintainability anti-pattern 8; recommend if/else or switch.
+1. **Maintainability — nested ternary.** Diff adds `const status = isActive ? (isPaid ? 'live' : 'trial') : 'inactive'`. Reviewer flags the nested-ternary anti-pattern; recommend if/else or switch via `code-simplify`.
 2. **Consistency — naming drift.** Diff adds `getUserData()` while the rest of the codebase uses `fetchUser()` for the same role. Reviewer flags under Consistency.
 3. **Maintainability — premature abstraction.** Diff introduces `class HandlerFactory` to produce a single concrete handler used in one place. Reviewer flags YAGNI; recommend inlining until a second caller exists.
 

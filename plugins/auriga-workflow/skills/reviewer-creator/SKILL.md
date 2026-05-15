@@ -29,12 +29,12 @@ Collect in order:
 
 1. **Name** — kebab-case (e.g., `migration-safety`, `i18n-keys`). Validate:
    - lowercase / hyphenated / no spaces or special chars
-   - **Reject names that match a built-in**: `spec-conformance`, `correctness`, `test-quality`, `docs-sync`, `robustness`, `security`, `ux`, `performance`, `structure`, `code-quality`, `skill-plugin-quality` — built-in collisions are blocked by the orchestrator anyway, but catch it here for clarity
+   - **Reject names that match a built-in**: `spec-conformance`, `correctness`, `test-quality`, `docs-sync`, `robustness`, `security`, `ux`, `performance`, `arch-review`, `code-quality`, `skill-plugin-quality` — built-in collisions are blocked by the orchestrator anyway, but catch it here for clarity
 2. **One-line "Best for"** — short job description (12–25 words)
 3. **Domain** — one phrase used in the Scope preamble (e.g., "migration safety", "feature-flag cleanup")
 4. **Trigger category** — exactly one of:
    - `always` — fires on every PR (use sparingly; cost adds up)
-   - `tag:<name>` — fires only when an existing tag is set (`logic` / `auth-sensitive` / `ui` / `perf` / `structure`)
+   - `tag:<name>` — fires only when an existing tag is set (`logic` / `auth-sensitive` / `ui` / `perf` / `arch`)
    - `non-trivial` — fires for any non-trivial change
    - `detection-driven` — fires only when Detection signals match (recommended default for narrow concerns)
 5. **Detection signals** — ≥3 grep-able rows (path globs / import patterns / API call patterns). Required for `detection-driven`; useful as focus hints for other categories
