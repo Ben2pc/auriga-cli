@@ -127,9 +127,10 @@
 - **Evidence**: `npm run build` 后 `grep -c spec-design dist/catalog.json` ≥1；`grep -c '"brainstorming"' dist/catalog.json` == 0
 
 #### VAL-DEP-007
-- **Behavior**: `goalify/SKILL.md` 在文档头明确标注输入来源为 `spec.md` + `validation-contract.md`，并标注典型使用时机为 PR Ready 阶段；workflow (`CLAUDE.md`) 不嵌入 goalify 调用
+- **Behavior**: `goalify/SKILL.md` 在文档头明确标注输入来源为 `spec.md` + `validation-contract.md`；workflow (`CLAUDE.md`) 不嵌入 goalify 调用
 - **Tool**: repo-check
-- **Evidence**: SKILL.md 提及两份输入文件路径与 "PR Ready" 关键字；`CLAUDE.md` 在需求澄清 / 规划阶段 grep goalify == 0
+- **Evidence**: SKILL.md 提及两份输入文件路径；`CLAUDE.md` 在需求澄清 / 规划阶段 grep goalify == 0
+- **Note**: 早期草稿要求 "PR Ready" 关键字必须在 goalify SKILL.md 内显式出现；该要求在 PR #107 review pass 被剥离 (用户判断使用时机不应硬编码到 SKILL 内)。spec §10.2 仍保留"典型时机 PR Ready"作为设计意图描述，但不再作为验收硬要求
 
 #### VAL-DEP-008
 - **Behavior**: 版本 release notes / CHANGELOG (或 git tag 的 release body) 在引入 spec-design 的版本里显式标注"removed brainstorming, replaced by spec-design"

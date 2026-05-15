@@ -265,4 +265,4 @@ Look from a downstream consumer's seat (test-designer, planner, you-in-a-month).
 - `writing-plans` / `planning-with-files` / built-in Plan — downstream of D3 when scope triage says full plan path
 - `deep-review`'s `spec-conformance` reviewer — validates PR diff against the VAL list; findings tag `VAL-XXX-NNN`
 - `playground:playground` (Anthropic official, soft dependency) — D1.5 review aid via `document-critique` template
-- `goalify` — consumes spec.md + validation-contract.md at PR-Ready time to produce a `/goal` script for autonomous follow-up (out of band; not auto-invoked by this skill)
+- `goalify` — consumes spec.md + validation-contract.md to produce a `/goal` script for autonomous follow-up (out of band; not auto-invoked by this skill; the user picks when to invoke it)
