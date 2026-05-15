@@ -2,35 +2,34 @@
 
 ## Scope
 
-The checklist below is a **starting point, not a fence**. It covers common <DOMAIN> patterns — but report any concern in this dimension that you would raise to a thoughtful colleague reviewing this PR, including categories not enumerated here. The patterns are training wheels for completeness; the goal is judgment.
+以下检查清单是**起点，而非边界**。它涵盖常见的 <DOMAIN> 模式——但请报告你在这一维度上会向同事指出的任何问题，包括未在此列举的类别。这些模式是帮助你不遗漏的入门脚手架；目标是判断力。
 
 ## Metadata
 
 - **Best for**: <BEST_FOR>
 - **Trigger**: <TRIGGER>
 - **Reasoning**: <REASONING>
-- **Tools**: Read, Grep, Glob (read-only)
-- **Value**: <TODO: one-line value statement — what does this reviewer prevent that built-ins miss?>
+- **Tools**: Read, Grep, Glob（只读）
+- **Value**: <TODO: 一句话价值陈述——这位审查者能防住什么内置审查者会漏掉的问题？>
 
 ## Checklist
 
-<TODO: Replace this section with 5–10 specific, actionable review questions.
+<TODO: 用 5–10 条具体、可操作的审查问题替换本章节。
 
-Look at the built-in reviewers under
-plugins/auriga-workflow/skills/deep-review/references/reviewers/ for examples
-of the right level of specificity. Good checklists name concrete things to
-look for; bad checklists are abstract ("Is the code well-designed?").
+参考 plugins/auriga-workflow/skills/deep-review/references/reviewers/ 下的内置审查者，
+了解恰当的具体程度。好的检查清单点名具体要找的东西；差的检查清单是抽象的
+（"代码设计得好吗？"）。
 
-Group items under sub-headings if your reviewer has multiple lenses (see
-robustness.md for a 2-lens example: Security + Edge cases).>
+如果你的审查者有多个视角，把条目归在子标题下（见 robustness.md 的双视角示例：
+安全性 + 边缘用例）。>
 
-1. **<Category>**: <specific check — what to look for>
-2. **<Category>**: <specific check>
+1. **<类别>**：<具体检查——要找什么>
+2. **<类别>**：<具体检查>
 3. ...
 
 ## When to invoke
 
-Fires per the `Trigger` field above. The Detection table below indicates which signal(s) to focus on once dispatched.
+按上方的 **Trigger** 字段触发。下方的 Detection 表指出分派后应聚焦哪些信号。
 
 | Recommend focus on | Detection |
 |---|---|
@@ -39,18 +38,18 @@ Fires per the `Trigger` field above. The Detection table below indicates which s
 Worked scenarios:
 
 1. **<WORKED_SCENARIO_1>**
-2. <TODO: add a 2nd worked scenario — concrete file:line-style example of what the reviewer flags and why>
-3. <TODO: add a 3rd worked scenario — preferably an edge case or a near-miss>
+2. <TODO: 补第 2 个 Worked scenario——审查者会标记什么、为什么，给出具体的 file:line 式示例>
+3. <TODO: 补第 3 个 Worked scenario——最好是边缘用例或险些漏过的情形>
 
 ## Output contract
 
-Treat this pass as a **coverage stage, not a filtering stage**. Report every issue you find, including ones you are uncertain about or consider low-severity — synthesis ranks or drops them later. It is better to surface a finding that gets filtered than to silently drop a real concern.
+将此轮视为**全覆盖，不是筛选**。报告你发现的所有问题，包括你不确定的或认为低严重度的——综合步骤稍后会排序或筛除它们。让一个发现被筛掉，也好过悄悄漏掉一个真实关切。
 
-Return:
+返回：
 
-- Summary of **at most 300 words**
-- Followed by a bullet list, each: `<file>:<line> — <one-line description> — [severity: blocking | non-blocking] — [confidence: high | medium | low]`
+- **至多 300 字**的摘要
+- 紧跟一个条目列表，每条格式为：`<file>:<line> — <一句话描述> — [severity: blocking | non-blocking] — [confidence: high | medium | low]`
 
-<TODO: if your reviewer has multiple lenses or sub-categories, add an extra tag to each finding (see robustness.md `[lens: security | edge-cases]` for an example, or security.md `[category: auth | authz | secret | crypto | injection | other]`). Otherwise leave this paragraph as-is.>
+<TODO: 如果你的审查者有多个视角或子类别，给每条发现额外加一个标签（见 robustness.md 的 `[lens: security | edge-cases]` 示例，或 security.md 的 `[category: auth | authz | secret | crypto | injection | other]`）。否则本段保持原样。>
 
-Do not include code excerpts longer than 5 lines. Do not restate the diff. Return `"No findings."` only when you genuinely found nothing.
+不要包含超过 5 行的代码摘录。不要复述差异。只有在真的没有发现任何问题时才返回 `"No findings."`。

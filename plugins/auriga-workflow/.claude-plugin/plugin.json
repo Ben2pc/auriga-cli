@@ -1,6 +1,6 @@
 {
   "name": "auriga-workflow",
-  "version": "3.0.0",
+  "version": "3.1.0",
   "description": "The auriga workflow plugin: workflow skills — incremental-impl (implementation slicing), test-designer (independent test design), spec-design (requirement clarification), arch-design (architecture design), code-simplify (code simplification), session-compound (session compounding), goalify (autonomous /goal planning), deep-review (multi-dimensional PR review orchestrator), reviewer-creator (custom reviewer scaffolding), git-workflow (git lifecycle skill) — plus the git lifecycle hooks that enforce them: commit-reminder, pr-create-guard, pr-ready-guard. Dual-Agent compatible (Claude Code + Codex).",
   "author": {
     "name": "Ben2pc",
