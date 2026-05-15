@@ -106,7 +106,6 @@ describe("tarball-shape — dist/catalog.json carries everything the scanner nee
     // update-available reporting; that surface is gone).
     const owned = [
       "auriga-workflow",
-      "auriga-git-guards",
       "auriga-notify",
       "session-instructions-loader",
     ];

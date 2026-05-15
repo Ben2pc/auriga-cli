@@ -68,8 +68,8 @@ jobs:
         # dist/ before tests run, so no separate Build step is needed.
         run: npm test
 
-      - name: Git-guards plugin smoke tests
-        # Plain Node smoke tests for plugins/auriga-git-guards/scripts/*.mjs.
+      - name: Git-guard hooks smoke tests
+        # Plain Node smoke tests for plugins/auriga-workflow/scripts/*.mjs.
         # Not part of `npm test` (different runner — hand-rolled assertion
         # loops, not node:test). Plugin script tests get their own
         # Release-CI step so future regressions in plugin scripts can't

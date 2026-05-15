@@ -19,7 +19,7 @@ const ENTRY = path.resolve(
   HERE,
   "..",
   "plugins",
-  "auriga-git-guards",
+  "auriga-workflow",
   "scripts",
   "pr-create-guard.mjs",
 );

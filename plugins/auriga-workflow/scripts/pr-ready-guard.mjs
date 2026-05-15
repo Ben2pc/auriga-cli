@@ -161,6 +161,31 @@ function stripQuoted(cmd) {
 // ---------------------------------------------------------------------
 // Structural checks
 
+// Recursively collect `.md` files (excluding `.bak`) under `dir`, returned
+// as repo-relative posix paths prefixed by `relPrefix`. Both spec
+// directories must be scanned recursively: spec-design and arch-design
+// write their outputs nested one level down — docs/specs/<topic>/spec.md,
+// docs/specs/<topic>/arch_design.md — so a flat readdir sees only the
+// <topic> directory name and never matches `.md` (issue #113).
+function collectSpecMd(dir, relPrefix) {
+  let entries;
+  try {
+    entries = fs.readdirSync(dir, { withFileTypes: true });
+  } catch {
+    return []; // dir doesn't exist — nothing stray here
+  }
+  const out = [];
+  for (const ent of entries) {
+    const childRel = `${relPrefix}/${ent.name}`;
+    if (ent.isDirectory()) {
+      out.push(...collectSpecMd(path.join(dir, ent.name), childRel));
+    } else if (/\.md$/i.test(ent.name) && !/\.bak$/i.test(ent.name)) {
+      out.push(childRel);
+    }
+  }
+  return out;
+}
+
 function findStrayDocs(repoRoot) {
   const rootFiles = ["findings.md", "progress.md", "task_plan.md"];
   const root = rootFiles.filter((f) => {
@@ -171,33 +196,19 @@ function findStrayDocs(repoRoot) {
     }
   });
 
-  const specDir = path.join(repoRoot, "docs", "superpowers", "specs");
-  let specs = [];
-  try {
-    const entries = fs.readdirSync(specDir);
-    specs = entries
-      .filter((e) => /\.md$/i.test(e))
-      .filter((e) => !/\.bak$/i.test(e))
-      .map((e) => `docs/superpowers/specs/${e}`);
-  } catch {
-    // dir doesn't exist — no spec docs. Not stray.
-  }
+  // B3: stray spec docs under docs/superpowers/specs/ (recursive).
+  const specs = collectSpecMd(
+    path.join(repoRoot, "docs", "superpowers", "specs"),
+    "docs/superpowers/specs",
+  );
 
-  // B4: docs/specs/ is dev-only temp workspace; non-empty *.md at PR
-  // Ready means a spec was never promoted / archived / deleted. Apply
-  // the same .md-without-.bak filter as B3 so partial drafts don't
-  // false-positive after a rename.
-  const activeSpecsDir = path.join(repoRoot, "docs", "specs");
-  let activeSpecs = [];
-  try {
-    const entries = fs.readdirSync(activeSpecsDir);
-    activeSpecs = entries
-      .filter((e) => /\.md$/i.test(e))
-      .filter((e) => !/\.bak$/i.test(e))
-      .map((e) => `docs/specs/${e}`);
-  } catch {
-    // dir doesn't exist — no active specs. Not stray.
-  }
+  // B4: docs/specs/ is a dev-only temp workspace; any `.md` left at PR
+  // Ready means a spec was never promoted / archived / deleted. Scanned
+  // recursively so nested docs/specs/<topic>/*.md are caught.
+  const activeSpecs = collectSpecMd(
+    path.join(repoRoot, "docs", "specs"),
+    "docs/specs",
+  );
   return { root, specs, activeSpecs };
 }
 

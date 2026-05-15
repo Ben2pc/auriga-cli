@@ -314,8 +314,7 @@ Recommended skills (category: recommended)  ← NOT installed by --all
   codex-agent                    Delegate tasks to Codex CLI
 
 Plugins (category: plugins)
-  auriga-workflow                Bundled auriga-owned workflow skills (incl. deep-review, goalify)
-  auriga-git-guards              Git lifecycle guardrails: commit-reminder + PR-create + PR-ready (Claude Code + Codex)
+  auriga-workflow                Auriga workflow skills + git lifecycle hooks (deep-review, goalify, git guards)
   auriga-notify                  (opt-in) macOS Notification hook plugin
   session-instructions-loader    Inject ancestor AGENTS.md + extra files on Codex SessionStart
   skill-creator                  Create / modify / measure skills
