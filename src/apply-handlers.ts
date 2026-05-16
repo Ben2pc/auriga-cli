@@ -26,6 +26,7 @@ import {
   installPlugins,
   uninstallPlugin,
 } from "./plugins.js";
+import { installPreset } from "./preset.js";
 import {
   installRecommendedSkills,
   installSkills,
@@ -198,10 +199,50 @@ export function buildDefaultApplyHandlers(
     }
   };
 
+  // The preset is a single apply item that drives the whole installPreset
+  // orchestration. scope / agent / lang come from the Dashboard's preset
+  // controls; omitted values fall back to the preset defaults
+  // (user / both / en). Uninstall is not a preset operation.
+  const preset: ApplyHandler = async (
+    action,
+    _name,
+    { onLog, scope, lang: requestedLang, agent },
+  ) => {
+    assertAction(action);
+    if (action !== "install") {
+      throw new Error("preset only supports the install action");
+    }
+    const results = await installPreset(packageRoot, {
+      interactive: false,
+      cwd,
+      scope: scope ?? "user",
+      agent: agent ?? "both",
+      lang: requestedLang ?? lang,
+      onLog: streamLog(onLog),
+    });
+    for (const r of results) {
+      onLog(
+        r.ok
+          ? `preset: ${r.category} installed`
+          : `preset: ${r.category} failed — ${r.err}`,
+        r.ok ? "info" : "error",
+      );
+    }
+    const failed = results.filter((r) => !r.ok);
+    if (failed.length > 0) {
+      throw new Error(
+        `preset install failed for ${failed.length} step(s): ${failed
+          .map((f) => f.category)
+          .join(", ")}`,
+      );
+    }
+  };
+
   return {
     workflow,
     skill,
     "recommended-skill": recommendedSkill,
     plugin,
+    preset,
   };
 }

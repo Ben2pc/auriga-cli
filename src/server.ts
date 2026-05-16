@@ -16,9 +16,12 @@ export interface ApplyHandlerOptions {
    *  translate into the per-installer flag (`--scope project|user`). The
    *  workflow handler ignores it (workflow has no scope concept). */
   scope?: "project" | "user";
-  /** Workflow CLAUDE.md language variant. Only meaningful for the workflow
-   *  handler; other handlers ignore it. Omitted = "en". */
+  /** Workflow CLAUDE.md language variant. Meaningful for the workflow and
+   *  preset handlers; other handlers ignore it. Omitted = "en". */
   lang?: "en" | "zh-CN";
+  /** Preset install runtime. Only meaningful for the preset handler;
+   *  other handlers ignore it. Omitted = "both". */
+  agent?: "claude" | "codex" | "both";
 }
 
 export type ApplyHandler = (
@@ -32,6 +35,7 @@ export interface ApplyHandlers {
   skill: ApplyHandler;
   "recommended-skill": ApplyHandler;
   plugin: ApplyHandler;
+  preset: ApplyHandler;
 }
 
 export interface ApplyCatalog {
@@ -39,6 +43,7 @@ export interface ApplyCatalog {
   skill: Set<string>;
   "recommended-skill": Set<string>;
   plugin: Set<string>;
+  preset: Set<string>;
 }
 
 export interface StartServerOptions {
@@ -302,10 +307,12 @@ const VALID_CATEGORIES = new Set([
   "skill",
   "recommended-skill",
   "plugin",
+  "preset",
 ]);
 const VALID_ACTIONS = new Set(["install", "uninstall"]);
 const VALID_SCOPES = new Set(["project", "user"]);
 const VALID_LANGS = new Set(["en", "zh-CN"]);
+const VALID_AGENTS = new Set(["claude", "codex", "both"]);
 
 function parseApplyRequest(raw: string): ApplyRequest | null {
   let parsed: unknown;
@@ -319,7 +326,7 @@ function parseApplyRequest(raw: string): ApplyRequest | null {
   if (!Array.isArray(items)) return null;
   for (const it of items) {
     if (!it || typeof it !== "object") return null;
-    const { category, name, action, scope, lang } = it as Record<
+    const { category, name, action, scope, lang, agent } = it as Record<
       string,
       unknown
     >;
@@ -335,11 +342,18 @@ function parseApplyRequest(raw: string): ApplyRequest | null {
       if (typeof scope !== "string" || !VALID_SCOPES.has(scope)) return null;
       if (category === "workflow") return null;
     }
-    // Lang is optional and only meaningful for category="workflow". Any
-    // other pairing is a client bug and we reject loudly.
+    // Lang is optional and meaningful for category="workflow" and
+    // category="preset" (the preset installs the workflow doc). Any other
+    // pairing is a client bug and we reject loudly.
     if (lang !== undefined) {
       if (typeof lang !== "string" || !VALID_LANGS.has(lang)) return null;
-      if (category !== "workflow") return null;
+      if (category !== "workflow" && category !== "preset") return null;
+    }
+    // Agent is optional and only meaningful for category="preset" (the
+    // per-plugin agent is derived from the catalog, not client-supplied).
+    if (agent !== undefined) {
+      if (typeof agent !== "string" || !VALID_AGENTS.has(agent)) return null;
+      if (category !== "preset") return null;
     }
   }
   return parsed as ApplyRequest;
@@ -517,6 +531,7 @@ export async function startServer(
               emit(job, { type: "item:log", index: i, line, level }),
             scope: item.scope,
             lang: item.lang,
+            agent: item.agent,
           });
           emit(job, { type: "item:done", index: i, success: true });
         } catch (err) {
@@ -994,4 +1009,5 @@ const defaultHandlersNotConfigured: ApplyHandlers = {
   skill: handlerNotConfigured,
   "recommended-skill": handlerNotConfigured,
   plugin: handlerNotConfigured,
+  preset: handlerNotConfigured,
 };

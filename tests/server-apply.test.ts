@@ -143,6 +143,7 @@ function defaultCatalog(): ApplyCatalog {
     ["recommended-skill", "rec-alpha"],
     ["plugin", "plug-alpha"],
     ["plugin", "plug-beta"],
+    ["preset", "preset"],
   ]);
 }
 
@@ -357,6 +358,7 @@ describe("POST /api/apply — fail-continue semantics (spec §6.4)", () => {
       },
       "recommended-skill": successHandler(),
       plugin: successHandler(),
+      preset: successHandler(),
     };
     const ctx = await bootApplyServer({ handlers });
     t.after(() => ctx.close());
@@ -1138,6 +1140,92 @@ describe("POST /api/shutdown — graceful drain of in-flight job", () => {
     }
     const elapsed = Date.now() - t0;
     assert.ok(refused, `server must refuse after grace; elapsed=${elapsed}ms`);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Preset category — the Web UI's one-click preset apply (VAL-WEB-003/005)
+// ---------------------------------------------------------------------------
+
+describe("POST /api/apply — preset category", () => {
+  test("preset item with scope/agent/lang → 202 and handler receives them", async (t) => {
+    const seen: Array<{
+      action: string;
+      name: string;
+      scope?: string;
+      agent?: string;
+      lang?: string;
+    }> = [];
+    const recording: ApplyHandler = async (action, name, opts) => {
+      seen.push({
+        action,
+        name,
+        scope: opts.scope,
+        agent: opts.agent,
+        lang: opts.lang,
+      });
+    };
+    const ctx = await bootApplyServer({ handlers: uniformHandlers(recording) });
+    t.after(() => ctx.close());
+
+    const applyRes = await postApply(ctx.baseUrl, ctx.token, {
+      items: [
+        {
+          category: "preset",
+          name: "preset",
+          action: "install",
+          scope: "user",
+          agent: "both",
+          lang: "en",
+        },
+      ],
+    });
+    assert.equal(applyRes.status, 202);
+    const { jobId } = (await applyRes.json()) as { jobId: string };
+
+    const progressRes = await openProgress(ctx.baseUrl, ctx.token, jobId);
+    await readSSEUntil(
+      progressRes,
+      (_f, parsed) => (parsed as ProgressEvent | null)?.type === "all-done",
+    );
+
+    assert.equal(seen.length, 1);
+    assert.deepEqual(seen[0], {
+      action: "install",
+      name: "preset",
+      scope: "user",
+      agent: "both",
+      lang: "en",
+    });
+  });
+
+  test("boundary: agent field on a non-preset category → 400", async (t) => {
+    const ctx = await bootApplyServer();
+    t.after(() => ctx.close());
+
+    const res = await postApply(ctx.baseUrl, ctx.token, {
+      items: [
+        { category: "skill", name: "alpha", action: "install", agent: "both" },
+      ],
+    });
+    assert.equal(res.status, 400);
+  });
+
+  test("boundary: invalid agent value on a preset item → 400", async (t) => {
+    const ctx = await bootApplyServer();
+    t.after(() => ctx.close());
+
+    const res = await postApply(ctx.baseUrl, ctx.token, {
+      items: [
+        {
+          category: "preset",
+          name: "preset",
+          action: "install",
+          agent: "nobody",
+        },
+      ],
+    });
+    assert.equal(res.status, 400);
   });
 });
 

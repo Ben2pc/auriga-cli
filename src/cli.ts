@@ -854,6 +854,9 @@ async function runUi(p: UiParsed, version: string): Promise<number> {
       Object.keys(scanCatalog.recommendedSkills),
     ),
     plugin: new Set<string>(Object.keys(scanCatalog.plugins)),
+    // Preset is a singleton apply target — the sentinel name "preset"
+    // matches what the Dashboard's preset button sends.
+    preset: new Set<string>(["preset"]),
   };
   const pluginAgentsByName = new Map<string, ("claude" | "codex")[]>();
   for (const [name, def] of Object.entries(scanCatalog.plugins)) {

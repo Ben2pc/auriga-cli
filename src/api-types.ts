@@ -102,7 +102,11 @@ export type ApplyCategory =
   | "workflow"
   | "skill"
   | "recommended-skill"
-  | "plugin";
+  | "plugin"
+  /** The curated preset (workflow doc + workflow skills + auriga-workflow
+   *  plugin). A single apply item drives the whole installPreset
+   *  orchestration; `name` is the sentinel "preset". */
+  | "preset";
 
 export type ApplyAction = "install" | "uninstall";
 
@@ -126,18 +130,32 @@ export type ApplyScope = "project" | "user";
  */
 export type ApplyLang = "en" | "zh-CN";
 
+/**
+ * Preset install runtime target — Claude Code, Codex, or both.
+ *
+ * Only meaningful for `category === "preset"` (the preset's UI exposes an
+ * agent control); the server rejects it for every other category, where
+ * the per-plugin agent is derived from the catalog rather than supplied
+ * by the client.
+ */
+export type ApplyPresetAgent = "claude" | "codex" | "both";
+
 export interface ApplyItemRef {
   category: ApplyCategory;
   name: string;
   action: ApplyAction;
-  /** Installer scope. Omitted = "project" (back-compat default). The server
-   *  rejects this field for category="workflow" because workflow has no
-   *  scope concept (it's a single file at the project root). */
+  /** Installer scope. Omitted = "project" (back-compat default), except
+   *  for category="preset" where the handler defaults it to "user". The
+   *  server rejects this field for category="workflow" because workflow
+   *  has no scope concept (it's a single file at the project root). */
   scope?: ApplyScope;
   /** Workflow CLAUDE.md language variant. Omitted = "en" (back-compat
-   *  default). The server rejects this field for any non-workflow
-   *  category. */
+   *  default). The server accepts this field only for category="workflow"
+   *  and category="preset" (the preset installs the workflow doc). */
   lang?: ApplyLang;
+  /** Preset install runtime. Omitted = "both". The server accepts this
+   *  field only for category="preset". */
+  agent?: ApplyPresetAgent;
 }
 
 export interface ApplyRequest {

@@ -43,6 +43,7 @@ import type {
   ApplyAction,
   ApplyCategory,
   ApplyItemRef,
+  ApplyPresetAgent,
   ItemStatus,
   PluginState,
   ProgressEvent as ApiProgressEvent,
@@ -81,6 +82,8 @@ function makeKey(category: ApplyCategory, name: string): string {
 
 type Scope = "project" | "user";
 type Lang = "en" | "zh-CN";
+/** Preset install runtime — Claude Code, Codex, or both. */
+type PresetAgent = ApplyPresetAgent;
 
 // Restrained clay-accented dropdown. Used for both the per-column scope
 // picker (project|user) and the Workflow column's CLAUDE.md language
@@ -285,6 +288,142 @@ function CategorySection({
 }
 
 // ---------------------------------------------------------------------------
+// PresetBar — one-click "install the recommended preset" affordance with
+// inline scope / agent / lang controls. Sits above the category grid and
+// is independent of the per-item Apply queue: clicking submits a single
+// `preset` apply item. Defaults match the `--preset` CLI flag
+// (user / both / en).
+// ---------------------------------------------------------------------------
+
+function PresetBar({
+  scope,
+  agent,
+  lang,
+  onScopeChange,
+  onAgentChange,
+  onLangChange,
+  onApply,
+  disabled,
+}: {
+  scope: Scope;
+  agent: PresetAgent;
+  lang: Lang;
+  onScopeChange: (next: Scope) => void;
+  onAgentChange: (next: PresetAgent) => void;
+  onLangChange: (next: Lang) => void;
+  onApply: () => void;
+  disabled: boolean;
+}): JSX.Element {
+  const controlLabelStyle = {
+    display: "flex",
+    alignItems: "center",
+    gap: "6px",
+    fontFamily: "var(--font-anthropic-mono)",
+    fontSize: "10px",
+    fontWeight: 600,
+    letterSpacing: "0.06em",
+    color: "var(--color-cloud-dark)",
+  } as const;
+  return (
+    <div
+      data-testid="preset-bar"
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: "12px",
+        flexWrap: "wrap",
+        padding: "12px",
+        marginBottom: "var(--spacing-16)",
+        border: "1px solid var(--color-clay)",
+        backgroundColor: "var(--color-ivory-medium)",
+      }}
+    >
+      <span
+        className="font-anthropic-sans"
+        style={{ fontSize: "13px", color: "var(--color-slate-dark)", minWidth: 0 }}
+      >
+        <span style={{ fontWeight: 600 }}>Recommended preset</span>
+        <span
+          style={{
+            display: "block",
+            fontSize: "11px",
+            color: "var(--color-cloud-dark)",
+          }}
+        >
+          CLAUDE.md/AGENTS.md + workflow skills + auriga-workflow plugin
+        </span>
+      </span>
+      <span style={{ flex: 1 }} />
+      <label style={controlLabelStyle}>
+        SCOPE
+        <select
+          data-testid="preset-scope"
+          aria-label="Preset install scope"
+          value={scope}
+          onChange={(e) => onScopeChange(e.target.value as Scope)}
+          style={DROPDOWN_STYLE}
+        >
+          <option value="user" style={DROPDOWN_OPTION_STYLE}>USER</option>
+          <option value="project" style={DROPDOWN_OPTION_STYLE}>PROJECT</option>
+        </select>
+      </label>
+      <label style={controlLabelStyle}>
+        AGENT
+        <select
+          data-testid="preset-agent"
+          aria-label="Preset install agent"
+          value={agent}
+          onChange={(e) => onAgentChange(e.target.value as PresetAgent)}
+          style={DROPDOWN_STYLE}
+        >
+          <option value="both" style={DROPDOWN_OPTION_STYLE}>BOTH</option>
+          <option value="claude" style={DROPDOWN_OPTION_STYLE}>CLAUDE</option>
+          <option value="codex" style={DROPDOWN_OPTION_STYLE}>CODEX</option>
+        </select>
+      </label>
+      <label style={controlLabelStyle}>
+        LANG
+        <select
+          data-testid="preset-lang"
+          aria-label="Preset workflow language"
+          value={lang}
+          onChange={(e) => onLangChange(e.target.value as Lang)}
+          style={DROPDOWN_STYLE}
+        >
+          <option value="en" style={DROPDOWN_OPTION_STYLE}>EN</option>
+          <option value="zh-CN" style={DROPDOWN_OPTION_STYLE}>ZH-CN</option>
+        </select>
+      </label>
+      <button
+        data-testid="preset-apply"
+        type="button"
+        onClick={onApply}
+        disabled={disabled}
+        className="font-anthropic-mono uppercase"
+        style={{
+          appearance: "none",
+          border: "1px solid var(--color-clay)",
+          backgroundColor: disabled
+            ? "var(--color-ivory-dark)"
+            : "var(--color-clay)",
+          color: disabled
+            ? "var(--color-cloud-dark)"
+            : "var(--color-ivory-light)",
+          fontFamily: "var(--font-anthropic-mono)",
+          fontSize: "11px",
+          fontWeight: 700,
+          letterSpacing: "0.06em",
+          padding: "6px 14px",
+          cursor: disabled ? "not-allowed" : "pointer",
+        }}
+      >
+        Install preset
+      </button>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Dashboard
 // ---------------------------------------------------------------------------
 
@@ -329,6 +468,12 @@ export default function Dashboard(): JSX.Element {
   // rewrites the action on already-selected installed/partial rows.
   const [applyMode, setApplyMode] = useState<ApplyAction>("install");
   const [applying, setApplying] = useState(false);
+
+  // Preset bar controls. The defaults differ from a category install —
+  // scope=user, agent=both, lang=en — matching the `--preset` CLI flag.
+  const [presetScope, setPresetScope] = useState<Scope>("user");
+  const [presetAgent, setPresetAgent] = useState<PresetAgent>("both");
+  const [presetLang, setPresetLang] = useState<Lang>("en");
 
   // Derive the /api/state `scopes` query payload from the per-column scope
   // pickers. The server splits skill/recommended-skill into one `skills`
@@ -597,6 +742,59 @@ export default function Dashboard(): JSX.Element {
     [],
   );
 
+  // Shared submit + SSE-stream pump. Both the per-item Apply button and
+  // the one-click preset button funnel through here so the log buffer,
+  // job status, and post-apply rescan behave identically.
+  const submitAndStream = useCallback(
+    async (items: ApplyItemRef[]) => {
+      setApplying(true);
+      setLogLines([]);
+      setJobStatus("Submitting apply request…");
+      try {
+        appendLog(
+          "meta",
+          `── Apply ${items.length} item${items.length > 1 ? "s" : ""}`,
+        );
+        const { jobId } = await submitApply({ items });
+        appendLog("meta", `── job ${jobId.slice(0, 12)}…`);
+        setJobStatus(`Job ${jobId.slice(0, 12)}…  running`);
+
+        // Open SSE; close any prior stream first.
+        sseRef.current?.close();
+        sseRef.current = openProgress(jobId, (ev) => {
+          const formatted = formatProgressEvent(ev);
+          if (formatted) appendLog(formatted.level, formatted.text);
+          if (ev.type === "all-done") {
+            sseRef.current?.close();
+            sseRef.current = null;
+            setApplying(false);
+            setJobStatus(
+              ev.success
+                ? `Last job completed · ${ev.failedCount === 0 ? "all succeeded" : `${ev.failedCount} failed`}`
+                : `Last job completed · ${ev.failedCount} failed`,
+            );
+            // Refresh /api/state so badges reflect the new ground truth.
+            // Carry the current scope picks so the post-apply rescan reads
+            // from the same truth source the user just operated on.
+            fetchState(currentScopes)
+              .then((report) => setState(report))
+              .catch(() => {
+                /* keep prior state; non-fatal */
+              });
+            setSelected(new Map());
+          }
+        });
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : "apply failed";
+        appendLog("error", `submit failed: ${msg}`);
+        setJobStatus(undefined);
+        setError(msg);
+        setApplying(false);
+      }
+    },
+    [appendLog, formatProgressEvent, currentScopes],
+  );
+
   const handleApply = useCallback(async () => {
     if (selected.size === 0) return;
     const items = Array.from(selected.values());
@@ -634,48 +832,24 @@ export default function Dashboard(): JSX.Element {
       if (!ok) return;
     }
 
-    setApplying(true);
-    setLogLines([]);
-    setJobStatus("Submitting apply request…");
-    try {
-      appendLog("meta", `── Apply ${items.length} item${items.length > 1 ? "s" : ""}`);
-      const { jobId } = await submitApply({ items });
-      appendLog("meta", `── job ${jobId.slice(0, 12)}…`);
-      setJobStatus(`Job ${jobId.slice(0, 12)}…  running`);
+    await submitAndStream(items);
+  }, [selected, submitAndStream]);
 
-      // Open SSE; close any prior stream first.
-      sseRef.current?.close();
-      sseRef.current = openProgress(jobId, (ev) => {
-        const formatted = formatProgressEvent(ev);
-        if (formatted) appendLog(formatted.level, formatted.text);
-        if (ev.type === "all-done") {
-          sseRef.current?.close();
-          sseRef.current = null;
-          setApplying(false);
-          setJobStatus(
-            ev.success
-              ? `Last job completed · ${ev.failedCount === 0 ? "all succeeded" : `${ev.failedCount} failed`}`
-              : `Last job completed · ${ev.failedCount} failed`,
-          );
-          // Refresh /api/state so badges reflect the new ground truth.
-          // Carry the current scope picks so the post-apply rescan reads
-          // from the same truth source the user just operated on.
-          fetchState(currentScopes)
-            .then((report) => setState(report))
-            .catch(() => {
-              /* keep prior state; non-fatal */
-            });
-          setSelected(new Map());
-        }
-      });
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "apply failed";
-      appendLog("error", `submit failed: ${msg}`);
-      setJobStatus(undefined);
-      setError(msg);
-      setApplying(false);
-    }
-  }, [selected, appendLog, formatProgressEvent]);
+  // One-click preset install. Independent of the per-item `selected`
+  // queue — it submits a single `preset` apply item carrying the
+  // scope / agent / lang from the preset bar's own controls.
+  const handleApplyPreset = useCallback(async () => {
+    if (applying) return;
+    const item: ApplyItemRef = {
+      category: "preset",
+      name: "preset",
+      action: "install",
+      scope: presetScope,
+      lang: presetLang,
+      agent: presetAgent,
+    };
+    await submitAndStream([item]);
+  }, [applying, presetScope, presetAgent, presetLang, submitAndStream]);
 
   // cwd surfaced by the server (home-reduced, e.g. `~/Workspace/foo`). Falls
   // back to a generic label until /api/state lands.
@@ -751,6 +925,17 @@ export default function Dashboard(): JSX.Element {
             {error}
           </div>
         )}
+
+        <PresetBar
+          scope={presetScope}
+          agent={presetAgent}
+          lang={presetLang}
+          onScopeChange={setPresetScope}
+          onAgentChange={setPresetAgent}
+          onLangChange={setPresetLang}
+          onApply={() => void handleApplyPreset()}
+          disabled={applying}
+        />
 
         <div className="dashboard-grid" data-testid="dashboard-grid">
           <div data-section="workflow">
