@@ -90,10 +90,11 @@ export interface StateWarning {
     | "claude-code-not-installed"
     | "settings-unreadable"
     | "skill-malformed"
-    /** Project-scope CLAUDE.md (or the user-scope fallback when scanning
-     *  user scope) is present but has no recognizable `# auriga Workflow (vX.Y.Z)`
-     *  header. The row reports `not-installed`; install will back up the
-     *  existing file to `CLAUDE.md.bak` and write ours. */
+    /** Workflow instruction file is present but has no recognizable
+     *  `# auriga Workflow (vX.Y.Z)` header. The row reports `not-installed`;
+     *  install keeps the existing content in the user region before writing
+     *  ours. */
+    | "workflow-foreign-agentsmd"
     | "workflow-foreign-claudemd";
   message: string;
 }

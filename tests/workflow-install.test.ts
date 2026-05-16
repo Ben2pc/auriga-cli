@@ -55,7 +55,12 @@ async function captureWarnings(fn: () => Promise<void>): Promise<string> {
 function listBackups(dir: string): string[] {
   return fs
     .readdirSync(dir)
-    .filter((n) => n === "CLAUDE.md.bak" || n.startsWith("CLAUDE.md.bak."));
+    .filter((n) =>
+      n === "CLAUDE.md.bak" ||
+      n.startsWith("CLAUDE.md.bak.") ||
+      n === "AGENTS.md.bak" ||
+      n.startsWith("AGENTS.md.bak.")
+    );
 }
 
 after(() => {
@@ -65,6 +70,24 @@ after(() => {
 });
 
 describe("installWorkflow — fresh install (VAL-WF-001, 002)", () => {
+  test("VAL-FILE-001/002: writes AGENTS.md as the primary file and CLAUDE.md as compatibility symlink", async () => {
+    const cwd = makeScratch("fresh-agents-primary");
+    await installWorkflow(makePackageRoot(), { interactive: false, cwd, lang: "en" });
+
+    const agentsPath = path.join(cwd, "AGENTS.md");
+    const claudePath = path.join(cwd, "CLAUDE.md");
+    assert.equal(fs.lstatSync(agentsPath).isSymbolicLink(), false);
+    assert.equal(fs.lstatSync(claudePath).isSymbolicLink(), true);
+    assert.equal(fs.readlinkSync(claudePath), "AGENTS.md");
+
+    const parsed = parseMarkers(fs.readFileSync(agentsPath, "utf-8"));
+    assert.equal(parsed.kind, "marked");
+    assert.deepEqual(
+      fs.readdirSync(cwd).filter((n) => n.endsWith(".bak") || n.includes(".bak.")),
+      [],
+    );
+  });
+
   test("VAL-WF-001: writes a marked file, header inside the block, START at the top", async () => {
     const cwd = makeScratch("fresh");
     await installWorkflow(makePackageRoot(), { interactive: false, cwd, lang: "en" });
@@ -272,17 +295,65 @@ describe("installWorkflow — malformed markers (VAL-WF-009)", () => {
   }
 });
 
-describe("installWorkflow — AGENTS.md symlink (VAL-WF-010)", () => {
-  test("VAL-WF-010: install creates AGENTS.md as a symlink to CLAUDE.md", async () => {
+describe("installWorkflow — AGENTS.md primary with CLAUDE.md compatibility symlink (VAL-WF-010)", () => {
+  test("VAL-FILE-004/005: old CLAUDE-primary install flips to AGENTS-primary and preserves user region", async () => {
+    const cwd = makeScratch("old-shape-flip");
+    const claudePath = path.join(cwd, "CLAUDE.md");
+    const agentsPath = path.join(cwd, "AGENTS.md");
+    fs.writeFileSync(
+      claudePath,
+      composeMarkedFile({
+        blockBody: "# auriga Workflow (v1.0.0)\nold body\n",
+        userRegion: "\n## 工程规则\n- keep this\n",
+      }),
+    );
+    fs.symlinkSync("CLAUDE.md", agentsPath);
+
+    await installWorkflow(makePackageRoot("# auriga Workflow (v2.0.0)\nnew body\n"), {
+      interactive: false,
+      cwd,
+      lang: "en",
+    });
+
+    assert.equal(fs.lstatSync(agentsPath).isSymbolicLink(), false);
+    assert.equal(fs.lstatSync(claudePath).isSymbolicLink(), true);
+    assert.equal(fs.readlinkSync(claudePath), "AGENTS.md");
+
+    const parsed = parseMarkers(fs.readFileSync(agentsPath, "utf-8"));
+    assert.equal(parsed.kind, "marked");
+    if (parsed.kind !== "marked") return;
+    assert.match(parsed.blockBody, /new body/);
+    assert.ok(parsed.userRegion.includes("keep this"));
+  });
+
+  test("VAL-FILE-006: a foreign real-file AGENTS.md is preserved before becoming the primary file", async () => {
+    const cwd = makeScratch("agents-realfile-primary");
+    const agentsPath = path.join(cwd, "AGENTS.md");
+    const foreign = "# Another tool's AGENTS.md\nkeep me\n";
+    fs.writeFileSync(agentsPath, foreign);
+
+    const warnings = await captureWarnings(() =>
+      installWorkflow(makePackageRoot(), { interactive: false, cwd, lang: "en" }),
+    );
+
+    const parsed = parseMarkers(fs.readFileSync(agentsPath, "utf-8"));
+    assert.equal(parsed.kind, "marked");
+    if (parsed.kind !== "marked") return;
+    assert.ok(parsed.userRegion.includes(foreign));
+    assert.equal(fs.readlinkSync(path.join(cwd, "CLAUDE.md")), "AGENTS.md");
+    assert.match(warnings, /AGENTS\.md/);
+  });
+
+  test("VAL-WF-010: install creates CLAUDE.md as a compatibility symlink to AGENTS.md", async () => {
     const cwd = makeScratch("symlink");
     await installWorkflow(makePackageRoot(), { interactive: false, cwd, lang: "en" });
 
-    const lstat = fs.lstatSync(path.join(cwd, "AGENTS.md"));
-    assert.equal(lstat.isSymbolicLink(), true);
-    assert.equal(fs.readlinkSync(path.join(cwd, "AGENTS.md")), "CLAUDE.md");
+    assert.equal(fs.lstatSync(path.join(cwd, "AGENTS.md")).isSymbolicLink(), false);
+    assert.equal(fs.lstatSync(path.join(cwd, "CLAUDE.md")).isSymbolicLink(), true);
+    assert.equal(fs.readlinkSync(path.join(cwd, "CLAUDE.md")), "AGENTS.md");
   });
 
-  test("a foreign real-file AGENTS.md is backed up before becoming a symlink", async () => {
+  test("a foreign real-file AGENTS.md is kept as the user region before becoming primary", async () => {
     const cwd = makeScratch("agents-realfile");
     const agentsPath = path.join(cwd, "AGENTS.md");
     const foreign = "# Another tool's AGENTS.md\nkeep me\n";
@@ -292,15 +363,15 @@ describe("installWorkflow — AGENTS.md symlink (VAL-WF-010)", () => {
       installWorkflow(makePackageRoot(), { interactive: false, cwd, lang: "en" }),
     );
 
-    // The foreign content survives in AGENTS.md.bak.
-    assert.equal(fs.readFileSync(path.join(cwd, "AGENTS.md.bak"), "utf-8"), foreign);
-    // AGENTS.md itself is now the install-shape symlink.
-    assert.equal(fs.lstatSync(agentsPath).isSymbolicLink(), true);
-    assert.equal(fs.readlinkSync(agentsPath), "CLAUDE.md");
+    const parsed = parseMarkers(fs.readFileSync(agentsPath, "utf-8"));
+    assert.equal(parsed.kind, "marked");
+    if (parsed.kind !== "marked") return;
+    assert.ok(parsed.userRegion.includes(foreign), "foreign content survives in the user region");
+    assert.equal(fs.readlinkSync(path.join(cwd, "CLAUDE.md")), "AGENTS.md");
     assert.match(warnings, /AGENTS\.md/);
   });
 
-  test("a symlink AGENTS.md pointing elsewhere is backed up as a symlink", async () => {
+  test("a symlink AGENTS.md pointing elsewhere is backed up as a symlink before becoming primary", async () => {
     const cwd = makeScratch("agents-foreignlink");
     const agentsPath = path.join(cwd, "AGENTS.md");
     fs.writeFileSync(path.join(cwd, "other.md"), "elsewhere\n");
@@ -312,10 +383,11 @@ describe("installWorkflow — AGENTS.md symlink (VAL-WF-010)", () => {
     const bak = fs.lstatSync(path.join(cwd, "AGENTS.md.bak"));
     assert.equal(bak.isSymbolicLink(), true);
     assert.equal(fs.readlinkSync(path.join(cwd, "AGENTS.md.bak")), "other.md");
-    assert.equal(fs.readlinkSync(agentsPath), "CLAUDE.md");
+    assert.equal(fs.lstatSync(agentsPath).isSymbolicLink(), false);
+    assert.equal(fs.readlinkSync(path.join(cwd, "CLAUDE.md")), "AGENTS.md");
   });
 
-  test("re-install over an existing CLAUDE.md symlink does not create a backup", async () => {
+  test("re-install over the new AGENTS.md primary shape does not create a backup", async () => {
     const cwd = makeScratch("agents-reinstall");
     await installWorkflow(makePackageRoot(), { interactive: false, cwd, lang: "en" });
     await installWorkflow(makePackageRoot(), { interactive: false, cwd, lang: "en" });
@@ -323,9 +395,9 @@ describe("installWorkflow — AGENTS.md symlink (VAL-WF-010)", () => {
     assert.equal(
       fs.existsSync(path.join(cwd, "AGENTS.md.bak")),
       false,
-      "an AGENTS.md already pointing at CLAUDE.md is our shape — no backup",
+      "an AGENTS.md primary file is our shape — no backup",
     );
-    assert.equal(fs.readlinkSync(path.join(cwd, "AGENTS.md")), "CLAUDE.md");
+    assert.equal(fs.readlinkSync(path.join(cwd, "CLAUDE.md")), "AGENTS.md");
   });
 });
 
