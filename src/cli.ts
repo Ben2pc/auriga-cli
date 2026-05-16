@@ -317,7 +317,7 @@ function validateInstall(out: InstallParsed, filterFlag: string | null): void {
   // (workflow doc + workflow skills + auriga-workflow plugin) and cannot
   // combine with a <type>, a sub-item filter, or --all. Unlike a category
   // install it DOES accept --scope / --agent / --lang as preset modifiers
-  // (the preset defaults differ: user / both / en). --cwd is not a preset
+  // (the preset defaults differ: user / both / zh-CN). --cwd is not a preset
   // modifier — the workflow doc always lands in the current directory.
   if (out.preset) {
     if (out.all) {
@@ -591,7 +591,11 @@ async function runPreset(p: InstallParsed): Promise<number> {
   // The preset is one atomic "install the right defaults" action — the
   // retry is the whole command again, not a per-category fan-out like
   // runAll's hint.
-  process.stderr.write("\nRetry:\n  npx -y auriga-cli install --preset\n");
+  const retryArgs = ["install", "--preset"];
+  if (p.scope) retryArgs.push("--scope", p.scope);
+  if (p.agent) retryArgs.push("--agent", p.agent);
+  if (p.lang) retryArgs.push("--lang", p.lang);
+  process.stderr.write(`\nRetry:\n  npx -y auriga-cli ${retryArgs.join(" ")}\n`);
   if (failed.length < results.length) {
     process.stderr.write(RELOAD_REMINDER);
   }

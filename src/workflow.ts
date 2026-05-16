@@ -32,8 +32,8 @@ import {
  * `verbatimSymlinks` copies a symlink AS a symlink, preserving its literal
  * (possibly relative) target — a foreign AGENTS.md may be a symlink pointing
  * elsewhere, and we want the backup to preserve that target verbatim rather
- * than snapshot whatever it currently resolves to. A real file (CLAUDE.md)
- * copies as a real file. `lstat` (not `existsSync`) probes the `.bak` slot so
+ * than snapshot whatever it currently resolves to. A real workflow file copies
+ * as a real file. `lstat` (not `existsSync`) probes the `.bak` slot so
  * a backup that is itself a possibly-broken symlink still counts as present
  * and is not silently overwritten.
  */
@@ -198,7 +198,7 @@ export async function installWorkflow(
         `AGENTS.md upgraded (${langOpt.label}); your project section was preserved`,
       );
     } else if (parsed.kind === "unmarked" && hasAurigaHeader(current)) {
-      // 3. Old-format migration — an auriga CLAUDE.md from before markers
+      // 3. Old-format migration — an auriga workflow doc from before markers
       //    existed. The user region can't be recovered from an unmarked file,
       //    so back the whole thing up and install fresh.
       const bak = backupOnce(currentPath);
@@ -243,7 +243,8 @@ export async function installWorkflow(
   const latestCompatStat = lstatMaybe(targetCompat);
   if (latestCompatStat) {
     const pointsToPrimary = isSymlinkTo(targetCompat, WORKFLOW_COMPAT_SYMLINK_TARGET);
-    const migratedFromCompat = currentPath === targetCompat && wrotePrimary;
+    const migratedFromCompat =
+      currentPath === targetCompat && wrotePrimary && !latestCompatStat.isSymbolicLink();
     if (!pointsToPrimary && !migratedFromCompat) {
       const bak = backupOnce(targetCompat);
       log.warn(
@@ -288,8 +289,8 @@ export async function uninstallWorkflow(
     opts.onLog?.(line);
   };
 
-  const targetClaude = path.join(resolved, "CLAUDE.md");
-  const targetAgents = path.join(resolved, "AGENTS.md");
+  const targetClaude = path.join(resolved, WORKFLOW_COMPAT_FILE);
+  const targetAgents = path.join(resolved, WORKFLOW_PRIMARY_FILE);
 
   const isAurigaWorkflowFile = (filePath: string): boolean => {
     try {
@@ -301,23 +302,39 @@ export async function uninstallWorkflow(
   };
 
   const removeWorkflowPath = (filePath: string, name: string): void => {
+    let stat: fs.Stats;
     try {
-      const stat = fs.lstatSync(filePath);
-      if (stat.isSymbolicLink()) {
+      stat = fs.lstatSync(filePath);
+    } catch (err) {
+      const code = (err as NodeJS.ErrnoException).code;
+      if (code === "ENOENT") {
+        log.skip(`${name} not present`);
+        emit(`${name} not present`);
+        return;
+      }
+      throw err;
+    }
+
+    if (stat.isSymbolicLink()) {
+      const linkTarget = fs.readlinkSync(filePath);
+      const isManagedSymlink =
+        (name === WORKFLOW_PRIMARY_FILE && linkTarget === LEGACY_AGENTS_SYMLINK_TARGET) ||
+        (name === WORKFLOW_COMPAT_FILE && linkTarget === WORKFLOW_COMPAT_SYMLINK_TARGET);
+      if (isManagedSymlink) {
         fs.unlinkSync(filePath);
         log.ok(`${name} symlink removed`);
         emit(`removed ${name} symlink`);
-      } else if (stat.isFile() && isAurigaWorkflowFile(filePath)) {
-        fs.unlinkSync(filePath);
-        log.ok(`${name} removed`);
-        emit(`removed ${name}`);
       } else {
-        log.warn(`foreign ${name} left in place`);
-        emit(`foreign ${name} left in place`);
+        log.warn(`foreign ${name} symlink left in place`);
+        emit(`foreign ${name} symlink left in place`);
       }
-    } catch {
-      log.skip(`${name} not present`);
-      emit(`${name} not present`);
+    } else if (stat.isFile() && isAurigaWorkflowFile(filePath)) {
+      fs.unlinkSync(filePath);
+      log.ok(`${name} removed`);
+      emit(`removed ${name}`);
+    } else {
+      log.warn(`foreign ${name} left in place`);
+      emit(`foreign ${name} left in place`);
     }
   };
 

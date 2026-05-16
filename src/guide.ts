@@ -71,7 +71,8 @@ ${h("## Step 3 — Install")}
 
 Recommended — the curated workflow preset (AGENTS.md/CLAUDE.md +
 workflow skills + the auriga-workflow plugin). Defaults: scope user,
-agent both (Claude Code + Codex), lang zh-CN:
+agent both (Claude Code + Codex), lang zh-CN. Scope applies to skills
+and plugins; the workflow doc always writes to the current project:
   ${cmd("npx -y auriga-cli install --preset")}
 
 Everything — workflow + skills + recommended skills + default plugins:

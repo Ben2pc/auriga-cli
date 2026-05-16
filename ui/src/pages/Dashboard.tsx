@@ -352,6 +352,7 @@ function PresetBar({
           }}
         >
           AGENTS.md/CLAUDE.md + workflow skills + auriga-workflow plugin
+          (scope applies to skills/plugins)
         </span>
       </span>
       <span style={{ flex: 1 }} />

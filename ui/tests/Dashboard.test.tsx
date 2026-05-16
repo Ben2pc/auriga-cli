@@ -618,7 +618,7 @@ describe("Dashboard — changeScope re-derives already-selected items", () => {
 });
 
 describe("Dashboard — changeWorkflowLang re-derives already-selected workflow", () => {
-  test("switching workflow lang to 'zh-CN' updates the pending workflow item", async () => {
+  test("default workflow lang is 'zh-CN' and unchanged submit carries it", async () => {
     const calls: Array<{ url: string; init?: RequestInit }> = [];
     vi.stubGlobal(
       "fetch",
@@ -670,7 +670,7 @@ describe("Dashboard — changeWorkflowLang re-derives already-selected workflow"
     const langDropdown = screen.getByTestId(
       "section-workflow-lang",
     ) as HTMLSelectElement;
-    fireEvent.change(langDropdown, { target: { value: "zh-CN" } });
+    expect(langDropdown.value).toBe("zh-CN");
 
     await act(async () => {
       fireEvent.click(screen.getByTestId("log-panel-apply"));

@@ -145,7 +145,7 @@ describe(
       // Scrub DEV from the inherited env: a dev shell with `DEV=1`
       // exported (documented in README as the dev flow) would make
       // `fetchContentRoot` short-circuit to `getPackageRoot()`. The
-      // installed tarball's package root does not carry CLAUDE.md /
+      // installed tarball's package root does not carry AGENTS.md /
       // skills-lock.json / .claude/*.json (those are excluded from
       // the `files` manifest on purpose — they live on GitHub), so
       // every scenario would fail with a misleading "file missing"
@@ -281,6 +281,11 @@ describe(
       const agentsMd = path.join(proj, "AGENTS.md");
       assert.ok(fs.existsSync(agentsMd), `AGENTS.md missing at ${agentsMd}`);
       assert.ok(fs.statSync(agentsMd).size > 0, "AGENTS.md is empty");
+      assert.match(
+        fs.readFileSync(agentsMd, "utf-8"),
+        /# auriga 工作流/,
+        "default tarball workflow install should use the Chinese AGENTS.md template",
+      );
 
       const claudeMd = path.join(proj, "CLAUDE.md");
       assert.ok(fs.existsSync(claudeMd), `CLAUDE.md missing at ${claudeMd}`);

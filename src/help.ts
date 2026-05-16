@@ -19,6 +19,7 @@ USAGE
                                                          curated default set: workflow doc
                                                          + workflow skills + auriga-workflow plugin
                                                          (defaults: scope user, agent both, lang zh-CN)
+                                                         scope applies to skills/plugins; workflow writes current project
   npx auriga-cli install --all [--scope <s>] [--agent <a>]
                                                          everything: workflow + skills
                                                          + recommended + plugins

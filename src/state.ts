@@ -289,7 +289,7 @@ function workflowForeignWarningCode(filePath: string): "workflow-foreign-agentsm
 
 function workflowForeignWarningMessage(filePath: string): string {
   const name = path.basename(filePath);
-  return `Foreign ${name} detected at the workflow path — no auriga-workflow header. Install will keep your content as the user region below the managed block.`;
+  return `Foreign ${name} detected at the workflow path — no auriga-workflow header. Install will preserve existing content or link intent before replacing the workflow path.`;
 }
 
 function readFirstWorkflowCandidate(candidates: string[]): { content: string; filePath: string } | null {

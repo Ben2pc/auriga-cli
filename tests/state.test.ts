@@ -455,6 +455,27 @@ describe("scanState — #6 Workflow foreign-AGENTS.md", () => {
     );
   });
 
+  test("foreign AGENTS.md symlink warning does not promise user-region preservation", async () => {
+    const home = makeScratch("home6link");
+    redirectHome(home);
+    const proj = makeScratch("proj6link");
+    fs.writeFileSync(path.join(proj, "shared.md"), "# Some Other Heading\n");
+    fs.symlinkSync("shared.md", path.join(proj, "AGENTS.md"));
+
+    const report = await scan(proj, makeCatalog(), {
+      scopes: { workflow: "project" },
+      homeDir: home,
+    });
+
+    assert.equal(report.workflow.status, "not-installed");
+    const warning = report.warnings.find(
+      (w: StateWarning) => (w.code as string) === "workflow-foreign-agentsmd",
+    );
+    assert.ok(warning);
+    assert.doesNotMatch(warning.message, /user region/i);
+    assert.match(warning.message, /backup|preserve/i);
+  });
+
 });
 
 // ===========================================================================

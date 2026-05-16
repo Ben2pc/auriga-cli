@@ -93,6 +93,25 @@ describe("uninstallWorkflow", () => {
     );
   });
 
+  test("foreign instruction symlinks are preserved", async () => {
+    const cwd = makeScratch("foreignlinks");
+    fs.writeFileSync(path.join(cwd, "shared-agents.md"), "# Shared AGENTS\n");
+    fs.writeFileSync(path.join(cwd, "shared-claude.md"), "# Shared CLAUDE\n");
+    fs.symlinkSync("shared-agents.md", path.join(cwd, "AGENTS.md"));
+    fs.symlinkSync("shared-claude.md", path.join(cwd, "CLAUDE.md"));
+
+    const logs: string[] = [];
+    await uninstallWorkflow({ cwd, force: true, onLog: (l) => logs.push(l) });
+
+    assert.equal(fs.readlinkSync(path.join(cwd, "AGENTS.md")), "shared-agents.md");
+    assert.equal(fs.readlinkSync(path.join(cwd, "CLAUDE.md")), "shared-claude.md");
+    assert.ok(
+      logs.some((l) => /foreign AGENTS\.md/i.test(l)) &&
+        logs.some((l) => /foreign CLAUDE\.md/i.test(l)),
+      `expected foreign symlink logs, got: ${logs.join(" | ")}`,
+    );
+  });
+
   test("missing files are idempotent (no throw, no error)", async () => {
     const cwd = makeScratch("empty");
     // Empty dir, no CLAUDE.md, no AGENTS.md

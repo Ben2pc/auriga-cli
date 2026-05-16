@@ -404,6 +404,24 @@ describe("installWorkflow — AGENTS.md primary with CLAUDE.md compatibility sym
     assert.equal(fs.readlinkSync(path.join(cwd, "CLAUDE.md")), "AGENTS.md");
   });
 
+  test("a symlink CLAUDE.md pointing elsewhere is backed up as a symlink before becoming compatibility link", async () => {
+    const cwd = makeScratch("claude-foreignlink");
+    const claudePath = path.join(cwd, "CLAUDE.md");
+    fs.writeFileSync(path.join(cwd, "shared.md"), "# Shared instructions\nkeep link\n");
+    fs.symlinkSync("shared.md", claudePath);
+
+    await installWorkflow(makePackageRoot(), { interactive: false, cwd, lang: "en" });
+
+    const bak = fs.lstatSync(path.join(cwd, "CLAUDE.md.bak"));
+    assert.equal(bak.isSymbolicLink(), true);
+    assert.equal(fs.readlinkSync(path.join(cwd, "CLAUDE.md.bak")), "shared.md");
+    assert.equal(fs.readlinkSync(claudePath), "AGENTS.md");
+    assert.match(
+      fs.readFileSync(path.join(cwd, "AGENTS.md"), "utf-8"),
+      /Shared instructions/,
+    );
+  });
+
   test("re-install over the new AGENTS.md primary shape does not create a backup", async () => {
     const cwd = makeScratch("agents-reinstall");
     await installWorkflow(makePackageRoot(), { interactive: false, cwd, lang: "en" });
