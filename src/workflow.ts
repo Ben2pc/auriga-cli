@@ -257,14 +257,13 @@ export async function installWorkflow(
 }
 
 /**
- * Uninstall the workflow (CLAUDE.md + AGENTS.md) from `opts.cwd`.
+ * Uninstall the workflow (AGENTS.md + CLAUDE.md) from `opts.cwd`.
  *
  * Safety contract:
  * - `opts.force` MUST be true. The CLI / server caller is responsible for
  *   confirming user intent BEFORE invoking this; we refuse otherwise.
- * - `AGENTS.md` is removed ONLY if it's a symlink (the install-time shape).
- *   A real-file AGENTS.md is left in place with a warning — the user has
- *   diverged from the install pattern and probably hand-edited it.
+ * - Real files are removed only when they are recognizable auriga workflow
+ *   files. Foreign instruction files are left in place with a warning.
  * - Missing files are a no-op: callers can re-run uninstall idempotently.
  * - `.claude/` is not touched; skills / plugins / hooks have their own
  *   uninstall paths.
@@ -292,34 +291,39 @@ export async function uninstallWorkflow(
   const targetClaude = path.join(resolved, "CLAUDE.md");
   const targetAgents = path.join(resolved, "AGENTS.md");
 
-  // CLAUDE.md — flat file. lstat to avoid following a symlink (would be
-  // unusual but we'd rather refuse to traverse than chase one out).
-  if (fs.existsSync(targetClaude)) {
-    fs.unlinkSync(targetClaude);
-    log.ok("CLAUDE.md removed");
-    emit("removed CLAUDE.md");
-  } else {
-    log.skip("CLAUDE.md not present");
-    emit("CLAUDE.md not present");
-  }
-
-  // AGENTS.md — only remove symlinks (our install shape). lstatSync
-  // refuses to follow the link so we inspect the link itself.
-  try {
-    const stat = fs.lstatSync(targetAgents);
-    if (stat.isSymbolicLink()) {
-      fs.unlinkSync(targetAgents);
-      log.ok("AGENTS.md symlink removed");
-      emit("removed AGENTS.md symlink");
-    } else {
-      // Real file (or directory) — user diverged from install. Don't
-      // silently destroy their content; warn and leave it.
-      log.warn("AGENTS.md is not a symlink; left in place");
-      emit("AGENTS.md is not a symlink; left in place");
+  const isAurigaWorkflowFile = (filePath: string): boolean => {
+    try {
+      const content = fs.readFileSync(filePath, "utf8");
+      return parseMarkers(content).kind === "marked" || hasAurigaHeader(content);
+    } catch {
+      return false;
     }
-  } catch {
-    // ENOENT — already gone, idempotent no-op.
-    log.skip("AGENTS.md not present");
-    emit("AGENTS.md not present");
-  }
+  };
+
+  const removeWorkflowPath = (filePath: string, name: string): void => {
+    try {
+      const stat = fs.lstatSync(filePath);
+      if (stat.isSymbolicLink()) {
+        fs.unlinkSync(filePath);
+        log.ok(`${name} symlink removed`);
+        emit(`removed ${name} symlink`);
+      } else if (stat.isFile() && isAurigaWorkflowFile(filePath)) {
+        fs.unlinkSync(filePath);
+        log.ok(`${name} removed`);
+        emit(`removed ${name}`);
+      } else {
+        log.warn(`foreign ${name} left in place`);
+        emit(`foreign ${name} left in place`);
+      }
+    } catch {
+      log.skip(`${name} not present`);
+      emit(`${name} not present`);
+    }
+  };
+
+  // Remove AGENTS.md first because it is the current primary. lstatSync refuses
+  // to follow symlinks, so the legacy AGENTS.md -> CLAUDE.md shape is handled
+  // without deleting CLAUDE.md through the link.
+  removeWorkflowPath(targetAgents, "AGENTS.md");
+  removeWorkflowPath(targetClaude, "CLAUDE.md");
 }
