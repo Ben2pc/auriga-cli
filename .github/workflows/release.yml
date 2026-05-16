@@ -23,7 +23,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           # `npm run test:e2e` preflight uses `git branch -r --contains
           # HEAD`, which needs enough history for the remote-ref query
@@ -31,7 +31,7 @@ jobs:
           fetch-depth: 0
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           # Node 24 required for npm Trusted Publishing (OIDC). Older
           # Node lines ship older npm — Node 22.x's bundled npm 10.x
