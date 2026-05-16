@@ -145,6 +145,9 @@ const cases = [
         "git-workflow",
         "Conventional Commits",
       ],
+      // Negative anchor: the language-convention reminder was removed —
+      // catch a regression that reintroduces it (PR #143).
+      stdoutExcludesAll: ["language"],
     },
   },
   {
@@ -170,6 +173,9 @@ const cases = [
         "git-workflow",
         "Conventional Commits",
       ],
+      // Negative anchor: the language-convention reminder was removed —
+      // catch a regression that reintroduces it (PR #143).
+      stdoutExcludesAll: ["language"],
     },
   },
   {
@@ -196,6 +202,9 @@ const cases = [
         "git-workflow",
         "Conventional Commits",
       ],
+      // Negative anchor: the language-convention reminder was removed —
+      // catch a regression that reintroduces it (PR #143).
+      stdoutExcludesAll: ["language"],
     },
   },
 ];
@@ -224,6 +233,12 @@ for (const c of cases) {
       checks.push({
         ok: r.stdout.includes(needle),
         msg: `stdout includes "${needle}" (got "${r.stdout.slice(0, 200)}")`,
+      });
+  if (Array.isArray(c.expect.stdoutExcludesAll))
+    for (const needle of c.expect.stdoutExcludesAll)
+      checks.push({
+        ok: !r.stdout.includes(needle),
+        msg: `stdout does NOT include "${needle}" (got "${r.stdout.slice(0, 200)}")`,
       });
 
   const allOk = checks.every((x) => x.ok);
