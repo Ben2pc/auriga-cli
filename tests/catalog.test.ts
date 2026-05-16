@@ -79,13 +79,14 @@ describe("generateCatalog (build-time)", () => {
   });
 
   test("plugins: Claude Code entries plus Codex-only entries plus migrated repo-owned assets", () => {
-    assert.equal(catalog.plugins.length, 6);
+    assert.equal(catalog.plugins.length, 7);
     const names = catalog.plugins.map((e) => e.name).sort();
     assert.deepEqual(names, [
       "auriga-notify",
       "auriga-workflow",
       "claude-md-management",
       "codex",
+      "playground",
       "session-instructions-loader",
       "skill-creator",
     ]);
@@ -141,7 +142,8 @@ describe("generateCatalog (build-time)", () => {
       "auriga-notify": ["claude"],
       "session-instructions-loader": ["codex"],
       "skill-creator": ["claude"],
-      "claude-md-management": ["claude"],
+      "claude-md-management": ["claude", "codex"],
+      playground: ["claude", "codex"],
       codex: ["claude"],
     };
     for (const [name, agents] of Object.entries(expectedAgents)) {
@@ -160,7 +162,7 @@ describe("generateCatalog (build-time)", () => {
     // `claude plugins update`, not us" for plugins published in upstream
     // marketplaces. Mis-flagging an owned plugin as external would point
     // users at the wrong upgrade channel; the inverse would do the same.
-    const externals = new Set(["skill-creator", "claude-md-management", "codex"]);
+    const externals = new Set(["skill-creator", "claude-md-management", "codex", "playground"]);
     for (const entry of catalog.plugins) {
       if (externals.has(entry.name)) {
         assert.equal(entry.external, true, `${entry.name} must be external`);
