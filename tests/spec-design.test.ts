@@ -203,6 +203,13 @@ describe("spec-design skill — repo-check VALs", () => {
       "goalify must document the common endpoint of completing deep-review and fixing blocking findings",
     );
     assert.ok(
+      text.includes("handoff") &&
+        text.includes("怎么验收") &&
+        text.includes("review 问题") &&
+        text.includes("未修复"),
+      "goalify must require a final handoff with acceptance, review findings, and unresolved items",
+    );
+    assert.ok(
       text.includes("incremental-impl"),
       "goalify must preserve the boundary with incremental-impl",
     );

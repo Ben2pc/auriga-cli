@@ -46,6 +46,8 @@ set goal 之前必须和用户确认这个 goal 的终点——它要把 auriga 
 
 把用户选定的终点作为**显式终止条件**写进 `/goal` 文本：goal 跑到该阶段即停，不要越界继续推进。终点之后的阶段（评审、合并等）若不在范围内，goal 文本里要写明"到此为止，交回用户"。
 
+指定的 goal 最后必须给用户一段 handoff：说明用户怎么验收、本轮发现了哪些 review 问题、哪些问题已经修复、哪些问题未修复以及保留原因。
+
 ## 启动方式
 
 `/goal` 是目标运行机制，不要把某一个 Agent 的交互方式写成通用规则：
@@ -66,7 +68,7 @@ Good `/goal` 文本示例：
 ```text
 修复 GitHub issue #139。上下文以 docs/specs/<topic>/spec.md、docs/specs/<topic>/validation-contract.md 和 issue 正文为准；不要重复抄写这些文件。
 
-按 auriga workflow 推进：从 main 建分支，测试先行，必要时在实现阶段调用 incremental-impl 决定切片。终点是 deep-review 完成：PR Ready 后运行 deep-review，修复 blocking findings；non-blocking findings 按严重度、置信度和改动风险判断是否修；把处理结果同步到 PR 后停止。
+按 auriga workflow 推进：从 main 建分支，测试先行，必要时在实现阶段调用 incremental-impl 决定切片。终点是 deep-review 完成：PR Ready 后运行 deep-review，修复 blocking findings；non-blocking findings 按严重度、置信度和改动风险判断是否修；把处理结果同步到 PR。最后给用户 handoff，说明验收方式、review 发现、已修复项、未修复项与保留原因，然后停止。
 ```
 
 Bad `/goal` 文本示例：
