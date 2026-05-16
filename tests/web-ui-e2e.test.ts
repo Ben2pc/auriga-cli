@@ -239,7 +239,7 @@ describe("web UI e2e (spec §8.1 hermetic guarantee)", () => {
     );
   });
 
-  test("apply install workflow → SSE all-done success=true, scratch workspace has CLAUDE.md", async (t) => {
+  test("apply install workflow → SSE all-done success=true, scratch workspace has AGENTS.md", async (t) => {
     if (skipReason) {
       t.skip(skipReason);
       return;
@@ -292,10 +292,10 @@ describe("web UI e2e (spec §8.1 hermetic guarantee)", () => {
     assert.ok(allDoneOk !== null, `no all-done frame seen. Buffer: ${buf.slice(0, 400)}`);
     assert.equal(allDoneOk, true, "workflow install should succeed");
 
-    // Filesystem side effect: scratch workspace gained CLAUDE.md.
+    // Filesystem side effect: scratch workspace gained AGENTS.md primary.
     assert.ok(
-      existsSync(path.join(cur.workspace, "CLAUDE.md")),
-      "CLAUDE.md should exist in scratch workspace after install",
+      existsSync(path.join(cur.workspace, "AGENTS.md")),
+      "AGENTS.md should exist in scratch workspace after install",
     );
 
     // Canary again, post-apply.

@@ -68,8 +68,8 @@ describe("renderGuide", () => {
   // Covers spec §3.6 Step 5 verification checklist content.
   test("lists the expected install artifacts in the verification section", () => {
     const out = renderGuide({ color: false, version: "1.8.1" });
-    assert.match(out, /CLAUDE\.md/);
-    assert.match(out, /AGENTS\.md -> CLAUDE\.md/);
+    assert.match(out, /AGENTS\.md/);
+    assert.match(out, /CLAUDE\.md -> AGENTS\.md/);
     assert.match(out, /\.agents\/skills\/<name>\//);
     assert.match(out, /claude plugins list/);
     assert.match(out, /~\/\.codex\/config\.toml/);

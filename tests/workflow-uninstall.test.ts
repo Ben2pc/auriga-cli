@@ -5,6 +5,7 @@ import path from "node:path";
 import { after, describe, test } from "node:test";
 
 import { uninstallWorkflow } from "../src/workflow.js";
+import { composeMarkedFile } from "../src/workflow-markers.js";
 
 // Track scratch dirs so a single after-hook can sweep them up, even on
 // test failure. Hardcoded /tmp paths would race across concurrent runs.
@@ -39,16 +40,24 @@ describe("uninstallWorkflow", () => {
     );
   });
 
-  test("force=true removes CLAUDE.md", async () => {
-    const cwd = makeScratch("claude");
-    fs.writeFileSync(path.join(cwd, "CLAUDE.md"), "# Workflow\n");
+  test("force=true removes managed AGENTS.md primary", async () => {
+    const cwd = makeScratch("agents-primary");
+    fs.writeFileSync(
+      path.join(cwd, "AGENTS.md"),
+      composeMarkedFile({ blockBody: "# auriga Workflow (v1.9.0)\nbody\n" }),
+    );
+    fs.symlinkSync("AGENTS.md", path.join(cwd, "CLAUDE.md"));
     await uninstallWorkflow({ cwd, force: true });
+    assert.equal(fs.existsSync(path.join(cwd, "AGENTS.md")), false);
     assert.equal(fs.existsSync(path.join(cwd, "CLAUDE.md")), false);
   });
 
-  test("AGENTS.md symlink is removed", async () => {
+  test("legacy AGENTS.md -> CLAUDE.md install shape is removed", async () => {
     const cwd = makeScratch("symlink");
-    fs.writeFileSync(path.join(cwd, "CLAUDE.md"), "# Workflow\n");
+    fs.writeFileSync(
+      path.join(cwd, "CLAUDE.md"),
+      composeMarkedFile({ blockBody: "# auriga Workflow (v1.9.0)\nbody\n" }),
+    );
     fs.symlinkSync("CLAUDE.md", path.join(cwd, "AGENTS.md"));
     // sanity: lstat reports symlink before uninstall
     assert.equal(fs.lstatSync(path.join(cwd, "AGENTS.md")).isSymbolicLink(), true);
@@ -62,15 +71,15 @@ describe("uninstallWorkflow", () => {
     assert.equal(lstatErr?.code, "ENOENT");
   });
 
-  test("AGENTS.md as a real file is preserved (user diverged from install shape)", async () => {
+  test("foreign AGENTS.md as a real file is preserved", async () => {
     const cwd = makeScratch("realfile");
-    fs.writeFileSync(path.join(cwd, "CLAUDE.md"), "# Workflow\n");
     fs.writeFileSync(path.join(cwd, "AGENTS.md"), "# Custom agents content\n");
+    fs.symlinkSync("AGENTS.md", path.join(cwd, "CLAUDE.md"));
 
     const logs: string[] = [];
     await uninstallWorkflow({ cwd, force: true, onLog: (l) => logs.push(l) });
 
-    // CLAUDE.md gone, AGENTS.md (real file) preserved
+    // CLAUDE.md gone, foreign AGENTS.md preserved
     assert.equal(fs.existsSync(path.join(cwd, "CLAUDE.md")), false);
     assert.equal(fs.existsSync(path.join(cwd, "AGENTS.md")), true);
     assert.equal(
@@ -79,8 +88,27 @@ describe("uninstallWorkflow", () => {
     );
     // Warning surfaced on onLog stream so the SSE caller can show it
     assert.ok(
-      logs.some((l) => /not a symlink/i.test(l)),
-      `expected onLog to mention 'not a symlink', got: ${logs.join(" | ")}`,
+      logs.some((l) => /foreign AGENTS\.md/i.test(l)),
+      `expected onLog to mention foreign AGENTS.md, got: ${logs.join(" | ")}`,
+    );
+  });
+
+  test("foreign instruction symlinks are preserved", async () => {
+    const cwd = makeScratch("foreignlinks");
+    fs.writeFileSync(path.join(cwd, "shared-agents.md"), "# Shared AGENTS\n");
+    fs.writeFileSync(path.join(cwd, "shared-claude.md"), "# Shared CLAUDE\n");
+    fs.symlinkSync("shared-agents.md", path.join(cwd, "AGENTS.md"));
+    fs.symlinkSync("shared-claude.md", path.join(cwd, "CLAUDE.md"));
+
+    const logs: string[] = [];
+    await uninstallWorkflow({ cwd, force: true, onLog: (l) => logs.push(l) });
+
+    assert.equal(fs.readlinkSync(path.join(cwd, "AGENTS.md")), "shared-agents.md");
+    assert.equal(fs.readlinkSync(path.join(cwd, "CLAUDE.md")), "shared-claude.md");
+    assert.ok(
+      logs.some((l) => /foreign AGENTS\.md/i.test(l)) &&
+        logs.some((l) => /foreign CLAUDE\.md/i.test(l)),
+      `expected foreign symlink logs, got: ${logs.join(" | ")}`,
     );
   });
 
@@ -104,8 +132,11 @@ describe("uninstallWorkflow", () => {
 
   test("does not touch .claude/ siblings", async () => {
     const cwd = makeScratch("claudedir");
-    fs.writeFileSync(path.join(cwd, "CLAUDE.md"), "# Workflow\n");
-    fs.symlinkSync("CLAUDE.md", path.join(cwd, "AGENTS.md"));
+    fs.writeFileSync(
+      path.join(cwd, "AGENTS.md"),
+      composeMarkedFile({ blockBody: "# auriga Workflow (v1.9.0)\nbody\n" }),
+    );
+    fs.symlinkSync("AGENTS.md", path.join(cwd, "CLAUDE.md"));
     fs.mkdirSync(path.join(cwd, ".claude", "skills", "x"), { recursive: true });
     fs.writeFileSync(path.join(cwd, ".claude", "skills", "x", "SKILL.md"), "x");
 
@@ -120,8 +151,11 @@ describe("uninstallWorkflow", () => {
 
   test("onLog receives one line per action", async () => {
     const cwd = makeScratch("onlog");
-    fs.writeFileSync(path.join(cwd, "CLAUDE.md"), "# Workflow\n");
-    fs.symlinkSync("CLAUDE.md", path.join(cwd, "AGENTS.md"));
+    fs.writeFileSync(
+      path.join(cwd, "AGENTS.md"),
+      composeMarkedFile({ blockBody: "# auriga Workflow (v1.9.0)\nbody\n" }),
+    );
+    fs.symlinkSync("AGENTS.md", path.join(cwd, "CLAUDE.md"));
 
     const logs: string[] = [];
     await uninstallWorkflow({ cwd, force: true, onLog: (l) => logs.push(l) });

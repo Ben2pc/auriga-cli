@@ -55,7 +55,7 @@ describe("LEGACY_MENU_CHOICES — TUI 菜单契约", () => {
     const label = LEGACY_MENU_CHOICES[0].name;
     assert.match(label, /user/);
     assert.match(label, /both/);
-    assert.match(label, /en/);
+    assert.match(label, /zh-CN/);
   });
 });
 

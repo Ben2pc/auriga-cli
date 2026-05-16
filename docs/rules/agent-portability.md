@@ -14,7 +14,7 @@ auriga-cli 的技能和插件要服务使用**不同编码 Agent** 的同事 —
 
 4. **把功能归因到某个 Agent 之前先核实。** 共有功能不可误标 —— 例如 `/goal` 在 Claude Code 和 Codex 都内建,"Claude Code 内建的 /goal" 是错的。
 
-5. **项目指令文件写成 `CLAUDE.md` / `AGENTS.md`。** Codex 原生项目可能只带 `AGENTS.md`;只写 `CLAUDE.md` 会让指令在那种项目里找不到文件。
+5. **项目指令文件优先写成 `AGENTS.md`,必要时再补 `CLAUDE.md` 兼容入口。** Codex 原生项目可能只带 `AGENTS.md`;只写 `CLAUDE.md` 会让指令在那种项目里找不到文件。
 
 6. **散文里不枚举 Agent。** "粘回 Claude / Codex" 会随第三个 Agent 的出现而过期 —— 写 "the Agent"。
 
@@ -28,4 +28,4 @@ auriga-cli 的技能和插件要服务使用**不同编码 Agent** 的同事 —
 
 ## 背景
 
-本约定从 PR #127 沉淀。当时一次普查发现 `auriga-workflow` 的多个技能在散文与工具引用上默认 Agent 是 Claude Code,会让 Codex / Gemini 同事踩坑。检查项即上面四类:散文写死、Claude 独有工具、功能误归因、`CLAUDE.md` 未带 `AGENTS.md`。
+本约定从 PR #127 沉淀。当时一次普查发现 `auriga-workflow` 的多个技能在散文与工具引用上默认 Agent 是 Claude Code,会让 Codex / Gemini 同事踩坑。检查项即上面四类:散文写死、Claude 独有工具、功能误归因、只写 `CLAUDE.md` 不写 `AGENTS.md`。

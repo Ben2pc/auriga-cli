@@ -8,8 +8,8 @@
 // to Claude Code's *actual* install locations, per scope:
 //
 //   Workflow user      → ~/.claude/CLAUDE.md
-//   Workflow project   → <proj>/CLAUDE.md  (first)
-//                        <proj>/.claude/CLAUDE.md  (fallback)
+//   Workflow project   → <proj>/AGENTS.md  (primary)
+//                        <proj>/CLAUDE.md  (legacy fallback)
 //   Skills user        → ~/.claude/skills/<name>/SKILL.md
 //   Skills project     → <proj>/.claude/skills/<name>/SKILL.md
 //   Plugins user       → `claude plugins list --user --json`
@@ -68,14 +68,14 @@
 //     - "claude-code-not-installed"   (both ~/.claude and <proj>/.claude absent)
 //     - "settings-unreadable"         (settings.json corrupt / unreadable)
 //     - "skill-malformed"             (skill dir present but SKILL.md missing/broken)
-//     - "workflow-foreign-claudemd"   (CLAUDE.md exists but no auriga marker)
+//     - "workflow-foreign-agentsmd"   (AGENTS.md exists but no auriga marker)
 //
 // =============================================================================
 // KEY ASSUMPTIONS (where the spec is ambiguous or silent)
 // =============================================================================
 //
-//   A1. **Workflow CLAUDE.md exists but no auriga marker** → status
-//       "not-installed" + warning code "workflow-foreign-claudemd". The file
+//   A1. **Workflow AGENTS.md exists but no auriga marker** → status
+//       "not-installed" + warning code "workflow-foreign-agentsmd". The file
 //       is foreign content, not an installed auriga workflow. Install path
 //       (src/workflow.ts) protects user content via CLAUDE.md.bak backup,
 //       so the scanner can report not-installed honestly. (Revised in v1.18.5
@@ -209,7 +209,7 @@ function makeCatalog(over: Partial<Catalog> = {}): Catalog {
   };
 }
 
-/** Write a CLAUDE.md file with the auriga workflow header at the given version. */
+/** Write a workflow instruction file with the auriga workflow header at the given version. */
 function writeWorkflowFile(p: string, version: string | null, extraBody = ""): void {
   fs.mkdirSync(path.dirname(p), { recursive: true });
   const header = version === null ? "# Some Other Heading\n" : `# auriga Workflow (v${version})\n`;
@@ -366,12 +366,28 @@ describe("scanState — #2 Workflow / user scope missing file", () => {
 // update-available semantics were deleted with that surface)
 // ===========================================================================
 describe("scanState — #4 Workflow / project scope happy path", () => {
-  test("#4 workflow/project installed reads <proj>/CLAUDE.md", async () => {
-    // rationale: catches scanner still reading <cwd>/CLAUDE.md (dev-repo path)
+  test("#4 workflow/project installed reads <proj>/AGENTS.md primary", async () => {
+    // rationale: catches scanner still reading the old <cwd>/CLAUDE.md primary path.
     const home = makeScratch("home4");
     redirectHome(home);
     const proj = makeScratch("proj4");
+    writeWorkflowFile(path.join(proj, "AGENTS.md"), "1.6.0");
+
+    const report = await scan(proj, makeCatalog(), {
+      scopes: { workflow: "project" },
+      homeDir: home,
+    });
+
+    assert.equal(report.workflow.status, "installed");
+    assert.equal((report.workflow as any).observedScope, "project");
+  });
+
+  test("VAL-SCAN-003: legacy AGENTS.md -> CLAUDE.md project install remains installed", async () => {
+    const home = makeScratch("home4legacy");
+    redirectHome(home);
+    const proj = makeScratch("proj4legacy");
     writeWorkflowFile(path.join(proj, "CLAUDE.md"), "1.6.0");
+    fs.symlinkSync("CLAUDE.md", path.join(proj, "AGENTS.md"));
 
     const report = await scan(proj, makeCatalog(), {
       scopes: { workflow: "project" },
@@ -392,14 +408,14 @@ describe("scanState — #5 Workflow / project scope no .claude/CLAUDE.md fallbac
     // the old fallback collapsing project-scope onto user-scope when
     // projectRoot === $HOME — `<proj>/.claude/CLAUDE.md` and
     // `$HOME/.claude/CLAUDE.md` are the same file. The auriga installer
-    // (src/workflow.ts) writes ONLY to `<proj>/CLAUDE.md`; there was never
+    // (src/workflow.ts) writes ONLY to `<proj>/AGENTS.md`; there was never
     // a real installer convention placing the workflow under `.claude/`.
     // (Pre-v1.18.5 this test asserted the opposite — that the fallback
     // worked. It was documenting a bug.)
     const home = makeScratch("home5");
     redirectHome(home);
     const proj = makeScratch("proj5");
-    // NO file at <proj>/CLAUDE.md, only at <proj>/.claude/CLAUDE.md
+    // NO file at <proj>/AGENTS.md or <proj>/CLAUDE.md, only at <proj>/.claude/CLAUDE.md
     writeWorkflowFile(path.join(proj, ".claude", "CLAUDE.md"), "1.6.0");
 
     const report = await scan(proj, makeCatalog(), {
@@ -412,41 +428,62 @@ describe("scanState — #5 Workflow / project scope no .claude/CLAUDE.md fallbac
 });
 
 // ===========================================================================
-// #6 — Workflow / foreign CLAUDE.md (file exists, no auriga marker)
+// #6 — Workflow / foreign AGENTS.md (file exists, no auriga marker)
 // ===========================================================================
-describe("scanState — #6 Workflow foreign-CLAUDE.md", () => {
-  test("#6 (VAL-SCAN-002) workflow file exists but no auriga marker → not-installed + workflow-foreign-claudemd warning", async () => {
-    // rationale: a CLAUDE.md without our header is foreign content, not
+describe("scanState — #6 Workflow foreign-AGENTS.md", () => {
+  test("#6 (VAL-SCAN-002) workflow file exists but no auriga marker → not-installed + workflow-foreign-agentsmd warning", async () => {
+    // rationale: an AGENTS.md without our header is foreign content, not
     // an installed auriga workflow. The v1.18.4 verification (running
     // web-ui from $HOME) showed the user's `# Global`-headed
     // ~/.claude/CLAUDE.md was being reported as `installed`, which is
-    // wrong. Install path protects user content via CLAUDE.md.bak backup
+    // wrong. Install path keeps foreign AGENTS.md content in the user region
     // — the scanner can honestly report `not-installed`.
     const home = makeScratch("home6");
     redirectHome(home);
     const proj = makeScratch("proj6");
-    writeWorkflowFile(path.join(proj, "CLAUDE.md"), null /* no marker */);
+    writeWorkflowFile(path.join(proj, "AGENTS.md"), null /* no marker */);
 
     const report = await scan(proj, makeCatalog(), {
       scopes: { workflow: "project" },
       homeDir: home,
     });
 
-    assert.equal(report.workflow.status, "not-installed", "foreign CLAUDE.md is not our workflow");
+    assert.equal(report.workflow.status, "not-installed", "foreign AGENTS.md is not our workflow");
     assert.ok(
-      report.warnings.some((w: StateWarning) => (w.code as string) === "workflow-foreign-claudemd"),
-      "must emit workflow-foreign-claudemd warning",
+      report.warnings.some((w: StateWarning) => (w.code as string) === "workflow-foreign-agentsmd"),
+      "must emit workflow-foreign-agentsmd warning",
     );
+  });
+
+  test("foreign AGENTS.md symlink warning does not promise user-region preservation", async () => {
+    const home = makeScratch("home6link");
+    redirectHome(home);
+    const proj = makeScratch("proj6link");
+    fs.writeFileSync(path.join(proj, "shared.md"), "# Some Other Heading\n");
+    fs.symlinkSync("shared.md", path.join(proj, "AGENTS.md"));
+
+    const report = await scan(proj, makeCatalog(), {
+      scopes: { workflow: "project" },
+      homeDir: home,
+    });
+
+    assert.equal(report.workflow.status, "not-installed");
+    const warning = report.warnings.find(
+      (w: StateWarning) => (w.code as string) === "workflow-foreign-agentsmd",
+    );
+    assert.ok(warning);
+    assert.doesNotMatch(warning.message, /user region/i);
+    assert.match(warning.message, /backup|preserve/i);
   });
 
 });
 
 // ===========================================================================
-// Workflow / managed-block-marked CLAUDE.md (VAL-SCAN-001)
+// Workflow / managed-block-marked AGENTS.md (VAL-SCAN-001)
 // (a post-brief scenario — no scenario number; #7+ belong to the Skills series)
 // ===========================================================================
-describe("scanState — Workflow managed-block marked CLAUDE.md", () => {
-  test("(VAL-SCAN-001) a marked CLAUDE.md is detected as installed", async () => {
+describe("scanState — Workflow managed-block marked AGENTS.md", () => {
+  test("(VAL-SCAN-001) a marked AGENTS.md is detected as installed", async () => {
     // rationale: the managed-block markers put an HTML-comment line ahead of
     // the auriga header. The old scanner walked to the first non-blank line
     // and broke on it — it would hit the marker comment, not the header, and
@@ -456,7 +493,7 @@ describe("scanState — Workflow managed-block marked CLAUDE.md", () => {
     redirectHome(home);
     const proj = makeScratch("proj7");
     fs.writeFileSync(
-      path.join(proj, "CLAUDE.md"),
+      path.join(proj, "AGENTS.md"),
       composeMarkedFile({
         blockBody: "# auriga Workflow (v1.9.0)\nworkflow body\n",
         userRegion: "\n## 工程专属规则\n- 自定义内容\n",
@@ -468,9 +505,9 @@ describe("scanState — Workflow managed-block marked CLAUDE.md", () => {
       homeDir: home,
     });
 
-    assert.equal(report.workflow.status, "installed", "marked CLAUDE.md is our workflow");
+    assert.equal(report.workflow.status, "installed", "marked AGENTS.md is our workflow");
     assert.ok(
-      !report.warnings.some((w: StateWarning) => (w.code as string) === "workflow-foreign-claudemd"),
+      !report.warnings.some((w: StateWarning) => (w.code as string) === "workflow-foreign-agentsmd"),
       "a marked file must not raise the foreign warning",
     );
   });

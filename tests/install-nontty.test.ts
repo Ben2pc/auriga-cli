@@ -35,9 +35,11 @@ async function importMain(overrides: {
 } = {}) {
   mock.module(new URL("../src/utils.js", import.meta.url), {
     namedExports: {
+      DEFAULT_WORKFLOW_LANG: "zh-CN",
+      DEFAULT_WORKFLOW_TEMPLATE_FILE: "AGENTS.md",
       LANGUAGES: [
-        { value: "en", label: "English", file: "CLAUDE.md" },
-        { value: "zh-CN", label: "中文", file: "CLAUDE.zh-CN.md" },
+        { value: "zh-CN", label: "中文", file: "AGENTS.md" },
+        { value: "en", label: "English", file: "AGENTS.en.md" },
       ],
       exec: overrides.exec ?? (() => ""),
       execAsync: async () => "",
@@ -234,6 +236,23 @@ describe("main non-interactive install flow", () => {
     );
     assert.equal(result, 2);
     assert.match(stderr, /Retry:\s+npx -y auriga-cli install plugins --agent codex/i);
+  });
+  test("retry hint preserves preset modifiers", async () => {
+    const main = await importMain({
+      installWorkflow: async () => {},
+      installSkills: async () => {
+        throw new Error("boom");
+      },
+      installPlugins: async () => {},
+    });
+    const { result, stderr } = await captureStderr(() =>
+      main(["install", "--preset", "--scope", "project", "--agent", "codex", "--lang", "en"]),
+    );
+    assert.equal(result, 2);
+    assert.match(
+      stderr,
+      /Retry:\s+npx -y auriga-cli install --preset --scope project --agent codex --lang en/i,
+    );
   });
   // Covers spec §7 success-tail reload reminder and §11 full-install success acceptance.
   test("prints the reload reminder as the final stderr line on success", async () => {

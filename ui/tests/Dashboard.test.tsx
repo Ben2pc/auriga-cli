@@ -618,7 +618,7 @@ describe("Dashboard — changeScope re-derives already-selected items", () => {
 });
 
 describe("Dashboard — changeWorkflowLang re-derives already-selected workflow", () => {
-  test("switching workflow lang to 'zh-CN' updates the pending workflow item", async () => {
+  test("default workflow lang is 'zh-CN' and unchanged submit carries it", async () => {
     const calls: Array<{ url: string; init?: RequestInit }> = [];
     vi.stubGlobal(
       "fetch",
@@ -651,7 +651,7 @@ describe("Dashboard — changeWorkflowLang re-derives already-selected workflow"
     );
 
     // Toggle the workflow card. It's the singleton card under the
-    // section-workflow container, named "CLAUDE.md workflow" — locate it
+    // section-workflow container, named "AGENTS.md workflow" — locate it
     // by aria-label via getByLabelText against the case-insensitive name.
     const workflowSection = screen.getByTestId("section-workflow");
     const workflowCard = workflowSection.querySelector(
@@ -670,7 +670,7 @@ describe("Dashboard — changeWorkflowLang re-derives already-selected workflow"
     const langDropdown = screen.getByTestId(
       "section-workflow-lang",
     ) as HTMLSelectElement;
-    fireEvent.change(langDropdown, { target: { value: "zh-CN" } });
+    expect(langDropdown.value).toBe("zh-CN");
 
     await act(async () => {
       fireEvent.click(screen.getByTestId("log-panel-apply"));
@@ -729,8 +729,8 @@ describe("Dashboard — preset bar", () => {
     expect(screen.getByTestId("preset-lang")).toBeInTheDocument();
   });
 
-  // VAL-WEB-005: control defaults are user / both / en.
-  test("control defaults are scope=user / agent=both / lang=en", async () => {
+  // VAL-WEB-005: control defaults are user / both / zh-CN.
+  test("control defaults are scope=user / agent=both / lang=zh-CN", async () => {
     await renderDashboard([]);
     expect((screen.getByTestId("preset-scope") as HTMLSelectElement).value).toBe(
       "user",
@@ -739,7 +739,7 @@ describe("Dashboard — preset bar", () => {
       "both",
     );
     expect((screen.getByTestId("preset-lang") as HTMLSelectElement).value).toBe(
-      "en",
+      "zh-CN",
     );
   });
 
@@ -770,7 +770,7 @@ describe("Dashboard — preset bar", () => {
       action: "install",
       scope: "user",
       agent: "both",
-      lang: "en",
+      lang: "zh-CN",
     });
   });
 

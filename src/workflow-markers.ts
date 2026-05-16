@@ -1,14 +1,14 @@
-// Managed-block markers for the installed CLAUDE.md.
+// Managed-block markers for the installed AGENTS.md.
 //
 // auriga-cli installs its workflow document wrapped in a pair of HTML-comment
 // markers. Everything *between* the markers is the "managed block" — owned by
 // auriga-cli, replaced wholesale on upgrade. Everything *outside* (notably the
 // region after the END marker) is the project's own — auriga-cli never touches
-// it. This lets a downstream project extend its CLAUDE.md while still
+// it. This lets a downstream project extend its AGENTS.md while still
 // receiving workflow upgrades.
 //
 // Markers are HTML comments so both Claude Code and Codex (which read the same
-// file via the AGENTS.md → CLAUDE.md symlink) treat them as inert.
+// file via the CLAUDE.md → AGENTS.md symlink) treat them as inert.
 //
 // This module is the single source of truth for the marker contract; it is
 // imported by both src/workflow.ts (install / upgrade) and src/state.ts
@@ -24,7 +24,7 @@ export const MARKER_SCHEMA = "v1";
  * START marker line, one per template language. Only the prose differs — the
  * structural `AURIGA:WORKFLOW:v1 START` token is language-independent, so the
  * parser (`START_LINE_RE`) keys on the token alone and never needs to know the
- * language. The English `CLAUDE.md` gets the English marker; `CLAUDE.zh-CN.md`
+ * language. The English `AGENTS.en.md` gets the English marker; `AGENTS.md`
  * gets the Chinese one, so a downstream file never carries a comment in the
  * wrong language for its document.
  */
@@ -80,7 +80,7 @@ export type MarkerParse =
     };
 
 /**
- * Classify a CLAUDE.md body by its managed-block markers.
+ * Classify an AGENTS.md body by its managed-block markers.
  *
  *  - `unmarked`   — neither marker present (fresh-target / foreign / old-format)
  *  - `malformed`  — exactly one marker, or END before START (can't safely splice)
@@ -117,7 +117,7 @@ export function parseMarkers(content: string): MarkerParse {
 }
 
 /**
- * Build a marked CLAUDE.md from its three parts. The END marker hash is
+ * Build a marked AGENTS.md from its three parts. The END marker hash is
  * computed from `blockBody` here, so callers never hand-maintain it.
  *
  * `blockBody` is expected to end with a newline (it is the content the START
@@ -143,7 +143,7 @@ export function composeMarkedFile(opts: {
 }
 
 /** True when the first non-blank line is an auriga workflow header. Used to
- *  tell an old-format (pre-marker) auriga CLAUDE.md from a foreign one. */
+ *  tell an old-format (pre-marker) auriga workflow file from a foreign one. */
 export function hasAurigaHeader(content: string): boolean {
   for (const line of content.split("\n")) {
     if (line.trim().length === 0) continue;

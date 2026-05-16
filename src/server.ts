@@ -16,8 +16,8 @@ export interface ApplyHandlerOptions {
    *  translate into the per-installer flag (`--scope project|user`). The
    *  workflow handler ignores it (workflow has no scope concept). */
   scope?: "project" | "user";
-  /** Workflow CLAUDE.md language variant. Meaningful for the workflow and
-   *  preset handlers; other handlers ignore it. Omitted = "en". */
+  /** Workflow AGENTS.md language variant. Meaningful for the workflow and
+   *  preset handlers; other handlers ignore it. Omitted = "zh-CN". */
   lang?: "en" | "zh-CN";
   /** Preset install runtime. Only meaningful for the preset handler;
    *  other handlers ignore it. Omitted = "both". */

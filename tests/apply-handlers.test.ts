@@ -128,7 +128,7 @@ describe("buildDefaultApplyHandlers — workflow", () => {
     };
     assert.equal(opts.interactive, false);
     assert.equal(opts.cwd, "/proj");
-    assert.equal(opts.lang, "en");
+    assert.equal(opts.lang, "zh-CN");
     assert.equal(calls.uninstallWorkflow.length, 0);
   });
 
@@ -427,7 +427,7 @@ describe("buildDefaultApplyHandlers — preset", () => {
     assert.deepEqual(pluginOpts.selected, ["auriga-workflow"]);
   });
 
-  test("install → omitted scope/agent/lang fall back to preset defaults (user/both/en)", async () => {
+  test("install → omitted scope/agent/lang fall back to preset defaults (user/both/zh-CN)", async () => {
     const calls = makeCallLog();
     const { buildDefaultApplyHandlers } = await importAdapter(calls);
     const handlers = buildDefaultApplyHandlers({
@@ -438,7 +438,7 @@ describe("buildDefaultApplyHandlers — preset", () => {
     await handlers.preset("install", "preset", noopLog());
     const wf = calls.installWorkflow[0].opts as { lang: string };
     const sk = calls.installSkills[0].opts as { scope: string; agent: string };
-    assert.equal(wf.lang, "en");
+    assert.equal(wf.lang, "zh-CN");
     assert.equal(sk.scope, "user");
     assert.equal(sk.agent, "both");
   });

@@ -107,8 +107,8 @@ describe("spec-design skill — repo-check VALs", () => {
     );
   });
 
-  test("VAL-DEP-001: CLAUDE.md (both languages) reference spec-design and not brainstorming", () => {
-    for (const f of ["CLAUDE.md", "CLAUDE.zh-CN.md"]) {
+  test("VAL-DEP-001: AGENTS.md templates (both languages) reference spec-design and not brainstorming", () => {
+    for (const f of ["AGENTS.md", "AGENTS.en.md"]) {
       const text = read(f);
       assert.ok(
         text.includes("spec-design"),
@@ -123,6 +123,11 @@ describe("spec-design skill — repo-check VALs", () => {
         text,
         /spec\s*=\s*why\s*\+\s*what/i,
         `${f} must include the spec/plan boundary rule`,
+      );
+      assert.equal(
+        /ln -s CLAUDE\.md AGENTS\.md|AGENTS\.md (?:的)?软链接.*CLAUDE\.md|AGENTS\.md symlink to CLAUDE\.md/i.test(text),
+        false,
+        `${f} must not describe the legacy AGENTS.md -> CLAUDE.md symlink direction`,
       );
     }
   });

@@ -82,11 +82,12 @@ function makeKey(category: ApplyCategory, name: string): string {
 
 type Scope = "project" | "user";
 type Lang = "en" | "zh-CN";
+const DEFAULT_WORKFLOW_LANG: Lang = "zh-CN";
 /** Preset install runtime — Claude Code, Codex, or both. */
 type PresetAgent = ApplyPresetAgent;
 
 // Restrained clay-accented dropdown. Used for both the per-column scope
-// picker (project|user) and the Workflow column's CLAUDE.md language
+// picker (project|user) and the Workflow column's AGENTS.md language
 // picker. Centralized so the two pickers stay visually identical — they
 // are the only two interactive controls in the column headers, and
 // drifting their styles is the kind of small entropy that erodes the
@@ -350,7 +351,8 @@ function PresetBar({
             color: "var(--color-cloud-dark)",
           }}
         >
-          CLAUDE.md/AGENTS.md + workflow skills + auriga-workflow plugin
+          AGENTS.md/CLAUDE.md + workflow skills + auriga-workflow plugin
+          (scope applies to skills/plugins)
         </span>
       </span>
       <span style={{ flex: 1 }} />
@@ -459,9 +461,9 @@ export default function Dashboard(): JSX.Element {
   const [scopeByCategory, setScopeByCategory] = useState<
     Map<ScopableCategory, Scope>
   >(() => initialScopeMap());
-  // CLAUDE.md language picker. Workflow is a singleton, so we keep this
+  // Workflow language picker. Workflow is a singleton, so we keep this
   // as a flat top-level state rather than per-category map.
-  const [workflowLang, setWorkflowLang] = useState<Lang>("en");
+  const [workflowLang, setWorkflowLang] = useState<Lang>(DEFAULT_WORKFLOW_LANG);
   // Global Apply mode. Default "install" — selecting an installed row
   // re-installs (= refresh to latest upstream). Flipped to "uninstall" via
   // the output-bar toggle for explicit removal intent. Not-installed rows
@@ -471,10 +473,10 @@ export default function Dashboard(): JSX.Element {
   const [applying, setApplying] = useState(false);
 
   // Preset bar controls. The defaults differ from a category install —
-  // scope=user, agent=both, lang=en — matching the `--preset` CLI flag.
+  // scope=user, agent=both, lang=zh-CN — matching the `--preset` CLI flag.
   const [presetScope, setPresetScope] = useState<Scope>("user");
   const [presetAgent, setPresetAgent] = useState<PresetAgent>("both");
-  const [presetLang, setPresetLang] = useState<Lang>("en");
+  const [presetLang, setPresetLang] = useState<Lang>(DEFAULT_WORKFLOW_LANG);
 
   // Derive the /api/state `scopes` query payload from the per-column scope
   // pickers. The server splits skill/recommended-skill into one `skills`
@@ -629,7 +631,7 @@ export default function Dashboard(): JSX.Element {
     [],
   );
 
-  // Same pattern as changeScope, but for the Workflow column's CLAUDE.md
+  // Same pattern as changeScope, but for the Workflow column's AGENTS.md
   // language picker. Re-derives lang on the (singleton) workflow selection
   // if it's already in the apply queue.
   const changeWorkflowLang = useCallback((next: Lang) => {
@@ -677,7 +679,7 @@ export default function Dashboard(): JSX.Element {
 
   // Any selected item with action === "uninstall" triggers destructive
   // visual treatment + Apply-time confirmation. Workflow uninstall is the
-  // most dangerous (removes CLAUDE.md) so it gets a separate, harder confirm.
+  // most dangerous (removes AGENTS.md) so it gets a separate, harder confirm.
   const hasDestructive = useMemo(
     () => Array.from(selected.values()).some((item) => item.action === "uninstall"),
     [selected],
@@ -801,7 +803,7 @@ export default function Dashboard(): JSX.Element {
     const items = Array.from(selected.values());
 
     // Two-stage confirmation for destructive batches:
-    //   1. Workflow uninstall is the hardest — removes CLAUDE.md / AGENTS.md
+    //   1. Workflow uninstall is the hardest — removes AGENTS.md / CLAUDE.md
     //      and unconditionally with force=true. Spec §13.5 demands explicit
     //      double-confirm; we use two separate prompts so the user can't
     //      muscle-memory through a single "OK".
@@ -812,7 +814,7 @@ export default function Dashboard(): JSX.Element {
     );
     if (workflowUninstall !== undefined) {
       const first = window.confirm(
-        "Uninstall workflow? This deletes CLAUDE.md and the AGENTS.md symlink from the current project.",
+        "Uninstall workflow? This deletes AGENTS.md and the CLAUDE.md symlink from the current project.",
       );
       if (!first) return;
       const second = window.confirm(
@@ -1039,7 +1041,7 @@ function WorkflowSection({
     observed === "user"
       ? "Source: USER (~/.claude/CLAUDE.md)"
       : observed === "project"
-        ? "Source: PROJECT (<cwd>/CLAUDE.md)"
+        ? "Source: PROJECT (<cwd>/AGENTS.md)"
         : null;
   const description = observedCaption
     ? `The auriga workflow template. ${observedCaption}`
@@ -1055,7 +1057,7 @@ function WorkflowSection({
       refetching={refetching}
     >
       <StateCard
-        name="CLAUDE.md workflow"
+        name="AGENTS.md workflow"
         description={description}
         status={toCardStatus(workflow.status)}
         selected={selected.has(key)}
@@ -1210,4 +1212,3 @@ function PluginsSection({
     </CategorySection>
   );
 }
-

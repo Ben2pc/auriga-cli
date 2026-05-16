@@ -2,6 +2,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { input, select } from "@inquirer/prompts";
 import {
+  DEFAULT_WORKFLOW_LANG,
+  DEFAULT_WORKFLOW_TEMPLATE_FILE,
   LANGUAGES,
   fetchExtraContent,
   log,
@@ -14,6 +16,12 @@ import {
   hashBlock,
   parseMarkers,
 } from "./workflow-markers.js";
+import {
+  LEGACY_AGENTS_SYMLINK_TARGET,
+  WORKFLOW_COMPAT_FILE,
+  WORKFLOW_COMPAT_SYMLINK_TARGET,
+  WORKFLOW_PRIMARY_FILE,
+} from "./workflow-docs.js";
 
 /**
  * Back up `filePath` once. The canonical `<file>.bak` slot is reserved for the
@@ -24,8 +32,8 @@ import {
  * `verbatimSymlinks` copies a symlink AS a symlink, preserving its literal
  * (possibly relative) target — a foreign AGENTS.md may be a symlink pointing
  * elsewhere, and we want the backup to preserve that target verbatim rather
- * than snapshot whatever it currently resolves to. A real file (CLAUDE.md)
- * copies as a real file. `lstat` (not `existsSync`) probes the `.bak` slot so
+ * than snapshot whatever it currently resolves to. A real workflow file copies
+ * as a real file. `lstat` (not `existsSync`) probes the `.bak` slot so
  * a backup that is itself a possibly-broken symlink still counts as present
  * and is not silently overwritten.
  */
@@ -44,17 +52,30 @@ function backupOnce(filePath: string): string {
   return dest;
 }
 
+function lstatMaybe(filePath: string): fs.Stats | undefined {
+  try {
+    return fs.lstatSync(filePath);
+  } catch {
+    return undefined;
+  }
+}
+
+function isSymlinkTo(filePath: string, target: string): boolean {
+  const stat = lstatMaybe(filePath);
+  return !!stat?.isSymbolicLink() && fs.readlinkSync(filePath) === target;
+}
+
 export async function installWorkflow(
   packageRoot: string,
   opts: InstallOpts,
 ): Promise<void> {
   const lang = opts.interactive
     ? await withEsc(select({
-      message: "CLAUDE.md language:",
+      message: "Workflow language:",
       choices: LANGUAGES.map((l) => ({ name: l.label, value: l.value })),
-      default: "en",
+      default: DEFAULT_WORKFLOW_LANG,
     }))
-    : (opts.lang ?? "en");
+    : (opts.lang ?? DEFAULT_WORKFLOW_LANG);
 
   const targetDir = opts.interactive
     ? await withEsc(input({
@@ -72,21 +93,21 @@ export async function installWorkflow(
 
   const langOpt = LANGUAGES.find((l) => l.value === lang)!;
 
-  // Lazy fetch: only download non-default language file when needed
-  if (langOpt.file !== "CLAUDE.md") {
+  // Lazy fetch: only download non-default language files when needed.
+  if (langOpt.file !== DEFAULT_WORKFLOW_TEMPLATE_FILE) {
     console.log(`Fetching ${langOpt.label} template...`);
     await fetchExtraContent(packageRoot, langOpt.file);
   }
 
-  const sourceClaude = path.join(packageRoot, langOpt.file);
-  const targetClaude = path.join(resolved, "CLAUDE.md");
-  const targetAgents = path.join(resolved, "AGENTS.md");
+  const sourceWorkflow = path.join(packageRoot, langOpt.file);
+  const targetPrimary = path.join(resolved, WORKFLOW_PRIMARY_FILE);
+  const targetCompat = path.join(resolved, WORKFLOW_COMPAT_FILE);
 
   // The packaged template is authored with managed-block markers. Extract its
   // managed block (the auriga workflow body) and its user-region placeholder.
   // Defensive fallback: if the template somehow lacks markers, treat the whole
   // file as the managed block with an empty user region.
-  const sourceContent = fs.readFileSync(sourceClaude, "utf8");
+  const sourceContent = fs.readFileSync(sourceWorkflow, "utf8");
   const sourceParsed = parseMarkers(sourceContent);
   const sourceBlock =
     sourceParsed.kind === "marked"
@@ -97,18 +118,52 @@ export async function installWorkflow(
   const templateUserRegion =
     sourceParsed.kind === "marked" ? sourceParsed.userRegion : "";
 
+  const primaryStat = lstatMaybe(targetPrimary);
+  const compatStat = lstatMaybe(targetCompat);
+  const legacyShape =
+    primaryStat?.isSymbolicLink() === true &&
+    fs.readlinkSync(targetPrimary) === LEGACY_AGENTS_SYMLINK_TARGET &&
+    compatStat?.isFile() === true;
+  const primaryForeignSymlink =
+    primaryStat?.isSymbolicLink() === true &&
+    fs.readlinkSync(targetPrimary) !== LEGACY_AGENTS_SYMLINK_TARGET;
+  const compatIsCurrentPrimary =
+    !primaryStat &&
+    compatStat !== undefined &&
+    !isSymlinkTo(targetCompat, WORKFLOW_COMPAT_SYMLINK_TARGET);
+  const currentPath =
+    primaryStat && !primaryStat.isSymbolicLink()
+      ? targetPrimary
+      : legacyShape || compatIsCurrentPrimary
+        ? targetCompat
+        : undefined;
+
+  let wrotePrimary = false;
+  const writePrimary = (content: string): void => {
+    if (primaryStat?.isSymbolicLink()) {
+      if (primaryForeignSymlink) {
+        const bak = backupOnce(targetPrimary);
+        log.warn(
+          `AGENTS.md 是指向其它目标的软链;已备份到 ${path.basename(bak)} 后改为主文件。`,
+        );
+      }
+      fs.unlinkSync(targetPrimary);
+    }
+    fs.writeFileSync(targetPrimary, content);
+    wrotePrimary = true;
+  };
+
   // Installing the workflow doc is one of five cases. The managed block is
   // always replaced with the packaged version; the cases differ in how the
   // project's own content (the user region) is preserved or backed up.
-  if (!fs.existsSync(targetClaude)) {
+  if (!currentPath) {
     // 1. Fresh install — write the marked template as-is, no backup.
-    fs.writeFileSync(
-      targetClaude,
+    writePrimary(
       composeMarkedFile({ blockBody: sourceBlock, userRegion: templateUserRegion, lang }),
     );
-    log.ok(`CLAUDE.md installed (${langOpt.label})`);
+    log.ok(`AGENTS.md installed (${langOpt.label})`);
   } else {
-    const current = fs.readFileSync(targetClaude, "utf8");
+    const current = fs.readFileSync(currentPath, "utf8");
     const parsed = parseMarkers(current);
 
     if (parsed.kind === "marked") {
@@ -121,18 +176,17 @@ export async function installWorkflow(
       //        marker). Can't prove the block is untouched, so back up
       //        conservatively rather than risk silently dropping an edit.
       if (parsed.endHash === null) {
-        const bak = backupOnce(targetClaude);
+        const bak = backupOnce(currentPath);
         log.warn(
-          `CLAUDE.md 的受管区块缺少校验标记,无法确认是否被改动;升级前已备份到 ${path.basename(bak)}`,
+          `工作流文档的受管区块缺少校验标记,无法确认是否被改动;升级前已备份到 ${path.basename(bak)}`,
         );
       } else if (parsed.endHash !== hashBlock(parsed.blockBody)) {
-        const bak = backupOnce(targetClaude);
+        const bak = backupOnce(currentPath);
         log.warn(
-          `CLAUDE.md 的受管区块曾被手改;升级已整块覆盖该区块,改动前的文件见 ${path.basename(bak)}`,
+          `工作流文档的受管区块曾被手改;升级已整块覆盖该区块,改动前的文件见 ${path.basename(bak)}`,
         );
       }
-      fs.writeFileSync(
-        targetClaude,
+      writePrimary(
         composeMarkedFile({
           prefix: parsed.prefix,
           blockBody: sourceBlock,
@@ -141,84 +195,76 @@ export async function installWorkflow(
         }),
       );
       log.ok(
-        `CLAUDE.md upgraded (${langOpt.label}); your project section was preserved`,
+        `AGENTS.md upgraded (${langOpt.label}); your project section was preserved`,
       );
     } else if (parsed.kind === "unmarked" && hasAurigaHeader(current)) {
-      // 3. Old-format migration — an auriga CLAUDE.md from before markers
+      // 3. Old-format migration — an auriga workflow doc from before markers
       //    existed. The user region can't be recovered from an unmarked file,
       //    so back the whole thing up and install fresh.
-      const bak = backupOnce(targetClaude);
-      fs.writeFileSync(
-        targetClaude,
+      const bak = backupOnce(currentPath);
+      writePrimary(
         composeMarkedFile({ blockBody: sourceBlock, userRegion: templateUserRegion, lang }),
       );
       log.warn(
-        `检测到旧版 CLAUDE.md(无受管标记);已备份到 ${path.basename(bak)}。` +
+        `检测到旧版工作流文档(无受管标记);已备份到 ${path.basename(bak)}。` +
           `若你改过它,请从备份把工程定制手动迁移到 END 标记之后的用户区。`,
       );
-      log.ok(`CLAUDE.md migrated to the managed-block format (${langOpt.label})`);
+      log.ok(`AGENTS.md migrated to the managed-block format (${langOpt.label})`);
     } else if (parsed.kind === "unmarked") {
-      // 4. Foreign first install — a CLAUDE.md from another tool. Keep its
+      // 4. Foreign first install — a workflow doc from another tool. Keep its
       //    content in place as the user region; no backup needed.
       const foreign = current.endsWith("\n") ? current : current + "\n";
-      fs.writeFileSync(
-        targetClaude,
+      writePrimary(
         composeMarkedFile({ blockBody: sourceBlock, userRegion: "\n" + foreign, lang }),
       );
       log.ok(
-        `CLAUDE.md installed (${langOpt.label}); your existing content was kept below the managed block`,
+        `AGENTS.md installed (${langOpt.label}); your existing content was kept below the managed block`,
       );
+      if (currentPath === targetPrimary) {
+        log.warn("AGENTS.md already existed; its content was kept below the managed block.");
+      }
     } else {
       // 5. Malformed markers — can't locate the block boundaries safely.
       //    Back up and reinstall fresh rather than splice into a broken file.
-      const bak = backupOnce(targetClaude);
-      fs.writeFileSync(
-        targetClaude,
+      const bak = backupOnce(currentPath);
+      writePrimary(
         composeMarkedFile({ blockBody: sourceBlock, userRegion: templateUserRegion, lang }),
       );
       log.warn(
-        `CLAUDE.md 的受管标记已损坏(${parsed.reason});已备份到 ${path.basename(bak)} 并重装。`,
+        `工作流文档的受管标记已损坏(${parsed.reason});已备份到 ${path.basename(bak)} 并重装。`,
       );
     }
   }
 
-  // Point AGENTS.md at CLAUDE.md via a symlink (the install shape — Claude
-  // Code and Codex then read the same workflow doc). If the path is already
-  // occupied by something that ISN'T that symlink — a real file from another
-  // tool, or a symlink pointing elsewhere — it holds content or intent we
-  // must not silently destroy. Back it up first (symmetric with how a foreign
-  // / hand-edited CLAUDE.md is preserved above), then replace.
-  let agentsStat: fs.Stats | undefined;
-  try {
-    agentsStat = fs.lstatSync(targetAgents);
-  } catch {
-    // does not exist — nothing to preserve.
-  }
-  if (agentsStat) {
-    const pointsToClaude =
-      agentsStat.isSymbolicLink() &&
-      fs.readlinkSync(targetAgents) === "CLAUDE.md";
-    if (!pointsToClaude) {
-      const bak = backupOnce(targetAgents);
+  // Point CLAUDE.md at AGENTS.md via a compatibility symlink. If CLAUDE.md was
+  // the old primary file and its content was migrated above, replacing it with
+  // the symlink is safe. Otherwise preserve any real file or foreign symlink
+  // before replacing it.
+  const latestCompatStat = lstatMaybe(targetCompat);
+  if (latestCompatStat) {
+    const pointsToPrimary = isSymlinkTo(targetCompat, WORKFLOW_COMPAT_SYMLINK_TARGET);
+    const migratedFromCompat =
+      currentPath === targetCompat && wrotePrimary && !latestCompatStat.isSymbolicLink();
+    if (!pointsToPrimary && !migratedFromCompat) {
+      const bak = backupOnce(targetCompat);
       log.warn(
-        `AGENTS.md 不是指向 CLAUDE.md 的软链;已备份到 ${path.basename(bak)} 后替换为软链。`,
+        `CLAUDE.md 不是指向 AGENTS.md 的软链;已备份到 ${path.basename(bak)} 后替换为软链。`,
       );
     }
-    fs.unlinkSync(targetAgents);
+    fs.unlinkSync(targetCompat);
   }
-  fs.symlinkSync("CLAUDE.md", targetAgents);
-  log.ok("AGENTS.md -> CLAUDE.md symlink created");
+  fs.symlinkSync(WORKFLOW_COMPAT_SYMLINK_TARGET, targetCompat);
+  log.ok("CLAUDE.md -> AGENTS.md symlink created");
 }
 
 /**
- * Uninstall the workflow (CLAUDE.md + AGENTS.md) from `opts.cwd`.
+ * Uninstall the workflow (AGENTS.md + CLAUDE.md) from `opts.cwd`.
  *
  * Safety contract:
  * - `opts.force` MUST be true. The CLI / server caller is responsible for
  *   confirming user intent BEFORE invoking this; we refuse otherwise.
- * - `AGENTS.md` is removed ONLY if it's a symlink (the install-time shape).
- *   A real-file AGENTS.md is left in place with a warning — the user has
- *   diverged from the install pattern and probably hand-edited it.
+ * - Real files are removed only when they are recognizable auriga workflow
+ *   files. Foreign instruction files are left in place with a warning.
  * - Missing files are a no-op: callers can re-run uninstall idempotently.
  * - `.claude/` is not touched; skills / plugins / hooks have their own
  *   uninstall paths.
@@ -243,37 +289,58 @@ export async function uninstallWorkflow(
     opts.onLog?.(line);
   };
 
-  const targetClaude = path.join(resolved, "CLAUDE.md");
-  const targetAgents = path.join(resolved, "AGENTS.md");
+  const targetClaude = path.join(resolved, WORKFLOW_COMPAT_FILE);
+  const targetAgents = path.join(resolved, WORKFLOW_PRIMARY_FILE);
 
-  // CLAUDE.md — flat file. lstat to avoid following a symlink (would be
-  // unusual but we'd rather refuse to traverse than chase one out).
-  if (fs.existsSync(targetClaude)) {
-    fs.unlinkSync(targetClaude);
-    log.ok("CLAUDE.md removed");
-    emit("removed CLAUDE.md");
-  } else {
-    log.skip("CLAUDE.md not present");
-    emit("CLAUDE.md not present");
-  }
-
-  // AGENTS.md — only remove symlinks (our install shape). lstatSync
-  // refuses to follow the link so we inspect the link itself.
-  try {
-    const stat = fs.lstatSync(targetAgents);
-    if (stat.isSymbolicLink()) {
-      fs.unlinkSync(targetAgents);
-      log.ok("AGENTS.md symlink removed");
-      emit("removed AGENTS.md symlink");
-    } else {
-      // Real file (or directory) — user diverged from install. Don't
-      // silently destroy their content; warn and leave it.
-      log.warn("AGENTS.md is not a symlink; left in place");
-      emit("AGENTS.md is not a symlink; left in place");
+  const isAurigaWorkflowFile = (filePath: string): boolean => {
+    try {
+      const content = fs.readFileSync(filePath, "utf8");
+      return parseMarkers(content).kind === "marked" || hasAurigaHeader(content);
+    } catch {
+      return false;
     }
-  } catch {
-    // ENOENT — already gone, idempotent no-op.
-    log.skip("AGENTS.md not present");
-    emit("AGENTS.md not present");
-  }
+  };
+
+  const removeWorkflowPath = (filePath: string, name: string): void => {
+    let stat: fs.Stats;
+    try {
+      stat = fs.lstatSync(filePath);
+    } catch (err) {
+      const code = (err as NodeJS.ErrnoException).code;
+      if (code === "ENOENT") {
+        log.skip(`${name} not present`);
+        emit(`${name} not present`);
+        return;
+      }
+      throw err;
+    }
+
+    if (stat.isSymbolicLink()) {
+      const linkTarget = fs.readlinkSync(filePath);
+      const isManagedSymlink =
+        (name === WORKFLOW_PRIMARY_FILE && linkTarget === LEGACY_AGENTS_SYMLINK_TARGET) ||
+        (name === WORKFLOW_COMPAT_FILE && linkTarget === WORKFLOW_COMPAT_SYMLINK_TARGET);
+      if (isManagedSymlink) {
+        fs.unlinkSync(filePath);
+        log.ok(`${name} symlink removed`);
+        emit(`removed ${name} symlink`);
+      } else {
+        log.warn(`foreign ${name} symlink left in place`);
+        emit(`foreign ${name} symlink left in place`);
+      }
+    } else if (stat.isFile() && isAurigaWorkflowFile(filePath)) {
+      fs.unlinkSync(filePath);
+      log.ok(`${name} removed`);
+      emit(`removed ${name}`);
+    } else {
+      log.warn(`foreign ${name} left in place`);
+      emit(`foreign ${name} left in place`);
+    }
+  };
+
+  // Remove AGENTS.md first because it is the current primary. lstatSync refuses
+  // to follow symlinks, so the legacy AGENTS.md -> CLAUDE.md shape is handled
+  // without deleting CLAUDE.md through the link.
+  removeWorkflowPath(targetAgents, "AGENTS.md");
+  removeWorkflowPath(targetClaude, "CLAUDE.md");
 }

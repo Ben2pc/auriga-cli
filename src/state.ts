@@ -3,7 +3,8 @@
 // own dev-repo layout. The truth sources:
 //
 //   Workflow:  ~/.claude/CLAUDE.md                          (user scope)
-//              <proj>/CLAUDE.md                             (project scope)
+//              <proj>/AGENTS.md                             (project scope primary)
+//              <proj>/CLAUDE.md                             (project scope legacy fallback)
 //   Skills:    ~/.claude/skills/<name>/SKILL.md             (user scope)
 //              <proj>/.claude/skills/<name>/SKILL.md        (project scope)
 //   Plugins(Claude): execPluginList(scope) + settings.json enabledPlugins
@@ -29,6 +30,10 @@ import path from "node:path";
 import { parse as parseToml } from "smol-toml";
 
 import { hasAurigaHeader, parseMarkers } from "./workflow-markers.js";
+import {
+  WORKFLOW_COMPAT_FILE,
+  WORKFLOW_PRIMARY_FILE,
+} from "./workflow-docs.js";
 
 import type {
   ApplyAgent,
@@ -265,12 +270,37 @@ function workflowPathsForScope(scope: ScanScope, projectRoot: string, home: stri
   if (scope === "user") {
     return [path.join(home, ".claude", "CLAUDE.md")];
   }
-  // Project: only `<proj>/CLAUDE.md` — the auriga workflow installer
-  // (src/workflow.ts) writes here and never to `<proj>/.claude/CLAUDE.md`.
-  // The old fallback collapsed onto `$HOME/.claude/CLAUDE.md` when
-  // projectRoot === $HOME (user runs `web-ui` from home dir), leaking
-  // user-scope content into the project-scope row.
-  return [path.join(projectRoot, "CLAUDE.md")];
+  // Project: prefer the current `<proj>/AGENTS.md` primary. Keep
+  // `<proj>/CLAUDE.md` as a legacy fallback so already-installed projects do
+  // not flash as missing before their next install flips the symlink direction.
+  // Never fall back to `<proj>/.claude/CLAUDE.md`: that path can collapse onto
+  // user scope when projectRoot === HOME.
+  return [
+    path.join(projectRoot, WORKFLOW_PRIMARY_FILE),
+    path.join(projectRoot, WORKFLOW_COMPAT_FILE),
+  ];
+}
+
+function workflowForeignWarningCode(filePath: string): "workflow-foreign-agentsmd" | "workflow-foreign-claudemd" {
+  return path.basename(filePath) === WORKFLOW_PRIMARY_FILE
+    ? "workflow-foreign-agentsmd"
+    : "workflow-foreign-claudemd";
+}
+
+function workflowForeignWarningMessage(filePath: string): string {
+  const name = path.basename(filePath);
+  return `Foreign ${name} detected at the workflow path — no auriga-workflow header. Install will preserve existing content or link intent before replacing the workflow path.`;
+}
+
+function readFirstWorkflowCandidate(candidates: string[]): { content: string; filePath: string } | null {
+  for (const candidate of candidates) {
+    try {
+      return { content: fs.readFileSync(candidate, "utf8"), filePath: candidate };
+    } catch {
+      // try next candidate
+    }
+  }
+  return null;
 }
 
 function scanWorkflow(
@@ -280,22 +310,15 @@ function scanWorkflow(
   warnings: StateWarning[],
 ): WorkflowState {
   const candidates = workflowPathsForScope(scope, projectRoot, home);
+  const workflowFile = readFirstWorkflowCandidate(candidates);
 
-  let content: string | null = null;
-  for (const candidate of candidates) {
-    try {
-      content = fs.readFileSync(candidate, "utf8");
-      break;
-    } catch {
-      // try next candidate
-    }
-  }
-
-  if (content === null) {
+  if (workflowFile === null) {
     return { status: "not-installed", observedScope: scope };
   }
 
-  // "Is this our CLAUDE.md?" — two recognizable shapes:
+  const { content, filePath } = workflowFile;
+
+  // "Is this our workflow instruction file?" — two recognizable shapes:
   //   - managed-block markers (the current install format). The START marker
   //     is an HTML comment ahead of the auriga header, so a first-non-blank-
   //     line header walk would miss it — detect the marker pair directly.
@@ -305,13 +328,13 @@ function scanWorkflow(
     return { status: "installed", observedScope: scope };
   }
 
-  // CLAUDE.md exists but is neither marked nor auriga-headed. The file is
-  // foreign — not our workflow. Report `not-installed` honestly; the install
-  // path (src/workflow.ts) keeps the foreign content as the user region
-  // below a fresh managed block, so nothing is lost.
+  // The workflow path exists but is neither marked nor auriga-headed. The file
+  // is foreign — not our workflow. Report `not-installed` honestly; the install
+  // path keeps the foreign content as the user region below a fresh managed
+  // block, so nothing is lost.
   warnings.push({
-    code: "workflow-foreign-claudemd",
-    message: `Foreign CLAUDE.md detected at the workflow path — no auriga-workflow header. Install will keep your content as the user region below the managed block.`,
+    code: workflowForeignWarningCode(filePath),
+    message: workflowForeignWarningMessage(filePath),
   });
   return { status: "not-installed", observedScope: scope };
 }

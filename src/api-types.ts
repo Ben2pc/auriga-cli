@@ -90,10 +90,11 @@ export interface StateWarning {
     | "claude-code-not-installed"
     | "settings-unreadable"
     | "skill-malformed"
-    /** Project-scope CLAUDE.md (or the user-scope fallback when scanning
-     *  user scope) is present but has no recognizable `# auriga Workflow (vX.Y.Z)`
-     *  header. The row reports `not-installed`; install will back up the
-     *  existing file to `CLAUDE.md.bak` and write ours. */
+    /** Workflow instruction file is present but has no recognizable
+     *  `# auriga Workflow (vX.Y.Z)` header. The row reports `not-installed`;
+     *  install keeps the existing content in the user region before writing
+     *  ours. */
+    | "workflow-foreign-agentsmd"
     | "workflow-foreign-claudemd";
   message: string;
 }
@@ -120,10 +121,10 @@ export type ApplyAction = "install" | "uninstall";
 export type ApplyScope = "project" | "user";
 
 /**
- * Workflow CLAUDE.md language variant.
+ * Workflow AGENTS.md language variant.
  *
- * - "en":    English CLAUDE.md (the default).
- * - "zh-CN": Simplified Chinese CLAUDE.md (the localized variant).
+ * - "zh-CN": Simplified Chinese AGENTS.md (the default).
+ * - "en":    English AGENTS.en.md.
  *
  * Only meaningful for `category === "workflow"`; rejected for other
  * categories so the API surface stays explicit.
@@ -149,7 +150,7 @@ export interface ApplyItemRef {
    *  server rejects this field for category="workflow" because workflow
    *  has no scope concept (it's a single file at the project root). */
   scope?: ApplyScope;
-  /** Workflow CLAUDE.md language variant. Omitted = "en" (back-compat
+  /** Workflow AGENTS.md language variant. Omitted = "zh-CN"
    *  default). The server accepts this field only for category="workflow"
    *  and category="preset" (the preset installs the workflow doc). */
   lang?: ApplyLang;

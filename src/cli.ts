@@ -5,6 +5,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   exec,
+  DEFAULT_WORKFLOW_LANG,
   fetchContentRoot,
   getPackageRoot,
   isNonInteractive,
@@ -25,7 +26,7 @@ import { CATEGORY_NAMES, type CategoryName } from "./types.js";
 export type { CategoryName } from "./types.js";
 
 const RELOAD_REMINDER =
-  "\n⚠ Reload your Claude Code or Codex session to pick up the new harness (CLAUDE.md / skills / plugins are loaded at session startup).\n";
+  "\n⚠ Reload your Claude Code or Codex session to pick up the new harness (AGENTS.md / skills / plugins are loaded at session startup).\n";
 
 // ---------------------------------------------------------------------------
 // parseArgs — pure argv parser (spec §3.5 / §5.2)
@@ -316,7 +317,7 @@ function validateInstall(out: InstallParsed, filterFlag: string | null): void {
   // (workflow doc + workflow skills + auriga-workflow plugin) and cannot
   // combine with a <type>, a sub-item filter, or --all. Unlike a category
   // install it DOES accept --scope / --agent / --lang as preset modifiers
-  // (the preset defaults differ: user / both / en). --cwd is not a preset
+  // (the preset defaults differ: user / both / zh-CN). --cwd is not a preset
   // modifier — the workflow doc always lands in the current directory.
   if (out.preset) {
     if (out.all) {
@@ -556,7 +557,7 @@ async function runInstall(p: InstallParsed): Promise<number> {
  * succeed → 0; any step fails → 2 with per-step status on stderr.
  *
  * The preset defaults differ from a category install — scope=user,
- * agent=both, lang=en — and are resolved here before handing off, so
+ * agent=both, lang=zh-CN — and are resolved here before handing off, so
  * `installPreset` itself stays default-free (the TUI / Web UI callers
  * resolve their own defaults the same way).
  */
@@ -570,7 +571,7 @@ async function runPreset(p: InstallParsed): Promise<number> {
     interactive: false,
     scope: p.scope ?? "user",
     agent,
-    lang: p.lang ?? "en",
+    lang: p.lang ?? DEFAULT_WORKFLOW_LANG,
   });
 
   for (const r of results) {
@@ -590,7 +591,11 @@ async function runPreset(p: InstallParsed): Promise<number> {
   // The preset is one atomic "install the right defaults" action — the
   // retry is the whole command again, not a per-category fan-out like
   // runAll's hint.
-  process.stderr.write("\nRetry:\n  npx -y auriga-cli install --preset\n");
+  const retryArgs = ["install", "--preset"];
+  if (p.scope) retryArgs.push("--scope", p.scope);
+  if (p.agent) retryArgs.push("--agent", p.agent);
+  if (p.lang) retryArgs.push("--lang", p.lang);
+  process.stderr.write(`\nRetry:\n  npx -y auriga-cli ${retryArgs.join(" ")}\n`);
   if (failed.length < results.length) {
     process.stderr.write(RELOAD_REMINDER);
   }
@@ -701,7 +706,7 @@ async function runAll(p: InstallParsed): Promise<number> {
     process.stderr.write(`  npx -y auriga-cli install ${s.category}${suffix}\n`);
   }
   // Partial success still installed assets that need a session reload
-  // (CLAUDE.md / skills / plugins load at startup). Without this hint
+  // (AGENTS.md / skills / plugins load at startup). Without this hint
   // the user may retry the failed category and act on stale state.
   if (failed.length < status.length) {
     process.stderr.write(RELOAD_REMINDER);
@@ -779,7 +784,7 @@ async function runUi(p: UiParsed, version: string): Promise<number> {
   //   - tarballRoot: where `dist/catalog.json` + the bundled DEV ui/dist live.
   //     Always read from the installed npm package; can't be fetched because
   //     dist/ is built artifact, not git content.
-  //   - contentRoot: where the runtime install recipes live (CLAUDE.md,
+  //   - contentRoot: where the runtime install recipes live (AGENTS.md,
   //     marketplace manifests, extra_plugin_configs.json, skills-lock.json).
   //     These files are
   //     NOT in the npm tarball — the `files` allowlist only ships `dist/*`
@@ -844,7 +849,7 @@ async function runUi(p: UiParsed, version: string): Promise<number> {
   }
 
   const applyCatalog = {
-    // Workflow is a singleton (one CLAUDE.md per project); we pick the
+    // Workflow is a singleton (one AGENTS.md per project); we pick the
     // sentinel name "workflow" to match what the Web UI's Dashboard sends
     // and to remain semantically self-describing. The handler ignores the
     // name argument either way.
@@ -863,7 +868,7 @@ async function runUi(p: UiParsed, version: string): Promise<number> {
     pluginAgentsByName.set(name, def.agents);
   }
   const applyHandlers = buildDefaultApplyHandlers({
-    // contentRoot: install handlers read CLAUDE.md, marketplace manifests,
+    // contentRoot: install handlers read AGENTS.md, marketplace manifests,
     // extra_plugin_configs.json, and skills-lock.json — all CONTENT_FILES.
     // Routing them at tarballRoot fails ENOENT for npm-installed users.
     packageRoot: contentRoot,
@@ -891,7 +896,7 @@ async function runUi(p: UiParsed, version: string): Promise<number> {
         cwd,
         // server reads dist/catalog.json (tarball-shipped) via
         // buildScanCatalog on each /api/state call; install-time content
-        // (marketplace manifests, extra plugin config, CLAUDE.md, …) was already injected
+        // (marketplace manifests, extra plugin config, AGENTS.md, …) was already injected
         // into applyHandlers above with contentRoot.
         packageRoot: tarballRoot,
         heartbeatTimeoutMs: UI_HEARTBEAT_TIMEOUT_MS,
@@ -989,7 +994,7 @@ type LegacyMenuValue = "preset" | "recommended" | "plugins";
  *
  * Workflow + Skills are absorbed by the「推荐预设」item.
  * The preset label spells out the silent defaults (scope user / agent
- * both / lang en) so a TTY user knows what they're getting — fine-tuning
+ * both / lang zh-CN) so a TTY user knows what they're getting — fine-tuning
  * those goes through the non-interactive `install --preset` flags.
  */
 export const LEGACY_MENU_CHOICES: ReadonlyArray<{
@@ -999,7 +1004,7 @@ export const LEGACY_MENU_CHOICES: ReadonlyArray<{
 }> = [
   {
     value: "preset",
-    name: "Recommended preset — CLAUDE.md/AGENTS.md + workflow skills + auriga-workflow plugin (scope user · agent both · lang en)",
+    name: "Recommended preset — AGENTS.md/CLAUDE.md + workflow skills + auriga-workflow plugin (scope user · agent both · lang zh-CN)",
     checked: true,
   },
   {
@@ -1047,7 +1052,7 @@ async function runLegacyMenu(): Promise<number> {
   }
 
   // 「推荐预设」silently uses the preset defaults (scope user / agent
-  // both / lang en) — it does not prompt for them. The other two items
+  // both / lang zh-CN) — it does not prompt for them. The other two items
   // drill down into their category's per-item sub-selection as before.
   if (picks.includes("preset")) {
     console.log("\n--- Recommended preset ---\n");
@@ -1055,7 +1060,7 @@ async function runLegacyMenu(): Promise<number> {
       interactive: true,
       scope: "user",
       agent: "both",
-      lang: "en",
+      lang: DEFAULT_WORKFLOW_LANG,
     });
   }
   if (picks.includes("recommended")) {

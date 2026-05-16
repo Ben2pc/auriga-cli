@@ -16,7 +16,7 @@
     {
       "name": "claude-md-management",
       "agents": ["claude", "codex"],
-      "description": "Audit and improve CLAUDE.md files",
+      "description": "Audit and improve AGENTS.md / CLAUDE.md files",
       "claude": {
         "package": "claude-md-management@claude-plugins-official"
       },

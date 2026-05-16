@@ -5,7 +5,8 @@ import { afterEach, describe, test } from "node:test";
 import { fetchContentRoot } from "../src/utils.js";
 
 const BASE_RESPONSES: Record<string, string> = {
-  "CLAUDE.md": "# Claude\n",
+  "AGENTS.md": "# auriga 工作流\n",
+  "AGENTS.en.md": "# auriga Workflow\n",
   "skills-lock.json": JSON.stringify({ skills: {} }),
   ".claude-plugin/marketplace.json": JSON.stringify({ name: "auriga-cli", plugins: [] }),
   ".agents/plugins/marketplace.json": JSON.stringify({
