@@ -1,6 +1,6 @@
 ---
 name: git-workflow
-description: Drives the auriga git lifecycle phase-by-phase — branch hygiene, atomic / checkpoint commits with --autosquash cleanup, and the five-element PR body (scope / acceptance criteria / design decisions / risks / remaining TODOs). Use whenever the agent is about to create a branch, author a commit message, open or update a PR, or restructure history (rebase / squash / amend). Pairs with the `commit-reminder`, `pr-create-guard`, and `pr-ready-guard` hooks shipped in the same plugin.
+description: Drives the auriga git lifecycle phase-by-phase — branch hygiene, atomic / checkpoint commits with --autosquash cleanup, and the five-element PR body (scope / acceptance criteria / design decisions / risks / remaining TODOs). Use whenever the agent is about to create a branch, author a commit message, open or update a PR, or restructure history (rebase / squash / amend). Pairs with the `commit-reminder`, `pr-create-guard`, `pr-ready-guard`, and `pr-merge-guard` hooks shipped in the same plugin.
 ---
 
 # git-workflow
@@ -250,3 +250,15 @@ gh pr edit <pr> --body-file <updated-body.md>
 ```
 
 The comment stream records "what we did"; the PR body remains the "current state" of the PR. Don't conflate the two.
+
+---
+
+## Phase 7: Merge
+
+Merge is the final gate. The `pr-merge-guard` hook fires `PreToolUse` on `gh pr merge` and **blocks** the merge while the PR body's `Acceptance Criteria` section still has unchecked `- [ ]` checklist items.
+
+- Only the `Acceptance Criteria` section is scoped — unchecked items in `Remaining TODOs`, `Test plan`, or other sections do not block, since those sections track deferred work by design.
+- Checked items (`- [x]`) and plain non-task bullets (`- ...`) never block.
+- An item that genuinely cannot be verified before merge (e.g. "confirmed at the next release") is **not** an acceptance criterion for this PR — move it into `Remaining TODOs` as a plain bullet before merging.
+
+The guard fails open: if `gh` can't read the PR body, the merge proceeds rather than blocking on the guard's own inability to inspect it.

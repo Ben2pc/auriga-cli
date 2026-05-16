@@ -76,6 +76,11 @@ plugins/
                     scripts/pr-create-guard.mjs (PostToolUse: gh pr create)
                     scripts/pr-ready-guard.mjs  (PreToolUse: gh pr ready +
                                                  non-draft gh pr create)
+                    scripts/pr-merge-guard.mjs  (PreToolUse: gh pr merge —
+                                                 blocks while the PR body's
+                                                 Acceptance criteria section
+                                                 has unchecked checklist
+                                                 items)
                   Formed by merging the former auriga-go (goalify only),
                   deep-review, and auriga-git-guards plugins. Codex
                   currently fail-opens on PreToolUse `additionalContext`
@@ -131,6 +136,7 @@ tests/
   commit-reminder.test.mjs — smoke tests for plugins/auriga-workflow/scripts/commit-reminder.mjs
   pr-create-guard.test.mjs — smoke tests for plugins/auriga-workflow/scripts/pr-create-guard.mjs
   pr-ready-guard.test.mjs  — smoke tests for plugins/auriga-workflow/scripts/pr-ready-guard.mjs
+  pr-merge-guard.test.mjs  — smoke tests for plugins/auriga-workflow/scripts/pr-merge-guard.mjs
 ```
 
 - No CLI framework — hand-rolled `parseArgs` in `cli.ts` for the non-interactive path; `@inquirer/prompts` (lazy-loaded) for the TTY menu
@@ -180,7 +186,8 @@ npm run test:e2e # Full tarball install e2e (~90-120s). Packs the actual npm
 
 npm run test:git-guards
                  # Smoke tests for plugins/auriga-workflow/scripts/*.mjs
-                 # (commit-reminder + pr-create-guard + pr-ready-guard).
+                 # (commit-reminder + pr-create-guard + pr-ready-guard
+                 # + pr-merge-guard).
                  # Plain Node, not the node:test framework, so they run as a
                  # separate npm script rather than being wired into `npm test`
                  # alongside the TS suite. Run before any PR that touches

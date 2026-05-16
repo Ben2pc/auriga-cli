@@ -1,5 +1,5 @@
 {
-  "description": "auriga-workflow git lifecycle hooks: commit-reminder (PostToolUse on Edit/Write/MultiEdit/apply_patch — covers both Claude Code and Codex file-edit tool_names), pr-create-guard (PostToolUse on `gh pr create`), pr-ready-guard (PreToolUse on `gh pr ready` AND on `gh pr create` without --draft, since both publish Ready PRs).",
+  "description": "auriga-workflow git lifecycle hooks: commit-reminder (PostToolUse on Edit/Write/MultiEdit/apply_patch — covers both Claude Code and Codex file-edit tool_names), pr-create-guard (PostToolUse on `gh pr create`), pr-ready-guard (PreToolUse on `gh pr ready` AND on `gh pr create` without --draft, since both publish Ready PRs), pr-merge-guard (PreToolUse on `gh pr merge` — blocks while the PR body's Acceptance criteria section has unchecked checklist items).",
   "hooks": {
     "PreToolUse": [
       {
@@ -14,6 +14,11 @@
             "type": "command",
             "if": "Bash(gh pr create)",
             "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/pr-ready-guard.mjs\""
+          },
+          {
+            "type": "command",
+            "if": "Bash(gh pr merge)",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/pr-merge-guard.mjs\""
           }
         ]
       }
