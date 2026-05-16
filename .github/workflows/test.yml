@@ -1,0 +1,59 @@
+name: Test
+
+# Pre-merge test gate. Before this workflow existed, `npm test` ran
+# exactly once — when a release tag was pushed (`release.yml`) — so a PR
+# could land on `main` with a red suite and nothing caught it until the
+# next release. Payload-only changes (e.g. plugin skill edits) are exempt
+# from a CLI version bump and never trigger a release tag, so their
+# breakage could sit in `main` indefinitely. This workflow runs the unit
+# suite + git-guard smoke tests on every non-draft PR and on every push
+# to `main`.
+#
+# Draft PRs are skipped via the job-level `if` below — a draft is
+# work-in-progress and need not burn CI minutes. `ready_for_review` is
+# in the trigger types so the gate runs the moment a draft is promoted.
+#
+# `npm run test:e2e` is deliberately left to `release.yml` only — it is
+# slow (~90-120s) and network-bound, not suited to a per-PR gate.
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: test-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    # Skip draft PRs — `synchronize` still fires on them, so trigger-type
+    # filtering alone can't exclude drafts; the gate is enforced at the
+    # job level. `push: main` events always run (event_name guard).
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          # Match release.yml's Node line so the gate validates against
+          # the same runtime the release pipeline uses.
+          node-version: '24'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Unit tests
+        # `pretest: npm run build` hook (see package.json) rebuilds
+        # dist/ before tests run, so no separate Build step is needed.
+        run: npm test
+
+      - name: Git-guard hooks smoke tests
+        # Plain Node smoke tests for plugins/auriga-workflow/scripts/*.mjs,
+        # not part of `npm test` (hand-rolled assertion loops, not
+        # node:test). Mirrors release.yml's dedicated step.
+        run: npm run test:git-guards
