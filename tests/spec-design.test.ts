@@ -204,10 +204,10 @@ describe("spec-design skill — repo-check VALs", () => {
     );
     assert.ok(
       text.includes("handoff") &&
+        text.includes("这次做了什么") &&
         text.includes("怎么验收") &&
-        text.includes("review 问题") &&
-        text.includes("未修复"),
-      "goalify must require a final handoff with acceptance, review findings, and unresolved items",
+        text.includes("下一步可以做什么"),
+      "goalify must require a final handoff with what changed, acceptance, and next steps",
     );
     assert.ok(
       text.includes("incremental-impl"),
