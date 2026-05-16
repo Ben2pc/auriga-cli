@@ -171,7 +171,7 @@ VAL 的 `Tool` 字段必须从下面的**类别**里选——绝不写具体工�
 
 | Tool | 用于 |
 |---|---|
-| `unit-test` | 进程内逻辑 |
+| `unit-test` | 单元级逻辑 |
 | `integration-test` | 单运行时内的跨模块 / 跨进程 |
 | `e2e-browser` | 浏览器端到端（plan 时再定 Browser Use / Playwright / Chrome MCP） |
 | `e2e-mobile` | 移动端 / 模拟器端到端（plan 时再定 Computer Use / XCUITest / Espresso） |
