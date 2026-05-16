@@ -28,6 +28,8 @@ import path from "node:path";
 
 import { parse as parseToml } from "smol-toml";
 
+import { hasAurigaHeader, parseMarkers } from "./workflow-markers.js";
+
 import type {
   ApplyAgent,
   ItemStatus,
@@ -259,8 +261,6 @@ function aggregateStatus(
 // Workflow
 // ---------------------------------------------------------------------------
 
-const WORKFLOW_HEADER_RE = /^#\s+auriga\s+Workflow\s*\(v\d+\.\d+\.\d+\)/;
-
 function workflowPathsForScope(scope: ScanScope, projectRoot: string, home: string): string[] {
   if (scope === "user") {
     return [path.join(home, ".claude", "CLAUDE.md")];
@@ -295,19 +295,19 @@ function scanWorkflow(
     return { status: "not-installed", observedScope: scope };
   }
 
-  // Walk the first non-blank lines looking for the auriga header. We only
-  // need to know "is this our CLAUDE.md or foreign" — the actual version
-  // string is unused since v1.19.0 dropped update-available status.
-  for (const line of content.split(/\r?\n/)) {
-    if (WORKFLOW_HEADER_RE.test(line)) {
-      return { status: "installed", observedScope: scope };
-    }
-    if (line.trim().length > 0) break;
+  // "Is this our CLAUDE.md?" — two recognizable shapes:
+  //   - managed-block markers (the current install format). The START marker
+  //     is an HTML comment ahead of the auriga header, so a first-non-blank-
+  //     line header walk would miss it — detect the marker pair directly.
+  //   - an auriga workflow header with no markers (a pre-marker install).
+  //     Still ours; the next install migrates it to the marked format.
+  if (parseMarkers(content).kind === "marked" || hasAurigaHeader(content)) {
+    return { status: "installed", observedScope: scope };
   }
 
-  // CLAUDE.md exists but no recognizable auriga marker. The file is foreign
-  // — not our workflow. Report `not-installed` honestly; the install path
-  // (src/workflow.ts) protects user content by backing it up to
+  // CLAUDE.md exists but is neither marked nor auriga-headed. The file is
+  // foreign — not our workflow. Report `not-installed` honestly; the install
+  // path (src/workflow.ts) protects user content by backing it up to
   // `CLAUDE.md.bak` (backup-once: never clobbers a prior .bak).
   warnings.push({
     code: "workflow-foreign-claudemd",
