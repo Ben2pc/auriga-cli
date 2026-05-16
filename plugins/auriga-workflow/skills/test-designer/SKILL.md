@@ -81,11 +81,10 @@ description: 为复杂功能设计失败测试，采用独立评估机制——�
 是产出可执行的测试——这些测试今天会失败，只有当功能被正确实现后才通过。
 
 ## 需求 / Requirement
-<paste requirement description + acceptance criteria>
+<粘贴需求描述 + 验收标准>
 
 ## 代码路径（只读，用于理解上下文）/ Code paths (read-only, for understanding context)
-<list of file paths — public API surface, integration boundaries,
-existing test conventions>
+<文件路径列表 —— 公开 API 面、集成边界、已有测试约定>
 
 ## 先分析，再编写 / Analyze first, write second
 在起草任何测试之前：
@@ -156,7 +155,7 @@ existing test conventions>
 - **例外——greenfield**：当被测模块 / 符号属于本功能、目前尚不存在时，
   import 必然失败，而你只能写测试文件、无权创建被测代码。此时不要删除
   这些测试——按下方「流程约束」在测试文件顶部声明你假设的签名，并在测试
-  计划里标注「在调用方补齐空骨架前，此测试会红在 import」。调用方会在实现
+  计划里标注「在主代理补齐空骨架前，此测试会红在 import」。主代理会在实现
   开始前补齐纯签名空骨架，届时失败落到断言上。
 - 对当前代码运行每个测试；确认失败原因与你的预测相符。删除或修复因路径
   写错、拼写错误等**你自己的失误**导致的 fake-red 测试；greenfield 的
@@ -190,7 +189,8 @@ existing test conventions>
 ### 可执行测试 / Executable tests
 - 测试文件，可直接运行。
 - 每个测试附一行理由注释。
-- 测试对当前代码失败，且失败原因与预测相符（通过运行测试验证）。
+- 测试对当前代码失败，且失败原因与预测相符（通过运行测试验证）。greenfield
+  例外见 §7：被测符号尚不存在时 import-红即预期原因，主代理补齐空骨架后落到断言。
 
 ## 流程约束 / Process constraints
 - 不要提出或草拟实现方案。
@@ -270,5 +270,6 @@ Assistant：
   4. 代理返回：当前状态 + 覆盖缺口 + 推荐测试
      （5 个 Critical、8 个 High、5 个 Medium）+ 带理由注释的
      tests/resolver.test.ts
-  5. 主代理运行测试 → 全部 red → 对照 12 点的步骤 4 检查清单验证 → 移交
+  5. 主代理为测试引用、但尚不存在的符号补齐纯签名空骨架 → 运行测试 →
+     全部 red 在断言 → 对照 12 点的步骤 4 检查清单验证 → 移交
 ```
