@@ -13,7 +13,7 @@ This repo itself is a fully configured harness project. You can clone it to see 
 | **Workflow** | `CLAUDE.md` auriga workflow: requirement clarification -> TDD -> Review, Harness principles, Subagent usage guide |
 | **Skills** | External development process skills — systematic-debugging, TDD, verification, planning, playwright (spec authoring and architecture design ship as the `spec-design` and `arch-design` skills inside the `auriga-workflow` plugin) |
 | **Recommended Skills** | Optional utility skills (e.g. `codex-agent`, `claude-code-agent`) you can add on top of the workflow skills |
-| **Plugins** | Recommended Claude Code and Codex plugins — skill-creator, claude-md-management, codex, auriga-workflow, auriga-notify, session-instructions-loader |
+| **Plugins** | Recommended Claude Code and Codex plugins — skill-creator, claude-md-management, playground, codex, auriga-workflow, auriga-notify, session-instructions-loader |
 
 ## Quick Start
 
@@ -133,7 +133,8 @@ npx -y auriga-cli install plugins --agent codex --plugin session-instructions-lo
 | Plugin | Runtime | Description |
 |---|---|---|
 | skill-creator | Claude Code | Create and manage custom skills |
-| claude-md-management | Claude Code | Audit and improve CLAUDE.md |
+| claude-md-management | Claude Code / Codex | Audit and improve CLAUDE.md |
+| playground | Claude Code / Codex | Build interactive HTML playgrounds |
 | codex | Claude Code | Codex cross-model collaboration |
 | auriga-workflow | Claude Code / Codex | The auriga workflow plugin — workflow skills plus the git lifecycle hooks that enforce them. Skills: `incremental-impl`, `test-designer`, `spec-design`, `arch-design`, `code-simplify`, `session-compound`, `goalify` (plans an autonomous goal and dispatches it via the built-in `/goal` command), `deep-review` (multi-dimensional PR review orchestrator — parallel per-dimension reviewers synthesized into an actionable punch list), `reviewer-creator` (scaffolds project-level custom reviewers under `docs/rules/review/`), and `git-workflow` (git lifecycle skill). Hooks: `commit-reminder` (PostToolUse on file edits — `Edit` / `Write` / `MultiEdit` in Claude Code, `apply_patch` in Codex — nudges to commit at the next semantic boundary when uncommitted diff vs `HEAD` exceeds 200 lines or 8 files), `pr-create-guard` (PostToolUse on `gh pr create` → injects a PR-body snapshot for five-element self-verification and flags non-Conventional-Commits titles), and `pr-ready-guard` (PreToolUse on `gh pr ready` and non-draft `gh pr create` → blocks on stray planning docs, unfinalized active specs under `docs/specs/`, or unpushed commits). The two PostToolUse hooks reach full Claude Code / Codex parity; Codex currently fails open on `pr-ready-guard`'s PreToolUse `additionalContext` informational path (block path identical). Installed by default through the plugin path. |
 | auriga-notify *(opt-in)* | Claude Code | macOS native notification plugin for Claude Code `Notification` events. Focus-aware sound-only mode, click-to-activate, per-project notification grouping, and migrated `config.json` / `icon.png` support. Not installed by `install --all`; install explicitly with `install plugins --plugin auriga-notify`. |

@@ -13,7 +13,7 @@
 | **Workflow** | `CLAUDE.md` 里的 auriga 工作流：需求澄清 → TDD → Review，Harness 原则，Subagent 使用指南 |
 | **Skills** | 外部开发流程 skills —— systematic-debugging、TDD、verification、planning、playwright（spec 撰写与架构设计由 `auriga-workflow` 插件内的 `spec-design`、`arch-design` skill 提供）|
 | **Recommended Skills** | 可选的工具类 skills（如 `codex-agent`、`claude-code-agent`），在 workflow skills 之外按需追加 |
-| **Plugins** | 推荐的 Claude Code 和 Codex 插件 —— skill-creator、claude-md-management、codex、auriga-workflow、auriga-notify、session-instructions-loader |
+| **Plugins** | 推荐的 Claude Code 和 Codex 插件 —— skill-creator、claude-md-management、playground、codex、auriga-workflow、auriga-notify、session-instructions-loader |
 
 ## 快速开始
 
@@ -133,7 +133,8 @@ npx -y auriga-cli install plugins --agent codex --plugin session-instructions-lo
 | 插件 | 运行时 | 说明 |
 |---|---|---|
 | skill-creator | Claude Code | 创建和管理自定义 skills |
-| claude-md-management | Claude Code | 审计和改进 CLAUDE.md |
+| claude-md-management | Claude Code / Codex | 审计和改进 CLAUDE.md |
+| playground | Claude Code / Codex | 构建交互式 HTML playground |
 | codex | Claude Code | Codex 跨模型协作 |
 | auriga-workflow | Claude Code / Codex | auriga 工作流插件 —— 工作流 skill 加上强制执行工作流的 git 生命周期 hook。Skills：`incremental-impl`、`test-designer`、`spec-design`、`arch-design`、`code-simplify`、`session-compound`、`goalify`（plan 出自驱 goal 并通过内置 `/goal` 命令分发执行）、`deep-review`（多维度 PR review 编排器——并行派发各维度 reviewer，汇总成可执行的 punch list）、`reviewer-creator`（在 `docs/rules/review/` 下生成项目级自定义 reviewer）、`git-workflow`（git 生命周期 skill）。Hooks：`commit-reminder`（文件编辑的 PostToolUse —— Claude Code 匹配 `Edit` / `Write` / `MultiEdit`，Codex 匹配 `apply_patch` —— 未提交 diff 对比 `HEAD` 超过 200 行或 8 个文件时，提醒在下一个语义边界 commit）、`pr-create-guard`（`gh pr create` 的 PostToolUse —— 注入 PR body 快照供五要素自检，并对不符合 Conventional Commits 的标题提示）、`pr-ready-guard`（`gh pr ready` 与非 draft `gh pr create` 的 PreToolUse —— 拦截游离规划文档、`docs/specs/` 内未结案的活跃 spec、未 push commits）。两个 PostToolUse hook 在 Claude Code / Codex 上完全对齐；Codex 仅对 `pr-ready-guard` 的 PreToolUse `additionalContext` 信息路径 fail-open（block 路径两边一致）。默认通过插件路径安装。 |
 | auriga-notify *(opt-in)* | Claude Code | Claude Code `Notification` 事件的 macOS 原生通知插件。支持焦点感知仅提示音、点击唤起终端、按项目分组通知，并迁移旧 `config.json` / `icon.png`。不随 `install --all` 默认安装，需要显式执行 `install plugins --plugin auriga-notify`。 |

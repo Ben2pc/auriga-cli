@@ -15,10 +15,30 @@
     },
     {
       "name": "claude-md-management",
-      "agents": ["claude"],
+      "agents": ["claude", "codex"],
       "description": "Audit and improve CLAUDE.md files",
       "claude": {
         "package": "claude-md-management@claude-plugins-official"
+      },
+      "codex": {
+        "marketplace": {
+          "name": "claude-plugins-official",
+          "source": "anthropics/claude-plugins-official"
+        }
+      }
+    },
+    {
+      "name": "playground",
+      "agents": ["claude", "codex"],
+      "description": "Build interactive HTML playgrounds",
+      "claude": {
+        "package": "playground@claude-plugins-official"
+      },
+      "codex": {
+        "marketplace": {
+          "name": "claude-plugins-official",
+          "source": "anthropics/claude-plugins-official"
+        }
       }
     },
     {
