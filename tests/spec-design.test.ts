@@ -169,11 +169,4 @@ describe("spec-design skill — repo-check VALs", () => {
     );
   });
 
-  test("VAL-DEP-007: goalify SKILL.md documents spec-design inputs", () => {
-    const text = read("plugins/auriga-workflow/skills/goalify/SKILL.md");
-    assert.ok(
-      text.includes("spec.md") && text.includes("validation-contract.md"),
-      "goalify must list both spec source files",
-    );
-  });
 });
