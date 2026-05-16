@@ -17,7 +17,6 @@ import {
 import { installWorkflow } from "./workflow.js";
 import { installSkills, installRecommendedSkills } from "./skills.js";
 import { installPlugins } from "./plugins.js";
-import { installHooks } from "./hooks.js";
 import { loadCatalog } from "./catalog.js";
 import { renderHelp, renderTypeHelp } from "./help.js";
 import { renderGuide } from "./guide.js";
@@ -65,7 +64,6 @@ const TYPE_FOR_FILTER = {
   "--skill": "skills",
   "--recommended-skill": "recommended",
   "--plugin": "plugins",
-  "--hook": "hooks",
 } as const;
 
 function parseErr(msg: string): never {
@@ -320,7 +318,7 @@ function validateInstall(out: InstallParsed, filterFlag: string | null): void {
     parseErr("--lang/--cwd only apply to workflow.");
   }
 
-  // Rule 6: --scope only for skills / recommended / plugins / hooks.
+  // Rule 6: --scope only for skills / recommended / plugins.
   // workflow (single file + symlink) has no scope concept.
   if (out.scope !== undefined) {
     if (out.type === "workflow") {
@@ -364,7 +362,6 @@ function validateFilterAgainstCatalog(type: CategoryName, filter: string[]): voi
     type === "skills" ? catalog.workflowSkills
     : type === "recommended" ? catalog.recommendedSkills
     : type === "plugins" ? catalog.plugins
-    : type === "hooks" ? catalog.hooks
     : null;
   if (!bucket) return;
   const available = bucket.map((e: { name: string }) => e.name);
@@ -384,9 +381,6 @@ function migratedPluginHint(type: CategoryName, name: string): string | undefine
     ["incremental-impl", "test-designer", "session-compound"].includes(name)
   ) {
     return "This skill moved to the auriga-workflow plugin; install it with `install plugins --plugin auriga-workflow`.";
-  }
-  if (type === "hooks" && name === "notify") {
-    return "The notify hook moved to the auriga-notify plugin; install it with `install plugins --plugin auriga-notify`.";
   }
   return undefined;
 }
@@ -414,7 +408,7 @@ function validateAgentValue(agent: string): void {
 // ---------------------------------------------------------------------------
 
 // --all excludes `recommended` (per spec §3.2) — they're opt-in utilities.
-const ALL_CATEGORIES: CategoryName[] = ["workflow", "skills", "plugins", "hooks"];
+const ALL_CATEGORIES: CategoryName[] = ["workflow", "skills", "plugins"];
 
 
 export async function main(argv: string[]): Promise<number> {
@@ -552,7 +546,7 @@ async function runAll(p: InstallParsed): Promise<number> {
   for (const category of ALL_CATEGORIES) {
     // Forward `scope` only when the user actually passed one. Each
     // installer picks its own default for undefined so category-specific
-    // defaults (skills/recommended/plugins/hooks all map undefined → project)
+    // defaults (skills/recommended/plugins all map undefined → project)
     // aren't flattened by a one-size-fits-all fallback here.
     const opts: InstallOpts = {
       interactive: false,
@@ -645,7 +639,6 @@ async function dispatchInstaller(
     case "skills": return installSkills(packageRoot, opts);
     case "recommended": return installRecommendedSkills(packageRoot, opts);
     case "plugins": return installPlugins(packageRoot, opts);
-    case "hooks": return installHooks(packageRoot, opts);
   }
 }
 
@@ -750,7 +743,6 @@ async function runUi(p: UiParsed, version: string): Promise<number> {
       Object.keys(scanCatalog.recommendedSkills),
     ),
     plugin: new Set<string>(Object.keys(scanCatalog.plugins)),
-    hook: new Set<string>(Object.keys(scanCatalog.hooks)),
   };
   const pluginAgentsByName = new Map<string, ("claude" | "codex")[]>();
   for (const [name, def] of Object.entries(scanCatalog.plugins)) {
@@ -899,7 +891,6 @@ async function runLegacyMenu(): Promise<number> {
       { name: "Skills — Development process skills (TDD, debugging, verification, planning...)", value: "skills" as const, checked: true },
       { name: "Recommended Skills — Extra utility skills (claude-code-agent, codex-agent...)", value: "recommended" as const, checked: true },
       { name: "Plugins — Claude Code / Codex plugins (skill-creator, codex, auriga-workflow...)", value: "plugins" as const, checked: true },
-      { name: "Hooks — Claude Code hooks (notifications, etc.)", value: "hooks" as const, checked: true },
     ],
   }));
 
@@ -925,10 +916,6 @@ async function runLegacyMenu(): Promise<number> {
   if (moduleTypes.includes("plugins")) {
     console.log("\n--- Plugins ---\n");
     await installPlugins(packageRoot, interactiveOpts);
-  }
-  if (moduleTypes.includes("hooks")) {
-    console.log("\n--- Hooks ---\n");
-    await installHooks(packageRoot, interactiveOpts);
   }
 
   console.log("\n✨ Installation complete!\n");

@@ -16,7 +16,7 @@ USAGE
   npx auriga-cli guide                                   Agent bootstrap SOP (start here)
   npx auriga-cli install                                 (TTY only) checkbox menu
   npx auriga-cli install --all [--scope <s>] [--agent <a>]
-                                                         workflow + skills + plugins + hooks
+                                                         workflow + skills + plugins
                                                          (excludes recommended — install separately)
   npx auriga-cli install <type> [type-specific flags]    single category
   npx auriga-cli install <type> --help                   per-category help + catalog subset
@@ -33,7 +33,6 @@ TYPES (exactly one with <type> form)
   skills         Default-on workflow skills (listed below)
   recommended    Opt-in utility skills (listed below)
   plugins        Claude Code and Codex plugins (listed below)
-  hooks          Project-level hooks for Claude Code (listed below)
 
 TYPE-SPECIFIC FLAGS
   workflow:       --lang <code>                  default en; available: en, zh-CN
@@ -44,9 +43,6 @@ TYPE-SPECIFIC FLAGS
                   --scope <project|user>         default project
   plugins:        --plugin <names...>
                   --agent <claude|codex|both>   default claude
-                  --scope <project|user>         default project
-  hooks:          --hook <names...>              non-interactive default installs every
-                                                 hook with defaultOn != false
                   --scope <project|user>         default project
 
 TOP-LEVEL OPTIONS
@@ -65,9 +61,6 @@ ${col(catalog.recommendedSkills)}
 
 Plugins (category: plugins)
 ${col(catalog.plugins)}
-
-Hooks (category: hooks)
-${col(catalog.hooks)}
 
 More: https://github.com/Ben2pc/auriga-cli
 `;
@@ -148,22 +141,6 @@ FLAGS
 
 CATALOG (plugins)
 ${col(catalog.plugins)}
-`;
-
-    case "hooks":
-      return `${header}
-
-USAGE
-  npx auriga-cli install hooks [--hook <names...>] [--scope <project|user>]
-
-FLAGS
-  --hook <names...>        space-separated; '*' = every compatible hook
-                           omit → install every hook with defaultOn != false
-  --scope <project|user>   default project
-                           (project-local is only reachable via the TTY menu)
-
-CATALOG (hooks — entries flagged "(opt-in)" require explicit --hook)
-${col(catalog.hooks)}
 `;
   }
 }

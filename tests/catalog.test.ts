@@ -34,12 +34,20 @@ function assertEntriesShape(entries: CatalogEntry[], label: string): void {
 describe("generateCatalog (build-time)", () => {
   const catalog: Catalog = generateCatalog(REPO_ROOT);
 
-  test("catalog has all four top-level sections", () => {
+  test("catalog has all three top-level sections", () => {
     assert.ok(Array.isArray(catalog.workflowSkills));
     assert.ok(Array.isArray(catalog.recommendedSkills));
     assert.ok(Array.isArray(catalog.plugins));
-    assert.ok(Array.isArray(catalog.hooks));
     assert.ok(typeof catalog.generatedAt === "string" && catalog.generatedAt.length > 0);
+  });
+
+  // VAL-CAT-001: hooks 安装表面已移除,catalog 不再有 hooks 字段。
+  test("catalog 不再含 hooks 字段", () => {
+    assert.equal(
+      Object.hasOwn(catalog as object, "hooks"),
+      false,
+      "catalog 不应再有 hooks 键",
+    );
   });
 
   test("workflow skills exclude repo-owned skills migrated into auriga-workflow (and dropped retired brainstorming)", () => {
@@ -121,13 +129,6 @@ describe("generateCatalog (build-time)", () => {
     assert.match(renderTypeHelp(extraCatalog, "plugins", "0.0.0-test"), /external-codex-plugin/);
   });
 
-  test("hooks: notify is no longer exposed as a traditional hook", () => {
-    assert.equal(catalog.hooks.length, 0);
-    const names = catalog.hooks.map((e) => e.name).sort();
-    assert.deepEqual(names, []);
-    assertEntriesShape(catalog.hooks, "hooks");
-  });
-
   test("plugins carry baked agents map (build-time, no runtime IO)", () => {
     // rationale: scan-catalog used to derive the agent map from non-tarball
     // plugin config files at runtime. Those files are NOT in the npm tarball
@@ -184,9 +185,6 @@ describe("generateCatalog (build-time)", () => {
     const pluginHelp = renderTypeHelp(catalog, "plugins", "0.0.0-test");
     assert.match(pluginHelp, /\bauriga-workflow\b/);
     assert.match(pluginHelp, /\bauriga-notify\b/);
-
-    const hookHelp = renderTypeHelp(catalog, "hooks", "0.0.0-test");
-    assert.doesNotMatch(hookHelp, /\bnotify\b/);
   });
 });
 

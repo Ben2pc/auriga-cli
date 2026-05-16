@@ -79,11 +79,11 @@ function authHeaders(): HeadersInit {
  * GET /api/state — fetch the live `StateReport` for the current cwd.
  *
  * `scopes` is the per-category scope the UI is currently showing
- * (workflow / skills / plugins / hooks each "user" | "project"). When
+ * (workflow / skills / plugins each "user" | "project"). When
  * provided, serialized into the `scopes` query param as a comma-separated
  * `cat:scope` list. Omit the param to let the server fall back to its
- * built-in defaults (workflow=project, skills=project, plugins=user,
- * hooks=user — matches `claude plugins install` default).
+ * built-in defaults (workflow=project, skills=project, plugins=user —
+ * matches `claude plugins install` default).
  *
  * Throws on non-2xx so callers can surface an error banner with the status
  * code rather than silently rendering empty categories.
@@ -92,7 +92,6 @@ export async function fetchState(scopes?: Partial<{
   workflow: "user" | "project";
   skills: "user" | "project";
   plugins: "user" | "project";
-  hooks: "user" | "project";
 }>): Promise<StateReport> {
   const url = scopes && Object.keys(scopes).length > 0
     ? `/api/state?scopes=${encodeURIComponent(

@@ -43,10 +43,5 @@ export async function buildScanCatalog(
       ...(entry.external === true ? { external: true } : {}),
     };
   }
-  const hooks: ScanCatalog["hooks"] = {};
-  for (const entry of dist.hooks) {
-    hooks[entry.name] = { description: entry.description };
-  }
-
-  return { skills, recommendedSkills, plugins, hooks };
+  return { skills, recommendedSkills, plugins };
 }

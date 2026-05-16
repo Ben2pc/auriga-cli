@@ -1,6 +1,6 @@
 // Builds the default ApplyHandlers map that wires the Web UI's /api/apply
-// route to the real installers in workflow.ts / skills.ts / plugins.ts /
-// hooks.ts. Tests inject their own mock handlers; CLI mode (the `web-ui`
+// route to the real installers in workflow.ts / skills.ts / plugins.ts.
+// Tests inject their own mock handlers; CLI mode (the `web-ui`
 // subcommand) calls `buildDefaultApplyHandlers` at boot.
 //
 // Per-item dispatch is layered on top of the existing bulk installers via
@@ -14,8 +14,6 @@
 //   recommended-skill:  uninstallSkill(name, …)          │  same store
 //   plugin:             installPlugins(…, agent, sel:[]) │  per-name
 //   plugin:             uninstallPlugin(name, agent, …)  │
-//   hook:               installHook(hookDef, "project",…)│  needs HookDef
-//   hook:               uninstallHook(name, …)           │
 //
 // v1.19.0 dropped the "update" action — every installer is idempotent and
 // overwriting, so re-running install IS the update path. Apply receives
@@ -24,7 +22,6 @@
 // Spec: docs/architecture/web-ui.md §6.4 (apply execution model).
 
 import type { ApplyAction, ApplyLang } from "./api-types.js";
-import { installHook, loadHooksConfig, uninstallHook } from "./hooks.js";
 import {
   installPlugins,
   uninstallPlugin,
@@ -201,36 +198,10 @@ export function buildDefaultApplyHandlers(
     }
   };
 
-  const hook: ApplyHandler = async (action, name, { onLog, scope }) => {
-    assertAction(action);
-    const installScope = scope ?? "project";
-    if (action === "uninstall") {
-      await uninstallHook(name, {
-        cwd,
-        scope: installScope,
-        onLog: (line) => onLog(line, "info"),
-      });
-      return;
-    }
-    // Look up the HookDef in the bundled registry; unknown name → loud throw
-    // so the SSE caller surfaces it as item:done success=false. The hook
-    // installer is idempotent; re-running install is the update path.
-    const config = loadHooksConfig(packageRoot);
-    const hookDef = config.hooks.find((h) => h.name === name);
-    if (!hookDef) {
-      throw new Error(`hook not found in registry: ${name}`);
-    }
-    // installHook takes a wider Scope union ("project"|"user"|"project-local");
-    // v0.1 only exposes "project"|"user" via the API. Cast is safe.
-    await installHook(hookDef, scope ?? "project", cwd, packageRoot);
-    onLog(`hook ${name} installed (${scope ?? "project"})`, "info");
-  };
-
   return {
     workflow,
     skill,
     "recommended-skill": recommendedSkill,
     plugin,
-    hook,
   };
 }

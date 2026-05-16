@@ -8,7 +8,6 @@
 //              <proj>/.claude/skills/<name>/SKILL.md        (project scope)
 //   Plugins(Claude): execPluginList(scope) + settings.json enabledPlugins
 //   Plugins(Codex):  ~/.codex/config.toml + ~/.codex/plugins/cache (user only)
-//   Hooks:     <scope>/.claude/settings.json `hooks` segment, matched by _marker
 //
 // Scanner is presence-only: states are `installed` / `not-installed` /
 // `partial-install` (dual-Agent half-install). v1.19.0 dropped
@@ -31,7 +30,6 @@ import { parse as parseToml } from "smol-toml";
 
 import type {
   ApplyAgent,
-  HookState,
   ItemStatus,
   PluginState,
   ScanScope,
@@ -58,7 +56,6 @@ export interface Catalog {
       external?: boolean;
     }
   >;
-  hooks: Record<string, { description: string }>;
 }
 
 export interface ScanOptions {
@@ -76,13 +73,11 @@ export interface ScanOptions {
   readCodexPluginsDir?: () => Promise<Map<string, string>>;
   /** Per-category scope picker. Each field is independently routed to the
    *  right truth source. Defaults match the Web UI's per-column picker:
-   *    workflow = 'project', skills = 'project',
-   *    plugins  = 'user',    hooks  = 'user'. */
+   *    workflow = 'project', skills = 'project', plugins = 'user'. */
   scopes?: {
     workflow?: ScanScope;
     skills?: ScanScope;
     plugins?: ScanScope;
-    hooks?: ScanScope;
   };
   /** Test-time HOME override. When unset the scanner reads os.homedir()
    *  (which itself consults process.env.HOME / USERPROFILE), so tests that
@@ -110,7 +105,6 @@ const DEFAULT_SCOPES: Required<NonNullable<ScanOptions["scopes"]>> = {
   workflow: "project",
   skills: "project",
   plugins: "user",
-  hooks: "user",
 };
 
 export async function scanState(
@@ -138,8 +132,6 @@ export async function scanState(
     catalog.recommendedSkills,
     warnings,
   );
-  const hooks = scanHooks(scopes.hooks, projectRoot, home, catalog.hooks, warnings);
-
   const claudePluginEntries = filterPluginsByAgent(catalog.plugins, "claude");
   const codexPluginEntries = filterPluginsByAgent(catalog.plugins, "codex");
 
@@ -176,7 +168,6 @@ export async function scanState(
     skills,
     recommendedSkills,
     plugins: mergePluginsById([...claudePlugins, ...codexPlugins]),
-    hooks,
     warnings,
   };
 }
@@ -646,108 +637,6 @@ function parseCodexEnabledPluginIds(tomlContent: string): Set<string> {
     }
   }
   return ids;
-}
-
-// ---------------------------------------------------------------------------
-// Hooks — read from <scope>/.claude/settings.json `hooks` segment, matched by
-// `_marker` sentinel against catalog hook names. Settings.json shape (Claude
-// Code convention):
-//
-//   {
-//     "hooks": {
-//       "<EventName>": [
-//         {
-//           "matcher": "<pattern>",
-//           "if": "<optional Claude-Code filter>",
-//           "hooks": [
-//             { "type": "command", "command": "...", "_marker": "<name>" }
-//           ]
-//         }
-//       ]
-//     }
-//   }
-//
-// ---------------------------------------------------------------------------
-
-function settingsPathForScope(scope: ScanScope, projectRoot: string, home: string): string {
-  if (scope === "user") return path.join(home, ".claude", "settings.json");
-  return path.join(projectRoot, ".claude", "settings.json");
-}
-
-/** Returns the set of `_marker` sentinel values present in the settings
- *  `hooks` segment. Malformed sub-shapes are skipped silently. v1.19.0
- *  reduced this from a full {event, matcher, if, command} record (used for
- *  drift detection) to a presence-only Set — re-install is the update
- *  path now, so the scanner doesn't need to compare entry shapes. */
-function indexSettingsMarkers(settings: unknown): Set<string> {
-  const out = new Set<string>();
-  if (!settings || typeof settings !== "object" || Array.isArray(settings)) return out;
-  const hooksSeg = (settings as Record<string, unknown>).hooks;
-  if (!hooksSeg || typeof hooksSeg !== "object" || Array.isArray(hooksSeg)) return out;
-  for (const blocks of Object.values(hooksSeg as Record<string, unknown>)) {
-    if (!Array.isArray(blocks)) continue;
-    for (const block of blocks) {
-      if (!block || typeof block !== "object" || Array.isArray(block)) continue;
-      const actions = (block as Record<string, unknown>).hooks;
-      if (!Array.isArray(actions)) continue;
-      for (const action of actions) {
-        if (!action || typeof action !== "object" || Array.isArray(action)) continue;
-        const marker = (action as Record<string, unknown>)._marker;
-        if (typeof marker === "string") out.add(marker);
-      }
-    }
-  }
-  return out;
-}
-
-function scanHooks(
-  scope: ScanScope,
-  projectRoot: string,
-  home: string,
-  catalogHooks: Catalog["hooks"],
-  warnings: StateWarning[],
-): HookState[] {
-  const settingsPath = settingsPathForScope(scope, projectRoot, home);
-  let settingsRaw: string | null = null;
-  let settingsErr: "absent" | "unreadable" | null = null;
-  try {
-    settingsRaw = fs.readFileSync(settingsPath, "utf8");
-  } catch (err: any) {
-    if (err && err.code === "ENOENT") {
-      settingsErr = "absent";
-    } else {
-      settingsErr = "unreadable";
-    }
-  }
-
-  let parsed: unknown = null;
-  if (settingsRaw !== null) {
-    try {
-      parsed = JSON.parse(settingsRaw);
-    } catch {
-      settingsErr = "unreadable";
-      parsed = null;
-    }
-  }
-
-  if (settingsErr === "unreadable") {
-    warnings.push({
-      code: "settings-unreadable",
-      message: `Settings file unreadable or corrupt JSON: ${settingsPath}`,
-    });
-  }
-
-  const markers = indexSettingsMarkers(parsed);
-  const out: HookState[] = [];
-  for (const [name, def] of Object.entries(catalogHooks)) {
-    out.push({
-      name,
-      description: def.description,
-      status: markers.has(name) ? "installed" : "not-installed",
-      observedScope: scope,
-    });
-  }
-  return out;
 }
 
 // ---------------------------------------------------------------------------

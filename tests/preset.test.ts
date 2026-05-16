@@ -386,10 +386,6 @@ async function importMainWithSpies(overrides: {
       },
     },
   });
-  mock.module(new URL("../src/hooks.js", import.meta.url), {
-    namedExports: { installHooks: async () => {} },
-  });
-
   const mod = await import(
     new URL(`../src/cli.js?presetcase=${importSerial++}`, import.meta.url).href
   );

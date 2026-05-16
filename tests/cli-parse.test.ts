@@ -94,14 +94,6 @@ describe("parseArgs", () => {
         filter: ["auriga-workflow"],
       },
     });
-    assert.deepEqual(installArgs(["hooks", "--hook", "*"]), {
-      command: "install",
-      install: {
-        all: false,
-        type: "hooks",
-        filter: ["*"],
-      },
-    });
   });
 
   test("parses migrated repo-owned assets through plugin filters only", () => {
@@ -149,7 +141,6 @@ describe("parseArgs", () => {
     expectParseError(["install", "workflow", "--skill", "systematic-debugging"], /--skill requires 'install skills'/i);
     expectParseError(["install", "--recommended-skill", "codex-agent"], /--recommended-skill requires 'install recommended'/i);
     expectParseError(["install", "workflow", "--plugin", "auriga-workflow"], /--plugin requires 'install plugins'/i);
-    expectParseError(["install", "workflow", "--hook", "notify"], /--hook requires 'install hooks'/i);
     expectParseError(["install", "skills", "--lang", "en"], /--lang\/--cwd only apply to workflow/i);
     expectParseError(["install", "workflow", "--scope", "user"], /--scope does not apply to workflow/i);
     expectParseError(["install", "workflow", "--agent", "codex"], /--agent only applies to plugins or --all/i);
@@ -171,24 +162,18 @@ describe("parseArgs", () => {
     expectParseError(["install", "plugins", "--agent="], /--agent requires a value/i);
   });
 
-  // Hooks now accept --scope in non-interactive mode (default: project).
-  // The TTY menu is the only surface that exposes project-local.
-  test("accepts --scope on install hooks (default: project)", () => {
-    assert.deepEqual(installArgs(["hooks", "--scope", "user", "--hook", "*"]), {
-      command: "install",
-      install: { all: false, type: "hooks", scope: "user", filter: ["*"] },
-    });
-    assert.deepEqual(installArgs(["hooks", "--scope", "project"]), {
-      command: "install",
-      install: { all: false, type: "hooks", scope: "project" },
-    });
-    expectParseError(["install", "hooks", "--scope", "project-local"], /scope/i);
+  // hooks 安装表面已移除:`hooks` 不再是合法 <type>,`--hook` 不再是
+  // 合法过滤标志。二者都应被解析为「未知参数」并 fail-fast。(VAL-CLI-010/011)
+  test("install hooks 与 --hook 都因 hooks 表面移除而被拒绝", () => {
+    expectParseError(["install", "hooks"], /unknown argument 'hooks'/i);
+    expectParseError(["install", "--hook", "notify"], /unknown argument '--hook'/i);
+    expectParseError(["install", "workflow", "--hook", "notify"], /unknown argument '--hook'/i);
   });
 
   // Per-type --help / -h short-circuits install parsing and returns
   // `{ command: "help", helpType }` so main() can render renderTypeHelp.
   test("install <type> --help routes to per-type help", () => {
-    for (const type of ["workflow", "skills", "recommended", "plugins", "hooks"] as const) {
+    for (const type of ["workflow", "skills", "recommended", "plugins"] as const) {
       assert.deepEqual(parseArgs(["install", type, "--help"]), { command: "help", helpType: type });
       assert.deepEqual(parseArgs(["install", type, "-h"]), { command: "help", helpType: type });
     }
@@ -202,7 +187,6 @@ describe("parseArgs", () => {
     expectParseError(["install", "skills", "--skill", "foo"], /unknown skill 'foo'; available: .*systematic-debugging/i);
     expectParseError(["install", "recommended", "--recommended-skill", "foo"], /available: .*codex-agent/i);
     expectParseError(["install", "plugins", "--plugin", "foo"], /available: .*auriga-workflow/i);
-    expectParseError(["install", "hooks", "--hook", "notify"], /auriga-notify/i);
     expectParseError(["install", "skills", "--skill", "incremental-impl"], /auriga-workflow/i);
     expectParseError(["install", "skills", "--skill", "test-designer"], /auriga-workflow/i);
     expectParseError(["install", "skills", "--skill", "session-compound"], /auriga-workflow/i);

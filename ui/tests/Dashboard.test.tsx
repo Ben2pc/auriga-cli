@@ -79,13 +79,6 @@ function makeReport(overrides: Partial<StateReport> = {}): StateReport {
         missingAgents: ["codex"],
       },
     ],
-    hooks: [
-      {
-        name: "notify",
-        description: "Desktop notifications",
-        status: "not-installed",
-      },
-    ],
     warnings: [],
     ...overrides,
   };
@@ -96,7 +89,6 @@ function emptyReport(): StateReport {
     skills: [],
     recommendedSkills: [],
     plugins: [],
-    hooks: [],
   });
 }
 
@@ -149,7 +141,7 @@ describe("Dashboard — mount + fetch lifecycle", () => {
     );
   });
 
-  test("fetch success renders all 5 category sections + their cards", async () => {
+  test("fetch success renders all 4 category sections + their cards", async () => {
     stubFetch((url) => {
       if (url.includes("/api/state")) return jsonResponse(makeReport());
       return jsonResponse({ ok: true });
@@ -164,10 +156,9 @@ describe("Dashboard — mount + fetch lifecycle", () => {
       screen.getByTestId("section-recommended-skills"),
     ).toBeInTheDocument();
     expect(screen.getByTestId("section-plugins")).toBeInTheDocument();
-    expect(screen.getByTestId("section-hooks")).toBeInTheDocument();
 
-    // The fixture has 1 workflow + 2 skills + 1 rec + 2 plugins + 1 hook = 7 cards.
-    expect(screen.getAllByTestId("statecard")).toHaveLength(7);
+    // The fixture has 1 workflow + 2 skills + 1 rec + 2 plugins = 6 cards.
+    expect(screen.getAllByTestId("statecard")).toHaveLength(6);
   });
 
   test("fetch failure (500) renders an error banner instead of categories", async () => {
@@ -189,7 +180,6 @@ describe("Dashboard — mount + fetch lifecycle", () => {
     expect(screen.queryByTestId("section-skills")).toBeNull();
     expect(screen.queryByTestId("section-recommended-skills")).toBeNull();
     expect(screen.queryByTestId("section-plugins")).toBeNull();
-    expect(screen.queryByTestId("section-hooks")).toBeNull();
   });
 });
 

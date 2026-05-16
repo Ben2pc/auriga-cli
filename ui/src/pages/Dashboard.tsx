@@ -1,11 +1,11 @@
-// Dashboard — top-level page. Composes Layout + TopBar + 5 category
+// Dashboard — top-level page. Composes Layout + TopBar + 4 category
 // columns of StateCards + a right-rail OUTPUT column (LogPanel) that
 // hosts the SSE log buffer and the Apply/Cancel actions.
 //
 // Spec mapping:
 //   - Layout/composition: docs/architecture/web-ui.md §12 "页面布局"
 //   - Category order:     §12.2 (Workflow → Skills → Recommended Skills →
-//                         Plugins → Hooks). The spec lists Plugins (Claude)
+//                         Plugins). The spec lists Plugins (Claude)
 //                         and Plugins (Codex) as separate sub-headers, but
 //                         StateReport carries them in one `plugins[]` array
 //                         distinguished by `plugin.agent`. We group inline.
@@ -27,7 +27,7 @@
 // Selection key shape: "<category>:<name>". `category` matches
 // ApplyCategory exactly so we can derive ApplyItemRef without a lookup map.
 // `name` is the per-category identifier (workflow→"workflow", skill→skill
-// name, plugin→plugin.id, hook→hook name).
+// name, plugin→plugin.id).
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { JSX } from "react";
@@ -43,7 +43,6 @@ import type {
   ApplyAction,
   ApplyCategory,
   ApplyItemRef,
-  HookState,
   ItemStatus,
   PluginState,
   ProgressEvent as ApiProgressEvent,
@@ -302,7 +301,6 @@ function initialScopeMap(): Map<ScopableCategory, Scope> {
     ["skill", "user"],
     ["recommended-skill", "user"],
     ["plugin", "user"],
-    ["hook", "user"],
   ]);
 }
 
@@ -344,7 +342,6 @@ export default function Dashboard(): JSX.Element {
     () => ({
       skills: scopeByCategory.get("skill") ?? "user",
       plugins: scopeByCategory.get("plugin") ?? "user",
-      hooks: scopeByCategory.get("hook") ?? "user",
     }),
     [scopeByCategory],
   );
@@ -445,7 +442,6 @@ export default function Dashboard(): JSX.Element {
       for (const s of state.recommendedSkills)
         statusByKey.set(makeKey("recommended-skill", s.name), s.status);
       for (const p of state.plugins) statusByKey.set(makeKey("plugin", p.id), p.status);
-      for (const h of state.hooks) statusByKey.set(makeKey("hook", h.name), h.status);
       setSelected((prev) => {
         if (prev.size === 0) return prev;
         let changed = false;
@@ -610,7 +606,7 @@ export default function Dashboard(): JSX.Element {
     //      and unconditionally with force=true. Spec §13.5 demands explicit
     //      double-confirm; we use two separate prompts so the user can't
     //      muscle-memory through a single "OK".
-    //   2. Any other uninstall (skill / plugin / hook) gets a single confirm
+    //   2. Any other uninstall (skill / plugin) gets a single confirm
     //      listing what's being removed.
     const workflowUninstall = items.find(
       (i) => i.category === "workflow" && i.action === "uninstall",
@@ -794,16 +790,6 @@ export default function Dashboard(): JSX.Element {
               onToggle={toggleSelection}
               scope={scopeByCategory.get("plugin") ?? "user"}
               onScopeChange={(s) => changeScope("plugin", s)}
-              refetching={refetching}
-            />
-          </div>
-          <div data-section="hook">
-            <HooksSection
-              hooks={state.hooks}
-              selected={selected}
-              onToggle={toggleSelection}
-              scope={scopeByCategory.get("hook") ?? "user"}
-              onScopeChange={(s) => changeScope("hook", s)}
               refetching={refetching}
             />
           </div>
@@ -1039,49 +1025,3 @@ function PluginsSection({
   );
 }
 
-interface HooksSectionProps {
-  hooks: HookState[];
-  selected: Map<string, ApplyItemRef>;
-  onToggle: ToggleFn;
-  scope: Scope;
-  onScopeChange: (next: Scope) => void;
-  refetching?: boolean;
-}
-
-function HooksSection({
-  hooks,
-  selected,
-  onToggle,
-  scope,
-  onScopeChange,
-  refetching = false,
-}: HooksSectionProps): JSX.Element | null {
-  if (hooks.length === 0) return null;
-  return (
-    <CategorySection
-      title="Hooks"
-      testId="section-hooks"
-      count={hooks.length}
-      scope={scope}
-      onScopeChange={onScopeChange}
-      scopeTestId="section-hooks-scope"
-      refetching={refetching}
-    >
-      {hooks.map((hook) => {
-        const key = makeKey("hook", hook.name);
-        return (
-          <StateCard
-            key={key}
-            name={hook.name}
-            description={hook.description}
-            status={toCardStatus(hook.status)}
-            selected={selected.has(key)}
-            onSelectChange={(isSel) =>
-              onToggle("hook", hook.name, hook.status, isSel)
-            }
-          />
-        );
-      })}
-    </CategorySection>
-  );
-}

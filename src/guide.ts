@@ -28,7 +28,7 @@ export function renderGuide(opts: GuideOpts): string {
   return `${h(`# auriga-cli bootstrap SOP (v${opts.version})`)}
 
 This guide walks an Agent through installing the auriga harness
-(CLAUDE.md + skills + plugins, plus any legacy hooks) into the current repository.
+(CLAUDE.md + skills + plugins) into the current repository.
 
 Run each step in order. If any step fails with exit 1, stop and report.
 If exit 2, see stderr for per-category status and follow the "Retry"
@@ -52,13 +52,13 @@ If you plan to install Codex plugins, also verify \`codex --version\`.
 
 ${h("## Step 2 — Read --help BEFORE installing (do not skip)")}
 
-${warn("⚠")} Always inspect the catalog first so you know which skills,
-plugins, and hooks are actually relevant for this project. Blindly
+${warn("⚠")} Always inspect the catalog first so you know which skills
+and plugins are actually relevant for this project. Blindly
 running \`install --all\` works as a turnkey preset, but for anything
 beyond a greenfield bootstrap you should narrow scope.
 
-Top-level catalog (every workflow skill / recommended skill / plugin /
-hook with a short description):
+Top-level catalog (every workflow skill / recommended skill / plugin
+with a short description):
   ${cmd("npx -y auriga-cli --help")}
 
 Per-type detail (flags + only that category's catalog slice):
@@ -66,12 +66,11 @@ Per-type detail (flags + only that category's catalog slice):
   ${cmd("npx -y auriga-cli install skills --help")}
   ${cmd("npx -y auriga-cli install recommended --help")}
   ${cmd("npx -y auriga-cli install plugins --help")}
-  ${cmd("npx -y auriga-cli install hooks --help")}
 
 ${h("## Step 3 — Install")}
 
 Preset — the full default-on set (workflow + skills + default plugins;
-the legacy hooks category is currently empty; recommended skills are NOT included):
+recommended skills are NOT included):
   ${cmd("npx -y auriga-cli install --all")}
 
 Targeted — single category, picking from the catalog surfaced in Step 2:
@@ -101,7 +100,7 @@ Exit codes:
 
 ${h("## Step 4 — Reload session (REQUIRED when installed non-interactively)")}
 
-${warn("⚠")} CLAUDE.md, .agents/skills/, plugin enablement, and hook/plugin
+${warn("⚠")} CLAUDE.md, .agents/skills/, and plugin enablement /
 registrations are loaded at session startup. If you ran
 \`npx -y auriga-cli install\` inside an existing Claude Code or Codex session
 (e.g., \`claude -p\` / \`claude -p --worktree\` / \`codex exec\`), the current session
@@ -120,7 +119,7 @@ Expected artifacts/checks:
   - .agents/skills/<name>/    (one per installed skill)
   - claude plugins list       (shows Claude plugins, if Claude plugins selected)
   - ~/.codex/config.toml      (Codex plugin enablement, if Codex plugins selected)
-  - .claude/settings.json     (updated hook/plugin registrations, if selected)
+  - .claude/settings.json     (updated plugin registrations, if selected)
   - .claude/auriga-notify/    (project notify config, if auriga-notify selected)
 
 ${h("## Troubleshooting")}

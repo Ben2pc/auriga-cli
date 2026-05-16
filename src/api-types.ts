@@ -12,7 +12,7 @@ export type ItemStatus =
   | "partial-install";
 
 /**
- * Per-category scan scope. Each category (workflow / skills / plugins / hooks)
+ * Per-category scan scope. Each category (workflow / skills / plugins)
  * can be independently scanned in either user scope (~/.claude/, ~/.codex/)
  * or project scope (<proj>/.claude/). The Web UI's per-column scope picker
  * carries these through the `/api/state` query so the scanner reads the
@@ -31,7 +31,6 @@ export interface StateReport {
   skills: SkillState[];
   recommendedSkills: SkillState[];
   plugins: PluginState[];
-  hooks: HookState[];
   warnings: StateWarning[];
 }
 
@@ -83,14 +82,6 @@ export interface PluginState {
   external?: boolean;
 }
 
-export interface HookState {
-  name: string;
-  description: string;
-  status: ItemStatus;
-  /** Scope the scanner read to produce this row. See WorkflowState comment. */
-  observedScope?: ScanScope;
-}
-
 export interface StateWarning {
   code:
     | "claude-cli-missing"
@@ -111,8 +102,7 @@ export type ApplyCategory =
   | "workflow"
   | "skill"
   | "recommended-skill"
-  | "plugin"
-  | "hook";
+  | "plugin";
 
 export type ApplyAction = "install" | "uninstall";
 
@@ -122,7 +112,6 @@ export type ApplyAction = "install" | "uninstall";
  *
  * - workflow: no scope; field MUST be omitted.
  * - skill / recommended-skill / plugin: "project" | "user". Default project.
- * - hook: "project" | "user" for v0.1 (project-local deferred to v0.2).
  */
 export type ApplyScope = "project" | "user";
 

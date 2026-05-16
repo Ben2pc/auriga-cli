@@ -45,7 +45,7 @@ describe("renderGuide", () => {
     assert.match(out, /npx -y auriga-cli --help/);
     assert.match(out, /npx -y auriga-cli install workflow --help/);
     assert.match(out, /npx -y auriga-cli install skills --help/);
-    assert.match(out, /npx -y auriga-cli install hooks --help/);
+    assert.match(out, /npx -y auriga-cli install plugins --help/);
   });
 
   // Covers spec §3.6 command examples and graded-exit text embedded in the SOP body.

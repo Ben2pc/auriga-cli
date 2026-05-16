@@ -32,7 +32,6 @@ export interface ApplyHandlers {
   skill: ApplyHandler;
   "recommended-skill": ApplyHandler;
   plugin: ApplyHandler;
-  hook: ApplyHandler;
 }
 
 export interface ApplyCatalog {
@@ -40,7 +39,6 @@ export interface ApplyCatalog {
   skill: Set<string>;
   "recommended-skill": Set<string>;
   plugin: Set<string>;
-  hook: Set<string>;
 }
 
 export interface StartServerOptions {
@@ -304,7 +302,6 @@ const VALID_CATEGORIES = new Set([
   "skill",
   "recommended-skill",
   "plugin",
-  "hook",
 ]);
 const VALID_ACTIONS = new Set(["install", "uninstall"]);
 const VALID_SCOPES = new Set(["project", "user"]);
@@ -937,12 +934,12 @@ function isClaudeOnPath(): boolean {
  */
 function parseScopesParam(
   searchParams: URLSearchParams,
-): { workflow?: ScanScope; skills?: ScanScope; plugins?: ScanScope; hooks?: ScanScope } | null {
+): { workflow?: ScanScope; skills?: ScanScope; plugins?: ScanScope } | null {
   const raw = searchParams.get("scopes");
   if (!raw) return null;
-  const allowedCategories = new Set(["workflow", "skills", "plugins", "hooks"] as const);
+  const allowedCategories = new Set(["workflow", "skills", "plugins"] as const);
   const allowedScopes = new Set<ScanScope>(["user", "project"]);
-  const out: { workflow?: ScanScope; skills?: ScanScope; plugins?: ScanScope; hooks?: ScanScope } =
+  const out: { workflow?: ScanScope; skills?: ScanScope; plugins?: ScanScope } =
     {};
   for (const pair of raw.split(",")) {
     const [cat, scope] = pair.split(":");
@@ -997,5 +994,4 @@ const defaultHandlersNotConfigured: ApplyHandlers = {
   skill: handlerNotConfigured,
   "recommended-skill": handlerNotConfigured,
   plugin: handlerNotConfigured,
-  hook: handlerNotConfigured,
 };

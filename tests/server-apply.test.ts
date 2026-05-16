@@ -143,7 +143,6 @@ function defaultCatalog(): ApplyCatalog {
     ["recommended-skill", "rec-alpha"],
     ["plugin", "plug-alpha"],
     ["plugin", "plug-beta"],
-    ["hook", "hook-alpha"],
   ]);
 }
 
@@ -358,7 +357,6 @@ describe("POST /api/apply — fail-continue semantics (spec §6.4)", () => {
       },
       "recommended-skill": successHandler(),
       plugin: successHandler(),
-      hook: successHandler(),
     };
     const ctx = await bootApplyServer({ handlers });
     t.after(() => ctx.close());
@@ -497,7 +495,7 @@ describe("POST /api/apply — validation", () => {
   });
 
   test("boundary: items[].lang on a non-workflow category → 400", async (t) => {
-    // Lang is workflow-only. Pairing it with skill/plugin/hook is a client
+    // Lang is workflow-only. Pairing it with skill/plugin is a client
     // bug and must be rejected loudly so the UI doesn't silently install
     // the wrong asset variant.
     const ctx = await bootApplyServer();

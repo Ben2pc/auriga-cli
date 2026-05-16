@@ -9,7 +9,7 @@ export interface CatalogEntry {
    *  config files are NOT shipped in the npm tarball, so the scanner can't
    *  read them at runtime. Baking here lets `/api/state` correctly classify
    *  dual-Agent plugins as `["claude","codex"]` for installed users. Absent
-   *  on skill / hook entries. */
+   *  on skill entries. */
   agents?: ("claude" | "codex")[];
   /** True for plugins whose source lives in an UPSTREAM marketplace
    *  (skill-creator / claude-md-management / codex), not in this repo.
@@ -23,7 +23,6 @@ export interface Catalog {
   workflowSkills: CatalogEntry[];
   recommendedSkills: CatalogEntry[];
   plugins: CatalogEntry[];
-  hooks: CatalogEntry[];
 }
 
 export function loadCatalog(packageRoot: string): Catalog {

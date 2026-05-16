@@ -38,7 +38,6 @@ export interface ApplyHandlers {
   skill: ApplyHandler;
   "recommended-skill": ApplyHandler;
   plugin: ApplyHandler;
-  hook: ApplyHandler;
 }
 
 export interface ApplyCatalog {
@@ -46,7 +45,6 @@ export interface ApplyCatalog {
   skill: Set<string>;
   "recommended-skill": Set<string>;
   plugin: Set<string>;
-  hook: Set<string>;
 }
 
 // ---------------------------------------------------------------------------
@@ -101,7 +99,6 @@ export function uniformHandlers(h: ApplyHandler): ApplyHandlers {
     skill: h,
     "recommended-skill": h,
     plugin: h,
-    hook: h,
   };
 }
 
@@ -117,7 +114,6 @@ export function makeCatalog(
     skill: new Set(),
     "recommended-skill": new Set(),
     plugin: new Set(),
-    hook: new Set(),
   };
   for (const [category, name] of entries) {
     cat[category].add(name);

@@ -28,9 +28,6 @@ interface CallLog {
   installPluginsImpl?: (packageRoot: string, opts: unknown) => Promise<void>;
   uninstallPlugin: Array<{ id: string; agent: string; opts: unknown }>;
   uninstallPluginImpl?: (id: string, agent: string, opts: unknown) => Promise<void>;
-  installHook: Array<{ hook: unknown; scope: string; cwd: string; packageRoot: string }>;
-  uninstallHook: Array<{ name: string; opts: unknown }>;
-  loadHooksConfig: Array<{ packageRoot: string }>;
 }
 
 function makeCallLog(): CallLog {
@@ -42,13 +39,10 @@ function makeCallLog(): CallLog {
     uninstallSkill: [],
     installPlugins: [],
     uninstallPlugin: [],
-    installHook: [],
-    uninstallHook: [],
-    loadHooksConfig: [],
   };
 }
 
-async function importAdapter(calls: CallLog, hookDefs: Array<{ name: string }> = [{ name: "notify" }]): Promise<typeof import("../src/apply-handlers.js")> {
+async function importAdapter(calls: CallLog): Promise<typeof import("../src/apply-handlers.js")> {
   mock.module(new URL("../src/workflow.js", import.meta.url), {
     namedExports: {
       installWorkflow: async (packageRoot: string, opts: unknown) => {
@@ -85,25 +79,6 @@ async function importAdapter(calls: CallLog, hookDefs: Array<{ name: string }> =
         if (calls.uninstallPluginImpl) {
           await calls.uninstallPluginImpl(id, agent, opts);
         }
-      },
-    },
-  });
-  mock.module(new URL("../src/hooks.js", import.meta.url), {
-    namedExports: {
-      installHook: async (
-        hook: unknown,
-        scope: string,
-        cwd: string,
-        packageRoot: string,
-      ) => {
-        calls.installHook.push({ hook, scope, cwd, packageRoot });
-      },
-      uninstallHook: async (name: string, opts: unknown) => {
-        calls.uninstallHook.push({ name, opts });
-      },
-      loadHooksConfig: (packageRoot: string) => {
-        calls.loadHooksConfig.push({ packageRoot });
-        return { hooks: hookDefs };
       },
     },
   });
@@ -303,58 +278,6 @@ describe("buildDefaultApplyHandlers — plugin", () => {
   });
 });
 
-describe("buildDefaultApplyHandlers — hook", () => {
-  test("install → looks up hook def and calls installHook with project scope", async () => {
-    const calls = makeCallLog();
-    const { buildDefaultApplyHandlers } = await importAdapter(calls, [
-      { name: "notify" },
-    ]);
-    const handlers = buildDefaultApplyHandlers({
-      packageRoot: "/pkg",
-      cwd: "/proj",
-      pluginAgentsByName: new Map(),
-    });
-    await handlers.hook("install", "notify", noopLog());
-    assert.equal(calls.installHook.length, 1);
-    assert.equal(calls.installHook[0].scope, "project");
-    assert.equal(calls.installHook[0].cwd, "/proj");
-    assert.equal(calls.installHook[0].packageRoot, "/pkg");
-    const hook = calls.installHook[0].hook as { name: string };
-    assert.equal(hook.name, "notify");
-  });
-
-  test("install with unknown hook name → throws", async () => {
-    const calls = makeCallLog();
-    const { buildDefaultApplyHandlers } = await importAdapter(calls, []);
-    const handlers = buildDefaultApplyHandlers({
-      packageRoot: "/pkg",
-      cwd: "/proj",
-      pluginAgentsByName: new Map(),
-    });
-    await assert.rejects(
-      () => handlers.hook("install", "ghost-hook", noopLog()),
-      /hook not found in registry/,
-    );
-    assert.equal(calls.installHook.length, 0);
-  });
-
-  test("uninstall → calls uninstallHook by name (no def lookup)", async () => {
-    const calls = makeCallLog();
-    const { buildDefaultApplyHandlers } = await importAdapter(calls, []);
-    const handlers = buildDefaultApplyHandlers({
-      packageRoot: "/pkg",
-      cwd: "/proj",
-      pluginAgentsByName: new Map(),
-    });
-    await handlers.hook("uninstall", "notify", noopLog());
-    assert.equal(calls.uninstallHook.length, 1);
-    assert.equal(calls.uninstallHook[0].name, "notify");
-    // Uninstall must NOT call loadHooksConfig — that path only matters when
-    // we need the HookDef to install/update.
-    assert.equal(calls.loadHooksConfig.length, 0);
-  });
-});
-
 describe("buildDefaultApplyHandlers — scope forwarding on uninstall", () => {
   test("skill uninstall forwards scope:'user' to uninstallSkill", async () => {
     const calls = makeCallLog();
@@ -387,23 +310,6 @@ describe("buildDefaultApplyHandlers — scope forwarding on uninstall", () => {
     });
     assert.equal(calls.uninstallSkill.length, 1);
     const opts = calls.uninstallSkill[0].opts as { scope?: string };
-    assert.equal(opts.scope, "user");
-  });
-
-  test("hook uninstall forwards scope:'user' to uninstallHook", async () => {
-    const calls = makeCallLog();
-    const { buildDefaultApplyHandlers } = await importAdapter(calls, []);
-    const handlers = buildDefaultApplyHandlers({
-      packageRoot: "/pkg",
-      cwd: "/proj",
-      pluginAgentsByName: new Map(),
-    });
-    await handlers.hook("uninstall", "notify", {
-      onLog: () => {},
-      scope: "user",
-    });
-    assert.equal(calls.uninstallHook.length, 1);
-    const opts = calls.uninstallHook[0].opts as { scope?: string };
     assert.equal(opts.scope, "user");
   });
 });
