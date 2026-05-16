@@ -374,7 +374,6 @@ More: https://github.com/Ben2pc/auriga-cli
 | `src/workflow.ts` | 改签名 | `installWorkflow(packageRoot, opts)` |
 | `src/skills.ts` | 改签名 + 清理 | `installSkills(packageRoot, opts)` / `installRecommendedSkills(packageRoot, opts)`；删除 `RECOMMENDED_DESCRIPTIONS` 硬编码 map（由 catalog 替代） |
 | `src/plugins.ts` | 改签名 | `installPlugins(packageRoot, opts)` |
-| `src/hooks.ts` | 改签名 | `installHooks(packageRoot, opts)` |
 | `src/utils.ts` | 扩展 | 新增 `isNonInteractive()` / scope 词汇映射 |
 | `package.json` | 更新 | `build` 脚本追加 catalog 生成步骤；`files` 字段排除 `dist/build/` |
 | `tests/cli-parse.test.ts` | 新增 | 参数解析矩阵（含 guide） |
@@ -583,10 +582,6 @@ README 更新：
   - `guide` 输出包含 Step 1–5 + Troubleshooting 标题
   - `guide` 在非 TTY（`stdout: 'pipe'`）或 `NO_COLOR=1` 下输出不含 ANSI escape 码
   - `guide` 带任意参数 → exit 1
-
-### 现有
-
-- `tests/hooks.test.ts`：签名改动后更新 caller（install 函数加了 `opts` 参数）
 
 ### 验证口径
 

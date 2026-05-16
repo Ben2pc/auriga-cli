@@ -58,13 +58,11 @@
 //     skills:             SkillState[]    (each carries observedScope)
 //     recommendedSkills:  SkillState[]    (each carries observedScope)
 //     plugins:            PluginState[]   (each carries observedScope)
-//     hooks:              HookState[]     (each carries observedScope)
 //     warnings:           StateWarning[]
 //
 //   WorkflowState extends prior shape with: observedScope: 'user' | 'project'
 //   SkillState    extends prior shape with: observedScope: 'user' | 'project'
 //   PluginState   extends prior shape with: observedScope: 'user' | 'project'
-//   HookState     extends prior shape with: observedScope: 'user' | 'project'
 //
 //   StateWarning.code union must include (in addition to existing codes):
 //     - "claude-code-not-installed"   (both ~/.claude and <proj>/.claude absent)

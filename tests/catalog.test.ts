@@ -7,7 +7,7 @@ import path from "node:path";
 import type { Catalog, CatalogEntry } from "../src/catalog.js";
 import { loadCatalog } from "../src/catalog.js";
 import { generateCatalog } from "../src/build/generate-catalog.js";
-import { renderTypeHelp } from "../src/help.js";
+import { renderHelp, renderTypeHelp } from "../src/help.js";
 
 // Covers spec §5.4 "Catalog 生成"
 
@@ -185,6 +185,26 @@ describe("generateCatalog (build-time)", () => {
     const pluginHelp = renderTypeHelp(catalog, "plugins", "0.0.0-test");
     assert.match(pluginHelp, /\bauriga-workflow\b/);
     assert.match(pluginHelp, /\bauriga-notify\b/);
+  });
+
+  // VAL-HELP-001: top-level `--help` advertises the `install --preset` entry
+  // point with its three modifier flags.
+  test("top-level --help advertises install --preset", () => {
+    const help = renderHelp(catalog, "0.0.0-test");
+    assert.match(help, /install --preset/);
+    assert.match(help, /--preset[\s\S]*--scope[\s\S]*--agent[\s\S]*--lang/);
+  });
+
+  // VAL-HELP-002: the removed `hooks` install surface must not resurface in
+  // top-level help — no `install hooks` invocation, no `hooks` <type> row,
+  // no `(category: hooks)`. (The word "hook" still legitimately appears in
+  // plugin descriptions — e.g. auriga-notify's notification hook — so the
+  // assertions target the install-surface tokens, not the bare word.)
+  test("top-level --help no longer mentions the removed hooks surface", () => {
+    const help = renderHelp(catalog, "0.0.0-test");
+    assert.doesNotMatch(help, /install hooks/);
+    assert.doesNotMatch(help, /^\s+hooks\s/m);
+    assert.doesNotMatch(help, /category: hooks/);
   });
 });
 

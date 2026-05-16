@@ -268,7 +268,6 @@ const CATALOG = {
     { name: "auriga-workflow", description: "x" },
     { name: "auriga-notify", description: "x" },
   ],
-  hooks: [],
 };
 
 let importSerial = 0;

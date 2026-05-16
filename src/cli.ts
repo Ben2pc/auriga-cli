@@ -987,7 +987,7 @@ type LegacyMenuValue = "preset" | "recommended" | "plugins";
  * constant so VAL-TUI-001 / VAL-TUI-002 can assert the "exactly 3 items /
  * order / default-checked" contract without driving inquirer.
  *
- * Workflow + Skills are absorbed by the「推荐预设」item; Hooks is gone.
+ * Workflow + Skills are absorbed by the「推荐预设」item.
  * The preset label spells out the silent defaults (scope user / agent
  * both / lang en) so a TTY user knows what they're getting — fine-tuning
  * those goes through the non-interactive `install --preset` flags.
