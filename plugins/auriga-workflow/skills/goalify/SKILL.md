@@ -1,6 +1,6 @@
 ---
 name: goalify
-description: Plan an autonomous goal from the current spec or work-in-progress and dispatch it via Claude Code's built-in /goal command. Trigger when the user wants the agent to "set a goal", "run autonomously", "autopilot", "跑到 Ready", "自动跑完", "自驱跑完这段", "goalify it", or otherwise asks the agent to plan + dispatch /goal rather than just discuss what to do.
+description: Plan an autonomous goal from the current spec or work-in-progress and dispatch it via the built-in /goal command. Trigger when the user wants the agent to "set a goal", "run autonomously", "autopilot", "跑到 Ready", "自动跑完", "自驱跑完这段", "goalify it", or otherwise asks the agent to plan + dispatch /goal rather than just discuss what to do.
 ---
 
 根据 spec 或者当前的工作进展，先 plan 出 goal，再与用户确认 goal 要跑到哪个阶段为止，然后 set goal 并启动。如果有疑问或者目标难以明确，在 set goal 前询问用户。
@@ -36,7 +36,7 @@ goalify 是**需求已经明确之后**用来驱动长程任务的工具——�
 
 ## 确定终点阶段
 
-set goal 之前必须和用户确认这个 goal 的终点——它要把 auriga workflow 推进到哪个阶段就停下。用 `AskUserQuestion` 给出选项，常见终点：
+set goal 之前必须和用户确认这个 goal 的终点——它要把 auriga workflow 推进到哪个阶段就停下。用 `AskUserQuestion` / `request_user_input` 给出选项，常见终点：
 
 - **跑到 Draft PR** — 建分支、首个有意义的 commit、开好 Draft PR 就停，留给用户审范围
 - **跑到验证完成** — 实现 + 测试全绿，PR 仍保持 Draft

@@ -136,7 +136,7 @@ Constraints:
 
 ### Language choice
 
-Before calling `gh pr create`, ask the user which language to use for the PR description: Chinese / English / match the repo's recent PRs. Use `AskUserQuestion` for this. Reuse the choice within the same task, but do **not** persist it to memory — language preference is per-project and per-team, not per-user.
+Before calling `gh pr create`, ask the user which language to use for the PR description: Chinese / English / match the repo's recent PRs. Use `AskUserQuestion` / `request_user_input` for this. Reuse the choice within the same task, but do **not** persist it to memory — language preference is per-project and per-team, not per-user.
 
 ### PR description: five elements
 
