@@ -17,6 +17,7 @@ import {
 import { installWorkflow } from "./workflow.js";
 import { installSkills, installRecommendedSkills } from "./skills.js";
 import { installPlugins } from "./plugins.js";
+import { installPreset } from "./preset.js";
 import { loadCatalog } from "./catalog.js";
 import { renderHelp, renderTypeHelp } from "./help.js";
 import { renderGuide } from "./guide.js";
@@ -32,6 +33,10 @@ const RELOAD_REMINDER =
 
 export interface InstallParsed {
   all: boolean;
+  /** `--preset` — atomic install of the curated default set (workflow
+   *  doc + workflow skills + auriga-workflow plugin). Mutually exclusive
+   *  with `all` / `type` / `filter`. */
+  preset?: boolean;
   type?: CategoryName;
   filter?: string[];
   lang?: string;
@@ -224,6 +229,19 @@ function parseInstall(argv: string[]): InstallParsed {
       continue;
     }
 
+    // `--preset` is a boolean flag — it takes no value. Reject the
+    // `--preset=...` equals form explicitly rather than letting it fall
+    // through to the generic "unknown argument" branch, so the user gets
+    // a message that names the actual mistake.
+    if (t === "--preset") {
+      out.preset = true;
+      i += 1;
+      continue;
+    }
+    if (t.startsWith("--preset=")) {
+      parseErr("--preset takes no value.");
+    }
+
     // Accept both `--lang en` and `--lang=en` (and same for --cwd, --scope).
     // The equals form is a common CLI affordance; rejecting it confuses
     // users with any prior gnu-style / node util.parseArgs experience.
@@ -294,6 +312,38 @@ function parseInstall(argv: string[]): InstallParsed {
 }
 
 function validateInstall(out: InstallParsed, filterFlag: string | null): void {
+  // Rule 1: --preset is atomic. It installs the curated default set
+  // (workflow doc + workflow skills + auriga-workflow plugin) and cannot
+  // combine with a <type>, a sub-item filter, or --all. Unlike a category
+  // install it DOES accept --scope / --agent / --lang as preset modifiers
+  // (the preset defaults differ: user / both / en). --cwd is not a preset
+  // modifier — the workflow doc always lands in the current directory.
+  if (out.preset) {
+    if (out.all) {
+      parseErr("--preset and --all are both atomic; pass only one.");
+    }
+    if (out.type) {
+      parseErr(`--preset is atomic; it cannot combine with the '${out.type}' type.`);
+    }
+    if (out.filter) {
+      parseErr(
+        "--preset is atomic; it cannot combine with --skill/--recommended-skill/--plugin.",
+      );
+    }
+    if (out.cwd !== undefined) {
+      parseErr("--cwd does not apply to --preset.");
+    }
+    if (out.scope !== undefined) validateScopeValue(out.scope);
+    if (out.agent !== undefined) validateAgentValue(out.agent);
+    if (out.lang !== undefined) {
+      const valid = LANGUAGES.map((l) => l.value);
+      if (!valid.includes(out.lang)) {
+        parseErr(`unknown language '${out.lang}'; available: ${valid.join(", ")}`);
+      }
+    }
+    return;
+  }
+
   // Rule 2: --all is atomic.
   if (out.all) {
     if (out.type || out.filter || out.lang !== undefined || out.cwd !== undefined) {
@@ -466,8 +516,9 @@ export async function main(argv: string[]): Promise<number> {
 }
 
 async function runInstall(p: InstallParsed): Promise<number> {
-  // Bare `install` (no type, no --all, no filter): TTY → menu, non-TTY → exit 1.
-  if (!p.all && !p.type) {
+  // Bare `install` (no type, no --all, no --preset, no filter):
+  // TTY → menu, non-TTY → exit 1.
+  if (!p.all && !p.preset && !p.type) {
     if (isNonInteractive()) {
       log.error(
         "Interactive mode requires a TTY. Run 'npx auriga-cli --help' for non-interactive options.",
@@ -477,6 +528,11 @@ async function runInstall(p: InstallParsed): Promise<number> {
     return runLegacyMenu();
   }
 
+  // --preset: curated default-set install (precheck + ordered fan-out).
+  if (p.preset) {
+    return runPreset(p);
+  }
+
   // --all: precheck + fan-out.
   if (p.all) {
     return runAll(p);
@@ -484,6 +540,53 @@ async function runInstall(p: InstallParsed): Promise<number> {
 
   // Single-category install.
   return runSingle(p);
+}
+
+/**
+ * `install --preset` — installs the curated default set via the shared
+ * `installPreset` orchestrator. Graded exit mirrors `runAll`: all steps
+ * succeed → 0; any step fails → 2 with per-step status on stderr.
+ *
+ * The preset defaults differ from a category install — scope=user,
+ * agent=both, lang=en — and are resolved here before handing off, so
+ * `installPreset` itself stays default-free (the TUI / Web UI callers
+ * resolve their own defaults the same way).
+ */
+async function runPreset(p: InstallParsed): Promise<number> {
+  const agent: PluginAgent = p.agent ?? "both";
+  const prep = await prepareInstall(["plugins"], agent);
+  if ("exit" in prep) return prep.exit;
+  const { packageRoot } = prep;
+
+  const results = await installPreset(packageRoot, {
+    interactive: false,
+    scope: p.scope ?? "user",
+    agent,
+    lang: p.lang ?? "en",
+  });
+
+  for (const r of results) {
+    if (r.ok) {
+      process.stderr.write(`[OK]   ${r.category}\n`);
+    } else {
+      process.stderr.write(`[FAIL] ${r.category} — ${r.err}\n`);
+    }
+  }
+
+  const failed = results.filter((r) => !r.ok);
+  if (failed.length === 0) {
+    process.stderr.write(RELOAD_REMINDER);
+    return 0;
+  }
+
+  // The preset is one atomic "install the right defaults" action — the
+  // retry is the whole command again, not a per-category fan-out like
+  // runAll's hint.
+  process.stderr.write("\nRetry:\n  npx -y auriga-cli install --preset\n");
+  if (failed.length < results.length) {
+    process.stderr.write(RELOAD_REMINDER);
+  }
+  return 2;
 }
 
 /**

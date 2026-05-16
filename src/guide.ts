@@ -54,8 +54,8 @@ ${h("## Step 2 — Read --help BEFORE installing (do not skip)")}
 
 ${warn("⚠")} Always inspect the catalog first so you know which skills
 and plugins are actually relevant for this project. Blindly
-running \`install --all\` works as a turnkey preset, but for anything
-beyond a greenfield bootstrap you should narrow scope.
+running \`install --preset\` works as a turnkey bootstrap, but for
+anything beyond a greenfield setup you should narrow scope.
 
 Top-level catalog (every workflow skill / recommended skill / plugin
 with a short description):
@@ -69,8 +69,13 @@ Per-type detail (flags + only that category's catalog slice):
 
 ${h("## Step 3 — Install")}
 
-Preset — the full default-on set (workflow + skills + default plugins;
-recommended skills are NOT included):
+Recommended — the curated workflow preset (CLAUDE.md/AGENTS.md +
+workflow skills + the auriga-workflow plugin). Defaults: scope user,
+agent both (Claude Code + Codex), lang en:
+  ${cmd("npx -y auriga-cli install --preset")}
+
+Full — workflow + skills + default plugins (recommended skills are
+NOT included):
   ${cmd("npx -y auriga-cli install --all")}
 
 Targeted — single category, picking from the catalog surfaced in Step 2:

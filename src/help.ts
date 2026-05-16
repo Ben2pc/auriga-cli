@@ -15,6 +15,10 @@ export function renderHelp(catalog: Catalog, version: string): string {
 USAGE
   npx auriga-cli guide                                   Agent bootstrap SOP (start here)
   npx auriga-cli install                                 (TTY only) checkbox menu
+  npx auriga-cli install --preset [--scope <s>] [--agent <a>] [--lang <code>]
+                                                         curated default set: workflow doc
+                                                         + workflow skills + auriga-workflow plugin
+                                                         (defaults: scope user, agent both, lang en)
   npx auriga-cli install --all [--scope <s>] [--agent <a>]
                                                          workflow + skills + plugins
                                                          (excludes recommended — install separately)
@@ -26,7 +30,7 @@ USAGE
 
   For non-interactive (Agent) use, prepend npx's own -y flag:
     npx -y auriga-cli guide
-    npx -y auriga-cli install --all
+    npx -y auriga-cli install --preset
 
 TYPES (exactly one with <type> form)
   workflow       CLAUDE.md + AGENTS.md (workflow manifesto)

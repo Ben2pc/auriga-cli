@@ -51,6 +51,8 @@ describe("renderGuide", () => {
   // Covers spec §3.6 command examples and graded-exit text embedded in the SOP body.
   test("mentions install, retry, and reload guidance in the body", () => {
     const out = renderGuide({ color: false, version: "1.8.1" });
+    // VAL-GUIDE-001: the SOP recommends the curated preset install.
+    assert.match(out, /npx -y auriga-cli install --preset/);
     assert.match(out, /npx -y auriga-cli install --all/);
     assert.match(out, /npx -y auriga-cli install recommended/);
     assert.match(out, /0\s+— all requested categories installed/);
