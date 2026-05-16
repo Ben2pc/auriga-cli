@@ -1,6 +1,6 @@
 ---
 name: session-compound
-description: This skill should be used when the user asks to "复盘 / 总结 / 沉淀 / wrap up this session", "整理一下这次会话", or "extract takeaways from this session". It compounds a single Claude Code or Codex CLI session into a self-contained interactive HTML report (narrative timeline + token / cache / tool health + a playground panel with checkable candidate items for ecosystem-skill installs / AGENTS.md edits / new-skill gaps) so the user can review, tick, and copy back a prompt that lands each item in the right place.
+description: 当用户要求复盘、总结、沉淀、整理这次会话、wrap up this session、extract takeaways from this session，或提取会话中的可复用经验时使用；产出一份可交互的 HTML 会话报告。
 ---
 
 # Session Compound

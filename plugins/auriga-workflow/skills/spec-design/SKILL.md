@@ -1,6 +1,6 @@
 ---
 name: spec-design
-description: Use before any feat/ or fix/ code change that introduces or modifies external behavior — public API, CLI, user-visible flow, file format, schema. Trigger when the user wants to brainstorm a feature, clarify a requirement, write a spec, or break down what to build — also 澄清需求 / 写 spec / 拆需求 / 行为契约. Input shapes — sentence / HTML mock / PRD / Figma link / user-supplied draft spec to audit. Produces `spec.md` + `validation-contract.md` (`VAL-XXX-NNN` = behavior+tool+evidence) under `docs/specs/<topic>/`. Skip refactors / library swaps with unchanged behavior (→ plan) and bug-fixes with a reproducer (→ systematic-debugging).
+description: 当 feat/ 或 fix/ 会新增或改变外部可见行为时使用；也用于澄清需求、brainstorm a feature、写 spec、拆需求、定义行为契约，接收一句话、HTML mock、PRD、Figma link 或用户自带 spec，并产出 `spec.md` 和 `validation-contract.md`。涉及公共 API、CLI、schema 或用户可见流程变化时触发；已有复现步骤的 bug 走 `systematic-debugging`。
 ---
 
 # Spec Design

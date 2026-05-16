@@ -1,6 +1,6 @@
 ---
 name: arch-design
-description: 当新功能需要把目标落成模块结构与接口契约,或既有系统需要在不改变对外可见行为的前提下做架构升级时使用。当用户要"技术方案 / 架构设计 / 架构升级 / 重构方案",问"模块怎么拆 / 怎么分层 / 依赖关系怎么理 / 这块架构怎么改 / how should this be structured / how to break this into modules",或即将动手一个跨模块、跨边界的改动而"怎么做"并不显然时,主动触发——不论开发是否按顺序走到这一步,只要面对架构决策就用。
+description: 设计模块结构、接口契约、依赖方向和迁移路径。当新功能需要落成架构方案，或既有系统要在不改变外部行为的前提下做架构升级时使用；用户问技术方案、模块怎么拆、怎么分层、依赖关系怎么理、how should this be structured、how to break this into modules，或跨模块改动的做法不显然时触发。
 ---
 
 # 架构设计
