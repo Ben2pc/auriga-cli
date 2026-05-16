@@ -30,16 +30,16 @@ const DEFAULT_USER_REGION =
 function makePackageRoot(block = DEFAULT_BLOCK, userRegion = DEFAULT_USER_REGION): string {
   const dir = makeScratch("pkg");
   fs.writeFileSync(
-    path.join(dir, "CLAUDE.md"),
-    composeMarkedFile({ blockBody: block, userRegion }),
-  );
-  fs.writeFileSync(
-    path.join(dir, "CLAUDE.zh-CN.md"),
+    path.join(dir, "AGENTS.md"),
     composeMarkedFile({
       blockBody: block.replace("# auriga Workflow", "# auriga 工作流"),
       userRegion,
       lang: "zh-CN",
     }),
+  );
+  fs.writeFileSync(
+    path.join(dir, "AGENTS.en.md"),
+    composeMarkedFile({ blockBody: block, userRegion }),
   );
   return dir;
 }
@@ -448,7 +448,7 @@ describe("workflow templates — bilingual markers (VAL-WF-011)", () => {
   // template carries the markers, so this is a repo-check on both templates.
   // (A real `lang:"zh-CN"` install can't be exercised hermetically: it routes
   // through fetchExtraContent → a live GitHub fetch of the tagged version.)
-  for (const file of ["CLAUDE.md", "CLAUDE.zh-CN.md"]) {
+  for (const file of ["AGENTS.md", "AGENTS.en.md"]) {
     test(`VAL-WF-011: ${file} is shipped as a marked template`, () => {
       const parsed = parseMarkers(fs.readFileSync(path.join(REPO_ROOT, file), "utf-8"));
       assert.equal(parsed.kind, "marked", `${file} must carry a managed-block marker pair`);

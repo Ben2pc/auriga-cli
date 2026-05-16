@@ -107,8 +107,8 @@ describe("spec-design skill — repo-check VALs", () => {
     );
   });
 
-  test("VAL-DEP-001: CLAUDE.md (both languages) reference spec-design and not brainstorming", () => {
-    for (const f of ["CLAUDE.md", "CLAUDE.zh-CN.md"]) {
+  test("VAL-DEP-001: AGENTS.md templates (both languages) reference spec-design and not brainstorming", () => {
+    for (const f of ["AGENTS.md", "AGENTS.en.md"]) {
       const text = read(f);
       assert.ok(
         text.includes("spec-design"),

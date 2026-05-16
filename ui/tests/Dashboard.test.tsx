@@ -651,7 +651,7 @@ describe("Dashboard — changeWorkflowLang re-derives already-selected workflow"
     );
 
     // Toggle the workflow card. It's the singleton card under the
-    // section-workflow container, named "CLAUDE.md workflow" — locate it
+    // section-workflow container, named "AGENTS.md workflow" — locate it
     // by aria-label via getByLabelText against the case-insensitive name.
     const workflowSection = screen.getByTestId("section-workflow");
     const workflowCard = workflowSection.querySelector(

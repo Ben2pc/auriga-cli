@@ -18,7 +18,7 @@ USAGE
   npx auriga-cli install --preset [--scope <s>] [--agent <a>] [--lang <code>]
                                                          curated default set: workflow doc
                                                          + workflow skills + auriga-workflow plugin
-                                                         (defaults: scope user, agent both, lang en)
+                                                         (defaults: scope user, agent both, lang zh-CN)
   npx auriga-cli install --all [--scope <s>] [--agent <a>]
                                                          everything: workflow + skills
                                                          + recommended + plugins
@@ -33,13 +33,13 @@ USAGE
     npx -y auriga-cli install --preset
 
 TYPES (exactly one with <type> form)
-  workflow       CLAUDE.md + AGENTS.md (workflow manifesto)
+  workflow       AGENTS.md + CLAUDE.md symlink (workflow manifesto)
   skills         Default-on workflow skills (listed below)
   recommended    Opt-in utility skills (listed below)
   plugins        Claude Code and Codex plugins (listed below)
 
 TYPE-SPECIFIC FLAGS
-  workflow:       --lang <code>                  default en; available: en, zh-CN
+  workflow:       --lang <code>                  default zh-CN; available: zh-CN, en
                   --cwd <dir>                    default current working directory
   skills:         --skill <names...>             space-separated; '*' = all
                   --scope <project|user>         default project
@@ -92,11 +92,11 @@ USAGE
   npx auriga-cli install workflow [--lang <code>] [--cwd <dir>]
 
 FLAGS
-  --lang <code>   default en; available: en, zh-CN
+  --lang <code>   default zh-CN; available: zh-CN, en
   --cwd <dir>     default current working directory
 
 NOTE
-  workflow has no --scope flag (single file + AGENTS.md symlink).
+  workflow has no --scope flag (AGENTS.md primary + CLAUDE.md symlink).
 `;
 
     case "skills":

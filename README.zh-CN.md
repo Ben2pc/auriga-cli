@@ -10,7 +10,7 @@
 
 | 模块 | 说明 |
 |---|---|
-| **Workflow** | `CLAUDE.md` 里的 auriga 工作流：需求澄清 → TDD → Review，Harness 原则，Subagent 使用指南 |
+| **Workflow** | `AGENTS.md` 里的 auriga 工作流：需求澄清 → TDD → Review，Harness 原则，Subagent 使用指南 |
 | **Skills** | 外部开发流程 skills —— systematic-debugging、TDD、verification、planning、playwright（spec 撰写与架构设计由 `auriga-workflow` 插件内的 `spec-design`、`arch-design` skill 提供）|
 | **Recommended Skills** | 可选的工具类 skills（如 `codex-agent`、`claude-code-agent`），在 workflow skills 之外按需追加 |
 | **Plugins** | 推荐的 Claude Code 和 Codex 插件 —— skill-creator、claude-md-management、playground、codex、auriga-workflow、auriga-notify、session-instructions-loader |
@@ -40,9 +40,9 @@ npx -y auriga-cli guide
 非交互安装命令：
 
 ```bash
-npx -y auriga-cli install --preset           # 工作流核心:CLAUDE.md/AGENTS.md
+npx -y auriga-cli install --preset           # 工作流核心:AGENTS.md/CLAUDE.md
                                              #   + 工作流 skill + auriga-workflow 插件
-                                             #   (默认:scope user、agent both、lang en)
+                                             #   (默认:scope user、agent both、lang zh-CN)
 npx -y auriga-cli install --all              # 全装:workflow + skills + recommended + plugins
 npx -y auriga-cli install recommended        # 只装可选工具 skills
 npx -y auriga-cli install plugins --agent codex --plugin session-instructions-loader
@@ -50,9 +50,9 @@ npx -y auriga-cli install <type> [--flags]   # 单类:workflow | skills | recomm
 npx -y auriga-cli --help                     # 完整 catalog + flag 说明
 ```
 
-`--preset` 是原子标志 —— 不能与 `<type>` 或任何过滤标志同时使用,但可带 `--scope`、`--agent`、`--lang`(预设默认 `user` / `both` / `en`,与分类安装的默认不同)。
+`--preset` 是原子标志 —— 不能与 `<type>` 或任何过滤标志同时使用,但可带 `--scope`、`--agent`、`--lang`(预设默认 `user` / `both` / `zh-CN`,与分类安装的默认不同)。
 
-退出码：`0` 成功；`1` 致命错误（前置检查 / 解析 / 拉取失败）；`2` 部分成功——`stderr` 会列出逐类 `[OK]/[FAIL]` 和 `Retry:` 提示。装完后请重启 Claude Code 或 Codex 会话，让新的 `CLAUDE.md` / skills / plugins / hook 插件注册生效。
+退出码：`0` 成功；`1` 致命错误（前置检查 / 解析 / 拉取失败）；`2` 部分成功——`stderr` 会列出逐类 `[OK]/[FAIL]` 和 `Retry:` 提示。装完后请重启 Claude Code 或 Codex 会话，让新的 `AGENTS.md` / skills / plugins / hook 插件注册生效。
 
 ### Web UI（可选）
 
@@ -76,21 +76,21 @@ npx auriga-cli
 
 ```
 ? Select what to install:
-  ◉ Recommended preset — CLAUDE.md/AGENTS.md + workflow skills + auriga-workflow plugin
+  ◉ Recommended preset — AGENTS.md/CLAUDE.md + workflow skills + auriga-workflow plugin
   ◯ Optional skills — opt-in utility skills (claude-code-agent, codex-agent...)
   ◯ Other plugins — everything except auriga-workflow (auriga-notify, skill-creator, codex...)
 ```
 
-**Recommended preset** 默认勾选,以预设默认值静默安装（scope `user`、agent `both`、语言 `en`）—— 要精调这些参数,改用非交互的 `install --preset` 标志。另两项会下钻到逐项子勾选。安装插件时还会先选择目标运行时：Claude Code、Codex 或两者都装。
+**Recommended preset** 默认勾选,以预设默认值静默安装（scope `user`、agent `both`、语言 `zh-CN`）—— 要精调这些参数,改用非交互的 `install --preset` 标志。另两项会下钻到逐项子勾选。安装插件时还会先选择目标运行时：Claude Code、Codex 或两者都装。
 
 ## 模块详情
 
 ### Workflow
 
-将 `CLAUDE.md` 安装到目标项目，并创建 `AGENTS.md` 软链接以兼容不同 Agent 框架。支持中英文版本，安装时可选择。
+将 `AGENTS.md` 安装到目标项目，并创建 `CLAUDE.md` 软链接以兼容 Claude Code。默认安装中文版本，英文可通过 `--lang en` 显式选择。
 
 - **可扩展、可升级**：auriga 工作流被一对 `<!-- AURIGA:WORKFLOW:v1 START/END -->` 标记包成「受管区块」。把你的工程专属规则写在 END 标记**之后**——再次安装只就地升级受管区块,你的内容原样保留。
-- 旧版本装下的、无标记的 `CLAUDE.md` 会在下次安装时迁移为标记格式,旧文件备份到 `CLAUDE.md.bak`。别的工具生成的 `CLAUDE.md` 会作为用户区保留在全新受管区块下方。
+- 旧版本装下的、无标记的 `CLAUDE.md` 会在下次安装时安全迁移到新的 `AGENTS.md` 主文件形态,旧文件备份到 `CLAUDE.md.bak`。别的工具生成的 `AGENTS.md` 或 `CLAUDE.md` 会作为用户区保留在全新受管区块下方。
 - 涵盖：需求澄清、TDD、代码 Review、分支工作流、Subagent 编排
 
 ### Skills
@@ -134,7 +134,7 @@ npx -y auriga-cli install plugins --agent codex --plugin session-instructions-lo
 | 插件 | 运行时 | 说明 |
 |---|---|---|
 | skill-creator | Claude Code | 创建和管理自定义 skills |
-| claude-md-management | Claude Code / Codex | 审计和改进 CLAUDE.md |
+| claude-md-management | Claude Code / Codex | 审计和改进 AGENTS.md / CLAUDE.md |
 | playground | Claude Code / Codex | 构建交互式 HTML playground |
 | codex | Claude Code | Codex 跨模型协作 |
 | auriga-workflow | Claude Code / Codex | auriga 工作流插件 —— 工作流 skill 加上强制执行工作流的 git 生命周期 hook。Skills：`incremental-impl`、`test-designer`、`spec-design`、`arch-design`、`code-simplify`、`session-compound`、`goalify`（plan 出自驱 goal 并通过内置 `/goal` 命令分发执行）、`deep-review`（多维度 PR review 编排器——并行派发各维度 reviewer，汇总成可执行的 punch list）、`reviewer-creator`（在 `docs/rules/review/` 下生成项目级自定义 reviewer）、`git-workflow`（git 生命周期 skill）。Hooks：`commit-reminder`（文件编辑的 PostToolUse —— Claude Code 匹配 `Edit` / `Write` / `MultiEdit`，Codex 匹配 `apply_patch` —— 未提交 diff 对比 `HEAD` 超过 200 行或 8 个文件时，提醒在下一个语义边界 commit）、`pr-create-guard`（`gh pr create` 的 PostToolUse —— 注入 PR body 快照供五要素自检，并对不符合 Conventional Commits 的标题提示）、`pr-ready-guard`（`gh pr ready` 与非 draft `gh pr create` 的 PreToolUse —— 拦截游离规划文档、`docs/specs/` 内未结案的活跃 spec、未 push commits）、`pr-merge-guard`（`gh pr merge` 的 PreToolUse —— PR body 的验收标准章节仍有未勾选清单项时拦截合并）。两个 PostToolUse hook 在 Claude Code / Codex 上完全对齐；Codex 仅对 `pr-ready-guard` 的 PreToolUse `additionalContext` 信息路径 fail-open（block 路径两边一致）。默认通过插件路径安装。 |

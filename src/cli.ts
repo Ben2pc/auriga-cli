@@ -26,7 +26,7 @@ import { CATEGORY_NAMES, type CategoryName } from "./types.js";
 export type { CategoryName } from "./types.js";
 
 const RELOAD_REMINDER =
-  "\n⚠ Reload your Claude Code or Codex session to pick up the new harness (CLAUDE.md / skills / plugins are loaded at session startup).\n";
+  "\n⚠ Reload your Claude Code or Codex session to pick up the new harness (AGENTS.md / skills / plugins are loaded at session startup).\n";
 
 // ---------------------------------------------------------------------------
 // parseArgs — pure argv parser (spec §3.5 / §5.2)
@@ -702,7 +702,7 @@ async function runAll(p: InstallParsed): Promise<number> {
     process.stderr.write(`  npx -y auriga-cli install ${s.category}${suffix}\n`);
   }
   // Partial success still installed assets that need a session reload
-  // (CLAUDE.md / skills / plugins load at startup). Without this hint
+  // (AGENTS.md / skills / plugins load at startup). Without this hint
   // the user may retry the failed category and act on stale state.
   if (failed.length < status.length) {
     process.stderr.write(RELOAD_REMINDER);
@@ -780,7 +780,7 @@ async function runUi(p: UiParsed, version: string): Promise<number> {
   //   - tarballRoot: where `dist/catalog.json` + the bundled DEV ui/dist live.
   //     Always read from the installed npm package; can't be fetched because
   //     dist/ is built artifact, not git content.
-  //   - contentRoot: where the runtime install recipes live (CLAUDE.md,
+  //   - contentRoot: where the runtime install recipes live (AGENTS.md,
   //     marketplace manifests, extra_plugin_configs.json, skills-lock.json).
   //     These files are
   //     NOT in the npm tarball — the `files` allowlist only ships `dist/*`
@@ -845,7 +845,7 @@ async function runUi(p: UiParsed, version: string): Promise<number> {
   }
 
   const applyCatalog = {
-    // Workflow is a singleton (one CLAUDE.md per project); we pick the
+    // Workflow is a singleton (one AGENTS.md per project); we pick the
     // sentinel name "workflow" to match what the Web UI's Dashboard sends
     // and to remain semantically self-describing. The handler ignores the
     // name argument either way.
@@ -864,7 +864,7 @@ async function runUi(p: UiParsed, version: string): Promise<number> {
     pluginAgentsByName.set(name, def.agents);
   }
   const applyHandlers = buildDefaultApplyHandlers({
-    // contentRoot: install handlers read CLAUDE.md, marketplace manifests,
+    // contentRoot: install handlers read AGENTS.md, marketplace manifests,
     // extra_plugin_configs.json, and skills-lock.json — all CONTENT_FILES.
     // Routing them at tarballRoot fails ENOENT for npm-installed users.
     packageRoot: contentRoot,
@@ -892,7 +892,7 @@ async function runUi(p: UiParsed, version: string): Promise<number> {
         cwd,
         // server reads dist/catalog.json (tarball-shipped) via
         // buildScanCatalog on each /api/state call; install-time content
-        // (marketplace manifests, extra plugin config, CLAUDE.md, …) was already injected
+        // (marketplace manifests, extra plugin config, AGENTS.md, …) was already injected
         // into applyHandlers above with contentRoot.
         packageRoot: tarballRoot,
         heartbeatTimeoutMs: UI_HEARTBEAT_TIMEOUT_MS,

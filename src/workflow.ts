@@ -99,7 +99,7 @@ export async function installWorkflow(
     await fetchExtraContent(packageRoot, langOpt.file);
   }
 
-  const sourceClaude = path.join(packageRoot, langOpt.file);
+  const sourceWorkflow = path.join(packageRoot, langOpt.file);
   const targetPrimary = path.join(resolved, WORKFLOW_PRIMARY_FILE);
   const targetCompat = path.join(resolved, WORKFLOW_COMPAT_FILE);
 
@@ -107,7 +107,7 @@ export async function installWorkflow(
   // managed block (the auriga workflow body) and its user-region placeholder.
   // Defensive fallback: if the template somehow lacks markers, treat the whole
   // file as the managed block with an empty user region.
-  const sourceContent = fs.readFileSync(sourceClaude, "utf8");
+  const sourceContent = fs.readFileSync(sourceWorkflow, "utf8");
   const sourceParsed = parseMarkers(sourceContent);
   const sourceBlock =
     sourceParsed.kind === "marked"

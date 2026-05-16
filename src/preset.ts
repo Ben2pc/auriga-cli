@@ -3,7 +3,7 @@
 // installPreset —— 「推荐预设安装」的单一编排入口。
 //
 // 预设由三部分组成,按下面的顺序安装:
-//   1. workflow 文档 (CLAUDE.md + AGENTS.md)
+//   1. workflow 文档 (AGENTS.md + CLAUDE.md 兼容软链)
 //   2. 工作流 skill (WORKFLOW_SKILLS 全集 —— installSkills 自身已限定)
 //   3. auriga-workflow 插件
 //

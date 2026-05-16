@@ -28,7 +28,7 @@ export function renderGuide(opts: GuideOpts): string {
   return `${h(`# auriga-cli bootstrap SOP (v${opts.version})`)}
 
 This guide walks an Agent through installing the auriga harness
-(CLAUDE.md + skills + plugins) into the current repository.
+(AGENTS.md + skills + plugins) into the current repository.
 
 Run each step in order. If any step fails with exit 1, stop and report.
 If exit 2, see stderr for per-category status and follow the "Retry"
@@ -69,9 +69,9 @@ Per-type detail (flags + only that category's catalog slice):
 
 ${h("## Step 3 — Install")}
 
-Recommended — the curated workflow preset (CLAUDE.md/AGENTS.md +
+Recommended — the curated workflow preset (AGENTS.md/CLAUDE.md +
 workflow skills + the auriga-workflow plugin). Defaults: scope user,
-agent both (Claude Code + Codex), lang en:
+agent both (Claude Code + Codex), lang zh-CN:
   ${cmd("npx -y auriga-cli install --preset")}
 
 Everything — workflow + skills + recommended skills + default plugins:
@@ -104,7 +104,7 @@ Exit codes:
 
 ${h("## Step 4 — Reload session (REQUIRED when installed non-interactively)")}
 
-${warn("⚠")} CLAUDE.md, .agents/skills/, and plugin enablement /
+${warn("⚠")} AGENTS.md, .agents/skills/, and plugin enablement /
 registrations are loaded at session startup. If you ran
 \`npx -y auriga-cli install\` inside an existing Claude Code or Codex session
 (e.g., \`claude -p\` / \`claude -p --worktree\` / \`codex exec\`), the current session
@@ -118,8 +118,8 @@ Action:
 ${h("## Step 5 — Verify install")}
 
 Expected artifacts/checks:
-  - CLAUDE.md                 (workflow manifesto)
-  - AGENTS.md -> CLAUDE.md    (symlink)
+  - AGENTS.md                 (workflow manifesto, Chinese by default)
+  - CLAUDE.md -> AGENTS.md    (Claude Code compatibility symlink)
   - .agents/skills/<name>/    (one per installed skill)
   - claude plugins list       (shows Claude plugins, if Claude plugins selected)
   - ~/.codex/config.toml      (Codex plugin enablement, if Codex plugins selected)

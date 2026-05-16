@@ -269,7 +269,7 @@ describe(
       assert.ok(tarballPath && fs.existsSync(tarballPath), "tarball not packed");
     });
 
-    test("install workflow → CLAUDE.md + AGENTS.md symlink land in the project", { timeout: TIMEOUT }, () => {
+    test("install workflow → AGENTS.md primary + CLAUDE.md symlink land in the project", { timeout: TIMEOUT }, () => {
       const proj = setupProject(tarballPath!);
       const r = runCli(proj, ["install", "workflow"]);
       assert.equal(
@@ -278,14 +278,15 @@ describe(
         `auriga-cli install workflow exited ${r.status}.\nstdout: ${r.stdout}\nstderr: ${r.stderr}`,
       );
 
-      const claudeMd = path.join(proj, "CLAUDE.md");
-      assert.ok(fs.existsSync(claudeMd), `CLAUDE.md missing at ${claudeMd}`);
-      assert.ok(fs.statSync(claudeMd).size > 0, "CLAUDE.md is empty");
-
       const agentsMd = path.join(proj, "AGENTS.md");
       assert.ok(fs.existsSync(agentsMd), `AGENTS.md missing at ${agentsMd}`);
-      const lst = fs.lstatSync(agentsMd);
-      assert.ok(lst.isSymbolicLink(), "AGENTS.md should be a symlink to CLAUDE.md");
+      assert.ok(fs.statSync(agentsMd).size > 0, "AGENTS.md is empty");
+
+      const claudeMd = path.join(proj, "CLAUDE.md");
+      assert.ok(fs.existsSync(claudeMd), `CLAUDE.md missing at ${claudeMd}`);
+      const lst = fs.lstatSync(claudeMd);
+      assert.ok(lst.isSymbolicLink(), "CLAUDE.md should be a symlink to AGENTS.md");
+      assert.equal(fs.readlinkSync(claudeMd), "AGENTS.md");
     });
 
     test("install skills → WORKFLOW_SKILLS materialize under .agents/skills/", { timeout: TIMEOUT }, () => {
@@ -443,8 +444,8 @@ describe(
           assert.fail(`install --all exited ${r.status}.\nstdout: ${r.stdout}\nstderr: ${r.stderr}`);
         }
 
-        const claudeMd = path.join(proj, "CLAUDE.md");
-        assert.ok(fs.existsSync(claudeMd) && fs.statSync(claudeMd).size > 0, "CLAUDE.md missing/empty (workflow category)");
+        const agentsMd = path.join(proj, "AGENTS.md");
+        assert.ok(fs.existsSync(agentsMd) && fs.statSync(agentsMd).size > 0, "AGENTS.md missing/empty (workflow category)");
 
         assert.ok(findSkillFile(proj, "systematic-debugging"), "systematic-debugging SKILL.md missing (skills category)");
 
