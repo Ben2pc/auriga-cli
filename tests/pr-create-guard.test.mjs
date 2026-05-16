@@ -129,7 +129,7 @@ const cases = [
     expect: { status: 0, stdoutEq: "" },
   },
   {
-    name: "gh pr create success without URL: passive nudge lists five elements + language hint",
+    name: "gh pr create success without URL: passive nudge lists five elements",
     payload: {
       hook_event_name: "PostToolUse",
       tool_name: "Bash",
@@ -142,14 +142,16 @@ const cases = [
         "could not identify",
         "five elements",
         "design decisions",
-        "language",
         "git-workflow",
         "Conventional Commits",
       ],
+      // Negative anchor: the language-convention reminder was removed —
+      // catch a regression that reintroduces it (PR #143).
+      stdoutExcludesAll: ["language"],
     },
   },
   {
-    name: "gh pr create with URL but fetch fails: fallback lists five elements + language hint",
+    name: "gh pr create with URL but fetch fails: fallback lists five elements",
     payload: {
       hook_event_name: "PostToolUse",
       tool_name: "Bash",
@@ -161,28 +163,30 @@ const cases = [
     },
     // The fetch will fail (no auth / no such repo). The hook should
     // gracefully inject the fallback message containing the five
-    // elements and language hint — not crash, not block.
+    // elements — not crash, not block.
     expect: {
       status: 0,
       stdoutIncludesAll: [
         "pr-create-guard",
         "five elements",
         "design decisions",
-        "language",
         "git-workflow",
         "Conventional Commits",
       ],
+      // Negative anchor: the language-convention reminder was removed —
+      // catch a regression that reintroduces it (PR #143).
+      stdoutExcludesAll: ["language"],
     },
   },
   {
-    name: "inline URL in command body does NOT leak: still emits five elements + language hint",
+    name: "inline URL in command body does NOT leak: still emits five elements",
     payload: {
       hook_event_name: "PostToolUse",
       tool_name: "Bash",
       // Body mentions an old PR's URL; tool_response has no URL.
       // The hook must NOT fetch the old PR — it should take the
-      // passive-nudge path instead, which now includes the five-element
-      // verification list and a language-consistency hint.
+      // passive-nudge path instead, which includes the five-element
+      // verification list.
       tool_input: {
         command:
           'gh pr create --title foo --body "refs https://github.com/some-owner/some-repo/pull/42"',
@@ -195,10 +199,12 @@ const cases = [
         "could not identify",
         "five elements",
         "design decisions",
-        "language",
         "git-workflow",
         "Conventional Commits",
       ],
+      // Negative anchor: the language-convention reminder was removed —
+      // catch a regression that reintroduces it (PR #143).
+      stdoutExcludesAll: ["language"],
     },
   },
 ];
@@ -227,6 +233,12 @@ for (const c of cases) {
       checks.push({
         ok: r.stdout.includes(needle),
         msg: `stdout includes "${needle}" (got "${r.stdout.slice(0, 200)}")`,
+      });
+  if (Array.isArray(c.expect.stdoutExcludesAll))
+    for (const needle of c.expect.stdoutExcludesAll)
+      checks.push({
+        ok: !r.stdout.includes(needle),
+        msg: `stdout does NOT include "${needle}" (got "${r.stdout.slice(0, 200)}")`,
       });
 
   const allOk = checks.every((x) => x.ok);

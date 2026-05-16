@@ -134,10 +134,6 @@ Interactive rebase verbs：
 
 ## 阶段 4：创建 PR / Phase 4: PR creation
 
-### 语言选择 / Language choice
-
-调用 `gh pr create` 前，先问用户 PR description 使用哪种语言：中文、英文，或跟随 repo 近期 PR 风格。用 `AskUserQuestion` / `request_user_input` 提问。同一任务内可以复用该选择，但**不要**写入 memory；语言偏好属于项目和团队上下文，不是用户级偏好。
-
 ### PR 描述：五个元素 / PR description: five elements
 
 PR 描述必须覆盖全部五个元素：
@@ -199,9 +195,9 @@ gh pr create --draft --title "<type>: <subject>" --body-file <body.md>
 - 通过 `gh pr view --json body,title` 拉取刚创建的 PR body **和 title**
 - 列出它找到的 `##` headings，以及 TODO checkbox 数量
 - 用 Conventional Commits 格式检查 title（`<type>(<scope>)?(!)?: <subject>`；type 列表与阶段 2 相同）；如果 title 不匹配，会注入一行 `Title format: ⚠ ...`，建议使用 `gh pr edit --title "<type>: ..."` 修复。这只是软提醒
-- 提醒你确认五个元素已经覆盖，并确认描述语言符合团队约定
+- 提醒你确认五个元素已经覆盖
 
-它不会阻塞。如果缺少 heading、title 不符合 Conventional Commits，或语言不一致，用 `gh pr edit --title "<type>: ..."` 和/或 `gh pr edit --body-file <new-body.md>` 修复。
+它不会阻塞。如果缺少 heading 或 title 不符合 Conventional Commits，用 `gh pr edit --title "<type>: ..."` 和/或 `gh pr edit --body-file <new-body.md>` 修复。
 
 注意：另一个 guard（`pr-ready-guard`，见阶段 4）也会在 `gh pr create` 的 `PreToolUse` 触发，用来在 PR 创建前**阻塞**结构性问题。阶段 5 只覆盖创建后的信息提醒；创建前的阻塞逻辑属于阶段 4。
 

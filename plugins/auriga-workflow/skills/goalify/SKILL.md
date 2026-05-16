@@ -46,6 +46,8 @@ set goal 之前必须和用户确认这个 goal 的终点——它要把 auriga 
 
 把用户选定的终点作为**显式终止条件**写进 `/goal` 文本：goal 跑到该阶段即停，不要越界继续推进。终点之后的阶段（评审、合并等）若不在范围内，goal 文本里要写明"到此为止，交回用户"。
 
+若 goal 终点为 PR Ready 或更后阶段，`spec-design` / `arch-design` / `planning-with-files` 产出的设计文档（`spec.md`、`arch_design.md`、`findings.md`、`progress.md`、`task_plan.md` 等）默认归档到 `docs/worklog/worklog-<YYYY-MM-DD>-<branch-name>/`——自驱运行中没有交互提示，不要为了询问处置方式而停下来。若你判断删除或其他处置更合适，不要擅自执行，在 handoff 里说明理由交回用户定夺。
+
 指定的 goal 最后必须给用户一段 handoff：说明这次做了什么、用户怎么验收、用户下一步可以做什么。若 goal 范围包含 review，还要补充 review 发现、处理结果以及未处理项的保留原因。
 
 ## 启动方式
