@@ -176,4 +176,27 @@ describe("spec-design skill — repo-check VALs", () => {
       "goalify must list both spec source files",
     );
   });
+
+  test("goalify SKILL.md keeps /goal text portable and boundary-light", () => {
+    const text = read("plugins/auriga-workflow/skills/goalify/SKILL.md");
+    assert.ok(text.includes("## Must Not"), "goalify must define Must Not rules");
+    assert.ok(text.includes("## Examples"), "goalify must include /goal examples");
+    assert.ok(
+      text.includes("Claude Code") && text.includes("Codex"),
+      "goalify must document runtime-specific /goal dispatch behavior",
+    );
+    assert.ok(
+      text.includes("deep-review") && text.includes("blocking"),
+      "goalify must document the common endpoint of completing deep-review and fixing blocking findings",
+    );
+    assert.ok(
+      text.includes("incremental-impl"),
+      "goalify must preserve the boundary with incremental-impl",
+    );
+    assert.equal(
+      text.includes("切片计划一起写进 `/goal`"),
+      false,
+      "goalify must not instruct Agents to hard-code slice plans into /goal text",
+    );
+  });
 });
