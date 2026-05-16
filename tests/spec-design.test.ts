@@ -182,6 +182,19 @@ describe("spec-design skill — repo-check VALs", () => {
     assert.ok(text.includes("## Must Not"), "goalify must define Must Not rules");
     assert.ok(text.includes("## Examples"), "goalify must include /goal examples");
     assert.ok(
+      text.includes("Must not 在 `/goal` 文本里硬编切片计划"),
+      "goalify must prohibit hard-coded slice plans in /goal text",
+    );
+    assert.ok(
+      text.includes("Must not 把 `spec.md`、`validation-contract.md`") &&
+        text.includes("大段复制进 `/goal`"),
+      "goalify must prohibit copying existing spec content into /goal text",
+    );
+    assert.ok(
+      text.includes("Must not 预判 `deep-review`"),
+      "goalify must prohibit pre-judging deep-review findings",
+    );
+    assert.ok(
       text.includes("Claude Code") && text.includes("Codex"),
       "goalify must document runtime-specific /goal dispatch behavior",
     );
@@ -197,6 +210,11 @@ describe("spec-design skill — repo-check VALs", () => {
       text.includes("切片计划一起写进 `/goal`"),
       false,
       "goalify must not instruct Agents to hard-code slice plans into /goal text",
+    );
+    assert.equal(
+      /每条\s+VAL[\s\S]{0,40}翻译成\s+goal/.test(text),
+      false,
+      "goalify must not instruct Agents to translate each VAL into /goal text",
     );
   });
 });
