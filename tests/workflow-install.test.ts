@@ -322,6 +322,38 @@ describe("workflow templates — bilingual markers (VAL-WF-011)", () => {
   }
 });
 
+describe("installWorkflow — marked file with a hash-less END marker", () => {
+  // A marked file whose END marker carries no `sha256=` (e.g. copied straight
+  // from the shipped template, which ships a no-hash END marker). The upgrade
+  // can't verify whether the managed block was edited, so it must back up
+  // conservatively rather than risk silently dropping an edit.
+  test("upgrade of a hash-less marked file backs up conservatively + warns", async () => {
+    const cwd = makeScratch("nohash");
+    const claudePath = path.join(cwd, "CLAUDE.md");
+    const noHashFile =
+      `${WORKFLOW_START_MARKER}\n# auriga Workflow (v1.0.0)\nbody\n` +
+      `<!-- AURIGA:WORKFLOW:v1 END -->\n## 我的规则\n- keep me\n`;
+    fs.writeFileSync(claudePath, noHashFile);
+
+    const warnings = await captureWarnings(() =>
+      installWorkflow(makePackageRoot("# auriga Workflow (v2.0.0)\nfresh\n"), {
+        interactive: false,
+        cwd,
+        lang: "en",
+      }),
+    );
+
+    const parsed = parseMarkers(fs.readFileSync(claudePath, "utf-8"));
+    assert.equal(parsed.kind, "marked");
+    if (parsed.kind !== "marked") return;
+    assert.match(parsed.blockBody, /fresh/, "managed block upgraded");
+    assert.ok(parsed.userRegion.includes("keep me"), "user region preserved");
+    assert.notEqual(parsed.endHash, null, "upgraded file now carries a verification hash");
+    assert.equal(listBackups(cwd).length, 1, "hash-less file backed up conservatively");
+    assert.match(warnings, /校验标记/, "warning names the missing verification marker");
+  });
+});
+
 // Build-hash helper sanity: a hand-edited block really does change the hash
 // the installer keys "hand-edited" detection on.
 test("hashBlock distinguishes an edited block from the original", () => {

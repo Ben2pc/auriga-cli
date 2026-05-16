@@ -102,12 +102,19 @@ export async function installWorkflow(
 
     if (parsed.kind === "marked") {
       // 2. Upgrade — splice the managed block, preserve the user region.
-      //    A stale END-marker hash means the managed block was hand-edited;
-      //    snapshot the whole file before overwriting so the edit is
-      //    recoverable.
-      const handEdited =
-        parsed.endHash !== null && parsed.endHash !== hashBlock(parsed.blockBody);
-      if (handEdited) {
+      //    The END marker carries the block's hash. Three cases:
+      //      - hash present and matches  → block untouched, no backup
+      //      - hash present and mismatch → block hand-edited, back up + warn
+      //      - hash absent               → unverifiable (e.g. the file was
+      //        copied straight from the template, which ships a no-hash END
+      //        marker). Can't prove the block is untouched, so back up
+      //        conservatively rather than risk silently dropping an edit.
+      if (parsed.endHash === null) {
+        const bak = backupOnce(targetClaude);
+        log.warn(
+          `CLAUDE.md 的受管区块缺少校验标记,无法确认是否被改动;升级前已备份到 ${path.basename(bak)}`,
+        );
+      } else if (parsed.endHash !== hashBlock(parsed.blockBody)) {
         const bak = backupOnce(targetClaude);
         log.warn(
           `CLAUDE.md 的受管区块曾被手改;升级已整块覆盖该区块,改动前的文件见 ${path.basename(bak)}`,

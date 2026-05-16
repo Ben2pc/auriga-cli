@@ -307,11 +307,11 @@ function scanWorkflow(
 
   // CLAUDE.md exists but is neither marked nor auriga-headed. The file is
   // foreign — not our workflow. Report `not-installed` honestly; the install
-  // path (src/workflow.ts) protects user content by backing it up to
-  // `CLAUDE.md.bak` (backup-once: never clobbers a prior .bak).
+  // path (src/workflow.ts) keeps the foreign content as the user region
+  // below a fresh managed block, so nothing is lost.
   warnings.push({
     code: "workflow-foreign-claudemd",
-    message: `Foreign CLAUDE.md detected at the workflow path — no auriga-workflow header. Install will back up to CLAUDE.md.bak.`,
+    message: `Foreign CLAUDE.md detected at the workflow path — no auriga-workflow header. Install will keep your content as the user region below the managed block.`,
   });
   return { status: "not-installed", observedScope: scope };
 }
