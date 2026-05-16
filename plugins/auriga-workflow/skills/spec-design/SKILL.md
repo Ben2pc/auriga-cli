@@ -75,7 +75,7 @@ A. 调研   →  B. 定方向、定切分  →  C. 落到文件   →  D. 闸门
 估算这件事是否需要拆分（见 `## 拆分规模闸门`）。任一信号触发，就在 Phase B 走 B0。
 
 **A2. Q+GUESS 澄清循环。**
-- 每轮通过 `AskUserQuestion` 只问一个问题
+- 每轮通过 `AskUserQuestion` / `request_user_input` 只问一个问题
 - 每个问题都带一个假设 + 置信度（例："我猜是 X，~60% 把握"）
 - 在预测置信度约 95% 处停下——**不要**硬冲 100%
 - 最多约 10 轮；若置信度仍未收敛，退回去问用户：是要拆分（B0），还是这个需求本身需要分成多个会话来做
@@ -106,7 +106,7 @@ A. 调研   →  B. 定方向、定切分  →  C. 落到文件   →  D. 闸门
 
 **D1. 交接审查。** 从消费方（test-designer / 规划者 / 一个月后的你）视角套用 `## 交接审查清单（D1）`。当场修问题——不要重跑前面的阶段。
 
-**D1.5. 提供审查辅助（三选一）。** 用 `AskUserQuestion` 给出：
+**D1.5. 提供审查辅助（三选一）。** 用 `AskUserQuestion` / `request_user_input` 给出：
 - (c) **跳过** — 直接进 D2。小规模 spec（≤ 5 条 VAL、单文件）的默认项。
 - (a) **Playground** — 用 `document-critique` 模板派遣 `playground:playground`（Anthropic 官方插件）；把 spec.md + validation-contract.md（有 umbrella.md 也一并）作为输入传入。playground 插件没装就隐藏这一项。
 - (b) **静态 HTML** — 生成一份自包含的 `docs/specs/<topic>/review.html`，渲染两份文档并带锚点 + 一张 VAL 表。执行 `open <file>.html`。无交互，不依赖 playground。
@@ -117,9 +117,9 @@ A. 调研   →  B. 定方向、定切分  →  C. 落到文件   →  D. 闸门
 
 **D2. 明确同意闸门。** 把 spec 文件路径打印回给用户，等明确批准。不要因为沉默就开始 plan 或编码前准备。
 
-**D3. 交接。** 套用 `CLAUDE.md` 里的规模判定：
+**D3. 交接。** 套用 `CLAUDE.md` / `AGENTS.md` 里的规模判定：
 - QDF 三条谓词全部成立（单模块、验收标准 ≤ 5、无跨边界接口）→ 跳过 plan，直接进编码前准备 / 建分支
-- 否则 → 交接给用户选定的 plan 阶段工具（内置 Plan、`planning-with-files`、或用户选的任何下游规划 skill）。不要写死某个具体的 plan 阶段 skill 名；那个决定归工作流 CLAUDE.md 管。
+- 否则 → 交接给用户选定的 plan 阶段工具（内置 Plan、`planning-with-files`、或用户选的任何下游规划 skill）。不要写死某个具体的 plan 阶段 skill 名；那个决定归工作流 CLAUDE.md / AGENTS.md 管。
 
 ## 用户自带 spec 审计
 

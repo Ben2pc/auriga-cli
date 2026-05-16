@@ -23,7 +23,7 @@ description: "为 deep-review 技能脚手架一个新的项目级自定义审�
 
 ## Steps
 
-### 1. Gather metadata via `AskUserQuestion`
+### 1. Gather metadata via `AskUserQuestion` / `request_user_input`
 
 按顺序收集：
 

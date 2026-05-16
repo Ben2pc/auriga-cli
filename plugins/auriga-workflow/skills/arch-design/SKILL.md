@@ -95,7 +95,7 @@ A. 调研        →  B. 设计候选        →  C. 选型与记录        → 
 
 **D1. 自检**——坐到将要实现这个设计的人的位子上,过一遍下文「自检清单」。当场修,不要重做前面的阶段。
 
-**D2. 提供架构总览(仅当 `arch_design.md` 已落库)。** 闸门触发、文档写好后,用 `AskUserQuestion` 给用户三个选项,方便他快速过一眼这个架构——顺序固定为 跳过 → playground → 静态 HTML:
+**D2. 提供架构总览(仅当 `arch_design.md` 已落库)。** 闸门触发、文档写好后,用 `AskUserQuestion` / `request_user_input` 给用户三个选项,方便他快速过一眼这个架构——顺序固定为 跳过 → playground → 静态 HTML:
 - **跳过**——直接进 D3。设计小、用户已在对话里看清时的默认。
 - **playground**——派 `playground:playground`(Anthropic 官方插件)以 `arch_design.md` 为输入生成一个交互式 HTML,可视化地浏览候选、权衡与依赖图。playground 插件没装时,隐藏这个选项。
 - **静态 HTML 总览**——生成自包含的 `docs/specs/<topic>/arch-overview.html`,把 `arch_design.md` 渲染出来:Mermaid 模块图、目录树、候选权衡表都画出来,然后 `open` 它。不依赖任何插件。
@@ -204,9 +204,9 @@ A. 调研        →  B. 设计候选        →  C. 选型与记录        → 
 - 单模块、方案唯一且显然(这种应该在 A4 就退出了)。
 - 设计三两句话能说清,而且**同一个** agent 马上就实现。一份没人会回头读的文档纯属负担。
 
-**拿不准——问用户。** 当设计是中等分量、你确实判断不了,用 `AskUserQuestion`:给出"写 `arch_design.md`(会被交接或日后回看时推荐)"对"对话内推进(更快,不留要维护的文档)",并说明权衡。不要默默选边。
+**拿不准——问用户。** 当设计是中等分量、你确实判断不了,用 `AskUserQuestion` / `request_user_input`:给出"写 `arch_design.md`(会被交接或日后回看时推荐)"对"对话内推进(更快,不留要维护的文档)",并说明权衡。不要默默选边。
 
-**位置与生命周期。** 文档落在 `docs/specs/<topic>/arch_design.md`——和 `spec-design` 用的是同一个临时工作区,`pr-ready-guard` 会在 PR Ready 前强制它有个去向。到 PR Readiness 阶段,按 CLAUDE.md 的「文档约定」处理:如果它是长期参照(模块布局、数据流——正是那个目录装的东西)就提炼进 `docs/architecture/`,否则归档进 worklog 或删除。
+**位置与生命周期。** 文档落在 `docs/specs/<topic>/arch_design.md`——和 `spec-design` 用的是同一个临时工作区,`pr-ready-guard` 会在 PR Ready 前强制它有个去向。到 PR Readiness 阶段,按 CLAUDE.md / AGENTS.md 的「文档约定」处理:如果它是长期参照(模块布局、数据流——正是那个目录装的东西)就提炼进 `docs/architecture/`,否则归档进 worklog 或删除。
 
 **它的"候选方案对比"那一节**借用 ADR 模板的写法——每个候选带 优点 / 缺点 / 否决理由,最后一节写"后果"。模板见 `references/arch-design-template.md`。
 
