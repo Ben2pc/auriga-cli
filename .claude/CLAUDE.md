@@ -222,6 +222,17 @@ Per-row checks: workflow `status` reflects on-disk reality (CLAUDE.md exists ⊕
 
 For unreleased work (no published version yet), swap `npx auriga-cli@<version>` for a locally-packed tarball (`npm pack --pack-destination /tmp` → install to a scratch prefix → run `auriga-cli web-ui` from that bin). Do NOT run `node dist/cli.js web-ui` from the repo — it bypasses the tarball boundary and hides the entire `runtime-reads-non-shipped-paths` bug class (the v1.18.x regression series).
 
+## Manual e2e probe hygiene
+
+Manual e2e probes that run `auriga-cli install` against a scratch project — `install --preset`, `install plugins`, or anything reaching `claude plugins install` / `codex plugin marketplace add` — mutate **real global** agent state: the Claude plugin registry under `~/.claude` and `~/.codex/config.toml`. `--scope project` contains only the *files* (CLAUDE.md / skills land under the scratch dir); the plugin registry entry is **global**, keyed by the project's absolute path. So `rm -rf <scratch-dir>` does NOT undo the install — it orphans a plugin registry entry pointing at a now-deleted directory (`claude plugins list` keeps showing it).
+
+When probing manually, do one of:
+
+- **HOME-redirect** the probe (`HOME=/tmp/<scratch> <command>`) so the real `~/.claude` / `~/.codex` are never touched — this is what `tests/web-ui-e2e.test.ts` does (hermetic, canary-checked), and why it needs no cleanup step.
+- **Explicitly uninstall** as cleanup *before* deleting the scratch dir: `claude plugins uninstall <id> --scope project` (run from the scratch dir — project scope resolves by cwd), plus the matching Codex removal when `--agent codex|both` was used.
+
+`rm -rf` of the scratch directory alone is not cleanup for anything that touched a global agent registry.
+
 ## Data Sources
 
 | File | Maintained by | Purpose |
