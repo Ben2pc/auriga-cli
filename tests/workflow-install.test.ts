@@ -13,6 +13,7 @@ import {
   workflowEndMarker,
 } from "../src/workflow-markers.js";
 
+const REPO_ROOT = process.cwd();
 const scratchDirs: string[] = [];
 
 function makeScratch(label: string): string {
@@ -303,6 +304,22 @@ describe("installWorkflow — re-install preserves the original .bak (F1 regress
       "canonical .bak still holds the user's original pre-auriga content",
     );
   });
+});
+
+describe("workflow templates — bilingual markers (VAL-WF-011)", () => {
+  // The install splice logic is language-agnostic — it operates on file bytes,
+  // not language. The only language-specific risk is whether each shipped
+  // template carries the markers, so this is a repo-check on both templates.
+  // (A real `lang:"zh-CN"` install can't be exercised hermetically: it routes
+  // through fetchExtraContent → a live GitHub fetch of the tagged version.)
+  for (const file of ["CLAUDE.md", "CLAUDE.zh-CN.md"]) {
+    test(`VAL-WF-011: ${file} is shipped as a marked template`, () => {
+      const parsed = parseMarkers(fs.readFileSync(path.join(REPO_ROOT, file), "utf-8"));
+      assert.equal(parsed.kind, "marked", `${file} must carry a managed-block marker pair`);
+      if (parsed.kind !== "marked") return;
+      assert.match(parsed.blockBody, /# auriga (Workflow|工作流) \(v\d+\.\d+\.\d+\)/);
+    });
+  }
 });
 
 // Build-hash helper sanity: a hand-edited block really does change the hash

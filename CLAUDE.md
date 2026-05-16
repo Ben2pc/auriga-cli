@@ -1,3 +1,4 @@
+<!-- AURIGA:WORKFLOW:v1 START — 受管区块,由 auriga-cli 维护,请勿手改;升级会整块覆盖。工程专属规则写在下方 END 标记之后。 -->
 # auriga Workflow (v1.9.0)
 
 1. Requirement Clarification: Use `spec-design` to clarify requirements for new features. **Requirements should focus on "what to do" and acceptance criteria, not specific technical paths.** For product features, prioritize "Why" and let the implementation-stage Agent decide how. **spec = why + what; plan = how.** If a change does not move the external behavior contract (refactor, algorithm swap, library replacement with same observable behavior), skip spec and go directly to plan.
@@ -77,3 +78,6 @@ In-conversation subagents share the main Agent's working directory. Key rules:
   - ✅ "Design the plugin dependency resolution strategy" → opus @ xhigh
   - ✅ Complex review with many architectural trade-offs → Codex flagship @ high for cross-model blind spot coverage
 - **Always specify the output format** (shape + scope/length): a subagent without a format contract will dump verbose context back, cancelling the context benefit of dispatching. The rule is "must be explicit" — the specific format is task-dependent (e.g., "summary ≤300 words", "punch list, one finding per line", "diff + one-line rationale each", "structured JSON `{...}`", "one-paragraph verdict + one-line rationale"). Don't enumerate formats; pick the right one per task.
+<!-- AURIGA:WORKFLOW:v1 END -->
+
+<!-- Add your project-specific instructions below. The block above is managed by auriga-cli — it is replaced wholesale on upgrade, while anything here is preserved. -->
