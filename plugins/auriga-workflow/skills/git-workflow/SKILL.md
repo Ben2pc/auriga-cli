@@ -1,41 +1,41 @@
 ---
 name: git-workflow
-description: Drives the auriga git lifecycle phase-by-phase — branch hygiene, atomic / checkpoint commits with --autosquash cleanup, and the five-element PR body (scope / acceptance criteria / design decisions / risks / remaining TODOs). Use whenever the agent is about to create a branch, author a commit message, open or update a PR, or restructure history (rebase / squash / amend). Pairs with the `commit-reminder`, `pr-create-guard`, `pr-ready-guard`, and `pr-merge-guard` hooks shipped in the same plugin.
+description: 指导 branch、commit、PR 和 git 历史整理的完整生命周期。当 agent 要创建 branch、编写 commit message、打开或更新 PR、处理 PR Ready 后反馈，或执行 rebase / squash / amend 时使用。
 ---
 
-# git-workflow
+# git-workflow：git 生命周期工作流 / Git Lifecycle Workflow
 
-Phase-organised reference for the git lifecycle the auriga workflow expects. Each phase lists what to do, the exact commands, and the constraints to respect. Hooks in this plugin enforce a subset mechanically; this skill covers everything the hooks can't.
+这是 auriga workflow 对 git 生命周期要求的分阶段参考。每个阶段说明要做什么、精确命令，以及必须遵守的约束。同一 plugin 中的 hooks 会用机制强制执行其中一部分规则；这个 skill 覆盖 hooks 无法覆盖的部分。
 
-## When to Use
+## 何时使用 / When to Use
 
-- Creating a branch for new work (any task that will produce code or content changes)
-- Deciding whether to commit now or keep working
-- Authoring a commit message
-- Cleaning up branch history before opening a PR
-- Creating a PR (Draft or Ready)
-- Responding to review feedback after PR Ready
+- 为新工作创建 branch（任何会产生代码或内容变更的任务）
+- 判断现在是否应该 commit，还是继续工作
+- 编写 commit message
+- 在打开 PR 前清理 branch history
+- 创建 PR（Draft 或 Ready）
+- PR Ready 后处理 review 反馈
 
-## When NOT to Use
+## 何时不要使用 / When NOT to Use
 
-- Plain shell operations unrelated to commit / branch / PR semantics (file ops, build commands, etc.)
-- Inspecting git history for debugging only — use `git log` / `git bisect` directly
+- 与 commit / branch / PR 语义无关的普通 shell 操作（文件操作、构建命令等）
+- 只为调试检查 git history 时；直接使用 `git log` / `git bisect`
 
 ---
 
-## Phase 1: Branch creation (before any code change)
+## 阶段 1：创建 branch（改代码前）/ Phase 1: Branch creation
 
-- Never commit directly to `main`. All work goes on a feature branch.
-- Cut from the current tip of `origin/main`:
+- 不要直接 commit 到 `main`。所有工作都应放在 feature branch 上。
+- 从 `origin/main` 当前 tip 创建 branch：
 
 ```bash
 git fetch origin main --quiet
 git switch -c <branch-name> origin/main
 ```
 
-### Parallel isolation: git worktree
+### 并行隔离：git worktree / Parallel isolation: git worktree
 
-When multiple agents or tasks run in parallel, give each its own worktree. Always pass an explicit base ref (e.g. `origin/main`) — without it, the new branch is cut from the current `HEAD`, which may already be on another feature branch:
+多个 agent 或任务并行运行时，给每个任务单独分配 worktree。始终传入显式 base ref（例如 `origin/main`）；如果不传，新 branch 会从当前 `HEAD` 切出，而当前 `HEAD` 可能已经在另一个 feature branch 上：
 
 ```bash
 git worktree add -b <branch-name> ../<task-dir> origin/main
@@ -45,18 +45,18 @@ git worktree remove ../<task-dir>
 
 ---
 
-## Phase 2: Commits during development
+## 阶段 2：开发中的 commits / Phase 2: Commits during development
 
-### Atomic commit discipline
+### atomic commit 纪律 / Atomic commit discipline
 
-Every commit must:
+每个 commit 必须：
 
-- Express one logical change
-- Build and pass tests at that point in history
-- Not mix refactoring with feature work
-- Not mix changes across unrelated modules
+- 表达一个逻辑变更
+- 在该历史点能够 build，并通过 tests
+- 不把 refactoring 和 feature work 混在一起
+- 不把无关 modules 的变更混在一起
 
-Example split (a single feature, four commits):
+拆分示例（一个 feature，四个 commits）：
 
 ```
 feat(auth): add RefreshToken domain model and repository interface
@@ -65,7 +65,7 @@ feat(auth): expose POST /auth/refresh endpoint
 test(auth): add unit tests for refresh token rotation logic
 ```
 
-### Commit message format
+### commit message 格式 / Commit message format
 
 ```
 <type>(<scope>): <summary>
@@ -73,82 +73,82 @@ test(auth): add unit tests for refresh token rotation logic
 <body: motivation, key design decisions, known limitations>
 ```
 
-- `type` follows Conventional Commits — accepted types: `feat` / `fix` / `docs` / `refactor` / `chore` / `test` / `perf` / `style` / `build` / `ci` / `revert`. `pr-create-guard` enforces this same list against the PR title (see Phase 5)
-- `scope` is optional (any non-`)` characters inside parens, e.g. `feat(api): …` or `fix(deep/scope): …`)
-- Optional `!` before the colon marks a breaking change: `feat!: …` or `feat(api)!: …`
-- The body is a natural-language paragraph — explain **why**, not what (the diff already shows what)
-- Task IDs (Jira / Linear) can be mentioned in the body or in the PR description
+- `type` 遵循 Conventional Commits；接受的类型包括：`feat` / `fix` / `docs` / `refactor` / `chore` / `test` / `perf` / `style` / `build` / `ci` / `revert`。`pr-create-guard` 会用同一列表检查 PR title（见阶段 5）
+- `scope` 可选（括号内可以是任何非 `)` 字符，例如 `feat(api): ...` 或 `fix(deep/scope): ...`）
+- 冒号前可选的 `!` 表示 breaking change：`feat!: ...` 或 `feat(api)!: ...`
+- body 是自然语言段落；解释 **why**，不要复述 what（diff 已经展示 what）
+- Task ID（Jira / Linear）可以写在 body 或 PR 描述里
 
-### Checkpoint commits
+### checkpoint commits / Checkpoint commits
 
-Trigger on **semantic units**, not on time. Commit when you've completed something you can describe in one sentence. If you can't articulate "this commit did X", keep going or split.
+按语义单元（semantic units）触发，而不是按时间触发。完成了一件可以用一句话描述的事情，就 commit。如果说不清“这个 commit 做了 X”，就继续推进或拆分。
 
-Complementary **risk-driven** trigger: commit *before* a high-risk action so the previous state survives — mass deletions, cross-module refactors, dependency upgrades, automated bulk renames.
+补充的 **风险驱动** 触发条件：在高风险操作前 commit，让前一个状态能保留下来，例如大规模删除、跨模块 refactors、dependency upgrades、自动化批量 renames。
 
-Mark checkpoint commits with a recognisable prefix (e.g. `wip:`) or use `git commit --fixup=<hash>` so they're easy to squash later. The exact prefix doesn't matter, only that it's recognisable for the rebase pass.
+用可识别的 prefix（例如 `wip:`）标记 checkpoint commits，或使用 `git commit --fixup=<hash>`，让后续 squash 更容易。具体 prefix 不重要，关键是 rebase pass 时能识别出来。
 
-### What never to commit
+### 永远不要 commit 的内容 / What never to commit
 
-- API keys / tokens / passwords (use environment variables)
-- Build artifacts, `node_modules`, `__pycache__`
-- Local config (`.env`, `*.local`)
-- Large binaries (use Git LFS if necessary)
+- API keys / tokens / passwords（使用 environment variables）
+- Build artifacts、`node_modules`、`__pycache__`
+- Local config（`.env`、`*.local`）
+- Large binaries（必要时使用 Git LFS）
 
-### `commit-reminder` hook (mechanical nudge)
+### `commit-reminder` hook（机制提醒）/ `commit-reminder` hook
 
-When uncommitted diff vs `HEAD` exceeds 200 lines or 8 files **and** the last reminder was ≥ 5 minutes ago, the `commit-reminder` hook injects an informational reminder via `additionalContext`. Non-blocking. Acts as a safety net for runaway working trees — but the per-commit boundary decision still belongs to the agent.
+当相对 `HEAD` 的未提交 diff 超过 200 行或 8 个文件，且上次提醒已经过去至少 5 分钟时，`commit-reminder` hook 会通过 `additionalContext` 注入一条信息提醒。它不会阻塞执行。它是防止 working tree 失控的安全网；但每个 commit 的边界仍由 agent 判断。
 
-The hook fires on `PostToolUse` for `Edit` / `Write` / `MultiEdit` (Claude Code's file-edit `tool_name`s) and `apply_patch` (Codex's canonical file-edit `tool_name`), so it works the same way in both runtimes.
+这个 hook 在 `Edit` / `Write` / `MultiEdit`（Claude Code 的 file-edit `tool_name`s）和 `apply_patch`（Codex 的标准 file-edit `tool_name`）的 `PostToolUse` 上触发，因此在两个 runtime 中行为一致。
 
 ---
 
-## Phase 3: Pre-PR self-check, optional history cleanup
+## 阶段 3：PR 前自检与可选历史清理 / Phase 3: Pre-PR self-check, optional history cleanup
 
-The goal is that **every commit on the PR is atomic, independently revertable, and passes tests**. Cleanup is the means, not the end — whether to squash depends on the current state and the repo's merge strategy.
+目标是让 **PR 上的每个 commit 都是 atomic、可独立 revert，并且通过 tests**。Cleanup 是手段，不是目的；是否 squash 取决于当前状态和 repo 的 merge strategy。
 
 ```bash
 git log --oneline main..HEAD
 ```
 
-| Current state | Action |
+| 当前状态 | 处理 |
 |---|---|
-| Each commit already atomic, messages clean | Leave it alone |
-| Branch contains `wip:` / `--fixup` checkpoints | `git rebase -i --autosquash main` to fold them |
-| Commit count fine but a message is unclear | `git rebase -i main` and `reword` that one |
-| Repo merge strategy is squash-on-merge | Local cleanup adds nothing — leave it |
+| 每个 commit 已经 atomic，message 清楚 | 保持现状 |
+| Branch 包含 `wip:` / `--fixup` checkpoints | 用 `git rebase -i --autosquash main` 折叠它们 |
+| Commit 数量合适，但某条 message 不清楚 | 用 `git rebase -i main` 并对那条 commit 执行 `reword` |
+| Repo merge strategy 是 squash-on-merge | 本地 cleanup 没有额外收益；保持现状 |
 
-Interactive rebase verbs:
+Interactive rebase verbs：
 
-- `pick` — keep
-- `squash` / `s` — fold into previous commit, combine messages
-- `fixup` / `f` — fold into previous commit, discard this message
-- `reword` / `r` — change message only
-- `drop` / `d` — remove
+- `pick` — 保留
+- `squash` / `s` — 折叠到前一个 commit，并合并 messages
+- `fixup` / `f` — 折叠到前一个 commit，并丢弃当前 message
+- `reword` / `r` — 只修改 message
+- `drop` / `d` — 移除
 
-Constraints:
+约束：
 
-- Don't squash for cosmetic tidiness. Large projects (Linux kernel, Postgres) intentionally preserve every atomic commit for `git bisect` resolution.
-- Don't force-push branches that are already shared on the remote unless the team has explicitly agreed.
+- 不要为了表面整洁而 squash。大型项目（Linux kernel、Postgres）会刻意保留每个 atomic commit，以支持 `git bisect` 定位问题。
+- 不要 force-push 已经共享到 remote 的 branch，除非团队已经明确同意。
 
 ---
 
-## Phase 4: PR creation
+## 阶段 4：创建 PR / Phase 4: PR creation
 
-### Language choice
+### 语言选择 / Language choice
 
-Before calling `gh pr create`, ask the user which language to use for the PR description: Chinese / English / match the repo's recent PRs. Use `AskUserQuestion` / `request_user_input` for this. Reuse the choice within the same task, but do **not** persist it to memory — language preference is per-project and per-team, not per-user.
+调用 `gh pr create` 前，先问用户 PR description 使用哪种语言：中文、英文，或跟随 repo 近期 PR 风格。用 `AskUserQuestion` / `request_user_input` 提问。同一任务内可以复用该选择，但**不要**写入 memory；语言偏好属于项目和团队上下文，不是用户级偏好。
 
-### PR description: five elements
+### PR 描述：五个元素 / PR description: five elements
 
-The PR description must cover all five:
+PR 描述必须覆盖全部五个元素：
 
-1. **Scope** — what was done and why
-2. **Acceptance Criteria** — verifiable product-level conditions
-3. **Design Decisions** — why option A over option B; trade-offs considered
-4. **Risks** — boundary conditions, known limits, modules potentially affected
-5. **Remaining TODOs** — follow-ups; write `None` explicitly when there are none
+1. **Scope** — 做了什么，以及为什么做
+2. **Acceptance Criteria** — 产品层面可验证的条件
+3. **Design Decisions** — 为什么选 A 不选 B；考虑过哪些 trade-offs
+4. **Risks** — 边界条件、已知限制、可能受影响的 modules
+5. **Remaining TODOs** — 后续事项；没有时显式写 `None`
 
-Recommended body structure (keep `##` heading level — the `pr-create-guard` hook scans for it):
+推荐 body 结构（保留 `##` heading level；`pr-create-guard` hook 会扫描 headings）：
 
 ```markdown
 ## Summary
@@ -173,53 +173,53 @@ Recommended body structure (keep `##` heading level — the `pr-create-guard` ho
 - None | [ ] follow-up item
 ```
 
-Why this shape:
+为什么采用这个结构：
 
-- **`Acceptance Criteria` vs `Test plan`** are kept separate — `Acceptance Criteria` is "what must be true" (product view); `Test plan` is "how we confirm it" (action checklist).
-- **`Design Decisions` is its own section**, not folded into `Risks`. Agents tend to write "no risks identified" and skip alternatives entirely; separating them forces both to be filled.
-- **`Summary` must contain the why**, not just "edited a/b/c three files". The diff already shows what changed.
-- **List sections written as `None` when empty** — missing sections look like oversights to the `pr-create-guard` heading scan.
+- **`Acceptance Criteria` 与 `Test plan` 分开**：`Acceptance Criteria` 表示“什么必须成立”（产品视角）；`Test plan` 表示“如何确认它成立”（执行 checklist）。
+- **`Design Decisions` 单独成节**，不要塞进 `Risks`。Agents 容易写“no risks identified”后跳过备选方案；单独成节会迫使两者都被填写。
+- **`Summary` 必须包含 why**，不能只写“edited a/b/c three files”。diff 已经展示了 what。
+- **空列表也要写 `None`**；缺失 section 在 `pr-create-guard` 的 heading scan 里会像遗漏。
 
-### Open as Draft
+### 以 Draft 打开 / Open as Draft
 
-Open the PR as Draft early so CI starts running and incremental feedback is possible. Mark Ready only after verification is complete and the body covers the five elements.
+尽早以 Draft 打开 PR，让 CI 开始运行，也让增量反馈成为可能。只有在 verification 完成、body 覆盖五个元素之后，才标记 Ready。
 
 ```bash
 gh pr create --draft --title "<type>: <subject>" --body-file <body.md>
 ```
 
-The `--draft` requirement is mechanically enforced: `pr-ready-guard` also fires `PreToolUse` on `gh pr create` and runs the same structural checks (stray planning docs, unfinalized active specs) when `--draft` is absent. Both `--draft` and the short form `-d` opt out of that path, as do truthy values for the explicit `--draft=<value>` form (`=1` / `=t` / `=true`, case-insensitive). Falsy values (`=false` / `=0`) are treated as Ready-PR creation and gated identically to `gh pr ready`.
+`--draft` 要求由机制强制执行：`pr-ready-guard` 也会在 `gh pr create` 的 `PreToolUse` 触发；当缺少 `--draft` 时，它会运行与 Ready PR 相同的结构检查（遗留 planning docs、未收尾的 active specs）。`--draft` 和短写 `-d` 都会跳过这条路径；显式 `--draft=<value>` 形式中的 truthy 值（`=1` / `=t` / `=true`，大小写不敏感）也会跳过。Falsy 值（`=false` / `=0`）会被视为创建 Ready PR，并按 `gh pr ready` 同样的规则阻塞。
 
 ---
 
-## Phase 5: Post-create reflection
+## 阶段 5：创建 PR 后的自检 / Phase 5: Post-create reflection
 
-The `pr-create-guard` hook fires `PostToolUse` on `gh pr create`. It:
+`pr-create-guard` hook 会在 `gh pr create` 的 `PostToolUse` 触发。它会：
 
-- Fetches the created PR's body **and title** via `gh pr view --json body,title`
-- Lists the `##` headings it finds and the TODO checkbox counts
-- Tests the title against Conventional Commits format (`<type>(<scope>)?(!)?: <subject>` — same type list as Phase 2); when the title doesn't match, injects a `Title format: ⚠ ...` line suggesting `gh pr edit --title "<type>: ..."`. Soft nudge only
-- Reminds you to verify the five elements are covered and that the description language matches the team's convention
+- 通过 `gh pr view --json body,title` 拉取刚创建的 PR body **和 title**
+- 列出它找到的 `##` headings，以及 TODO checkbox 数量
+- 用 Conventional Commits 格式检查 title（`<type>(<scope>)?(!)?: <subject>`；type 列表与阶段 2 相同）；如果 title 不匹配，会注入一行 `Title format: ⚠ ...`，建议使用 `gh pr edit --title "<type>: ..."` 修复。这只是软提醒
+- 提醒你确认五个元素已经覆盖，并确认描述语言符合团队约定
 
-Non-blocking. If a heading is missing, the title is non-CC, or the language is inconsistent, fix it with `gh pr edit --title "<type>: ..."` and/or `gh pr edit --body-file <new-body.md>`.
+它不会阻塞。如果缺少 heading、title 不符合 Conventional Commits，或语言不一致，用 `gh pr edit --title "<type>: ..."` 和/或 `gh pr edit --body-file <new-body.md>` 修复。
 
-Note: a separate guard (`pr-ready-guard`, see Phase 4) also fires `PreToolUse` on `gh pr create` to **block** structural problems before the PR is created. Phase 5 covers the informational post-create reflection; the pre-create blocking belongs to Phase 4.
+注意：另一个 guard（`pr-ready-guard`，见阶段 4）也会在 `gh pr create` 的 `PreToolUse` 触发，用来在 PR 创建前**阻塞**结构性问题。阶段 5 只覆盖创建后的信息提醒；创建前的阻塞逻辑属于阶段 4。
 
 ---
 
-## Phase 6: After PR Ready — tracking review feedback
+## 阶段 6：PR Ready 后：跟踪 review 反馈 / Phase 6: After PR Ready — tracking review feedback
 
-After marking the PR Ready, every change in response to review feedback (reviewer comments, `deep-review` findings, CI failures) should be reported back to the PR conversation in **batches**, so reviewers know "this PR is ready to look at again".
+PR 标记 Ready 后，所有针对 review feedback 的改动（reviewer comments、`deep-review` findings、CI failures）都应该**按批次**回报到 PR conversation，让 reviewers 知道“这个 PR 可以再次查看了”。
 
-### Batch status comment
+### 批量状态评论 / Batch status comment
 
-After completing one batch of fixes:
+完成一批修复后：
 
 ```bash
 gh pr comment <pr-number-or-url> --body-file <status.md>
 ```
 
-Recommended format:
+推荐格式：
 
 ```markdown
 Addressed N items in <sha-range>:
@@ -230,35 +230,35 @@ Addressed N items in <sha-range>:
 - ❌ <issue description> — won't fix: <rationale>
 ```
 
-Three states:
+三种状态：
 
-- `fixed` — done; include the commit SHA
-- `deferred` — moved to a follow-up PR or issue; must include a link or clear rationale
-- `won't fix` — explicit reason (out of scope / disagree with reviewer / false positive)
+- `fixed` — 已完成；包含 commit SHA
+- `deferred` — 移到 follow-up PR 或 issue；必须包含链接或清楚的理由
+- `won't fix` — 明确原因（out of scope / disagree with reviewer / false positive）
 
-### What NOT to do
+### 不要做的事 / What NOT to do
 
-- Don't reply to every individual review comment. `Resolve conversation` is the reviewer's action, not the author's job.
-- Don't replace commit-message rationale with the batch comment. Each fix commit still needs its own `why` in its message.
+- 不要逐条回复每个 review comment。`Resolve conversation` 是 reviewer 的动作，不是作者的工作。
+- 不要用 batch comment 替代 commit-message rationale。每个 fix commit 的 message 仍然需要写清楚自己的 `why`。
 
-### PR description updates
+### 更新 PR 描述 / PR description updates
 
-When fixes uncover new risks, new TODOs, or revised design trade-offs, edit the PR description directly:
+当修复暴露出新的 risks、新 TODOs，或 revised design trade-offs 时，直接更新 PR 描述：
 
 ```bash
 gh pr edit <pr> --body-file <updated-body.md>
 ```
 
-The comment stream records "what we did"; the PR body remains the "current state" of the PR. Don't conflate the two.
+Comment stream 记录“我们做了什么”；PR body 保持为这个 PR 的“当前状态”。不要混淆两者。
 
 ---
 
-## Phase 7: Merge
+## 阶段 7：合并 / Phase 7: Merge
 
-Merge is the final gate. The `pr-merge-guard` hook fires `PreToolUse` on `gh pr merge` and **blocks** the merge while the PR body's `Acceptance Criteria` section still has unchecked `- [ ]` checklist items.
+Merge 是最后一道闸门。`pr-merge-guard` hook 会在 `gh pr merge` 的 `PreToolUse` 触发；如果 PR body 的 `Acceptance Criteria` section 仍有未勾选的 `- [ ]` checklist item，它会**阻塞**合并。
 
-- Only the `Acceptance Criteria` section is scoped — unchecked items in `Remaining TODOs`, `Test plan`, or other sections do not block, since those sections track deferred work by design.
-- Checked items (`- [x]`) and plain non-task bullets (`- ...`) never block.
-- An item that genuinely cannot be verified before merge (e.g. "confirmed at the next release") is **not** an acceptance criterion for this PR — move it into `Remaining TODOs` as a plain bullet before merging.
+- 只检查 `Acceptance Criteria` section；`Remaining TODOs`、`Test plan` 或其他 sections 里的未勾选项不阻塞，因为这些 sections 本来就可能记录延期工作。
+- 已勾选项（`- [x]`）和普通非任务 bullets（`- ...`）不会阻塞。
+- 如果某项确实不能在 merge 前验证（例如“下次 release 后确认”），它就不是这个 PR 的 acceptance criterion；merge 前把它移到 `Remaining TODOs`，并写成普通 bullet。
 
-The guard fails open: if `gh` can't read the PR body, the merge proceeds rather than blocking on the guard's own inability to inspect it.
+Guard 会 fail open：如果 `gh` 读不到 PR body，合并会继续，不会因为 guard 自己无法检查而阻塞。

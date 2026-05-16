@@ -1,133 +1,133 @@
 ---
 name: incremental-impl
-description: Plan a non-trivial code change end-to-end — size triage (XS–XL), slicing strategy, optional parallel subagent dispatch, per-slice Implement → Test → Verify → Commit discipline. Use for any multi-file change, refactor across files, executing a planned task from any planning source, cross-cutting modification (analytics sweep / i18n / library migration), or when about to write more than ~100 lines. 也用于增量实现 / 切片落地 / 推进已规划任务 / 跨切面改动。Skip only for trivial XS edits and pure documentation / configuration changes.
+description: 规划并执行有一定复杂度的代码改动：规模判断（XS–XL）、slicing strategy、可选并行 subagent 派发，以及每个 slice 的 Implement → Test → Verify → Commit 纪律。适用于多文件改动、跨文件重构、执行来自任意 planning source 的任务、跨切面修改（analytics sweep / i18n / library migration），或预计要写超过约 100 行代码的工作。也用于增量实现、切片落地、推进已规划任务和跨切面改动。仅在极小 XS edit 或纯 documentation / configuration 改动时跳过。
 ---
 
-# Incremental Implementation
+# 增量实现 / Incremental Implementation
 
-Pairs with planning. **Plan** sets direction and constraints (what to build, acceptance criteria). **This skill** decides how to execute: size, slice, dispatch, verify.
+与 planning 配套使用。**Plan** 决定方向和约束（要构建什么、Acceptance criteria）。**这个 skill** 决定如何执行：规模、slice、派发和验证。
 
-## When to Use
+## 使用时机 / When to Use
 
-Invoke for **any non-trivial implementation work**:
+遇到**任何需要拆分、验证或协调的实现工作**时调用：
 
-- Multi-file feature implementation
-- Refactoring spanning multiple files
-- About to write more than ~100 lines
-- Executing a planned task (from any planning source — see Inputs)
-- Cross-cutting changes (analytics sweep, i18n pass, library migration)
+- 多文件功能实现
+- 跨多个文件的重构
+- 即将写超过约 100 行代码
+- 执行已规划任务（来自任意 planning source，见 Inputs）
+- 跨切面改动（analytics sweep、i18n pass、library migration）
 
-**Skip only for:**
+**仅在以下情况跳过：**
 
-- Single-file, single-function edits where slicing makes no sense
-- Pure documentation / config changes with no code logic
+- 单文件、单函数编辑，拆 slice 没有意义
+- 不涉及代码逻辑的纯 documentation / config 改动
 
-## Inputs
+## 输入 / Inputs
 
-- A task or spec from any planning source — built-in Plan, `planning-with-files`'s `task_plan.md`, a `spec-design` spec under `docs/specs/<topic>/`, or a task description from the user. The skill is agnostic to how the task was produced.
-- Acceptance criteria — what "done" looks like for this slice of work
+- 来自任意 planning source 的 task 或 spec：内置 Plan、`planning-with-files` 的 `task_plan.md`、`docs/specs/<topic>/` 下的 `spec-design` spec，或用户直接给出的任务描述。这个 skill 不关心任务最初如何产生。
+- Acceptance criteria：这个 work slice 达到“完成”的判定标准。
 
-If acceptance criteria are missing or vague, return control to planning before continuing. Implementation needs a target.
+如果 Acceptance criteria 缺失或含糊，先回到 planning，再继续实现。实现必须有明确目标。
 
-## Step 1: Size Gate
+## 步骤 1：规模门 / Step 1: Size Gate
 
-Three axes, **take the higher size** when they disagree:
+按三个维度判断；当维度结论不一致时，**取更高的规模**：
 
 | Size | Acceptance criteria | Distinct concerns | Est. diff lines | Skill behavior |
 |---|---|---|---|---|
-| **XS** | 1 | 1 | <30 | Skip this skill; just write it |
-| **S** | ≤2 | 1–2 | 30–100 | Apply execution discipline; do not slice |
-| **M** | ≤3 | Multiple within 1 feature | 100–300 | Pick slicing strategy + single writer + execution discipline |
-| **L** | 4–6 | Cross-component | 300–800 | Pick slicing strategy + **evaluate parallel dispatch** + execution discipline |
-| **XL** | >6 | Spans independent subsystems | >800 | **Return to plan.** Too large to implement in one entry |
+| **XS** | 1 | 1 | <30 | 跳过这个 skill，直接写 |
+| **S** | ≤2 | 1–2 | 30–100 | 套用执行纪律，不拆 slice |
+| **M** | ≤3 | 单个 feature 内的多个 concern | 100–300 | 选择 slicing strategy + 单 writer + 执行纪律 |
+| **L** | 4–6 | Cross-component | 300–800 | 选择 slicing strategy + **评估 parallel dispatch** + 执行纪律 |
+| **XL** | >6 | 跨独立 subsystems | >800 | **回到 plan。** 太大，不能一次入口内完成 |
 
-A "concern" is one cohesive responsibility unit — a component, module, or single behavior.
+这里的 "concern" 指一个内聚的责任单元：一个 component、module，或一个独立行为。
 
-**Why take the higher size when axes disagree:** under-categorizing (treating a real L as M) causes mid-flight merge conflicts and broken intermediate states. Over-categorizing wastes some ceremony. The asymmetric cost favors caution.
+**为什么维度不一致时取更高规模：**低估规模（把真实的 L 当成 M）会在中途制造 merge conflict 和破碎的中间状态。高估规模只是多一点流程成本。两者代价不对称，所以偏保守。
 
-**Examples:**
+**示例：**
 
-- "Add 12 analytics events, 2 lines each across 12 files" → AC=1, concerns=1 (analytics), <30 lines → **XS**
-- "One SwiftUI View, 400 lines, 5 subviews + state" → AC=3, concerns=1, >300 lines → **M** (diff lines escalate)
-- "Refactor auth middleware + update 3 callers + add tests" → AC=4, cross-component, ~400 lines → **L**
+- “跨 12 个文件添加 12 个 analytics events，每处 2 行” → AC=1，concerns=1（analytics），<30 行 → **XS**
+- “一个 SwiftUI View，400 行，5 个 subviews + state” → AC=3，concerns=1，>300 行 → **M**（diff lines 抬高规模）
+- “重构 auth middleware + 更新 3 个 callers + 加 tests” → AC=4，cross-component，约 400 行 → **L**
 
-## Step 2: Pick Slicing Strategy
+## 步骤 2：选择切片策略 / Step 2: Pick Slicing Strategy
 
-Run this decision tree top-to-bottom; first match wins.
+从上到下运行这个判定树；第一个命中的分支即为结果。
 
-**Q1: Is this a greenfield 0→1 first cut?**
-→ **Walking Skeleton.** A single thin vertical path through every layer (data → service → UI → test), just enough to prove the architecture connects. Then thicken.
+**Q1：这是 greenfield 的 0→1 首次落地吗？**
+→ **Walking Skeleton**：一条穿过所有层的极薄 Vertical path（data → service → UI → test），刚好足以证明架构连得起来。之后再加厚。
 
-**Q2: Is this "modify the same thing across many places" (analytics sweep, i18n, lint pass, mass refactor, design system rollout)?**
-→ **Horizontal sweep.** Single layer, many files, one cohesive change. One commit per logical group.
+**Q2：这是“在很多地方修改同一类事情”吗（analytics sweep、i18n、lint pass、mass refactor、design system rollout）？**
+→ **Horizontal sweep**：同一层、多个文件、一个内聚改动。按逻辑组一组一个 commit。
 
-**Q3: Is this a large architectural migration (UIKit→SwiftUI, sync→async, framework swap)?**
-→ **Branch by Abstraction.** Introduce a temporary abstraction layer, move implementations under it one at a time, retire the old path. Horizontal in shape but explicitly transitional.
+**Q3：这是大型架构迁移吗（UIKit→SwiftUI、sync→async、framework swap）？**
+→ **Branch by Abstraction**：先引入临时抽象层，把实现逐个迁到抽象之下，再移除旧路径。形态上偏 Horizontal，但明确是过渡型。
 
-**Q4: Adding a new self-contained feature or fixing a bug?**
-→ **Vertical slice.** Model + business logic + view + tests in one cohesive change. Default for "add a new X" work in an existing codebase.
+**Q4：是在添加新的自包含功能，或修一个 bug 吗？**
+→ **Vertical slice**：把 model + business logic + view + tests 放在一个内聚改动里。它是既有代码库中“添加一个新的 X”工作的默认选择。
 
-**Fallback:** Vertical slice.
+**Fallback**：Vertical slice
 
-**Common confusion:** "Vertical vs horizontal" is the slicing axis. "Serial vs parallel" is the writer count. They are orthogonal — vertical slices can be dispatched in parallel (three independent bug fixes across three files), and horizontal sweeps usually run serially.
+**常见混淆：** "Vertical vs horizontal" 是切片轴；"serial vs parallel" 是 writer 数量。两者正交：Vertical slices 可以并行派发（三个独立 bug 分别在三个文件中修复），Horizontal sweeps 通常串行执行。
 
-## Step 3: Parallel Dispatch (Conditional — L size only)
+## 步骤 3：并行派发 / Step 3: Parallel Dispatch（仅 L 规模）
 
-Skip this section for XS / S / M sizes. They run as a single writer.
+XS / S / M 跳过本节，它们由单 writer 执行。
 
-For L size, decide whether to dispatch slices to parallel subagents.
+对于 L 规模，判断是否把 slices 派发给并行 subagents。
 
-### The Iron Law
+### 铁律 / The Iron Law
 
-A slice plan is valid only when **every slice has independent inputs and independent outputs.** If two slices can collide — on the same file, on a shared data structure, or on shared mid-execution state — they are not parallel. Merge them into one writer, or serialize them.
+只有当**每个 slice 都有独立输入和独立输出**时，slice plan 才有效。如果两个 slices 可能碰撞：同一文件、共享数据结构、或共享执行中状态，它们就不能并行。把它们合并给一个 writer，或串行执行。
 
-### 3.1 Slice-ability check
+### 3.1 可切分性检查 / Slice-ability Check
 
-Ask: can this task be cut into pieces whose inputs and outputs don't overlap?
+问：这个任务能否切成输入和输出都不重叠的几块？
 
-- ✅ "Fix three independent bugs in three different files, each with its own test" — fully independent
-- ✅ Greenfield: build store, service, ui as separate slices — only if no shared mid-execution state
-- ❌ "Refactor utils.ts and update all callers" — cascading edits, serialize
-- ❌ "Add retry to exec, then migrate callers to use it" — pipeline, not parallel
+- ✅ “修三个不同文件里的三个独立 bug，每个 bug 都有自己的 test” → 完全独立
+- ✅ Greenfield：把 store、service、ui 分成不同 slices → 仅当不存在共享的执行中状态时成立
+- ❌ “重构 utils.ts 并更新所有 callers” → 级联编辑，串行
+- ❌ “给 exec 加 retry，然后迁移 callers 使用它” → pipeline，不是并行
 
-If no, **terminate parallel dispatch** and proceed as single writer.
+如果不能，**终止 parallel dispatch**，按单 writer 继续。
 
-### 3.2 Draft file assignments
+### 3.2 草拟文件分配 / Draft File Assignments
 
-For each candidate slice, list:
+对每个候选 slice，列出：
 
-- Files it creates / modifies / deletes
-- What it needs from other slices as input (paths, signatures, data shapes)
-- What it produces as output (diff, new files, state change)
+- 它创建 / 修改 / 删除的文件
+- 它需要其他 slices 提供什么输入（paths、signatures、data shapes）
+- 它产出什么输出（diff、new files、state change）
 
-### 3.3 Collision check → merge
+### 3.3 碰撞检查并合并 / Collision Check → Merge
 
-For every file that appears in more than one slice:
+对每个出现在多个 slice 中的文件：
 
-- Even append-only edits to the same file → merge to one writer (concurrent edits to adjacent lines produce conflicts)
-- Edits that overlap semantically → merge
+- 即使只是 append-only 编辑同一文件，也合并给一个 writer（相邻行并发编辑会产生 conflict）
+- 语义上重叠的编辑，也合并
 
-### 3.4 Size filter
+### 3.4 规模过滤 / Size Filter
 
-For each remaining slice, estimate diff lines:
+估算每个剩余 slice 的 diff lines：
 
-- **<50 lines** → drop from dispatch; main Agent handles inline. Dispatch overhead (worktree, context, merge) outweighs gain
-- **50–150 lines** → dispatch candidate
-- **>150 lines or architectural** → dispatch + note "stronger reasoning model at xhigh effort" on the slice
+- **<50 行** → 从派发中移除；main Agent inline 处理。派发成本（worktree、context、merge）高于收益
+- **50–150 行** → dispatch candidate
+- **>150 行或 architectural** → dispatch，并在该 slice 上标注 "stronger reasoning model at xhigh effort"
 
-**Minimum-slices gate:** if fewer than 3 dispatchable slices remain after filtering, **terminate parallel** and serialize through the main Agent. Below 3 writers, ceremony cost > parallelism gain.
+**Minimum-slices gate：**过滤后如果少于 3 个可派发 slices，**终止 parallel**，由 main Agent 串行处理。少于 3 个 writers 时，流程成本高于并行收益。
 
-### 3.5 Output contract + verify command per slice
+### 3.5 每个 slice 的输出契约和验证命令 / Output Contract + Verify Command Per Slice
 
-For every dispatched slice, decide:
+对每个派发出去的 slice，决定：
 
-- **Output format** the subagent must return (unified diff + rationale / full file + role / config section verbatim / test file + requirement map)
-- **Verify command** the main Agent will run when the diff comes back (`npm test -- path`, `tsc --noEmit`, build for affected package, minimal smoke test)
-- **Handoff block** (mandatory) — every dispatched subagent must emit the structured handoff block from § 4.8 as the **absolute final** part of its response, after the slice-specific output above. The next slice reads this block, not the prior trajectory.
+- **Output format**：subagent 必须返回什么格式（unified diff + rationale / full file + role / config section verbatim / test file + requirement map）
+- **Verify command**：main Agent 在 diff 返回后要运行什么（`npm test -- path`、`tsc --noEmit`、受影响 package 的 build、最小 smoke test）
+- **Handoff block**（强制）：每个派发出去的 subagent 都必须在其回复的**绝对最后**输出第 4.8 节的结构化 handoff block，放在该 slice 专属输出之后。下一个 slice 读取这个 block，而不是读取之前的过程轨迹。
 
-Without an output format, the subagent dumps verbose context and cancels the dispatch benefit. Without a verify command, the main Agent accepts whatever the subagent claims and merges blind. Without the handoff block, the next slice has no carry-forward except the file diff itself — issues found, commands run, and procedure deviations are lost.
+没有 output format，subagent 会倾倒冗长上下文，抵消派发收益。没有 verify command，main Agent 就是在盲信 subagent 的结论并合并。没有 handoff block，下一个 slice 除了文件 diff 之外没有任何可承接信息；发现的问题、跑过的命令和流程偏差都会丢失。
 
-### 3.6 Emit the dispatch plan
+### 3.6 输出派发计划 / Emit the Dispatch Plan
 
 | Slice | Writer | Model | Files | Depends on | Output format | Verify |
 |---|---|---|---|---|---|---|
@@ -135,53 +135,53 @@ Without an output format, the subagent dumps verbose context and cancels the dis
 | 2 | subagent | inherit | `src/y.ts` | slice 1 signature | diff + rationale | `npm test -- y` |
 | 3 | main Agent | — | `src/z.ts` | slice 1 complete | (inline) | `npm test` |
 
-**Model column contract:** default `inherit` — subagent uses the main Agent's current model. Override only when the caller has a reason: user named a specific model, slice is architectural and benefits from stronger reasoning at `xhigh` effort, or slice is mechanical and can drop to a cheaper model. Write overrides as neutral phrases (`stronger reasoning model, xhigh effort`) rather than specific model names unless the user named one.
+**Model column contract：**默认写 `inherit`，表示 subagent 使用 main Agent 当前模型。只有调用方有明确理由时才覆盖：用户指定了某个模型、slice 带 architecture 属性且需要更强推理和 `xhigh` effort，或 slice 很机械、可降到更便宜模型。除非用户点名具体模型，否则用中性短语写覆盖项（如 `stronger reasoning model, xhigh effort`）。
 
-The main Agent dispatches parallel slices to subagents — one dispatch per slice, in a single message — each writer isolated in its own git worktree. Gated slices run after their deps complete.
+main Agent 在一条消息里把并行 slices 派发给 subagents：每个 slice 一次派发，每个 writer 隔离在自己的 git worktree 中。有依赖的 slices 等依赖完成后再执行。
 
-## Step 4: Execution Discipline (Per Slice)
+## 步骤 4：执行纪律 / Step 4: Execution Discipline（每个 Slice）
 
-Applies to **every** slice that runs through the skill — single-writer or dispatched. (XS work bypasses the skill entirely per Step 1, so 4.1's cycle is reached only for S size and above.)
+适用于**每个**通过这个 skill 执行的 slice：单 writer 或派发出去的 writer 都一样。（XS 工作会按 Step 1 绕过此 skill，所以 4.1 的循环只覆盖 S 及以上规模。）
 
-### 4.1 Increment Cycle
+### 4.1 增量循环 / Increment Cycle
 
 ```
 Implement → Test → Verify → Commit → Handoff → Next slice
 ```
 
-This is the core loop. Each slice runs the full cycle before moving on.
+这是核心循环。每个 slice 都必须完整跑完循环，才能进入下一步。
 
-- **Implement** the smallest complete piece of functionality for this slice
-- **Test** — run the relevant test suite, or write a failing test first per `test-driven-development`
-- **Verify** — tests pass, build succeeds, type checks clean, manual check where applicable
-- **Commit** — one atomic commit per slice (see `git-workflow` for commit message rules)
-- **Handoff** — emit the structured handoff block (§ 4.8). For dispatched subagent slices this is the final part of the returned response; for inline slices the main Agent writes the block into the conversation transcript before moving on
-- **Next slice** — carry forward the handoff block, not the trajectory
+- **Implement**：实现这个 slice 中最小但完整的功能片段
+- **Test**：运行相关测试套件，或按 `test-driven-development` 先写 failing test
+- **Verify**：tests 通过、build 成功、type checks 干净，需要时完成 manual check
+- **Commit**：每个 slice 一个 atomic commit（commit message 规则见 `git-workflow`）
+- **Handoff**：输出结构化 handoff block（第 4.8 节）。派发出去的 subagent slice 把它作为返回回复的最后部分；inline slice 由 main Agent 在进入下一 slice 前写入对话记录
+- **Next slice**：承接 handoff block，而不是承接过程轨迹
 
-Each slice leaves the system in a working, testable state. No half-done slices.
+每个 slice 结束后，系统都必须处于可工作、可测试状态。不要留下半成品 slice。
 
-### 4.2 Simplicity First
+### 4.2 简单优先 / Simplicity First
 
-Before writing, ask **"what is the simplest thing that could work?"**
+写代码前先问：**“最简单能工作的东西是什么？”**
 
-After writing, self-audit:
+写完后自审：
 
-- Could this be fewer lines?
-- Is each abstraction earning its complexity for *this* task, or for an imagined future?
-- Three similar lines is better than a premature abstraction
+- 这些代码能不能更少？
+- 每个抽象是在为**这个**任务承担复杂度，还是在为想象中的未来承担复杂度？
+- 三行相似代码好过过早抽象
 
-Aligns with the root principle "如无必要勿增实体 / don't add features, refactor, or introduce abstractions beyond what the task requires".
+这与根原则“如无必要勿增实体 / don't add features, refactor, or introduce abstractions beyond what the task requires”一致。
 
-### 4.3 Scope Discipline
+### 4.3 范围纪律 / Scope Discipline
 
-Touch only what the task requires. Do not:
+只碰任务需要的内容。不要：
 
-- "Clean up" code adjacent to your change
-- Refactor imports in files you're not modifying
-- Modernize syntax in files you're only reading
-- Remove comments you don't fully understand
+- “顺手清理”改动旁边的代码
+- 重构你没有修改的文件里的 imports
+- 在只是阅读的文件里现代化语法
+- 删除你没有完全理解的 comments
 
-If you notice something worth improving outside the task scope, **record it but don't fix it**:
+如果发现任务范围外值得改进的东西，**记录下来，但不要修**：
 
 ```
 NOTICED BUT NOT TOUCHING:
@@ -189,44 +189,44 @@ NOTICED BUT NOT TOUCHING:
 - Auth middleware could use better error messages (separate task)
 ```
 
-Surface these to the user at the end of the slice; let them decide whether to spin off a task.
+在 slice 结束时告诉用户，让用户决定是否单独开任务。
 
-### 4.4 Keep Compilable Between Slices
+### 4.4 Slice 之间保持可编译 / Keep Compilable Between Slices
 
-After each slice's commit, the project must build and existing tests must pass. Do not leave the codebase broken between slices. If a slice naturally produces an intermediate broken state, the slice boundary is wrong — re-cut it.
+每个 slice commit 后，项目必须能 build，已有 tests 必须通过。不要在 slices 之间留下坏掉的代码库。如果某个 slice 天然会产出破碎的中间状态，说明 slice 边界切错了，需要重切。
 
-### 4.5 Rollback-Friendly
+### 4.5 易回滚 / Rollback-Friendly
 
-Each slice's commit should be independently revertable.
+每个 slice 的 commit 都应能独立 revert。
 
-- Additive changes (new files, new functions) revert easily
-- Modifications stay minimal and focused
-- DB migrations have rollback migrations
-- **Never delete-and-replace in the same commit** — split into two commits
+- Additive changes（新文件、新函数）容易 revert
+- 修改保持最小且聚焦
+- DB migrations 要有 rollback migrations
+- **Never delete-and-replace in the same commit**：拆成两个 commits
 
-See `git-workflow` for atomic commit rules; this rule extends them with the delete-replace constraint.
+Atomic commit 规则见 `git-workflow`；本规则在其基础上增加 delete-replace 约束。
 
-### 4.6 Risk-First Execution Order
+### 4.6 风险优先执行顺序 / Risk-First Execution Order
 
-When multiple slices are non-blocking (no inter-slice dependency forcing order), do the most uncertain slice first. If the riskiest slice fails, you discover it before investing in dependents.
+当多个 slices 互不阻塞（没有 inter-slice dependency 强制顺序）时，先做最不确定的 slice。风险最高的 slice 如果失败，就能在投入依赖工作前发现。
 
-Examples:
+示例：
 
-- WebSocket integration before features that ride on it
-- Third-party SDK adoption before features built on top
-- Untested platform API before production logic using it
+- 先做 WebSocket integration，再做依赖它的功能
+- 先接 Third-party SDK，再做其上层功能
+- 先试未验证的平台 API，再写依赖它的生产逻辑
 
-Risk-first is **execution order**, not slicing axis. It composes with both vertical and horizontal slicing.
+Risk-first 是**执行顺序**，不是 slicing axis。它可以和 Vertical slice 或 Horizontal sweep 组合。
 
-### 4.7 Don't Repeat Useless Commands
+### 4.7 不重复无效命令 / Don't Repeat Useless Commands
 
-If a command (build, test, type check) ran successfully and the code hasn't changed since, don't re-run it. Re-running on unchanged code adds no information and burns context. Re-run only after edits that could affect the command's result.
+如果一个命令（build、test、type check）已经成功跑过，且之后代码没有变化，不要重跑。对未变化代码重复执行不会增加信息，只会消耗上下文。只有在编辑可能影响命令结果后才重跑。
 
-### 4.8 Per-Slice Handoff Schema
+### 4.8 每个 Slice 的交接 Schema / Per-Slice Handoff Schema
 
-Each slice — dispatched subagent or inline — ends with a structured handoff block. The next slice reads this block, not the prior trajectory. Externalizing slice state into a fixed-shape document replaces "agent remembers what just happened" with a parseable carry-forward.
+每个 slice，无论是派发出去的 subagent 还是 inline，都以一个结构化 handoff block 结束。下一个 slice 读取这个 block，而不是读取之前的过程轨迹。把 slice state 外化为固定形状的文档，用可解析的承接信息替代“agent 记得刚发生了什么”。
 
-**Schema** (markdown, copy this shape verbatim):
+**Schema**（markdown，原样复制这个形状）：
 
 ```markdown
 ## Handoff: <slice-name>
@@ -240,7 +240,7 @@ Each slice — dispatched subagent or inline — ends with a structured handoff 
 **procedure_compliance**: <`followed` | `deviated: <reason>`>
 ```
 
-**Filled-in example** (worked example — a hypothetical slice 1 of the validation-contract feature):
+**填写示例**（worked example：validation-contract feature 的假想 slice 1）：
 
 ```markdown
 ## Handoff: validation-contract-frontmatter
@@ -258,15 +258,15 @@ Each slice — dispatched subagent or inline — ends with a structured handoff 
 **procedure_compliance**: followed
 ```
 
-**Why this shape:**
+**为什么是这个形状：**
 
-- The next slice's subagent reads the block, not the prior conversation — no agent has to "remember"
-- `commands_executed` with exit codes is the audit trail; "tests pass" without a recorded command is not enough
-- `procedure_compliance` makes deviations explicit instead of buried — "deviated: created `tests/fixtures/foo.json` without prior approval because the fixture didn't exist" is the kind of thing the next slice owner needs to see, not infer
-- `not_completed` is mandatory even when empty — leaving it blank when something was punted is a discipline failure
-- Five fields is the minimum that still survives a model swap; expanding the schema in this skill should require a corresponding change in dispatched-prompt templates
+- 下一个 slice 的 subagent 读取 block，而不是读取之前的对话；没有 agent 需要“记住”
+- `commands_executed` 带 exit codes，是审计轨迹；只说“tests pass”但没有记录命令不够
+- `procedure_compliance` 让偏差显式出现，而不是埋在上下文里；例如 `deviated: created tests/fixtures/foo.json without prior approval because the fixture didn't exist` 这种信息，下一个 slice owner 需要直接看到，而不是推断
+- `not_completed` 即使为空也必须存在；有事情被暂缓时把它留空，是纪律失败
+- 五个字段是在模型切换后仍能保住信息的最小集合；扩展这个 schema 应要求同步修改 dispatch prompt templates
 
-**Roles** (writer / broker / reader):
+**角色**（writer / broker / reader）：
 
 ```
    slice N                       slice N+1
@@ -281,42 +281,42 @@ Each slice — dispatched subagent or inline — ends with a structured handoff 
                 next slice's prompt)
 ```
 
-For inline slices, the main Agent plays all three roles: writes the block to the transcript, then reads it back when starting the next slice.
+对于 inline slices，main Agent 同时扮演三个角色：写 block 到 transcript，然后在开始下一 slice 时读回它。
 
-**Inter-slice flow:**
+**Slice 间流转：**
 
-When the main Agent dispatches slice N+1, it copies slice N's handoff block(s) verbatim into the N+1 subagent's dispatch prompt — alongside the slice N+1 spec and verify command. The subagent receives the handoff as data; no paraphrasing, no summarizing.
+当 main Agent 派发 slice N+1 时，它把 slice N 的 handoff block(s) 原样复制进 N+1 subagent 的 dispatch prompt，和 slice N+1 spec、verify command 放在一起。subagent 把 handoff 当数据接收；不改写，不摘要。
 
-For inline (main-Agent-writes) slices, the main Agent emits the same block into the conversation transcript before moving to the next slice. Same discipline, no dispatch ceremony.
+对于 inline（main-Agent-writes）slices，main Agent 在进入下一 slice 前，把同样的 block 写入对话 transcript。同样纪律，只是不需要派发流程。
 
-**Order discipline**: handoff is filled in **after** Verify completes successfully. Handoff documents what passed, not what was attempted. If verify failed, the slice isn't done — fix or back out before writing the handoff.
+**顺序纪律：**handoff 必须在 Verify 成功完成后填写。Handoff 记录的是已经通过的内容，不是尝试过的内容。如果 verify 失败，这个 slice 还没完成；先修复或回退，再写 handoff。
 
-## Must not (per-slice worker scope)
+## 禁止事项 / Must Not（每个 Slice Worker 的范围）
 
-The execution discipline above frames the rules positively. These are the corresponding negative-space rules for every worker — subagent or main-Agent inline — running a single slice.
+上面的执行纪律从正面描述规则。这里是每个 worker（subagent 或 main-Agent inline）执行单个 slice 时对应的负面规则。
 
-- **Worker must not declare "feature done".** Slice-level "done" means this slice's diff compiles, tests pass, and the handoff is filled in. Whether the feature as a whole meets acceptance criteria is judged by `verification-before-completion` and (after PR Ready) by `deep-review` — not by the worker. A worker that self-certifies "done" creates the Self-Evaluation Bias trap the workflow is engineered to avoid.
-- **Worker must not refactor adjacent code outside the assigned slice's scope.** Even when adjacent code is clearly improvable, surface it via the `NOTICED BUT NOT TOUCHING` pattern under Scope Discipline — do not silently expand the slice. Scope creep inside a slice breaks both the Rollback-Friendly contract (a delete-and-replace in the same commit becomes unrevertable) and the Parallel Dispatch Iron Law (a slice that mutates files outside its declared assignment is a collision waiting to happen with a parallel slice).
+- **Worker 不能宣称“feature done”。** Slice 级别的“done”只表示这个 slice 的 diff 能编译、tests 通过、handoff 填好了。整个 feature 是否满足 Acceptance criteria，由 `verification-before-completion` 判断；PR Ready 之后还要由 `deep-review` 判断，而不是由 worker 自我认证。worker 自己宣布“done”会触发这个 workflow 要避免的 Self-Evaluation Bias。
+- **Worker 不能重构 assigned slice 范围外的相邻代码。** 即使相邻代码明显可改，也要通过 Scope Discipline 里的 `NOTICED BUT NOT TOUCHING` pattern 暴露出来，不要静默扩大 slice。slice 内 scope creep 会同时破坏 Rollback-Friendly 契约（同一个 commit 里的 delete-and-replace 会难以 revert）和 Parallel Dispatch Iron Law（一个 slice 改了声明范围外的文件，就可能与并行 slice 碰撞）。
 
-## Anti-patterns
+## 反模式 / Anti-patterns
 
-- ❌ Starting implementation without checking size (Step 1) — leads to over-slicing trivial work or under-slicing L-sized features
-- ❌ Forcing parallel dispatch on a task with cascading edits — Iron Law violation
-- ❌ Picking horizontal sweep for "add a new feature" — sweep is for cross-cutting modifications, not greenfield additions
-- ❌ Slicing too small to parallelize just to have more slices — Step 3.4 size filter is not optional
-- ❌ Skipping verify between slices to move faster — bugs compound; a bug in slice 1 makes slices 2–5 wrong
-- ❌ Mixing unrelated concerns in one commit — see `git-workflow`
-- ❌ "Cleaning up adjacent code while I'm here" — scope discipline violation (4.3)
-- ❌ Dispatched slice without anti-hardcoding guard — subagent in isolation may hardcode values or weaken tests to turn green. The main Agent's dispatch prompt should carry: "implement the general logic; do not hardcode values or weaken tests; if a test looks wrong, surface it instead of patching around it"
-- ❌ Attempting to coordinate subagents mid-flight via shared state — no current CLI runtime (Claude Code, Codex CLI, etc.) has an agent-to-agent channel; serialize through the main Agent or merge into a single-writer slice
-- ❌ Skipping the handoff block (§ 4.8) — the next slice loses the audit trail (commands + exit codes), the issues-found list, and any procedure-compliance flag. The diff alone is not a handoff
-- ❌ Writing the handoff before Verify passes — handoff documents what passed, not what was attempted; pre-emptive handoffs hide failures behind a clean-looking block
+- ❌ 没有检查规模（Step 1）就开始实现 -> 会把简单工作过度切片，或把 L-sized features 切得不够
+- ❌ 对存在级联编辑的任务强行 parallel dispatch -> 违反 Iron Law
+- ❌ 给“新增功能”选择 Horizontal sweep -> sweep 用于 cross-cutting modifications，不用于 greenfield additions
+- ❌ 为了更多 slices 而把 slice 切得太小，试图并行化 -> Step 3.4 size filter 不是可选项
+- ❌ 为了更快而跳过 slices 之间的 verify -> bug 会叠加；slice 1 的 bug 会让 slices 2-5 都错
+- ❌ 在一个 commit 里混入无关 concerns -> 见 `git-workflow`
+- ❌ “顺手清理旁边代码” -> 违反 scope discipline（4.3）
+- ❌ 派发 slice 时没有 anti-hardcoding guard -> 隔离中的 subagent 可能为了转绿而硬编码值或削弱 tests。main Agent 的 dispatch prompt 应携带：“implement the general logic; do not hardcode values or weaken tests; if a test looks wrong, surface it instead of patching around it”
+- ❌ 试图通过 shared state 在执行中协调 subagents -> 当前 CLI runtime（Claude Code、Codex CLI 等）没有 agent-to-agent channel；通过 main Agent 串行化，或合并成单 writer slice
+- ❌ 跳过 handoff block（第 4.8 节）-> 下一个 slice 会丢失审计轨迹（commands + exit codes）、issues-found list 和 procedure-compliance flag。单靠 diff 不是 handoff
+- ❌ Verify 通过前就写 handoff -> handoff 记录的是通过的内容，不是尝试过的内容；提前 handoff 会把失败藏在一个看起来干净的 block 后面
 
-## Relationship to other skills
+## 与其他 Skills 的关系 / Relationship to Other Skills
 
-- Upstream planning sources (any of) — built-in Plan, `planning-with-files`, `spec-design`, or a direct user-given task; this skill is agnostic to the source
-- `test-driven-development` — governs the red→green cycle within Step 4.1
-- `test-designer` — may produce the failing tests this skill's green phase satisfies
-- `systematic-debugging` — runs if any slice's result breaks regression
-- `verification-before-completion` — final gate after all slices merge
-- `git-workflow` (auriga-workflow plugin) — atomic commit rules referenced by 4.5
+- 上游 planning sources（任意一种）：内置 Plan、`planning-with-files`、`spec-design`，或用户直接给出的任务；本 skill 不依赖来源
+- `test-driven-development`：管理 Step 4.1 中的 red→green cycle
+- `test-designer`：可能产出本 skill green phase 要满足的 failing tests
+- `systematic-debugging`：当任意 slice 的结果破坏 regression 时运行
+- `verification-before-completion`：所有 slices 合并后的最终 gate
+- `git-workflow`（auriga-workflow plugin）：4.5 引用的 atomic commit rules
