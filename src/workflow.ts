@@ -8,6 +8,30 @@ import {
   withEsc,
   type InstallOpts,
 } from "./utils.js";
+import {
+  composeMarkedFile,
+  hasAurigaHeader,
+  hashBlock,
+  parseMarkers,
+} from "./workflow-markers.js";
+
+/**
+ * Back up `filePath` once. The canonical `<file>.bak` slot is reserved for the
+ * FIRST capture (the user's pre-auriga original) and is never overwritten — a
+ * later capture spills to a timestamped `<file>.bak.<stamp>`. Returns the path
+ * the backup was written to.
+ */
+function backupOnce(filePath: string): string {
+  const bakPath = filePath + ".bak";
+  if (fs.existsSync(bakPath)) {
+    const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+    const stampedPath = `${bakPath}.${stamp}`;
+    fs.copyFileSync(filePath, stampedPath);
+    return stampedPath;
+  }
+  fs.copyFileSync(filePath, bakPath);
+  return bakPath;
+}
 
 export async function installWorkflow(
   packageRoot: string,
@@ -47,44 +71,97 @@ export async function installWorkflow(
   const targetClaude = path.join(resolved, "CLAUDE.md");
   const targetAgents = path.join(resolved, "AGENTS.md");
 
-  // Back up an existing CLAUDE.md before overwriting, but never clobber
-  // a prior .bak.
-  //
-  // Two regressions to defend against:
-  // 1. F1 (v1.19.0 Slice 0): re-install is the update path now, so a
-  //    second install must not overwrite the user's pre-auriga .bak with
-  //    our previous workflow version.
-  // 2. Codex adversarial review: if the user later replaces an
-  //    auriga-managed CLAUDE.md with foreign content (hand-paste, manual
-  //    edits, etc.) and re-runs install, the foreign content must NOT
-  //    be silently overwritten just because .bak already exists.
-  //
-  // Strategy: only consider the file "safe to overwrite without backup"
-  // when its bytes match the packaged source (i.e. it's the workflow we
-  // installed last time, untouched). Otherwise capture it — to .bak when
-  // free, else to a timestamped slot so .bak stays canonical.
-  if (fs.existsSync(targetClaude)) {
-    const currentBytes = fs.readFileSync(targetClaude);
-    const sourceBytes = fs.readFileSync(sourceClaude);
-    const diverged = !currentBytes.equals(sourceBytes);
-    if (diverged) {
-      const bakPath = targetClaude + ".bak";
-      if (fs.existsSync(bakPath)) {
-        const stamp = new Date().toISOString().replace(/[:.]/g, "-");
-        const stampedPath = `${bakPath}.${stamp}`;
-        fs.copyFileSync(targetClaude, stampedPath);
+  // The packaged template is authored with managed-block markers. Extract its
+  // managed block (the auriga workflow body) and its user-region placeholder.
+  // Defensive fallback: if the template somehow lacks markers, treat the whole
+  // file as the managed block with an empty user region.
+  const sourceContent = fs.readFileSync(sourceClaude, "utf8");
+  const sourceParsed = parseMarkers(sourceContent);
+  const sourceBlock =
+    sourceParsed.kind === "marked"
+      ? sourceParsed.blockBody
+      : sourceContent.endsWith("\n")
+        ? sourceContent
+        : sourceContent + "\n";
+  const templateUserRegion =
+    sourceParsed.kind === "marked" ? sourceParsed.userRegion : "";
+
+  // Installing the workflow doc is one of five cases. The managed block is
+  // always replaced with the packaged version; the cases differ in how the
+  // project's own content (the user region) is preserved or backed up.
+  if (!fs.existsSync(targetClaude)) {
+    // 1. Fresh install — write the marked template as-is, no backup.
+    fs.writeFileSync(
+      targetClaude,
+      composeMarkedFile({ blockBody: sourceBlock, userRegion: templateUserRegion }),
+    );
+    log.ok(`CLAUDE.md installed (${langOpt.label})`);
+  } else {
+    const current = fs.readFileSync(targetClaude, "utf8");
+    const parsed = parseMarkers(current);
+
+    if (parsed.kind === "marked") {
+      // 2. Upgrade — splice the managed block, preserve the user region.
+      //    A stale END-marker hash means the managed block was hand-edited;
+      //    snapshot the whole file before overwriting so the edit is
+      //    recoverable.
+      const handEdited =
+        parsed.endHash !== null && parsed.endHash !== hashBlock(parsed.blockBody);
+      if (handEdited) {
+        const bak = backupOnce(targetClaude);
         log.warn(
-          `CLAUDE.md.bak already exists; current CLAUDE.md backed up to ${path.basename(stampedPath)}`,
+          `CLAUDE.md 的受管区块曾被手改;升级已整块覆盖该区块,改动前的文件见 ${path.basename(bak)}`,
         );
-      } else {
-        fs.copyFileSync(targetClaude, bakPath);
-        log.warn(`Existing CLAUDE.md backed up to CLAUDE.md.bak`);
       }
+      fs.writeFileSync(
+        targetClaude,
+        composeMarkedFile({
+          prefix: parsed.prefix,
+          blockBody: sourceBlock,
+          userRegion: parsed.userRegion,
+        }),
+      );
+      log.ok(
+        `CLAUDE.md upgraded (${langOpt.label}); your project section was preserved`,
+      );
+    } else if (parsed.kind === "unmarked" && hasAurigaHeader(current)) {
+      // 3. Old-format migration — an auriga CLAUDE.md from before markers
+      //    existed. The user region can't be recovered from an unmarked file,
+      //    so back the whole thing up and install fresh.
+      const bak = backupOnce(targetClaude);
+      fs.writeFileSync(
+        targetClaude,
+        composeMarkedFile({ blockBody: sourceBlock, userRegion: templateUserRegion }),
+      );
+      log.warn(
+        `检测到旧版 CLAUDE.md(无受管标记);已备份到 ${path.basename(bak)}。` +
+          `若你改过它,请从备份把工程定制手动迁移到 END 标记之后的用户区。`,
+      );
+      log.ok(`CLAUDE.md migrated to the managed-block format (${langOpt.label})`);
+    } else if (parsed.kind === "unmarked") {
+      // 4. Foreign first install — a CLAUDE.md from another tool. Keep its
+      //    content in place as the user region; no backup needed.
+      const foreign = current.endsWith("\n") ? current : current + "\n";
+      fs.writeFileSync(
+        targetClaude,
+        composeMarkedFile({ blockBody: sourceBlock, userRegion: "\n" + foreign }),
+      );
+      log.ok(
+        `CLAUDE.md installed (${langOpt.label}); your existing content was kept below the managed block`,
+      );
+    } else {
+      // 5. Malformed markers — can't locate the block boundaries safely.
+      //    Back up and reinstall fresh rather than splice into a broken file.
+      const bak = backupOnce(targetClaude);
+      fs.writeFileSync(
+        targetClaude,
+        composeMarkedFile({ blockBody: sourceBlock, userRegion: templateUserRegion }),
+      );
+      log.warn(
+        `CLAUDE.md 的受管标记已损坏(${parsed.reason});已备份到 ${path.basename(bak)} 并重装。`,
+      );
     }
   }
-
-  fs.copyFileSync(sourceClaude, targetClaude);
-  log.ok(`CLAUDE.md copied (${langOpt.label})`);
 
   // Create AGENTS.md symlink
   try {

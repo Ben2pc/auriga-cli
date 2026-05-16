@@ -5,6 +5,13 @@ import path from "node:path";
 import { after, describe, test } from "node:test";
 
 import { installWorkflow } from "../src/workflow.js";
+import {
+  WORKFLOW_START_MARKER,
+  composeMarkedFile,
+  hashBlock,
+  parseMarkers,
+  workflowEndMarker,
+} from "../src/workflow-markers.js";
 
 const scratchDirs: string[] = [];
 
@@ -14,10 +21,40 @@ function makeScratch(label: string): string {
   return dir;
 }
 
-function makePackageRoot(content = "# auriga Workflow (v1.7.0)\n"): string {
+const DEFAULT_BLOCK = "# auriga Workflow (v1.9.0)\nworkflow content line\n";
+const DEFAULT_USER_REGION =
+  "\n<!-- 工程专属规则写在这里;auriga 升级不会改动此区域。 -->\n";
+
+/** A package root whose CLAUDE.md is an authored (marked) workflow template. */
+function makePackageRoot(block = DEFAULT_BLOCK, userRegion = DEFAULT_USER_REGION): string {
   const dir = makeScratch("pkg");
-  fs.writeFileSync(path.join(dir, "CLAUDE.md"), content);
+  fs.writeFileSync(
+    path.join(dir, "CLAUDE.md"),
+    composeMarkedFile({ blockBody: block, userRegion }),
+  );
   return dir;
+}
+
+/** Run installWorkflow while capturing everything written to console.error
+ *  (log.warn / log.error go there). */
+async function captureWarnings(fn: () => Promise<void>): Promise<string> {
+  const orig = console.error;
+  let buf = "";
+  console.error = (...a: unknown[]) => {
+    buf += a.map(String).join(" ") + "\n";
+  };
+  try {
+    await fn();
+  } finally {
+    console.error = orig;
+  }
+  return buf;
+}
+
+function listBackups(dir: string): string[] {
+  return fs
+    .readdirSync(dir)
+    .filter((n) => n === "CLAUDE.md.bak" || n.startsWith("CLAUDE.md.bak."));
 }
 
 after(() => {
@@ -26,121 +63,253 @@ after(() => {
   }
 });
 
-describe("installWorkflow", () => {
-  test("fresh install: no existing CLAUDE.md → no .bak created", async () => {
-    const packageRoot = makePackageRoot();
+describe("installWorkflow — fresh install (VAL-WF-001, 002)", () => {
+  test("VAL-WF-001: writes a marked file, header inside the block, START at the top", async () => {
     const cwd = makeScratch("fresh");
+    await installWorkflow(makePackageRoot(), { interactive: false, cwd, lang: "en" });
 
-    await installWorkflow(packageRoot, { interactive: false, cwd, lang: "en" });
-
-    assert.equal(fs.existsSync(path.join(cwd, "CLAUDE.md")), true);
-    assert.equal(fs.existsSync(path.join(cwd, "CLAUDE.md.bak")), false);
+    const content = fs.readFileSync(path.join(cwd, "CLAUDE.md"), "utf-8");
+    const parsed = parseMarkers(content);
+    assert.equal(parsed.kind, "marked");
+    if (parsed.kind !== "marked") return;
+    assert.ok(WORKFLOW_START_MARKER.includes("AURIGA:WORKFLOW:v1"));
+    assert.match(parsed.blockBody, /# auriga Workflow \(v\d+\.\d+\.\d+\)/);
+    assert.equal(parsed.prefix.trim(), "", "no non-blank content before the START marker");
   });
 
-  test("install over foreign CLAUDE.md → backs up to .bak", async () => {
-    const packageRoot = makePackageRoot();
+  test("VAL-WF-002: a user region exists after the END marker", async () => {
+    const cwd = makeScratch("fresh-userregion");
+    await installWorkflow(makePackageRoot(), { interactive: false, cwd, lang: "en" });
+
+    const parsed = parseMarkers(fs.readFileSync(path.join(cwd, "CLAUDE.md"), "utf-8"));
+    assert.equal(parsed.kind, "marked");
+    if (parsed.kind !== "marked") return;
+    assert.ok(parsed.userRegion.includes("工程专属规则"), "template placeholder is the user region");
+  });
+
+  test("fresh install creates no backup", async () => {
+    const cwd = makeScratch("fresh-nobak");
+    await installWorkflow(makePackageRoot(), { interactive: false, cwd, lang: "en" });
+    assert.deepEqual(listBackups(cwd), []);
+  });
+});
+
+describe("installWorkflow — upgrade of a marked file (VAL-WF-003, 004)", () => {
+  test("VAL-WF-003: managed block replaced, user region preserved byte-for-byte", async () => {
+    const cwd = makeScratch("upgrade");
+    await installWorkflow(makePackageRoot("# auriga Workflow (v1.0.0)\nold\n"), {
+      interactive: false,
+      cwd,
+      lang: "en",
+    });
+
+    // Author a recognizable user-region edit.
+    const claudePath = path.join(cwd, "CLAUDE.md");
+    const userEdit = "## 我们工程的额外约定\n- 用 pnpm,不用 npm\n";
+    fs.writeFileSync(claudePath, fs.readFileSync(claudePath, "utf-8") + userEdit);
+
+    // Upgrade with a new workflow version.
+    await installWorkflow(makePackageRoot("# auriga Workflow (v2.0.0)\nbrand new\n"), {
+      interactive: false,
+      cwd,
+      lang: "en",
+    });
+
+    const parsed = parseMarkers(fs.readFileSync(claudePath, "utf-8"));
+    assert.equal(parsed.kind, "marked");
+    if (parsed.kind !== "marked") return;
+    assert.match(parsed.blockBody, /brand new/, "block upgraded to the new version");
+    assert.doesNotMatch(parsed.blockBody, /\bold\b/, "old block content gone");
+    assert.ok(parsed.userRegion.includes(userEdit), "user-region edit preserved verbatim");
+  });
+
+  test("VAL-WF-004: upgrade of an unmodified marked file produces no backup", async () => {
+    const cwd = makeScratch("upgrade-nobak");
+    await installWorkflow(makePackageRoot("# auriga Workflow (v1.0.0)\na\n"), {
+      interactive: false,
+      cwd,
+      lang: "en",
+    });
+    await installWorkflow(makePackageRoot("# auriga Workflow (v2.0.0)\nb\n"), {
+      interactive: false,
+      cwd,
+      lang: "en",
+    });
+    assert.deepEqual(listBackups(cwd), []);
+  });
+});
+
+describe("installWorkflow — hand-edited managed block (VAL-WF-005)", () => {
+  test("VAL-WF-005: block replaced, whole old file backed up, warning emitted", async () => {
+    const cwd = makeScratch("handedited");
+    const claudePath = path.join(cwd, "CLAUDE.md");
+    await installWorkflow(makePackageRoot("# auriga Workflow (v1.0.0)\nkeep\n"), {
+      interactive: false,
+      cwd,
+      lang: "en",
+    });
+
+    // Hand-edit inside the managed block — the END hash now goes stale.
+    const edited = fs.readFileSync(claudePath, "utf-8").replace("keep", "TAMPERED");
+    fs.writeFileSync(claudePath, edited);
+
+    const warnings = await captureWarnings(() =>
+      installWorkflow(makePackageRoot("# auriga Workflow (v2.0.0)\nfresh\n"), {
+        interactive: false,
+        cwd,
+        lang: "en",
+      }),
+    );
+
+    const parsed = parseMarkers(fs.readFileSync(claudePath, "utf-8"));
+    assert.equal(parsed.kind, "marked");
+    if (parsed.kind !== "marked") return;
+    assert.match(parsed.blockBody, /fresh/, "managed block still replaced");
+
+    const backups = listBackups(cwd);
+    assert.equal(backups.length, 1, "exactly one backup of the old file");
+    assert.equal(
+      fs.readFileSync(path.join(cwd, backups[0]), "utf-8"),
+      edited,
+      "backup holds the entire pre-upgrade file",
+    );
+    assert.match(warnings, /受管/, "a user-facing warning about the managed block");
+  });
+});
+
+describe("installWorkflow — foreign first install (VAL-WF-006)", () => {
+  test("VAL-WF-006: foreign content kept as the user region, no backup", async () => {
     const cwd = makeScratch("foreign");
-    const original = "# My hand-written notes\nstuff stuff\n";
-    fs.writeFileSync(path.join(cwd, "CLAUDE.md"), original);
+    const claudePath = path.join(cwd, "CLAUDE.md");
+    const foreign = "# 别的工具生成的 CLAUDE.md\n一些项目说明\n";
+    fs.writeFileSync(claudePath, foreign);
 
-    await installWorkflow(packageRoot, { interactive: false, cwd, lang: "en" });
+    await installWorkflow(makePackageRoot(), { interactive: false, cwd, lang: "en" });
 
-    assert.equal(fs.readFileSync(path.join(cwd, "CLAUDE.md.bak"), "utf-8"), original);
-    assert.notEqual(fs.readFileSync(path.join(cwd, "CLAUDE.md"), "utf-8"), original);
+    const content = fs.readFileSync(claudePath, "utf-8");
+    const parsed = parseMarkers(content);
+    assert.equal(parsed.kind, "marked");
+    if (parsed.kind !== "marked") return;
+    assert.match(parsed.blockBody, /auriga Workflow/, "managed block installed");
+    assert.ok(parsed.userRegion.includes(foreign), "foreign content preserved in the user region");
+    assert.deepEqual(listBackups(cwd), [], "foreign first install needs no backup");
   });
+});
 
-  test("re-install preserves original .bak (F1 regression)", async () => {
-    // When re-install becomes the update path (post v1.19.0 update-status
-    // deprecation), running installWorkflow twice MUST NOT overwrite the
-    // first backup — the FIRST .bak is the one that captures the user's
-    // pre-auriga content, which is what they want to restore to. This
-    // mirrors src/hooks.ts backupOnce discipline.
-    const packageRoot = makePackageRoot();
-    const cwd = makeScratch("reinstall");
-    const original = "# User's pre-auriga CLAUDE.md\n";
-    fs.writeFileSync(path.join(cwd, "CLAUDE.md"), original);
+describe("installWorkflow — old-format migration (VAL-WF-007, 008)", () => {
+  test("VAL-WF-007: pre-marker auriga file backed up to .bak, fresh marked install, migration hint", async () => {
+    const cwd = makeScratch("migrate");
+    const claudePath = path.join(cwd, "CLAUDE.md");
+    const oldFormat = "# auriga Workflow (v1.5.0)\n旧版工作流正文\n";
+    fs.writeFileSync(claudePath, oldFormat);
 
-    // First install: original → .bak; auriga workflow → CLAUDE.md
-    await installWorkflow(packageRoot, { interactive: false, cwd, lang: "en" });
-    assert.equal(fs.readFileSync(path.join(cwd, "CLAUDE.md.bak"), "utf-8"), original);
+    const warnings = await captureWarnings(() =>
+      installWorkflow(makePackageRoot(), { interactive: false, cwd, lang: "en" }),
+    );
 
-    // Second install (the "re-install as update" path): .bak MUST still
-    // hold the original pre-auriga content, NOT the previous auriga
-    // workflow version.
-    await installWorkflow(packageRoot, { interactive: false, cwd, lang: "en" });
     assert.equal(
       fs.readFileSync(path.join(cwd, "CLAUDE.md.bak"), "utf-8"),
-      original,
-      "second install must not overwrite the original .bak — that destroys user's recovery path",
+      oldFormat,
+      ".bak holds the whole old-format file",
     );
+    assert.equal(parseMarkers(fs.readFileSync(claudePath, "utf-8")).kind, "marked");
+    assert.match(warnings, /备份|迁移/, "a hint telling the user to migrate from the backup");
   });
 
-  test("foreign CLAUDE.md + pre-existing .bak → spills current to timestamped backup, preserves .bak", async () => {
-    // Codex adversarial review surfaced this gap: backupOnce protects the
-    // FIRST .bak across re-installs, but if a user later replaces an
-    // auriga-managed CLAUDE.md with foreign content (hand-paste, copy from
-    // another repo, heavy edits...) and re-runs install, the previous logic
-    // skipped the backup branch entirely because .bak already existed AND
-    // then overwrote the foreign current file with the auriga template →
-    // silent user data loss.
-    //
-    // Correct behavior: when the current CLAUDE.md differs from the
-    // packaged source, back up to .bak when free, else spill to a
-    // timestamped path (.bak.<stamp>). Never silently overwrite a
-    // diverged CLAUDE.md.
-    const packageRoot = makePackageRoot();
-    const cwd = makeScratch("foreign-bak-collision");
-    const firstOriginal = "# User's first foreign content\n";
-    const secondForeign = "# User re-pasted different foreign content\n";
-    fs.writeFileSync(path.join(cwd, "CLAUDE.md.bak"), firstOriginal);
-    fs.writeFileSync(path.join(cwd, "CLAUDE.md"), secondForeign);
+  test("VAL-WF-008: a pre-existing .bak is preserved; the current file spills to a timestamped backup", async () => {
+    const cwd = makeScratch("migrate-bakonce");
+    const claudePath = path.join(cwd, "CLAUDE.md");
+    const firstBak = "# 用户最早的原始 CLAUDE.md\n";
+    const oldFormat = "# auriga Workflow (v1.5.0)\n旧版正文\n";
+    fs.writeFileSync(path.join(cwd, "CLAUDE.md.bak"), firstBak);
+    fs.writeFileSync(claudePath, oldFormat);
 
-    await installWorkflow(packageRoot, { interactive: false, cwd, lang: "en" });
+    await installWorkflow(makePackageRoot(), { interactive: false, cwd, lang: "en" });
 
-    // The canonical .bak slot still holds the FIRST foreign content
-    // (preserves the F1 regression invariant).
     assert.equal(
       fs.readFileSync(path.join(cwd, "CLAUDE.md.bak"), "utf-8"),
-      firstOriginal,
-      ".bak must remain the first foreign content across re-installs",
+      firstBak,
+      "canonical .bak untouched (backup-once invariant)",
     );
-
-    // The current foreign content was spilled to a timestamped backup —
-    // anything matching CLAUDE.md.bak.* with our second-foreign content.
-    const entries = fs.readdirSync(cwd);
-    const stamped = entries.filter(
-      (name) => name.startsWith("CLAUDE.md.bak.") && name !== "CLAUDE.md.bak",
-    );
-    assert.ok(
-      stamped.length >= 1,
-      `expected at least one CLAUDE.md.bak.<timestamp> backup, got: ${JSON.stringify(entries)}`,
-    );
-    const stampedContents = stamped.map((name) =>
-      fs.readFileSync(path.join(cwd, name), "utf-8"),
-    );
-    assert.ok(
-      stampedContents.includes(secondForeign),
-      "expected one of the timestamped backups to hold the second foreign content",
-    );
-
-    // CLAUDE.md is now the auriga workflow (overwrite still happens, but
-    // only after the foreign content was preserved).
-    const finalClaude = fs.readFileSync(path.join(cwd, "CLAUDE.md"), "utf-8");
-    assert.notEqual(finalClaude, secondForeign);
-    assert.ok(
-      /auriga\s+Workflow/.test(finalClaude),
-      `expected auriga workflow header in installed CLAUDE.md, got: ${finalClaude.slice(0, 80)}`,
-    );
+    const stamped = fs
+      .readdirSync(cwd)
+      .filter((n) => n.startsWith("CLAUDE.md.bak.") && n !== "CLAUDE.md.bak");
+    assert.equal(stamped.length, 1, "old-format file spilled to a timestamped backup");
+    assert.equal(fs.readFileSync(path.join(cwd, stamped[0]), "utf-8"), oldFormat);
   });
+});
 
-  test("install creates AGENTS.md symlink", async () => {
-    const packageRoot = makePackageRoot();
+describe("installWorkflow — malformed markers (VAL-WF-009)", () => {
+  const cases: Array<[string, string]> = [
+    ["only START", `${WORKFLOW_START_MARKER}\n# auriga Workflow (v1.0.0)\nbody\n`],
+    ["only END", `${workflowEndMarker("deadbeefcafe0123")}\nbody\n`],
+    [
+      "END before START",
+      `${workflowEndMarker("deadbeefcafe0123")}\nmid\n${WORKFLOW_START_MARKER}\nbody\n`,
+    ],
+  ];
+
+  for (const [label, malformed] of cases) {
+    test(`VAL-WF-009: ${label} → original backed up, fresh marked reinstall`, async () => {
+      const cwd = makeScratch("malformed");
+      const claudePath = path.join(cwd, "CLAUDE.md");
+      fs.writeFileSync(claudePath, malformed);
+
+      await installWorkflow(makePackageRoot(), { interactive: false, cwd, lang: "en" });
+
+      const backups = listBackups(cwd);
+      assert.equal(backups.length, 1, "original spilled to a backup");
+      assert.equal(
+        fs.readFileSync(path.join(cwd, backups[0]), "utf-8"),
+        malformed,
+        "backup holds the original malformed file verbatim",
+      );
+      const reinstalled = parseMarkers(fs.readFileSync(claudePath, "utf-8"));
+      assert.equal(reinstalled.kind, "marked", "reinstalled file has a complete marker pair");
+    });
+  }
+});
+
+describe("installWorkflow — AGENTS.md symlink (VAL-WF-010)", () => {
+  test("VAL-WF-010: install creates AGENTS.md as a symlink to CLAUDE.md", async () => {
     const cwd = makeScratch("symlink");
-
-    await installWorkflow(packageRoot, { interactive: false, cwd, lang: "en" });
+    await installWorkflow(makePackageRoot(), { interactive: false, cwd, lang: "en" });
 
     const lstat = fs.lstatSync(path.join(cwd, "AGENTS.md"));
     assert.equal(lstat.isSymbolicLink(), true);
     assert.equal(fs.readlinkSync(path.join(cwd, "AGENTS.md")), "CLAUDE.md");
   });
+});
+
+describe("installWorkflow — re-install preserves the original .bak (F1 regression)", () => {
+  test("re-installing over a migrated file does not clobber the first .bak", async () => {
+    const cwd = makeScratch("reinstall");
+    const claudePath = path.join(cwd, "CLAUDE.md");
+    // First: an old-format file migrates → its content lands in .bak.
+    const oldFormat = "# auriga Workflow (v1.5.0)\n旧正文\n";
+    fs.writeFileSync(claudePath, oldFormat);
+    await installWorkflow(makePackageRoot(), { interactive: false, cwd, lang: "en" });
+    assert.equal(fs.readFileSync(path.join(cwd, "CLAUDE.md.bak"), "utf-8"), oldFormat);
+
+    // Second: a clean marked upgrade must not touch the canonical .bak.
+    await installWorkflow(makePackageRoot("# auriga Workflow (v2.0.0)\nnew\n"), {
+      interactive: false,
+      cwd,
+      lang: "en",
+    });
+    assert.equal(
+      fs.readFileSync(path.join(cwd, "CLAUDE.md.bak"), "utf-8"),
+      oldFormat,
+      "canonical .bak still holds the user's original pre-auriga content",
+    );
+  });
+});
+
+// Build-hash helper sanity: a hand-edited block really does change the hash
+// the installer keys "hand-edited" detection on.
+test("hashBlock distinguishes an edited block from the original", () => {
+  assert.notEqual(
+    hashBlock("# auriga Workflow (v1.0.0)\nkeep\n"),
+    hashBlock("# auriga Workflow (v1.0.0)\nTAMPERED\n"),
+  );
 });
