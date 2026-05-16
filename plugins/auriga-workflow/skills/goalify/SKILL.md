@@ -1,6 +1,6 @@
 ---
 name: goalify
-description: 当用户要求 set goal、跑到 Ready、自动跑完、自驱执行、goalify it，或明确想把当前 spec / work-in-progress 规划成 `/goal` 任务并派发时使用。
+description: 当用户要求 set goal、run autonomously、autopilot、跑到 Ready、自动跑完、自驱执行、goalify it，或明确想把当前 spec / work-in-progress 规划成 `/goal` 任务并派发时使用。
 ---
 
 根据 spec 或者当前的工作进展，先 plan 出 goal，再与用户确认 goal 要跑到哪个阶段为止，然后 set goal 并启动。如果有疑问或者目标难以明确，在 set goal 前询问用户。

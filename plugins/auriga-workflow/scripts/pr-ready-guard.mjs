@@ -12,8 +12,7 @@
 //   B1  unpushed commits on the current branch  (Route A only — gh
 //       pr create handles push itself, so this check is moot there)
 //   B2  stray planning docs at repo root (findings/progress/task_plan)
-//   B3  stray spec docs under docs/superpowers/specs/
-//   B4  active specs left under docs/specs/ — that directory is a
+//   B3  active specs left under docs/specs/ — that directory is a
 //       dev-only temporary workspace and must be empty by PR Ready
 //       (promote to docs/architecture/, archive to docs/worklog/, or
 //       delete; per CLAUDE.md Document Conventions)
@@ -162,9 +161,9 @@ function stripQuoted(cmd) {
 // Structural checks
 
 // Recursively collect `.md` files (excluding `.bak`) under `dir`, returned
-// as repo-relative posix paths prefixed by `relPrefix`. Both spec
-// directories must be scanned recursively: spec-design and arch-design
-// write their outputs nested one level down — docs/specs/<topic>/spec.md,
+// as repo-relative posix paths prefixed by `relPrefix`. The active spec
+// directory must be scanned recursively: spec-design and arch-design write
+// their outputs nested one level down — docs/specs/<topic>/spec.md,
 // docs/specs/<topic>/arch_design.md — so a flat readdir sees only the
 // <topic> directory name and never matches `.md` (issue #113).
 function collectSpecMd(dir, relPrefix) {
@@ -196,24 +195,18 @@ function findStrayDocs(repoRoot) {
     }
   });
 
-  // B3: stray spec docs under docs/superpowers/specs/ (recursive).
-  const specs = collectSpecMd(
-    path.join(repoRoot, "docs", "superpowers", "specs"),
-    "docs/superpowers/specs",
-  );
-
-  // B4: docs/specs/ is a dev-only temp workspace; any `.md` left at PR
+  // B3: docs/specs/ is a dev-only temp workspace; any `.md` left at PR
   // Ready means a spec was never promoted / archived / deleted. Scanned
   // recursively so nested docs/specs/<topic>/*.md are caught.
   const activeSpecs = collectSpecMd(
     path.join(repoRoot, "docs", "specs"),
     "docs/specs",
   );
-  return { root, specs, activeSpecs };
+  return { root, activeSpecs };
 }
 
 function hasAnyStray(s) {
-  return s.root.length > 0 || s.specs.length > 0 || s.activeSpecs.length > 0;
+  return s.root.length > 0 || s.activeSpecs.length > 0;
 }
 
 function formatStrayBlockMessage(stray, route) {
@@ -221,17 +214,14 @@ function formatStrayBlockMessage(stray, route) {
   if (stray.root.length > 0) {
     parts.push(`stray planning docs at repo root: [${stray.root.join(", ")}]`);
   }
-  if (stray.specs.length > 0) {
-    parts.push(`stray spec docs: [${stray.specs.join(", ")}]`);
-  }
   if (stray.activeSpecs.length > 0) {
     parts.push(
       `unfinalized active specs in docs/specs/: [${stray.activeSpecs.join(", ")}]`,
     );
   }
-  // Only B4 (active specs) is "promote-able" to docs/architecture/.
-  // B2/B3 are session-ephemeral by definition — don't suggest promotion
-  // when only those fire.
+  // Only active specs are "promote-able" to docs/architecture/.
+  // B2 is session-ephemeral by definition — don't suggest promotion when
+  // only that fires.
   const promoteable = stray.activeSpecs.length > 0;
   const archiveTarget = "docs/worklog/worklog-<YYYY-MM-DD>-<branch>/";
 

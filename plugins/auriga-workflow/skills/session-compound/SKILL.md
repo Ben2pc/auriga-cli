@@ -1,6 +1,6 @@
 ---
 name: session-compound
-description: 当用户要求复盘、总结、沉淀、整理这次会话、wrap up this session，或提取会话中的可复用经验时使用；产出一份可交互的 HTML 会话报告。
+description: 当用户要求复盘、总结、沉淀、整理这次会话、wrap up this session、extract takeaways from this session，或提取会话中的可复用经验时使用；产出一份可交互的 HTML 会话报告。
 ---
 
 # Session Compound

@@ -1,6 +1,6 @@
 ---
 name: incremental-impl
-description: 规划并执行有一定复杂度的代码改动：规模判断（XS–XL）、slicing strategy、可选并行 subagent 派发，以及每个 slice 的 Implement → Test → Verify → Commit 纪律。适用于多文件改动、跨文件重构、执行来自任意 planning source 的任务、跨切面修改（analytics sweep / i18n / library migration），或预计要写超过约 100 行代码的工作。也用于增量实现、切片落地、推进已规划任务和跨切面改动。仅在极小 XS edit 或纯 documentation / configuration 改动时跳过。
+description: 规划并执行有一定复杂度的代码改动：规模判断（XS–XL）、slicing strategy、可选并行 subagent 派发，以及每个 slice 的 Implement → Test → Verify → Commit 纪律。适用于多文件改动、跨文件重构、执行来自任意 planning source 的任务、跨切面修改（analytics sweep / i18n / library migration），或预计要写超过约 100 行代码的工作。也用于增量实现、切片落地、推进已规划任务和跨切面改动。仅在规模门判定为 XS，或纯 documentation / configuration 改动时跳过。
 ---
 
 # 增量实现 / Incremental Implementation
@@ -19,7 +19,7 @@ description: 规划并执行有一定复杂度的代码改动：规模判断（X
 
 **仅在以下情况跳过：**
 
-- 单文件、单函数编辑，拆 slice 没有意义
+- 规模门判定为 XS 的极小 edit（1 个 Acceptance criterion、1 个 concern、diff <30 行）
 - 不涉及代码逻辑的纯 documentation / config 改动
 
 ## 输入 / Inputs

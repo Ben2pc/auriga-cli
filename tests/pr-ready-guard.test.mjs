@@ -109,22 +109,7 @@ const cases = [
     expect: { status: 2, stderrIncludes: "progress.md" },
   },
   {
-    name: "stray spec under docs/superpowers/specs/*.md blocks (B3-only → no promote remediation)",
-    setup: () => {
-      const dir = makeRepo();
-      const specDir = path.join(dir, "docs", "superpowers", "specs");
-      fs.mkdirSync(specDir, { recursive: true });
-      fs.writeFileSync(path.join(specDir, "2026-04-17-foo-design.md"), "# spec\n");
-      return { cwd: dir, cmd: "gh pr ready" };
-    },
-    expect: {
-      status: 2,
-      stderrIncludes: "spec docs",
-      stderrNotIncludes: "promote",
-    },
-  },
-  {
-    name: "active spec left in docs/specs/*.md blocks (B4)",
+    name: "active spec left in docs/specs/*.md blocks",
     setup: () => {
       const dir = makeRepo();
       const activeDir = path.join(dir, "docs", "specs");
@@ -135,7 +120,7 @@ const cases = [
     expect: { status: 2, stderrIncludes: "unfinalized active specs in docs/specs/" },
   },
   {
-    name: "B4 message lists promote/archive/delete remediation",
+    name: "active spec message lists promote/archive/delete remediation",
     setup: () => {
       const dir = makeRepo();
       const activeDir = path.join(dir, "docs", "specs");
@@ -146,7 +131,7 @@ const cases = [
     expect: { status: 2, stderrIncludes: "promote to docs/architecture/" },
   },
   {
-    name: "empty docs/specs/ does NOT block (B4 negative)",
+    name: "empty docs/specs/ does NOT block",
     setup: () => {
       const dir = makeRepo();
       fs.mkdirSync(path.join(dir, "docs", "specs"), { recursive: true });
@@ -156,7 +141,7 @@ const cases = [
     expect: { status: 0, stderrNotIncludes: "active specs" },
   },
   {
-    name: "non-md files in docs/specs/ don't trigger B4",
+    name: "non-md files in docs/specs/ don't trigger active spec check",
     setup: () => {
       const dir = makeRepo();
       const activeDir = path.join(dir, "docs", "specs");
@@ -168,7 +153,7 @@ const cases = [
     expect: { status: 0, stderrNotIncludes: "active specs" },
   },
   {
-    name: "nested active spec docs/specs/<topic>/spec.md blocks (B4 recursive)",
+    name: "nested active spec docs/specs/<topic>/spec.md blocks recursively",
     setup: () => {
       const dir = makeRepo();
       const topicDir = path.join(dir, "docs", "specs", "feature-x");
@@ -177,12 +162,12 @@ const cases = [
       return { cwd: dir, cmd: "gh pr ready" };
     },
     // spec-design / arch-design write docs/specs/<topic>/spec.md — never a
-    // flat docs/specs/*.md. The B4 scan must descend into <topic>/, and the
+    // flat docs/specs/*.md. The active spec scan must descend into <topic>/, and the
     // reported path must be the full nested repo-relative path.
     expect: { status: 2, stderrIncludes: "docs/specs/feature-x/spec.md" },
   },
   {
-    name: "deeply-nested docs/specs/<topic>/<sub>/spec.md blocks (B4 recursion depth >1)",
+    name: "deeply-nested docs/specs/<topic>/<sub>/spec.md blocks with recursion depth >1",
     setup: () => {
       const dir = makeRepo();
       const deepDir = path.join(dir, "docs", "specs", "feature-x", "references");
@@ -193,17 +178,6 @@ const cases = [
     // The walk must descend more than one level — a single-level nested
     // case would still pass if recursion were accidentally capped at depth 1.
     expect: { status: 2, stderrIncludes: "docs/specs/feature-x/references/spec.md" },
-  },
-  {
-    name: "nested spec docs/superpowers/specs/<sub>/design.md blocks (B3 recursive)",
-    setup: () => {
-      const dir = makeRepo();
-      const subDir = path.join(dir, "docs", "superpowers", "specs", "foo");
-      fs.mkdirSync(subDir, { recursive: true });
-      fs.writeFileSync(path.join(subDir, "design.md"), "# nested spec\n");
-      return { cwd: dir, cmd: "gh pr ready" };
-    },
-    expect: { status: 2, stderrIncludes: "docs/superpowers/specs/foo/design.md" },
   },
   {
     name: "archived worklog copy does NOT count as stray",
@@ -386,7 +360,7 @@ const cases = [
     },
   },
   {
-    name: "gh pr create without --draft + active spec includes promote remediation (B4 promote-able)",
+    name: "gh pr create without --draft + active spec includes promote remediation",
     setup: () => {
       const dir = makeRepo();
       const activeDir = path.join(dir, "docs", "specs");
