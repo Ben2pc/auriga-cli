@@ -8,7 +8,7 @@
 
 ## Metadata
 
-- **Best for**: 捕捉与所描述代码产生漂移的文档——注释、README、CLAUDE.md、API 文档
+- **Best for**: 捕捉与所描述代码产生漂移的文档——注释、README、CLAUDE.md / AGENTS.md、API 文档
 - **Trigger**: always
 - **Reasoning**: workhorse
 - **Tools**: Read, Grep, Glob（只读）

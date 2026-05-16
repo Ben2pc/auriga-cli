@@ -137,7 +137,7 @@ Without an output format, the subagent dumps verbose context and cancels the dis
 
 **Model column contract:** default `inherit` — subagent uses the main Agent's current model. Override only when the caller has a reason: user named a specific model, slice is architectural and benefits from stronger reasoning at `xhigh` effort, or slice is mechanical and can drop to a cheaper model. Write overrides as neutral phrases (`stronger reasoning model, xhigh effort`) rather than specific model names unless the user named one.
 
-The main Agent dispatches parallel slices in a single message with multiple `Agent` tool calls, each with `isolation: "worktree"`. Gated slices run after their deps complete.
+The main Agent dispatches parallel slices to subagents — one dispatch per slice, in a single message — each writer isolated in its own git worktree. Gated slices run after their deps complete.
 
 ## Step 4: Execution Discipline (Per Slice)
 

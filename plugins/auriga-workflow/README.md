@@ -15,7 +15,7 @@ travel together so they share one distribution model and one install step.
 | `arch-design` | Architecture-level design — module decomposition, dependency direction, candidate tradeoffs, migration path. |
 | `code-simplify` | Code-level simplification — identifies code smells and reduces maintenance cost. |
 | `session-compound` | Compounds a session into a self-contained interactive HTML report. |
-| `goalify` | Plans an autonomous goal from a spec or work-in-progress and dispatches it via Claude Code's built-in `/goal` command. |
+| `goalify` | Plans an autonomous goal from a spec or work-in-progress and dispatches it via the built-in `/goal` command. |
 | `deep-review` | Multi-dimensional PR review orchestrator — dispatches parallel fresh-context reviewers per dimension and synthesizes findings into a Blocking / Non-blocking / Architectural punch list. |
 | `reviewer-creator` | Scaffolds a project-level custom reviewer at `docs/rules/review/<name>.md`; `deep-review` auto-discovers and dispatches it alongside the built-ins. |
 | `git-workflow` | The git lifecycle skill — branch hygiene, atomic / checkpoint commits, the five-element PR body. |
