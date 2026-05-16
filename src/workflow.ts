@@ -20,17 +20,28 @@ import {
  * FIRST capture (the user's pre-auriga original) and is never overwritten — a
  * later capture spills to a timestamped `<file>.bak.<stamp>`. Returns the path
  * the backup was written to.
+ *
+ * `verbatimSymlinks` copies a symlink AS a symlink, preserving its literal
+ * (possibly relative) target — a foreign AGENTS.md may be a symlink pointing
+ * elsewhere, and we want the backup to preserve that target verbatim rather
+ * than snapshot whatever it currently resolves to. A real file (CLAUDE.md)
+ * copies as a real file. `lstat` (not `existsSync`) probes the `.bak` slot so
+ * a backup that is itself a possibly-broken symlink still counts as present
+ * and is not silently overwritten.
  */
 function backupOnce(filePath: string): string {
   const bakPath = filePath + ".bak";
-  if (fs.existsSync(bakPath)) {
-    const stamp = new Date().toISOString().replace(/[:.]/g, "-");
-    const stampedPath = `${bakPath}.${stamp}`;
-    fs.copyFileSync(filePath, stampedPath);
-    return stampedPath;
+  let bakExists = true;
+  try {
+    fs.lstatSync(bakPath);
+  } catch {
+    bakExists = false;
   }
-  fs.copyFileSync(filePath, bakPath);
-  return bakPath;
+  const dest = bakExists
+    ? `${bakPath}.${new Date().toISOString().replace(/[:.]/g, "-")}`
+    : bakPath;
+  fs.cpSync(filePath, dest, { verbatimSymlinks: true });
+  return dest;
 }
 
 export async function installWorkflow(
@@ -171,12 +182,29 @@ export async function installWorkflow(
     }
   }
 
-  // Create AGENTS.md symlink
+  // Point AGENTS.md at CLAUDE.md via a symlink (the install shape — Claude
+  // Code and Codex then read the same workflow doc). If the path is already
+  // occupied by something that ISN'T that symlink — a real file from another
+  // tool, or a symlink pointing elsewhere — it holds content or intent we
+  // must not silently destroy. Back it up first (symmetric with how a foreign
+  // / hand-edited CLAUDE.md is preserved above), then replace.
+  let agentsStat: fs.Stats | undefined;
   try {
-    fs.lstatSync(targetAgents);
-    fs.unlinkSync(targetAgents);
+    agentsStat = fs.lstatSync(targetAgents);
   } catch {
-    // does not exist, proceed
+    // does not exist — nothing to preserve.
+  }
+  if (agentsStat) {
+    const pointsToClaude =
+      agentsStat.isSymbolicLink() &&
+      fs.readlinkSync(targetAgents) === "CLAUDE.md";
+    if (!pointsToClaude) {
+      const bak = backupOnce(targetAgents);
+      log.warn(
+        `AGENTS.md 不是指向 CLAUDE.md 的软链;已备份到 ${path.basename(bak)} 后替换为软链。`,
+      );
+    }
+    fs.unlinkSync(targetAgents);
   }
   fs.symlinkSync("CLAUDE.md", targetAgents);
   log.ok("AGENTS.md -> CLAUDE.md symlink created");

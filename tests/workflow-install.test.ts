@@ -281,6 +281,52 @@ describe("installWorkflow — AGENTS.md symlink (VAL-WF-010)", () => {
     assert.equal(lstat.isSymbolicLink(), true);
     assert.equal(fs.readlinkSync(path.join(cwd, "AGENTS.md")), "CLAUDE.md");
   });
+
+  test("a foreign real-file AGENTS.md is backed up before becoming a symlink", async () => {
+    const cwd = makeScratch("agents-realfile");
+    const agentsPath = path.join(cwd, "AGENTS.md");
+    const foreign = "# Another tool's AGENTS.md\nkeep me\n";
+    fs.writeFileSync(agentsPath, foreign);
+
+    const warnings = await captureWarnings(() =>
+      installWorkflow(makePackageRoot(), { interactive: false, cwd, lang: "en" }),
+    );
+
+    // The foreign content survives in AGENTS.md.bak.
+    assert.equal(fs.readFileSync(path.join(cwd, "AGENTS.md.bak"), "utf-8"), foreign);
+    // AGENTS.md itself is now the install-shape symlink.
+    assert.equal(fs.lstatSync(agentsPath).isSymbolicLink(), true);
+    assert.equal(fs.readlinkSync(agentsPath), "CLAUDE.md");
+    assert.match(warnings, /AGENTS\.md/);
+  });
+
+  test("a symlink AGENTS.md pointing elsewhere is backed up as a symlink", async () => {
+    const cwd = makeScratch("agents-foreignlink");
+    const agentsPath = path.join(cwd, "AGENTS.md");
+    fs.writeFileSync(path.join(cwd, "other.md"), "elsewhere\n");
+    fs.symlinkSync("other.md", agentsPath);
+
+    await installWorkflow(makePackageRoot(), { interactive: false, cwd, lang: "en" });
+
+    // The backup preserves the link nature + its original target.
+    const bak = fs.lstatSync(path.join(cwd, "AGENTS.md.bak"));
+    assert.equal(bak.isSymbolicLink(), true);
+    assert.equal(fs.readlinkSync(path.join(cwd, "AGENTS.md.bak")), "other.md");
+    assert.equal(fs.readlinkSync(agentsPath), "CLAUDE.md");
+  });
+
+  test("re-install over an existing CLAUDE.md symlink does not create a backup", async () => {
+    const cwd = makeScratch("agents-reinstall");
+    await installWorkflow(makePackageRoot(), { interactive: false, cwd, lang: "en" });
+    await installWorkflow(makePackageRoot(), { interactive: false, cwd, lang: "en" });
+
+    assert.equal(
+      fs.existsSync(path.join(cwd, "AGENTS.md.bak")),
+      false,
+      "an AGENTS.md already pointing at CLAUDE.md is our shape — no backup",
+    );
+    assert.equal(fs.readlinkSync(path.join(cwd, "AGENTS.md")), "CLAUDE.md");
+  });
 });
 
 describe("installWorkflow — re-install preserves the original .bak (F1 regression)", () => {
