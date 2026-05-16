@@ -1,9 +1,12 @@
 // tests/apply-handlers.test.ts
 //
 // Verifies that buildDefaultApplyHandlers dispatches correctly across the
-// three actions (install / update / uninstall) and the five categories.
+// two actions (install / uninstall) and the five categories (workflow,
+// skill, recommended-skill, plugin, preset).
 // We mock the installer modules at the loader level so this test doesn't
-// touch the network or filesystem.
+// touch the network or filesystem. The `preset` handler is NOT mocked —
+// it runs the real installPreset orchestration, whose dynamic imports
+// resolve to the same mocked installer modules.
 //
 // Deep filesystem integration (apply 3 items → real side effects) is
 // deferred to the M5 Playwright e2e where a hermetic HOME redirect is in
@@ -26,8 +29,13 @@ interface CallLog {
   uninstallSkill: Array<{ name: string; opts: unknown }>;
   installPlugins: Array<{ packageRoot: string; opts: unknown }>;
   installPluginsImpl?: (packageRoot: string, opts: unknown) => Promise<void>;
+  installWorkflowImpl?: (packageRoot: string, opts: unknown) => Promise<void>;
+  installSkillsImpl?: (packageRoot: string, opts: unknown) => Promise<void>;
   uninstallPlugin: Array<{ id: string; agent: string; opts: unknown }>;
   uninstallPluginImpl?: (id: string, agent: string, opts: unknown) => Promise<void>;
+  /** Cross-installer call order — lets a test assert the preset's
+   *  workflow → skills → plugins sequencing across separate mocks. */
+  order: string[];
 }
 
 function makeCallLog(): CallLog {
@@ -39,6 +47,7 @@ function makeCallLog(): CallLog {
     uninstallSkill: [],
     installPlugins: [],
     uninstallPlugin: [],
+    order: [],
   };
 }
 
@@ -47,6 +56,10 @@ async function importAdapter(calls: CallLog): Promise<typeof import("../src/appl
     namedExports: {
       installWorkflow: async (packageRoot: string, opts: unknown) => {
         calls.installWorkflow.push({ packageRoot, opts });
+        calls.order.push("workflow");
+        if (calls.installWorkflowImpl) {
+          await calls.installWorkflowImpl(packageRoot, opts);
+        }
       },
       uninstallWorkflow: async (opts: unknown) => {
         calls.uninstallWorkflow.push({ opts });
@@ -57,6 +70,10 @@ async function importAdapter(calls: CallLog): Promise<typeof import("../src/appl
     namedExports: {
       installSkills: async (packageRoot: string, opts: unknown) => {
         calls.installSkills.push({ packageRoot, opts });
+        calls.order.push("skills");
+        if (calls.installSkillsImpl) {
+          await calls.installSkillsImpl(packageRoot, opts);
+        }
       },
       installRecommendedSkills: async (packageRoot: string, opts: unknown) => {
         calls.installRecommendedSkills.push({ packageRoot, opts });
@@ -70,6 +87,7 @@ async function importAdapter(calls: CallLog): Promise<typeof import("../src/appl
     namedExports: {
       installPlugins: async (packageRoot: string, opts: unknown) => {
         calls.installPlugins.push({ packageRoot, opts });
+        calls.order.push("plugins");
         if (calls.installPluginsImpl) {
           await calls.installPluginsImpl(packageRoot, opts);
         }
@@ -382,6 +400,112 @@ describe("buildDefaultApplyHandlers — dual-Agent plugin isolation", () => {
     assert.equal(calls.uninstallPlugin.length, 2);
     assert.equal(calls.uninstallPlugin[0].agent, "claude");
     assert.equal(calls.uninstallPlugin[1].agent, "codex");
+  });
+});
+
+describe("buildDefaultApplyHandlers — preset", () => {
+  // The preset handler is the thinnest possible wrapper over installPreset;
+  // installPreset itself is NOT mocked here, so these tests exercise the
+  // real workflow → skills → plugins orchestration end-to-end with only the
+  // three leaf installers stubbed.
+  test("install → drives installPreset across workflow / skills / plugins in order", async () => {
+    const calls = makeCallLog();
+    const { buildDefaultApplyHandlers } = await importAdapter(calls);
+    const handlers = buildDefaultApplyHandlers({
+      packageRoot: "/pkg",
+      cwd: "/proj",
+      pluginAgentsByName: new Map(),
+    });
+    await handlers.preset("install", "preset", noopLog());
+    assert.equal(calls.installWorkflow.length, 1);
+    assert.equal(calls.installSkills.length, 1);
+    assert.equal(calls.installPlugins.length, 1);
+    assert.equal(calls.installRecommendedSkills.length, 0);
+    assert.deepEqual(calls.order, ["workflow", "skills", "plugins"]);
+    // plugins step pins the install surface to auriga-workflow only.
+    const pluginOpts = calls.installPlugins[0].opts as { selected: string[] };
+    assert.deepEqual(pluginOpts.selected, ["auriga-workflow"]);
+  });
+
+  test("install → omitted scope/agent/lang fall back to preset defaults (user/both/en)", async () => {
+    const calls = makeCallLog();
+    const { buildDefaultApplyHandlers } = await importAdapter(calls);
+    const handlers = buildDefaultApplyHandlers({
+      packageRoot: "/pkg",
+      cwd: "/proj",
+      pluginAgentsByName: new Map(),
+    });
+    await handlers.preset("install", "preset", noopLog());
+    const wf = calls.installWorkflow[0].opts as { lang: string };
+    const sk = calls.installSkills[0].opts as { scope: string; agent: string };
+    assert.equal(wf.lang, "en");
+    assert.equal(sk.scope, "user");
+    assert.equal(sk.agent, "both");
+  });
+
+  test("install → explicit scope/agent/lang are forwarded to the installers", async () => {
+    const calls = makeCallLog();
+    const { buildDefaultApplyHandlers } = await importAdapter(calls);
+    const handlers = buildDefaultApplyHandlers({
+      packageRoot: "/pkg",
+      cwd: "/proj",
+      pluginAgentsByName: new Map(),
+    });
+    await handlers.preset("install", "preset", {
+      onLog: () => {},
+      scope: "project",
+      agent: "codex",
+      lang: "zh-CN",
+    });
+    const wf = calls.installWorkflow[0].opts as { lang: string };
+    const pl = calls.installPlugins[0].opts as { scope: string; agent: string };
+    assert.equal(wf.lang, "zh-CN");
+    assert.equal(pl.scope, "project");
+    assert.equal(pl.agent, "codex");
+  });
+
+  test("uninstall → rejected (preset is install-only)", async () => {
+    const calls = makeCallLog();
+    const { buildDefaultApplyHandlers } = await importAdapter(calls);
+    const handlers = buildDefaultApplyHandlers({
+      packageRoot: "/pkg",
+      cwd: "/proj",
+      pluginAgentsByName: new Map(),
+    });
+    await assert.rejects(
+      () => handlers.preset("uninstall", "preset", noopLog()),
+      /preset only supports the install action/i,
+    );
+    // Nothing should have been installed.
+    assert.equal(calls.order.length, 0);
+  });
+
+  test("a failing step → later steps still run, handler throws naming the failed step", async () => {
+    const calls = makeCallLog();
+    // skills step fails — workflow (before) and plugins (after) must still run.
+    calls.installSkillsImpl = async () => {
+      throw new Error("skills boom");
+    };
+    const { buildDefaultApplyHandlers } = await importAdapter(calls);
+    const handlers = buildDefaultApplyHandlers({
+      packageRoot: "/pkg",
+      cwd: "/proj",
+      pluginAgentsByName: new Map(),
+    });
+    const logs: string[] = [];
+    await assert.rejects(
+      () =>
+        handlers.preset("install", "preset", {
+          onLog: (l) => logs.push(l),
+        }),
+      /preset install failed.*skills/i,
+    );
+    // log-and-continue: a mid-sequence failure does not abort the rest.
+    assert.deepEqual(calls.order, ["workflow", "skills", "plugins"]);
+    assert.ok(
+      logs.some((l) => /skills/i.test(l) && /fail/i.test(l)),
+      `missing skills failure log: ${logs.join(" | ")}`,
+    );
   });
 });
 

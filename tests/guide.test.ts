@@ -55,6 +55,9 @@ describe("renderGuide", () => {
     assert.match(out, /npx -y auriga-cli install --preset/);
     assert.match(out, /npx -y auriga-cli install --all/);
     assert.match(out, /npx -y auriga-cli install recommended/);
+    // VAL-GUIDE-002: the removed `install hooks` surface must not resurface
+    // anywhere in the SOP body.
+    assert.doesNotMatch(out, /install hooks/);
     assert.match(out, /0\s+— all requested categories installed/);
     assert.match(out, /2\s+— partial success/);
     assert.match(out, /Claude Code or Codex session/);

@@ -16,7 +16,7 @@ src/
   catalog.ts    — Catalog type + loadCatalog() (reads dist/catalog.json)
   types.ts      — Shared leaf types (CategoryName, CATEGORY_NAMES); kept out of cli.ts so help.ts doesn't reverse-import the entrypoint
   build/
-    generate-catalog.ts — Build-time: parses SKILL.md + plugin/hook configs → dist/catalog.json
+    generate-catalog.ts — Build-time: parses SKILL.md + plugin configs → dist/catalog.json
   codex-plugin-config.ts — Codex plugin manifest/config validators + safe local-path helpers
   utils.ts      — Constants, remote fetch, exec, logging, InstallOpts, getPackageRoot
   workflow.ts   — CLAUDE.md + AGENTS.md installation (throws on failure in non-interactive). Also exports `uninstallWorkflow({force, cwd})` for the Web UI's /api/apply route.
@@ -230,7 +230,7 @@ For unreleased work (no published version yet), swap `npx auriga-cli@<version>` 
 | `.claude-plugin/marketplace.json` | Manual | Claude Code marketplace manifest for plugins shipped from this repo |
 | `.agents/plugins/marketplace.json` | Manual | Codex marketplace manifest for plugins shipped from this repo |
 | `extra_plugin_configs.json` | Manual | External plugin registry and default-policy overlay for marketplace plugins |
-| `dist/catalog.json` | `npm run build` (via `src/build/generate-catalog.ts`) | Build-time catalog of workflow skills / recommended skills / plugins / hooks — name + description. Source of truth for `--help` output and the non-interactive filter-name validator. Ships inside the npm tarball. Regenerate after changing any `SKILL.md` frontmatter, plugin marketplace/config, plugin manifest, or plugin `hooks/hooks.json`. |
+| `dist/catalog.json` | `npm run build` (via `src/build/generate-catalog.ts`) | Build-time catalog of workflow skills / recommended skills / plugins — name + description. Source of truth for `--help` output and the non-interactive filter-name validator. Ships inside the npm tarball. Regenerate after changing any `SKILL.md` frontmatter, plugin marketplace/config, plugin manifest, or plugin `hooks/hooks.json`. |
 | `CLAUDE.md` / `CLAUDE.zh-CN.md` | Manual | Workflow templates (the product). **Must be edited in tandem** — both languages must stay in sync |
 | `README.md` / `README.zh-CN.md` | Manual | Public docs. **Must be edited in tandem** — both languages must stay in sync |
 

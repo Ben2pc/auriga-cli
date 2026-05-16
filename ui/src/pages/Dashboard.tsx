@@ -427,9 +427,10 @@ function PresetBar({
 // Dashboard
 // ---------------------------------------------------------------------------
 
-// Categories that take a scope selector. workflow is excluded — it has no
-// scope concept (single file at repo root).
-type ScopableCategory = Exclude<ApplyCategory, "workflow">;
+// Categories with a per-column scope picker. workflow is excluded — it has
+// no scope concept (single file at repo root); preset is excluded too — its
+// scope lives in the PresetBar's own control, not the per-column scope map.
+type ScopableCategory = Exclude<ApplyCategory, "workflow" | "preset">;
 
 function initialScopeMap(): Map<ScopableCategory, Scope> {
   // Default everything to USER. Rationale: a user-level install reaches

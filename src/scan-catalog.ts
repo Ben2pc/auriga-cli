@@ -14,7 +14,7 @@ export async function buildScanCatalog(
   const dist = loadCatalog(packageRoot);
 
   // v1.19.0 dropped update-available status. The scanner is now presence-
-  // only: skills / hooks / plugins / workflow all report installed iff their
+  // only: skills / plugins / workflow all report installed iff their
   // truth source exists, not-installed otherwise. No version / hash / event
   // comparison happens, so the build-time catalog is reduced to the bare
   // {description, agents?, external?} shape per entry.

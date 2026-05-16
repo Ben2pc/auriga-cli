@@ -25,8 +25,9 @@ import type { InstallOpts, PluginAgent } from "./utils.js";
 /**
  * 预设安装的插件成员 —— 固定只装 auriga-workflow。
  * installPlugins 的 `selected` 过滤把安装面收敛到这一个插件。
+ * `as const` 冻结这个「单一真相」常量,调用方无法 .push() 篡改它。
  */
-export const PRESET_PLUGINS = ["auriga-workflow"];
+export const PRESET_PLUGINS = ["auriga-workflow"] as const;
 
 /**
  * installPreset 的输入。三个默认值(scope=user / agent=both / lang=en)
@@ -55,11 +56,11 @@ export interface PresetStepResult {
 }
 
 /** 预设的安装顺序:文档 → skill → 插件。 */
-const PRESET_STEPS: PresetStepResult["category"][] = [
+const PRESET_STEPS: readonly PresetStepResult["category"][] = [
   "workflow",
   "skills",
   "plugins",
-];
+] as const;
 
 /**
  * 按 workflow → skills → plugins 顺序执行预设安装。
@@ -112,7 +113,10 @@ async function runPresetStep(
     }
     case "plugins": {
       const { installPlugins } = await import("./plugins.js");
-      return installPlugins(packageRoot, { ...base, selected: PRESET_PLUGINS });
+      return installPlugins(packageRoot, {
+        ...base,
+        selected: [...PRESET_PLUGINS],
+      });
     }
   }
 }
