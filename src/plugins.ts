@@ -196,6 +196,21 @@ function getInstalledPlugins(cwd: string = process.cwd()): Map<string, string[]>
 }
 
 /**
+ * Drops `exclude`-named plugins from a candidate list. The TUI's
+ *「其他插件」menu item passes `["auriga-workflow"]` so the plugin already
+ * installed by the preset isn't offered again (VAL-TUI-005). A pure,
+ * order-preserving filter — `undefined` / empty `exclude` is a no-op.
+ */
+export function excludeByName<T extends { name: string }>(
+  plugins: T[],
+  exclude: readonly string[] | undefined,
+): T[] {
+  if (!exclude || exclude.length === 0) return plugins;
+  const drop = new Set(exclude);
+  return plugins.filter((p) => !drop.has(p.name));
+}
+
+/**
  * Non-interactive selection resolver for plugins.
  * `undefined` = default-on set; `["*"]` = full set; explicit names =
  * exact filter. CLI parser validates names up-front.
@@ -943,16 +958,19 @@ async function installCodexPlugins(
     return;
   }
 
+  // `excludePlugins` (set by the TUI's「其他插件」item) keeps preset-owned
+  // plugins out of the offered set.
+  const offered = excludeByName(installConfig.plugins, opts.excludePlugins);
   const selected = opts.interactive
     ? await withEsc(checkbox({
       message: "Select Codex plugins to install:",
-      choices: installConfig.plugins.map((p) => ({
+      choices: offered.map((p) => ({
         name: p.description ? `${p.name} — ${p.description}` : p.name,
         value: p,
         checked: p.defaultOn !== false,
       })),
     }))
-    : resolveCodexPluginSelection(installConfig.plugins, opts.selected);
+    : resolveCodexPluginSelection(offered, opts.selected);
 
   if (selected.length === 0) {
     log.skip("No Codex plugins selected");
@@ -1136,6 +1154,9 @@ export async function installPlugins(
     : opts.scope ?? "project";
 
   if (config) {
+    // `excludePlugins` (set by the TUI's「其他插件」item) keeps
+    // preset-owned plugins out of the offered set.
+    config = { ...config, plugins: excludeByName(config.plugins, opts.excludePlugins) };
     const targetCwd = installTargetCwd(opts);
     const installed = getInstalledPlugins(targetCwd);
 

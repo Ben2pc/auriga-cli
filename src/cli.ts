@@ -977,6 +977,40 @@ function highlight(text: string): string {
 // and `npx auriga-cli` with no args.
 // ---------------------------------------------------------------------------
 
+type LegacyMenuValue = "preset" | "recommended" | "plugins";
+
+/**
+ * The TUI's three menu items, in fixed order. Lifted to a module-level
+ * constant so VAL-TUI-001 / VAL-TUI-002 can assert the "exactly 3 items /
+ * order / default-checked" contract without driving inquirer.
+ *
+ * Workflow + Skills are absorbed by the「推荐预设」item; Hooks is gone.
+ * The preset label spells out the silent defaults (scope user / agent
+ * both / lang en) so a TTY user knows what they're getting — fine-tuning
+ * those goes through the non-interactive `install --preset` flags.
+ */
+export const LEGACY_MENU_CHOICES: ReadonlyArray<{
+  value: LegacyMenuValue;
+  name: string;
+  checked: boolean;
+}> = [
+  {
+    value: "preset",
+    name: "Recommended preset — CLAUDE.md/AGENTS.md + workflow skills + auriga-workflow plugin (scope user · agent both · lang en)",
+    checked: true,
+  },
+  {
+    value: "recommended",
+    name: "Optional skills — opt-in utility skills (claude-code-agent, codex-agent...)",
+    checked: false,
+  },
+  {
+    value: "plugins",
+    name: "Other plugins — everything except auriga-workflow (auriga-notify, skill-creator, codex...)",
+    checked: false,
+  },
+];
+
 async function runLegacyMenu(): Promise<number> {
   // Lazy-load TTY-only deps so the non-interactive code path doesn't
   // force inquirer / printBanner / withEsc into the module graph.
@@ -995,38 +1029,44 @@ async function runLegacyMenu(): Promise<number> {
   const packageRoot = await fetchContentRoot();
   if (process.env.DEV !== "1") console.log("");
 
-  const moduleTypes = await withEsc(checkbox({
-    message: "Select module types to install:",
-    choices: [
-      { name: "Workflow — CLAUDE.md + AGENTS.md", value: "workflow" as const, checked: true },
-      { name: "Skills — Development process skills (TDD, debugging, verification, planning...)", value: "skills" as const, checked: true },
-      { name: "Recommended Skills — Extra utility skills (claude-code-agent, codex-agent...)", value: "recommended" as const, checked: true },
-      { name: "Plugins — Claude Code / Codex plugins (skill-creator, codex, auriga-workflow...)", value: "plugins" as const, checked: true },
-    ],
+  const picks = await withEsc(checkbox<LegacyMenuValue>({
+    message: "Select what to install:",
+    choices: LEGACY_MENU_CHOICES.map((c) => ({
+      name: c.name,
+      value: c.value,
+      checked: c.checked,
+    })),
   }));
 
-  if (moduleTypes.length === 0) {
+  if (picks.length === 0) {
     console.log("Nothing selected. Bye!");
     return 0;
   }
 
-  const interactiveOpts: InstallOpts = { interactive: true };
-
-  if (moduleTypes.includes("workflow")) {
-    console.log("\n--- Workflow ---\n");
-    await installWorkflow(packageRoot, interactiveOpts);
+  // 「推荐预设」silently uses the preset defaults (scope user / agent
+  // both / lang en) — it does not prompt for them. The other two items
+  // drill down into their category's per-item sub-selection as before.
+  if (picks.includes("preset")) {
+    console.log("\n--- Recommended preset ---\n");
+    await installPreset(packageRoot, {
+      interactive: true,
+      scope: "user",
+      agent: "both",
+      lang: "en",
+    });
   }
-  if (moduleTypes.includes("skills")) {
-    console.log("\n--- Skills ---\n");
-    await installSkills(packageRoot, interactiveOpts);
+  if (picks.includes("recommended")) {
+    console.log("\n--- Optional skills ---\n");
+    await installRecommendedSkills(packageRoot, { interactive: true });
   }
-  if (moduleTypes.includes("recommended")) {
-    console.log("\n--- Recommended Skills ---\n");
-    await installRecommendedSkills(packageRoot, interactiveOpts);
-  }
-  if (moduleTypes.includes("plugins")) {
-    console.log("\n--- Plugins ---\n");
-    await installPlugins(packageRoot, interactiveOpts);
+  if (picks.includes("plugins")) {
+    console.log("\n--- Other plugins ---\n");
+    await installPlugins(packageRoot, {
+      interactive: true,
+      // auriga-workflow is already covered by the preset — keep it out
+      // of this sub-selection (VAL-TUI-005).
+      excludePlugins: ["auriga-workflow"],
+    });
   }
 
   console.log("\n✨ Installation complete!\n");
