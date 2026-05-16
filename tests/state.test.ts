@@ -148,6 +148,7 @@ import { afterEach, beforeEach, describe, test } from "node:test";
 
 import { mergePluginsById, scanState } from "../src/state.js";
 import type { Catalog, ScanOptions } from "../src/state.js";
+import { composeMarkedFile } from "../src/workflow-markers.js";
 import { generateCatalog } from "../src/build/generate-catalog.js";
 import type {
   ItemStatus,
@@ -414,7 +415,7 @@ describe("scanState — #5 Workflow / project scope no .claude/CLAUDE.md fallbac
 // #6 — Workflow / foreign CLAUDE.md (file exists, no auriga marker)
 // ===========================================================================
 describe("scanState — #6 Workflow foreign-CLAUDE.md", () => {
-  test("#6 workflow file exists but no auriga marker → not-installed + workflow-foreign-claudemd warning", async () => {
+  test("#6 (VAL-SCAN-002) workflow file exists but no auriga marker → not-installed + workflow-foreign-claudemd warning", async () => {
     // rationale: a CLAUDE.md without our header is foreign content, not
     // an installed auriga workflow. The v1.18.4 verification (running
     // web-ui from $HOME) showed the user's `# Global`-headed
@@ -438,6 +439,41 @@ describe("scanState — #6 Workflow foreign-CLAUDE.md", () => {
     );
   });
 
+});
+
+// ===========================================================================
+// Workflow / managed-block-marked CLAUDE.md (VAL-SCAN-001)
+// (a post-brief scenario — no scenario number; #7+ belong to the Skills series)
+// ===========================================================================
+describe("scanState — Workflow managed-block marked CLAUDE.md", () => {
+  test("(VAL-SCAN-001) a marked CLAUDE.md is detected as installed", async () => {
+    // rationale: the managed-block markers put an HTML-comment line ahead of
+    // the auriga header. The old scanner walked to the first non-blank line
+    // and broke on it — it would hit the marker comment, not the header, and
+    // misreport the file as not-installed. The scanner must recognize the
+    // START marker itself.
+    const home = makeScratch("home7");
+    redirectHome(home);
+    const proj = makeScratch("proj7");
+    fs.writeFileSync(
+      path.join(proj, "CLAUDE.md"),
+      composeMarkedFile({
+        blockBody: "# auriga Workflow (v1.9.0)\nworkflow body\n",
+        userRegion: "\n## 工程专属规则\n- 自定义内容\n",
+      }),
+    );
+
+    const report = await scan(proj, makeCatalog(), {
+      scopes: { workflow: "project" },
+      homeDir: home,
+    });
+
+    assert.equal(report.workflow.status, "installed", "marked CLAUDE.md is our workflow");
+    assert.ok(
+      !report.warnings.some((w: StateWarning) => (w.code as string) === "workflow-foreign-claudemd"),
+      "a marked file must not raise the foreign warning",
+    );
+  });
 });
 
 // ===========================================================================

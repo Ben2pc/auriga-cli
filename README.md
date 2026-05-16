@@ -87,9 +87,10 @@ The **Recommended preset** is checked by default and installs silently with the 
 
 ### Workflow
 
-Copies `CLAUDE.md` to the target project and creates an `AGENTS.md` symlink for compatibility with different Agent frameworks. Supports English and Chinese — you choose during installation.
+Installs `CLAUDE.md` into the target project and creates an `AGENTS.md` symlink for compatibility with different Agent frameworks. Supports English and Chinese — you choose during installation.
 
-- Backs up existing `CLAUDE.md` before overwriting
+- **Extensible and upgradable**: the auriga workflow ships inside a managed block delimited by `<!-- AURIGA:WORKFLOW:v1 START/END -->` markers. Add your project-specific instructions *after* the END marker — re-running install upgrades the managed block in place and leaves your section untouched.
+- A pre-marker `CLAUDE.md` (installed by an older version) is migrated to the marked format on the next install, with the old file backed up to `CLAUDE.md.bak`. A foreign `CLAUDE.md` from another tool is kept as your user section below a fresh managed block.
 - Covers: requirement clarification, TDD, code review, branch workflow, subagent orchestration
 
 ### Skills

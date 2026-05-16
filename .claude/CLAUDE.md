@@ -19,7 +19,8 @@ src/
     generate-catalog.ts — Build-time: parses SKILL.md + plugin configs → dist/catalog.json
   codex-plugin-config.ts — Codex plugin manifest/config validators + safe local-path helpers
   utils.ts      — Constants, remote fetch, exec, logging, InstallOpts, getPackageRoot
-  workflow.ts   — CLAUDE.md + AGENTS.md installation (throws on failure in non-interactive). Also exports `uninstallWorkflow({force, cwd})` for the Web UI's /api/apply route.
+  workflow.ts   — CLAUDE.md + AGENTS.md installation. Install/upgrade is a managed-block splice (five cases: fresh / marked-upgrade / hand-edited-block / foreign / old-format migration), not a whole-file overwrite. Throws on failure in non-interactive. Also exports `uninstallWorkflow({force, cwd})` for the Web UI's /api/apply route.
+  workflow-markers.ts — Single source of truth for the CLAUDE.md managed-block marker contract (`<!-- AURIGA:WORKFLOW:v1 START/END -->`). Exports parseMarkers / composeMarkedFile / hashBlock / hasAurigaHeader / WORKFLOW_HEADER_RE. No heavy imports — workflow.ts AND state.ts both consume it (state.ts must not import workflow.ts, which pulls in @inquirer/prompts).
   skills.ts     — Workflow + recommended skills installation; exports WORKFLOW_SKILLS and `uninstallSkill(name, opts)`
   plugins.ts    — Plugin + marketplace installation; exports `uninstallPlugin(id, agent, opts)` and `excludeByName` (TUI「其他插件」filter)
   preset.ts     — `installPreset(packageRoot, opts)` — orchestrates the curated preset (workflow doc + workflow skills + auriga-workflow plugin); shared by CLI `--preset`, the TUI, and the Web UI apply handler

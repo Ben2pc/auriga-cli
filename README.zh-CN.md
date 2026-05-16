@@ -87,9 +87,10 @@ npx auriga-cli
 
 ### Workflow
 
-将 `CLAUDE.md` 复制到目标项目，并创建 `AGENTS.md` 软链接以兼容不同 Agent 框架。支持中英文版本，安装时可选择。
+将 `CLAUDE.md` 安装到目标项目，并创建 `AGENTS.md` 软链接以兼容不同 Agent 框架。支持中英文版本，安装时可选择。
 
-- 目标已有 `CLAUDE.md` 时会自动备份后覆盖
+- **可扩展、可升级**：auriga 工作流被一对 `<!-- AURIGA:WORKFLOW:v1 START/END -->` 标记包成「受管区块」。把你的工程专属规则写在 END 标记**之后**——再次安装只就地升级受管区块,你的内容原样保留。
+- 旧版本装下的、无标记的 `CLAUDE.md` 会在下次安装时迁移为标记格式,旧文件备份到 `CLAUDE.md.bak`。别的工具生成的 `CLAUDE.md` 会作为用户区保留在全新受管区块下方。
 - 涵盖：需求澄清、TDD、代码 Review、分支工作流、Subagent 编排
 
 ### Skills

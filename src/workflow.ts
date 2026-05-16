@@ -8,6 +8,41 @@ import {
   withEsc,
   type InstallOpts,
 } from "./utils.js";
+import {
+  composeMarkedFile,
+  hasAurigaHeader,
+  hashBlock,
+  parseMarkers,
+} from "./workflow-markers.js";
+
+/**
+ * Back up `filePath` once. The canonical `<file>.bak` slot is reserved for the
+ * FIRST capture (the user's pre-auriga original) and is never overwritten — a
+ * later capture spills to a timestamped `<file>.bak.<stamp>`. Returns the path
+ * the backup was written to.
+ *
+ * `verbatimSymlinks` copies a symlink AS a symlink, preserving its literal
+ * (possibly relative) target — a foreign AGENTS.md may be a symlink pointing
+ * elsewhere, and we want the backup to preserve that target verbatim rather
+ * than snapshot whatever it currently resolves to. A real file (CLAUDE.md)
+ * copies as a real file. `lstat` (not `existsSync`) probes the `.bak` slot so
+ * a backup that is itself a possibly-broken symlink still counts as present
+ * and is not silently overwritten.
+ */
+function backupOnce(filePath: string): string {
+  const bakPath = filePath + ".bak";
+  let bakExists = true;
+  try {
+    fs.lstatSync(bakPath);
+  } catch {
+    bakExists = false;
+  }
+  const dest = bakExists
+    ? `${bakPath}.${new Date().toISOString().replace(/[:.]/g, "-")}`
+    : bakPath;
+  fs.cpSync(filePath, dest, { verbatimSymlinks: true });
+  return dest;
+}
 
 export async function installWorkflow(
   packageRoot: string,
@@ -47,51 +82,129 @@ export async function installWorkflow(
   const targetClaude = path.join(resolved, "CLAUDE.md");
   const targetAgents = path.join(resolved, "AGENTS.md");
 
-  // Back up an existing CLAUDE.md before overwriting, but never clobber
-  // a prior .bak.
-  //
-  // Two regressions to defend against:
-  // 1. F1 (v1.19.0 Slice 0): re-install is the update path now, so a
-  //    second install must not overwrite the user's pre-auriga .bak with
-  //    our previous workflow version.
-  // 2. Codex adversarial review: if the user later replaces an
-  //    auriga-managed CLAUDE.md with foreign content (hand-paste, manual
-  //    edits, etc.) and re-runs install, the foreign content must NOT
-  //    be silently overwritten just because .bak already exists.
-  //
-  // Strategy: only consider the file "safe to overwrite without backup"
-  // when its bytes match the packaged source (i.e. it's the workflow we
-  // installed last time, untouched). Otherwise capture it — to .bak when
-  // free, else to a timestamped slot so .bak stays canonical.
-  if (fs.existsSync(targetClaude)) {
-    const currentBytes = fs.readFileSync(targetClaude);
-    const sourceBytes = fs.readFileSync(sourceClaude);
-    const diverged = !currentBytes.equals(sourceBytes);
-    if (diverged) {
-      const bakPath = targetClaude + ".bak";
-      if (fs.existsSync(bakPath)) {
-        const stamp = new Date().toISOString().replace(/[:.]/g, "-");
-        const stampedPath = `${bakPath}.${stamp}`;
-        fs.copyFileSync(targetClaude, stampedPath);
+  // The packaged template is authored with managed-block markers. Extract its
+  // managed block (the auriga workflow body) and its user-region placeholder.
+  // Defensive fallback: if the template somehow lacks markers, treat the whole
+  // file as the managed block with an empty user region.
+  const sourceContent = fs.readFileSync(sourceClaude, "utf8");
+  const sourceParsed = parseMarkers(sourceContent);
+  const sourceBlock =
+    sourceParsed.kind === "marked"
+      ? sourceParsed.blockBody
+      : sourceContent.endsWith("\n")
+        ? sourceContent
+        : sourceContent + "\n";
+  const templateUserRegion =
+    sourceParsed.kind === "marked" ? sourceParsed.userRegion : "";
+
+  // Installing the workflow doc is one of five cases. The managed block is
+  // always replaced with the packaged version; the cases differ in how the
+  // project's own content (the user region) is preserved or backed up.
+  if (!fs.existsSync(targetClaude)) {
+    // 1. Fresh install — write the marked template as-is, no backup.
+    fs.writeFileSync(
+      targetClaude,
+      composeMarkedFile({ blockBody: sourceBlock, userRegion: templateUserRegion, lang }),
+    );
+    log.ok(`CLAUDE.md installed (${langOpt.label})`);
+  } else {
+    const current = fs.readFileSync(targetClaude, "utf8");
+    const parsed = parseMarkers(current);
+
+    if (parsed.kind === "marked") {
+      // 2. Upgrade — splice the managed block, preserve the user region.
+      //    The END marker carries the block's hash. Three cases:
+      //      - hash present and matches  → block untouched, no backup
+      //      - hash present and mismatch → block hand-edited, back up + warn
+      //      - hash absent               → unverifiable (e.g. the file was
+      //        copied straight from the template, which ships a no-hash END
+      //        marker). Can't prove the block is untouched, so back up
+      //        conservatively rather than risk silently dropping an edit.
+      if (parsed.endHash === null) {
+        const bak = backupOnce(targetClaude);
         log.warn(
-          `CLAUDE.md.bak already exists; current CLAUDE.md backed up to ${path.basename(stampedPath)}`,
+          `CLAUDE.md 的受管区块缺少校验标记,无法确认是否被改动;升级前已备份到 ${path.basename(bak)}`,
         );
-      } else {
-        fs.copyFileSync(targetClaude, bakPath);
-        log.warn(`Existing CLAUDE.md backed up to CLAUDE.md.bak`);
+      } else if (parsed.endHash !== hashBlock(parsed.blockBody)) {
+        const bak = backupOnce(targetClaude);
+        log.warn(
+          `CLAUDE.md 的受管区块曾被手改;升级已整块覆盖该区块,改动前的文件见 ${path.basename(bak)}`,
+        );
       }
+      fs.writeFileSync(
+        targetClaude,
+        composeMarkedFile({
+          prefix: parsed.prefix,
+          blockBody: sourceBlock,
+          userRegion: parsed.userRegion,
+          lang,
+        }),
+      );
+      log.ok(
+        `CLAUDE.md upgraded (${langOpt.label}); your project section was preserved`,
+      );
+    } else if (parsed.kind === "unmarked" && hasAurigaHeader(current)) {
+      // 3. Old-format migration — an auriga CLAUDE.md from before markers
+      //    existed. The user region can't be recovered from an unmarked file,
+      //    so back the whole thing up and install fresh.
+      const bak = backupOnce(targetClaude);
+      fs.writeFileSync(
+        targetClaude,
+        composeMarkedFile({ blockBody: sourceBlock, userRegion: templateUserRegion, lang }),
+      );
+      log.warn(
+        `检测到旧版 CLAUDE.md(无受管标记);已备份到 ${path.basename(bak)}。` +
+          `若你改过它,请从备份把工程定制手动迁移到 END 标记之后的用户区。`,
+      );
+      log.ok(`CLAUDE.md migrated to the managed-block format (${langOpt.label})`);
+    } else if (parsed.kind === "unmarked") {
+      // 4. Foreign first install — a CLAUDE.md from another tool. Keep its
+      //    content in place as the user region; no backup needed.
+      const foreign = current.endsWith("\n") ? current : current + "\n";
+      fs.writeFileSync(
+        targetClaude,
+        composeMarkedFile({ blockBody: sourceBlock, userRegion: "\n" + foreign, lang }),
+      );
+      log.ok(
+        `CLAUDE.md installed (${langOpt.label}); your existing content was kept below the managed block`,
+      );
+    } else {
+      // 5. Malformed markers — can't locate the block boundaries safely.
+      //    Back up and reinstall fresh rather than splice into a broken file.
+      const bak = backupOnce(targetClaude);
+      fs.writeFileSync(
+        targetClaude,
+        composeMarkedFile({ blockBody: sourceBlock, userRegion: templateUserRegion, lang }),
+      );
+      log.warn(
+        `CLAUDE.md 的受管标记已损坏(${parsed.reason});已备份到 ${path.basename(bak)} 并重装。`,
+      );
     }
   }
 
-  fs.copyFileSync(sourceClaude, targetClaude);
-  log.ok(`CLAUDE.md copied (${langOpt.label})`);
-
-  // Create AGENTS.md symlink
+  // Point AGENTS.md at CLAUDE.md via a symlink (the install shape — Claude
+  // Code and Codex then read the same workflow doc). If the path is already
+  // occupied by something that ISN'T that symlink — a real file from another
+  // tool, or a symlink pointing elsewhere — it holds content or intent we
+  // must not silently destroy. Back it up first (symmetric with how a foreign
+  // / hand-edited CLAUDE.md is preserved above), then replace.
+  let agentsStat: fs.Stats | undefined;
   try {
-    fs.lstatSync(targetAgents);
-    fs.unlinkSync(targetAgents);
+    agentsStat = fs.lstatSync(targetAgents);
   } catch {
-    // does not exist, proceed
+    // does not exist — nothing to preserve.
+  }
+  if (agentsStat) {
+    const pointsToClaude =
+      agentsStat.isSymbolicLink() &&
+      fs.readlinkSync(targetAgents) === "CLAUDE.md";
+    if (!pointsToClaude) {
+      const bak = backupOnce(targetAgents);
+      log.warn(
+        `AGENTS.md 不是指向 CLAUDE.md 的软链;已备份到 ${path.basename(bak)} 后替换为软链。`,
+      );
+    }
+    fs.unlinkSync(targetAgents);
   }
   fs.symlinkSync("CLAUDE.md", targetAgents);
   log.ok("AGENTS.md -> CLAUDE.md symlink created");
