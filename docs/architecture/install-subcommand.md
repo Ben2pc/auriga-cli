@@ -19,10 +19,10 @@
 
 - 新增 `install` 动词子命令；三种严格互斥的合法形式：交互菜单 / `--all` 原子装 / 单类别装（可带匹配的子项过滤）
 - 新增 `guide` 子命令：输出类似 skill SOP 的安装引导，作为 **Agent bootstrap 的单一入口**（解决 discoverability 问题）
-- 详细 `--help` 输出，内嵌完整 skill / plugin / hook 目录（名字 + 描述），让 Agent 看完 help 就能判断"我的需求该装哪些"
-- `install --all` 分级退出码（0 / 1 / 2）+ precheck 外部 CLI，让 Agent 可以识别"部分成功"并精准补装
+- 详细 `--help` 输出，内嵌完整 skill / plugin 目录（名字 + 描述），让 Agent 看完 help 就能判断"我的需求该装哪些"
+- `install --all` / `install --preset` 分级退出码（0 / 1 / 2）+ precheck 外部 CLI，让 Agent 可以识别"部分成功"并精准补装
 - 幂等：二次安装能识别已装项，不破坏用户本地修改
-- 向后兼容 workflow / skills / plugins / hooks 的现有安装函数，通过签名扩展复用
+- 向后兼容 workflow / skills / plugins 的现有安装函数，通过签名扩展复用
 
 **Out of scope**：
 
@@ -54,11 +54,20 @@
 
 ```
 npx auriga-cli install                               # TTY: checkbox 菜单；非 TTY: error
-npx auriga-cli install --all [scope options]         # 装 workflow+skills+plugins+hooks（不含 recommended）
+npx auriga-cli install --preset [preset options]     # 工作流核心:CLAUDE.md/AGENTS.md
+                                                     #   + 工作流 skill + auriga-workflow 插件
+npx auriga-cli install --all [scope options]         # 全装:workflow+skills+recommended+plugins
 npx auriga-cli install <type> [type-specific flags]  # 装单一类别（可带子项过滤）
 ```
 
-**`<type>`** — 必须恰好一个，取自：`workflow` / `skills` / `recommended` / `plugins` / `hooks`
+**`<type>`** — 必须恰好一个，取自：`workflow` / `skills` / `recommended` / `plugins`
+
+**`--preset` 独有（修饰标志，与分类安装的默认值不同）：**
+
+- `--preset` 是原子标志:不能与 `<type>` / 子项过滤 / `--all` 同时出现,违反时 fail-fast
+- `--scope <project|user>` — 默认 `user`（分类安装默认 `project`）
+- `--agent <claude|codex|both>` — 默认 `both`（分类安装 plugins 默认 `claude`）
+- `--lang <code>` — 默认 `en`
 
 **workflow 独有：**
 
@@ -74,7 +83,6 @@ npx auriga-cli install <type> [type-specific flags]  # 装单一类别（可带�
 - `install skills --skill <names...>` — 只装这些 workflow skill
 - `install recommended --recommended-skill <names...>` — 只装这些 recommended skill
 - `install plugins --plugin <names...>` — 只装这些 plugin
-- `install hooks --hook <names...>` — 只装这些 hook
 - 支持通配 `'*'`（例：`--skill '*'` = 该类全装，等价于不写 filter）
 
 **顶层选项：**
@@ -85,7 +93,11 @@ npx auriga-cli install <type> [type-specific flags]  # 装单一类别（可带�
 ### 3.3 组合示例
 
 ```bash
-# 全装（Agent bootstrap 最常用）
+# 推荐预设（Agent bootstrap 最常用）—— 工作流核心
+npx auriga-cli install --preset
+npx auriga-cli install --preset --scope project --lang zh-CN
+
+# 全装(workflow + skills + recommended + plugins)
 npx auriga-cli install --all
 
 # 装单一类别（全子项）
@@ -93,7 +105,6 @@ npx auriga-cli install workflow
 npx auriga-cli install skills
 npx auriga-cli install recommended
 npx auriga-cli install plugins
-npx auriga-cli install hooks
 
 # 类内子项过滤
 npx auriga-cli install skills --skill test-driven-development systematic-debugging
@@ -104,10 +115,6 @@ npx auriga-cli install recommended --recommended-skill codex-agent
 # 语言 / scope
 npx auriga-cli install workflow --lang zh-CN
 npx auriga-cli install --all --scope user
-
-# 想装多个类别？分多次调用（单命令每次只装一类）
-npx auriga-cli install --all
-npx auriga-cli install recommended
 ```
 
 ### 3.4 `install` 无位置参数、无 `--all` 时
@@ -127,11 +134,11 @@ TTY / 非 TTY 判据：`process.stdin.isTTY`（`true` = TTY）。
    - `--skill` 要求 `install skills`
    - `--recommended-skill` 要求 `install recommended`
    - `--plugin` 要求 `install plugins`
-   - `--hook` 要求 `install hooks`
    - 不匹配（例：`install workflow --skill x` / `install --skill x`）fail-fast
 4. **workflow 类别无子项**，不接受任何 filter flag
-5. **`--lang` / `--cwd` 只对 workflow 生效**；与其它 `<type>` / `--all` 组合时 fail-fast
-6. **`--scope` 对 `skills` / `recommended` / `plugins` / `hooks` 生效**（非交互 default 都是 `project`）；与 `workflow` 组合时 fail-fast；`install`（TTY 菜单）下忽略（菜单自己会 prompt）。hooks 的 `project-local` scope 仅交互式菜单可达 — 非交互 `--scope` 只接 `project` / `user` 两值。
+5. **`--lang` / `--cwd` 只对 workflow 生效**（`--lang` 同时是 `--preset` 的修饰标志）；与其它 `<type>` / `--all` 组合时 fail-fast
+6. **`--scope` 对 `skills` / `recommended` / `plugins` 生效**（非交互 default 都是 `project`）；与 `workflow` 组合时 fail-fast；`install`（TTY 菜单）下忽略（菜单自己会 prompt）。非交互 `--scope` 只接 `project` / `user` 两值。
+6b. **`--preset` 是原子标志**：不接受 `<type>` / 子项过滤 / `--all`,违反时 fail-fast;可带 `--scope`（默认 `user`）/ `--agent`（默认 `both`）/ `--lang`（默认 `en`）。
 7. **非交互识别**：传了位置 `<type>` 或 `--all` → 非交互；否则走 3.4
 8. **顶层未知参数**：`npx auriga-cli --all` / `npx auriga-cli foo` 等在顶层（未经 `install`）均 fail-fast
 
@@ -151,7 +158,7 @@ TTY / 非 TTY 判据：`process.stdin.isTTY`（`true` = TTY）。
 # auriga-cli bootstrap SOP
 
 This guide walks an Agent through installing the auriga harness
-(CLAUDE.md + skills + plugins, plus any legacy hooks) into the current repository.
+(CLAUDE.md + skills + plugins) into the current repository.
 
 Run each step in order. If any step fails with exit 1, stop and report.
 If exit 2, see stderr for per-category status and follow the "retry"
@@ -175,8 +182,8 @@ If `claude` is missing: install Claude Code first, then re-run this guide.
 
 ⚠ Always inspect the catalog first.
 
-Top-level catalog (every workflow skill / recommended skill / plugin /
-hook with a short description):
+Top-level catalog (every workflow skill / recommended skill / plugin
+with a short description):
   npx -y auriga-cli --help
 
 Per-type detail (flags + only that category's catalog slice):
@@ -184,12 +191,14 @@ Per-type detail (flags + only that category's catalog slice):
   npx -y auriga-cli install skills --help
   npx -y auriga-cli install recommended --help
   npx -y auriga-cli install plugins --help
-  npx -y auriga-cli install hooks --help
 
 ## Step 3 — Install
 
-Preset — the full default-on set (workflow + skills + plugins; hooks is a
-legacy empty category; recommended is NOT included):
+Recommended — the curated workflow preset (CLAUDE.md/AGENTS.md +
+workflow skills + the auriga-workflow plugin):
+  npx -y auriga-cli install --preset
+
+Full — workflow + skills + recommended + default plugins:
   npx -y auriga-cli install --all
 
 Targeted — single category:
@@ -215,7 +224,7 @@ Exit codes:
 ## Step 4 — Reload session (REQUIRED when installed non-interactively)
 
 `CLAUDE.md`, `.agents/skills/`, Claude/Codex plugin enablement, and
-hook/plugin registrations (`.claude/settings.json`) are all loaded
+plugin registrations (`.claude/settings.json`) are all loaded
 at agent session startup. If you ran
 `npx -y auriga-cli install` inside an existing Claude Code session
 (e.g., `claude -p` / `claude -p --worktree`), **the current session
@@ -234,7 +243,7 @@ Expected artifacts/checks:
   - .agents/skills/<name>/    (one per installed skill)
   - claude plugins list       (shows Claude plugins, if Claude plugins selected)
   - ~/.codex/config.toml      (Codex plugin enablement, if Codex plugins selected)
-  - .claude/settings.json     (updated plugin/hook registrations, if selected)
+  - .claude/settings.json     (updated plugin registrations, if selected)
   - .claude/auriga-notify/    (project notify config, if auriga-notify selected)
 
 ## Troubleshooting
@@ -267,21 +276,23 @@ auriga-cli v<ver> — install Claude Code harness modules
 USAGE
   npx auriga-cli guide                                   Agent bootstrap SOP (start here)
   npx auriga-cli install                                 (TTY only) checkbox menu
-  npx auriga-cli install --all [--scope <s>]             workflow + skills + default plugins
-                                                         (excludes recommended — install separately)
+  npx auriga-cli install --preset [--scope <s>] [--agent <a>] [--lang <code>]
+                                                         curated default set: workflow doc
+                                                         + workflow skills + auriga-workflow plugin
+  npx auriga-cli install --all [--scope <s>]             everything: workflow + skills
+                                                         + recommended + plugins
   npx auriga-cli install <type> [type-specific flags]    single category
   npx auriga-cli --help
 
   For non-interactive (Agent) use, prepend npx's own -y flag:
     npx -y auriga-cli guide
-    npx -y auriga-cli install --all
+    npx -y auriga-cli install --preset
 
 TYPES (exactly one with <type> form)
   workflow       CLAUDE.md + AGENTS.md (workflow manifesto, ~100 lines)
   skills         Default-on workflow skills (listed below)
   recommended    Opt-in utility skills (listed below)
   plugins        Claude Code plugins (listed below)
-  hooks          Project-level hooks for Claude Code (listed below)
 
 TYPE-SPECIFIC FLAGS
   workflow:       --lang <code>    default en; available: en, zh-CN
@@ -292,7 +303,6 @@ TYPE-SPECIFIC FLAGS
                   --scope <project|user>
   plugins:        --plugin <names...>
                   --scope <project|user>
-  hooks:          --hook <names...>
 
 TOP-LEVEL OPTIONS
   -h, --help                     show this help
@@ -302,14 +312,14 @@ TOP-LEVEL OPTIONS
 CATALOG (what each category contains)
 ──────────────────────────────────────────────────────
 
-Workflow skills (category: skills)  ← installed by --all
+Workflow skills (category: skills)  ← installed by --all and --preset
   planning-with-files            Manus-style file-based planning for complex tasks
   playwright-cli                 Browser automation & testing verification
   systematic-debugging           Find root cause before fixing bugs
   test-driven-development        Red-green-refactor discipline
   verification-before-completion Require verification evidence before claiming done
 
-Recommended skills (category: recommended)  ← NOT installed by --all
+Recommended skills (category: recommended)  ← installed by --all, NOT by --preset
   claude-code-agent              Delegate tasks to another Claude Code CLI instance
   codex-agent                    Delegate tasks to Codex CLI
 
@@ -321,14 +331,14 @@ Plugins (category: plugins)
   claude-md-management           Audit & improve CLAUDE.md files
   codex                          Codex CLI integration (rescue, review, delegation)
 
-Hooks (category: hooks)
-  (none)                         Legacy category; repo-owned hooks ship as plugins
-
 ──────────────────────────────────────────────────────
 EXAMPLES
 ──────────────────────────────────────────────────────
 
-  # full install (typical Agent bootstrap)
+  # curated preset (typical Agent bootstrap)
+  npx auriga-cli install --preset
+
+  # everything
   npx auriga-cli install --all
 
   # workflow only, Chinese
@@ -336,10 +346,6 @@ EXAMPLES
 
   # just two workflow skills
   npx auriga-cli install skills --skill systematic-debugging test-driven-development
-
-  # everything + opt-in recommended (two calls; 'install' takes one type at a time)
-  npx auriga-cli install --all
-  npx auriga-cli install recommended
 
 More: https://github.com/Ben2pc/auriga-cli
 ```
@@ -352,7 +358,6 @@ More: https://github.com/Ben2pc/auriga-cli
 - **描述的真源**：build-time 从各类元数据读取后内嵌到 `dist/catalog.json`：
   - workflow skills / recommended skills → `.agents/skills/<name>/SKILL.md` 的 YAML frontmatter `description`
   - plugins → `.claude-plugin/marketplace.json`、`.agents/plugins/marketplace.json` 与 `extra_plugin_configs.json`
-  - hooks → `.claude/hooks/hooks.json` 的 `hooks[].description`（legacy，目前为空）
 - 本文档 §4.2 的 CATALOG 段是**示意**，不是手写真源；实际 help 里的描述按以上映射取自源文件并截断到 50 列
 
 ## 5. 实现
@@ -383,18 +388,20 @@ More: https://github.com/Ben2pc/auriga-cli
 契约（按 §3.5 强约束简化）：
 
 ```ts
-type CategoryName = "workflow" | "skills" | "recommended" | "plugins" | "hooks";
+type CategoryName = "workflow" | "skills" | "recommended" | "plugins";
 
 interface ParsedArgs {
   command: "help" | "version" | "guide" | "install";
   // guide 没有命令级参数；颜色在 renderGuide 内部用 process.stdout.isTTY + NO_COLOR 判定
   install?: {
     all: boolean;                 // true = --all；false = 位置 <type> 或无
-    type?: CategoryName;          // 恰好一个；all=true 时必为 undefined
+    preset?: boolean;             // true = --preset(原子；与 all/type/filter 互斥)
+    type?: CategoryName;          // 恰好一个；all/preset 为 true 时必为 undefined
     filter?: string[];            // 子项；undefined = 全子项
-    lang?: string;                // 仅 workflow
+    lang?: string;                // workflow,以及 --preset 的修饰标志
     cwd?: string;                 // 仅 workflow
-    scope?: "project" | "user";   // skills / recommended / plugins
+    scope?: "project" | "user";   // skills / recommended / plugins / --preset
+    agent?: "claude" | "codex" | "both"; // plugins / --preset
   };
 }
 ```
@@ -403,7 +410,7 @@ interface ParsedArgs {
 
 1. 收集位置参数 → 至多 1 个 `<type>`；多个 fail-fast
 2. 遇 `--all` 且已有 `<type>` / filter / `--lang` / `--cwd` 冲突的 flag → fail-fast
-3. 遇 filter flag（`--skill` / `--recommended-skill` / `--plugin` / `--hook`）：
+3. 遇 filter flag（`--skill` / `--recommended-skill` / `--plugin`）：
    - 必须与匹配的 `<type>` 同时出现；否则 fail-fast
    - 一个 `install` 命令里 filter flag 最多出现一次
 4. 遇 `--lang` / `--cwd`：要求 `<type>` 为 `workflow`；否则 fail-fast
@@ -412,7 +419,7 @@ interface ParsedArgs {
 
 **Filter flag 的 nargs 终止规则：**
 
-`--skill` / `--recommended-skill` / `--plugin` / `--hook` 后的值 consume 直到遇到以下任一 terminator：
+`--skill` / `--recommended-skill` / `--plugin` 后的值 consume 直到遇到以下任一 terminator：
 
 - 下一个以 `--` / `-` 开头的 flag
 - `--` 显式终止
@@ -465,8 +472,8 @@ const lang = opts.interactive
 ```
 [OK]   workflow
 [OK]   skills
+[OK]   recommended
 [FAIL] plugins — claude CLI error: ...
-[OK]   hooks
 
 Retry: npx auriga-cli install plugins
 exit 2
@@ -480,7 +487,6 @@ exit 2
 - `.claude-plugin/marketplace.json` 的 Claude 本仓库插件描述
 - `.agents/plugins/marketplace.json` 的 Codex 本仓库插件清单
 - `extra_plugin_configs.json` 的外部插件描述与 `defaultOn` 覆盖
-- `.claude/hooks/hooks.json` 的 `hooks[].description`（legacy，目前为空）
 - `src/skills.ts` 的 `WORKFLOW_SKILLS` 数组（决定归 `workflowSkills` 还是 `recommendedSkills`）
 
 **输出 `dist/catalog.json`：**
@@ -490,8 +496,7 @@ exit 2
   "generatedAt": "2026-04-21T...",
   "workflowSkills": [{ "name": "systematic-debugging", "description": "..." }, ...],
   "recommendedSkills": [{ "name": "claude-code-agent", "description": "..." }, ...],
-  "plugins": [{ "name": "auriga-workflow", "description": "..." }, ...],
-  "hooks": []
+  "plugins": [{ "name": "auriga-workflow", "description": "..." }, ...]
 }
 ```
 
@@ -508,7 +513,6 @@ exit 2
 
 - skills / recommended: `user` → `npx skills add -g`，`project` → 无 flag
 - plugins: `user` → `claude plugins install --scope user`，`project` → `--scope project`
-- hooks（非交互）: `user` → `~/.claude/settings.json`；默认 / `project` → `./.claude/settings.json`。`project-local`（`./.claude/settings.local.json`）只在 TTY 菜单可选。
 
 `workflow` 不受 `--scope` 影响；与它组合时 fail-fast（§3.5 规则 6）。
 
@@ -648,11 +652,12 @@ README 更新：
 
 **命令形态：**
 
-- [ ] `npx auriga-cli --help` 打印详细目录，含所有 workflow skills / recommended skills / plugins / hooks 的名字 + 描述
+- [ ] `npx auriga-cli --help` 打印详细目录，含所有 workflow skills / recommended skills / plugins 的名字 + 描述
 - [ ] `npx auriga-cli guide`（TTY）打印 §3.6 的 SOP（5 个 Step + Troubleshooting），含 ANSI 色
 - [ ] `npx auriga-cli guide`（非 TTY 或 `NO_COLOR=1`）输出同内容、无 ANSI 色
 - [ ] `npx auriga-cli guide foo` 任意参数 exit 1
-- [ ] `npx auriga-cli install --all` 在非 TTY 下装好 workflow / skills / plugins / hooks（不含 recommended）；成功输出末尾含 reload 提醒
+- [ ] `npx auriga-cli install --preset` 在非 TTY 下装好 workflow 文档 + 工作流 skill + auriga-workflow 插件;默认 scope user / agent both / lang en
+- [ ] `npx auriga-cli install --all` 在非 TTY 下装好 workflow / skills / recommended / plugins;成功输出末尾含 reload 提醒
 - [ ] `npx auriga-cli install workflow --lang zh-CN` 装中文 CLAUDE.md
 - [ ] `npx auriga-cli install skills --skill systematic-debugging test-driven-development` 只装两个 skill
 - [ ] `npx auriga-cli install`（TTY 无参）进 checkbox 菜单（现状行为）
@@ -666,7 +671,8 @@ README 更新：
 - [ ] `npx auriga-cli install --all recommended` exit 1
 - [ ] `npx auriga-cli install workflow --skill foo` exit 1
 - [ ] `npx auriga-cli install --skill foo`（无 type）exit 1
-- [ ] `npx auriga-cli install hooks --scope user` → exit 0（hooks 从 v1.9.1 起接受 `--scope`）
+- [ ] `npx auriga-cli install --preset workflow` / `install --preset --skill foo` / `install --preset --all` exit 1（`--preset` 原子）
+- [ ] `npx auriga-cli install hooks` exit 1（hooks 不再是合法 `<type>`）
 - [ ] `npx auriga-cli install workflow --scope user` exit 1
 - [ ] `npx auriga-cli install skills --skill foo`（未知名）exit 1 + 列可选
 - [ ] `npx auriga-cli guide --anything` / `guide foo`（任意参数）exit 1
@@ -675,7 +681,7 @@ README 更新：
 **分级退出码：**
 
 - [ ] mock：`claude` CLI 缺失时跑 `install --all` → precheck 阶段 exit 1，未动本地文件
-- [ ] mock：workflow / skills / hooks 成功、plugins 失败 → exit 2；stderr 含按类状态 + `Retry: npx auriga-cli install plugins`
+- [ ] mock：workflow / skills / recommended 成功、plugins 失败 → exit 2；stderr 含按类状态 + `Retry: npx auriga-cli install plugins`
 - [ ] mock：单独 `install plugins` 失败 → exit 1（单类别无"部分"概念）
 
 **其它：**

@@ -14,7 +14,6 @@ This repo itself is a fully configured harness project. You can clone it to see 
 | **Skills** | External development process skills — systematic-debugging, TDD, verification, planning, playwright (spec authoring and architecture design ship as the `spec-design` and `arch-design` skills inside the `auriga-workflow` plugin) |
 | **Recommended Skills** | Optional utility skills (e.g. `codex-agent`, `claude-code-agent`) you can add on top of the workflow skills |
 | **Plugins** | Recommended Claude Code and Codex plugins — skill-creator, claude-md-management, codex, auriga-workflow, auriga-notify, session-instructions-loader |
-| **Hooks** | Legacy Claude Code hook installer. No repo-owned hooks are currently exposed here; `notify` ships as the `auriga-notify` plugin. |
 
 ## Quick Start
 
@@ -34,19 +33,24 @@ Running inside `claude -p`, `claude -p --worktree`, or any non-interactive Agent
 npx -y auriga-cli guide
 ```
 
-This prints a 5-step SOP (prerequisite check → `install --all` → optional recommended skills → session reload → verify). Follow it top-to-bottom and the Agent can install the full harness without any human prompt.
+This prints a 5-step SOP (prerequisite check → `install --preset` → optional recommended skills → session reload → verify). Follow it top-to-bottom and the Agent can install the full harness without any human prompt.
 
 The leading `-y` belongs to `npx` (it auto-confirms package installation), **not** to `auriga-cli`.
 
 Non-interactive install commands:
 
 ```bash
-npx -y auriga-cli install --all              # workflow + skills + default plugins (atomic)
-npx -y auriga-cli install recommended        # opt-in utility skills (not in --all)
+npx -y auriga-cli install --preset           # curated workflow core: CLAUDE.md/AGENTS.md
+                                             #   + workflow skills + auriga-workflow plugin
+                                             #   (defaults: scope user, agent both, lang en)
+npx -y auriga-cli install --all              # everything: workflow + skills + recommended + plugins
+npx -y auriga-cli install recommended        # just the opt-in utility skills
 npx -y auriga-cli install plugins --agent codex --plugin session-instructions-loader
-npx -y auriga-cli install <type> [--flags]   # one of: workflow | skills | recommended | plugins | hooks
+npx -y auriga-cli install <type> [--flags]   # one of: workflow | skills | recommended | plugins
 npx -y auriga-cli --help                     # full catalog + flags
 ```
+
+`--preset` is atomic — it cannot be combined with a `<type>` or any filter flag, but it accepts `--scope`, `--agent`, and `--lang` (preset defaults: `user` / `both` / `en`, which differ from the per-category defaults).
 
 Exit codes: `0` success, `1` fatal (precheck / parse / fetch), `2` partial success — `stderr` lists per-category `[OK]/[FAIL]` and a `Retry:` hint. After install, reload the Claude Code or Codex session so the new `CLAUDE.md` / skills / plugins / hook-plugin registrations are picked up.
 
@@ -71,15 +75,13 @@ npx auriga-cli
 Interactive menu — select what to install:
 
 ```
-? Select module types to install:
-  ◉ Workflow — CLAUDE.md + AGENTS.md
-  ◉ Skills — Development process skills
-  ◉ Recommended Skills — Extra utility skills
-  ◉ Plugins — Claude Code / Codex plugins
-  ◉ Hooks — Claude Code hooks
+? Select what to install:
+  ◉ Recommended preset — CLAUDE.md/AGENTS.md + workflow skills + auriga-workflow plugin
+  ◯ Optional skills — opt-in utility skills (claude-code-agent, codex-agent...)
+  ◯ Other plugins — everything except auriga-workflow (auriga-notify, skill-creator, codex...)
 ```
 
-Each module supports scope selection where applicable (Skills: project/global, Claude Code Plugins: user/project, Hooks: project local / project / user). Plugin installation also asks which runtime to target: Claude Code, Codex, or both.
+The **Recommended preset** is checked by default and installs silently with the preset defaults (scope `user`, agent `both`, language `en`) — to fine-tune those, use the non-interactive `install --preset` flags. The other two items drill down into a per-item sub-selection. Plugin installation also asks which runtime to target: Claude Code, Codex, or both.
 
 ## Module Details
 
@@ -102,7 +104,7 @@ Installs selected skills via `npx skills add`, targeting both Claude Code and Co
 | planning-with-files | [OthmanAdi/planning-with-files](https://github.com/OthmanAdi/planning-with-files) | File-based task planning and progress tracking |
 | playwright-cli | [microsoft/playwright-cli](https://github.com/microsoft/playwright-cli) | Browser automation and testing |
 
-**Recommended Skills (opt-in, not installed by `--all`):**
+**Recommended Skills (opt-in utility skills — installed by `--all`, not by `--preset`):**
 
 | Skill | Source | Description |
 |---|---|---|
@@ -137,17 +139,10 @@ npx -y auriga-cli install plugins --agent codex --plugin session-instructions-lo
 | auriga-notify *(opt-in)* | Claude Code | macOS native notification plugin for Claude Code `Notification` events. Focus-aware sound-only mode, click-to-activate, per-project notification grouping, and migrated `config.json` / `icon.png` support. Not installed by `install --all`; install explicitly with `install plugins --plugin auriga-notify`. |
 | session-instructions-loader | Codex | Codex-only SessionStart plugin that injects ancestor `AGENTS.md` files plus repo-configured extra instruction files. |
 
-### Hooks
-
-The traditional hook installer remains for compatibility, but this repo no
-longer exposes a repo-owned hook through `install hooks`. New repo-owned hooks
-should be shipped inside plugins. The former `notify` hook is now the
-`auriga-notify` plugin.
-
 ## Requirements
 
 - Node.js >= 18
-- [Claude Code](https://docs.anthropic.com/en/docs/claude-code) (required for Claude Code Plugins and Hooks modules)
+- [Claude Code](https://docs.anthropic.com/en/docs/claude-code) (required for the Plugins module)
 - Codex CLI (required only for `install plugins --agent codex|both`)
 - [Homebrew](https://brew.sh) (recommended for the `auriga-notify` plugin to use `alerter`)
 

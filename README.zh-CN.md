@@ -14,7 +14,6 @@
 | **Skills** | 外部开发流程 skills —— systematic-debugging、TDD、verification、planning、playwright（spec 撰写与架构设计由 `auriga-workflow` 插件内的 `spec-design`、`arch-design` skill 提供）|
 | **Recommended Skills** | 可选的工具类 skills（如 `codex-agent`、`claude-code-agent`），在 workflow skills 之外按需追加 |
 | **Plugins** | 推荐的 Claude Code 和 Codex 插件 —— skill-creator、claude-md-management、codex、auriga-workflow、auriga-notify、session-instructions-loader |
-| **Hooks** | 传统 Claude Code hook 安装器。目前没有仓库自维护 hook 暴露在这里；`notify` 已迁移为 `auriga-notify` 插件。 |
 
 ## 快速开始
 
@@ -34,19 +33,24 @@
 npx -y auriga-cli guide
 ```
 
-会打印一份 5 步 SOP（前置检查 → `install --all` → 可选 recommended skills → 重启 session → 验证）。Agent 照着顺序往下跑就能装完整套 harness，全程不需要人按键。
+会打印一份 5 步 SOP（前置检查 → `install --preset` → 可选 recommended skills → 重启 session → 验证）。Agent 照着顺序往下跑就能装完整套 harness，全程不需要人按键。
 
 开头的 `-y` 是 **npx 自己的 flag**（用来跳过"是否要装这个包"的确认），**不是** auriga-cli 的参数。
 
 非交互安装命令：
 
 ```bash
-npx -y auriga-cli install --all              # workflow + skills + 默认 plugins（原子）
-npx -y auriga-cli install recommended        # 可选工具 skills（不在 --all 内）
+npx -y auriga-cli install --preset           # 工作流核心:CLAUDE.md/AGENTS.md
+                                             #   + 工作流 skill + auriga-workflow 插件
+                                             #   (默认:scope user、agent both、lang en)
+npx -y auriga-cli install --all              # 全装:workflow + skills + recommended + plugins
+npx -y auriga-cli install recommended        # 只装可选工具 skills
 npx -y auriga-cli install plugins --agent codex --plugin session-instructions-loader
-npx -y auriga-cli install <type> [--flags]   # 单类：workflow | skills | recommended | plugins | hooks
+npx -y auriga-cli install <type> [--flags]   # 单类:workflow | skills | recommended | plugins
 npx -y auriga-cli --help                     # 完整 catalog + flag 说明
 ```
+
+`--preset` 是原子标志 —— 不能与 `<type>` 或任何过滤标志同时使用,但可带 `--scope`、`--agent`、`--lang`(预设默认 `user` / `both` / `en`,与分类安装的默认不同)。
 
 退出码：`0` 成功；`1` 致命错误（前置检查 / 解析 / 拉取失败）；`2` 部分成功——`stderr` 会列出逐类 `[OK]/[FAIL]` 和 `Retry:` 提示。装完后请重启 Claude Code 或 Codex 会话，让新的 `CLAUDE.md` / skills / plugins / hook 注册生效。
 
@@ -71,15 +75,13 @@ npx auriga-cli
 交互式菜单，按需选择安装：
 
 ```
-? 选择要安装的模块类型：
-  ◉ Workflow — CLAUDE.md + AGENTS.md
-  ◉ Skills — 开发流程 skills
-  ◉ Recommended Skills — 额外的工具 skills
-  ◉ Plugins — Claude Code / Codex 插件
-  ◉ Hooks — Claude Code hooks
+? Select what to install:
+  ◉ Recommended preset — CLAUDE.md/AGENTS.md + workflow skills + auriga-workflow plugin
+  ◯ Optional skills — opt-in utility skills (claude-code-agent, codex-agent...)
+  ◯ Other plugins — everything except auriga-workflow (auriga-notify, skill-creator, codex...)
 ```
 
-每个模块在适用时支持作用域选择（Skills: project/global，Claude Code Plugins: user/project，Hooks: project local / project / user）。安装插件时还会先选择目标运行时：Claude Code、Codex 或两者都装。
+**Recommended preset** 默认勾选,以预设默认值静默安装（scope `user`、agent `both`、语言 `en`）—— 要精调这些参数,改用非交互的 `install --preset` 标志。另两项会下钻到逐项子勾选。安装插件时还会先选择目标运行时：Claude Code、Codex 或两者都装。
 
 ## 模块详情
 
@@ -102,7 +104,7 @@ npx auriga-cli
 | planning-with-files | [OthmanAdi/planning-with-files](https://github.com/OthmanAdi/planning-with-files) | 文件化任务计划与进度跟踪 |
 | playwright-cli | [microsoft/playwright-cli](https://github.com/microsoft/playwright-cli) | 浏览器自动化与测试 |
 
-**Recommended Skills（可选，不在 `--all` 内）：**
+**Recommended Skills（可选工具类 skill —— `--all` 会装,`--preset` 不装）：**
 
 | Skill | 来源 | 说明 |
 |---|---|---|
@@ -137,16 +139,10 @@ npx -y auriga-cli install plugins --agent codex --plugin session-instructions-lo
 | auriga-notify *(opt-in)* | Claude Code | Claude Code `Notification` 事件的 macOS 原生通知插件。支持焦点感知仅提示音、点击唤起终端、按项目分组通知，并迁移旧 `config.json` / `icon.png`。不随 `install --all` 默认安装，需要显式执行 `install plugins --plugin auriga-notify`。 |
 | session-instructions-loader | Codex | Codex-only SessionStart 插件，注入上层目录的 `AGENTS.md` 和仓库配置的额外 instruction 文件。 |
 
-### Hooks
-
-传统 hook 安装器仍保留作兼容入口，但本仓库当前不再通过
-`install hooks` 暴露自维护 hook。新的自维护 hook 应随插件分发。原来的
-`notify` hook 已迁移为 `auriga-notify` 插件。
-
 ## 环境要求
 
 - Node.js >= 18
-- [Claude Code](https://docs.anthropic.com/en/docs/claude-code)（Claude Code Plugins 和 Hooks 模块需要）
+- [Claude Code](https://docs.anthropic.com/en/docs/claude-code)（Plugins 模块需要）
 - Codex CLI（仅 `install plugins --agent codex|both` 需要）
 - [Homebrew](https://brew.sh)（`auriga-notify` 插件使用 `alerter` 时推荐安装）
 
