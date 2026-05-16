@@ -5,222 +5,221 @@ description: Use before any feat/ or fix/ code change that introduces or modifie
 
 # Spec Design
 
-Requirement-clarification orchestrator. Turns ambiguous asks (a sentence, an HTML mock, a PRD, a Figma link, even a user-supplied "spec") into two files the downstream pipeline can consume mechanically:
+需求澄清调度器。把模糊的诉求（一句话、一张 HTML 原型、一份 PRD、一个 Figma 链接，甚至用户自己写的"spec"）转化成两份下游流程可以机械消费的文件：
 
-- `docs/specs/<topic>/spec.md` — Why + Findings + What + Out of scope + Open questions (+ References)
-- `docs/specs/<topic>/validation-contract.md` — `VAL-XXX-NNN` assertions with `Behavior + Tool + Evidence`
-- `docs/specs/<topic>/umbrella.md` — only when the size gate triggers decomposition
+- `docs/specs/<topic>/spec.md` — Why + Findings + What + Out of scope + Open questions（+ References）
+- `docs/specs/<topic>/validation-contract.md` — `VAL-XXX-NNN` 断言，每条含 `Behavior + Tool + Evidence`
+- `docs/specs/<topic>/umbrella.md` — 仅当规模闸门触发拆分时生成
 
-The Validation Contract is the load-bearing artifact. `test-designer` reads VAL as primary input; `deep-review`'s `spec-conformance` reviewer reads VAL to confirm a PR's diff satisfies every assertion.
+Validation Contract 是承重产物。`test-designer` 把 VAL 作为主输入；`deep-review` 的 `spec-conformance` 审查者读 VAL 来确认一个 PR 的 diff 满足每一条断言。
 
-## When to Use
+## 什么时候用
 
-- A new feature, public API change, schema migration, CLI subcommand, or user-visible behavior change is requested
-- User says "let's spec this", "澄清需求", "write a spec for X", "brainstorm a feature"
-- A user-supplied spec needs to be audited against the auriga standard before downstream phases consume it
+- 有人提出新功能、公共 API 变更、schema 迁移、CLI 子命令，或任何用户可见的行为变化
+- 用户说"来写个 spec"、"澄清需求"、"给 X 写个规范"、"头脑风暴一个功能"
+- 用户自带的 spec 需要按 auriga 标准审一遍，下游阶段才能消费
 
-**Don't use for:**
+**不要用在：**
 
-- Pure implementation strategy changes where the external behavior contract does not move (refactor, algorithm swap, library replacement) — go directly to plan
-- Bug-fix-shaped tasks that already have a reproducer (the bug report *is* the requirement) — go to systematic-debugging
-- Pure documentation / configuration tasks with no behavior surface
+- 纯实现策略调整、外部行为契约不动的情况（重构、换算法、换库）——直接进 plan
+- 已有复现步骤的 bug 修复型任务（bug 报告本身*就是*需求）——走 systematic-debugging
+- 没有行为表面的纯文档 / 配置任务
 
-## The Iron Law (Spec / Plan boundary)
+## 铁律（spec / plan 边界）
 
 **spec = why + what; plan = how.**
 
-If a change moves the external behavior contract — what a user, an external caller, an API consumer, or a downstream file format can observe — it goes through this skill before plan.
+如果一处改动会移动外部行为契约——用户、外部调用方、API 消费者、或下游文件格式能观察到的东西——那它在进 plan 之前要先过这个 skill。
 
-If a change is purely internal — different implementation strategy for the same observable behavior — skip this skill and go to plan.
+如果一处改动纯属内部——同样的可观察行为、只是换了实现策略——跳过这个 skill，直接进 plan。
 
-`spec.md` documents external surface and motivation. The moment a section reads as "we'll use file X, function Y, with helper Z", it has crossed into how — surface that for the plan stage, do not commit it to `spec.md`.
+`spec.md` 记录外部表面与动机。一旦某节读起来像"我们会用文件 X、函数 Y、配合辅助函数 Z"，它就越界进了 how——把这部分留给 plan 阶段，不要写进 `spec.md`。
 
-## Must not (orchestrator scope)
+## 禁止事项（调度器边界）
 
-- **Do not invoke this skill after implementation has started or been sketched.** The dispatched audit and Q+GUESS loop assume zero implementation context. Once you've discussed which files or functions will change, the clarification loop will rationalize the sketch instead of probing the user's intent.
-- **Do not let `spec.md` accumulate How.** Module names, class names, exact API signatures, data structure choices, library names — all are out of scope. If the user volunteers them, write them into the eventual plan, not the spec.
-- **Do not skip the Q+GUESS confidence stop.** Halting at 95% predicted confidence is the discipline; pushing for 100% over-narrows the conversation and turns the spec into a plan in disguise.
-- **Do not invent VAL numbers.** Each VAL must come from a real distinct external behavior. Padding numbers to look thorough turns the contract into noise.
+- **实现已经开始、或已经打过草稿之后，不要再调用本 skill。** 派遣的审计和 Q+GUESS 循环都假设零实现上下文。一旦你已经讨论过哪些文件 / 函数会改，澄清循环就会为那份草稿找理由，而不是探究用户的真实意图。
+- **不要让 `spec.md` 堆积 How。** 模块名、类名、确切的 API 签名、数据结构选择、库名——都不在范围内。用户主动给了，就写进将来的 plan，不写进 spec。
+- **不要跳过 Q+GUESS 的置信度停止点。** 在预测置信度约 95% 处停下是纪律；硬冲 100% 会把对话收得过窄，让 spec 变成伪装的 plan。
+- **不要编造 VAL 编号。** 每条 VAL 都必须来自一个真实且独立的外部行为。为了显得周全而凑数会把契约变成噪声。
 
-## Inputs (five modes)
+## 输入（五种模式）
 
-| Mode | Form | A1 handling |
+| 模式 | 形态 | A1 处理方式 |
 |---|---|---|
-| 1. Text description | A sentence or paragraph | Q+GUESS direct after repo pre-research |
-| 2. Static HTML prototype | User-supplied HTML file | Open, screenshot/list pages, extract interactive elements, infer user stories |
-| 3. PRD | Notion / Markdown / PDF | Summarize key sections, mark ambiguous points, enter them into Q list |
-| 4. Figma link | URL | Ask the user to attach key page screenshots or PNG exports; do **not** try to fetch Figma directly |
-| 5. User-supplied spec | The user thinks it's done | **Must** audit per `## User-supplied spec audit` — never accept as-is |
+| 1. 文字描述 | 一句话或一段话 | 仓库预研后直接进 Q+GUESS |
+| 2. 静态 HTML 原型 | 用户提供的 HTML 文件 | 打开、截图 / 罗列页面、抽取交互元素、推断用户故事 |
+| 3. PRD | Notion / Markdown / PDF | 概括关键章节，标出含糊处，进 Q 列表 |
+| 4. Figma 链接 | URL | 请用户附上关键页面截图或 PNG 导出；**不要**尝试直接抓取 Figma |
+| 5. 用户自带 spec | 用户以为已经写好了 | **必须**按 `## 用户自带 spec 审计` 审一遍——绝不照单全收 |
 
-All five share the same downstream contract: a `spec.md` + `validation-contract.md` pair under `docs/specs/<topic>/`.
+五种模式共享同一份下游契约：`docs/specs/<topic>/` 下的 `spec.md` + `validation-contract.md` 一对文件。
 
-## Process
+## 流程
 
 ```
-A. Discover   →  B. Decide & Design  →  C. Write   →  D. Gate & Handoff
-   (查清楚)        (定方向、定切分)       (落到文件)     (交付前自检)
+A. 调研   →  B. 定方向、定切分  →  C. 落到文件   →  D. 闸门与交接
 ```
 
-### Phase A — Discover
+### Phase A — 调研
 
-**A1. Pre-research + ingest + audit.**
-Before any clarification question:
+**A1. 预研 + 摄入 + 审计。**
+在问任何澄清问题之前：
 
-- Read repo entry points in this priority order: `AGENTS.md` and `CLAUDE.md` first (agent-facing source of truth), then the relevant `docs/` subdirectories, then recent commits via `git log`. Read `README.md` only when neither `AGENTS.md` nor `CLAUDE.md` exists (README is human-oriented and may be promotional or out of date relative to the agent contract).
-- If the user gave file paths / commits / issue numbers, *open them* — do not paraphrase
-- If the input is one of modes 2–4 (HTML / PRD / Figma), extract the key visible elements into a draft `## Findings` section
-- If the input is mode 5 (user-supplied spec), run the audit checklist below; any missing item becomes a Q in A2
-- Exception: skip A1 only when the user's message explicitly contains both target file paths *and* the precise change surface. Even then, log "skipping Pre-research because user supplied X" so the decision is auditable.
+- 按这个优先级读仓库入口：先 `AGENTS.md` 和 `CLAUDE.md`（面向 agent 的事实源），再相关的 `docs/` 子目录，再用 `git log` 看近期 commit。只有当 `AGENTS.md` 和 `CLAUDE.md` 都不存在时才读 `README.md`（README 面向人类，可能带宣传性质，或相对 agent 契约已经过时）。
+- 如果用户给了文件路径 / commit / issue 编号，*把它们打开*——不要转述
+- 如果输入属于模式 2–4（HTML / PRD / Figma），把关键可见元素抽取进一份草稿 `## Findings` 段
+- 如果输入是模式 5（用户自带 spec），跑下面的审计清单；任何缺失项都变成 A2 里的一个 Q
+- 例外：只有当用户的消息同时明确给出目标文件路径*和*精确的改动表面时，才跳过 A1。即便如此也要记一句"因为用户给了 X，跳过预研"，让这个决定可追溯。
 
-**A1.5. Size check.**
-Estimate whether this needs decomposition (see `## Size gate`). If any signal trips, route through B0 in Phase B.
+**A1.5. 规模检查。**
+估算这件事是否需要拆分（见 `## 拆分规模闸门`）。任一信号触发，就在 Phase B 走 B0。
 
-**A2. Q+GUESS clarification loop.**
-- One question per round via `AskUserQuestion`
-- Each question carries a Hypothesis + Confidence (e.g., "I'm guessing X, ~60% confident")
-- Stop at ~95% predicted confidence — do **not** push for 100%
-- Cap at ~10 rounds; if confidence hasn't converged, fall back and ask the user whether to decompose (B0) or whether the requirement itself needs to be split into multiple sessions
+**A2. Q+GUESS 澄清循环。**
+- 每轮通过 `AskUserQuestion` 只问一个问题
+- 每个问题都带一个假设 + 置信度（例："我猜是 X，~60% 把握"）
+- 在预测置信度约 95% 处停下——**不要**硬冲 100%
+- 最多约 10 轮；若置信度仍未收敛，退回去问用户：是要拆分（B0），还是这个需求本身需要分成多个会话来做
 
-**A3. 6-line restate.**
-- Compress the clarified requirement into ≤ 6 lines
-- Ask for Explicit-yes before Phase B; do not infer consent from silence or topic continuation
+**A3. 6 行复述。**
+- 把澄清后的需求压缩到 ≤ 6 行
+- 进 Phase B 之前要拿到明确的"是"；不要从沉默或话题延续推断同意
 
-### Phase B — Decide & Design
+### Phase B — 定方向、定切分
 
-**B0. Decomposition (only if A1.5 tripped).** Use the decision tree below to pick a slicing axis and emit a sub-spec list with an `umbrella.md`.
+**B0. 拆分（仅当 A1.5 触发）。** 用下面的决策树选一条切分轴，产出子规范列表和一份 `umbrella.md`。
 
-**B1. Propose 2–3 approaches.** State trade-offs and recommend one. Recommendation goes first; alternatives are for the user to redirect.
+**B1. 给 2–3 个候选方案。** 说清权衡并推荐一个。推荐项放最前；备选项是留给用户改方向用的。
 
-**B2. Present in sections.** Each major section of the design (architecture, user flows, validation surface, downstream impact) gets an interim user-approval beat. Do not dump the whole What at once.
+**B2. 分节呈现。** 设计的每个主要章节（架构、用户流程、验证表面、下游影响）都设一个中途的用户确认节拍。不要一次性把整个 What 倒出来。
 
-### Phase C — Write
+### Phase C — 落到文件
 
-**Language rule (applies to all of C1/C2/C2.5)**: the **section headers** in every template are bilingual (English anchor + 中文 hint) and must be kept verbatim — `test-designer` and `deep-review`'s `spec-conformance` reviewer grep on the English anchors, so they cannot be translated away. The **structural keywords** in `validation-contract.md` (`VAL-XXX-NNN`, `Behavior`, `Tool`, `Evidence`, the Tool category names) also stay in English. **All prose content** — Why / Findings / What body, VAL Behavior + Evidence descriptions, Slicing axis rationale, Open questions, etc. — must be written in the language the user is using in this conversation. Chinese conversation → write the body in Chinese; English conversation → English. Do not mix Chinese and English prose within a single paragraph.
+**语言规则（适用于 C1/C2/C2.5 全部）**：每个模板里的 **section 标题**都是双语的（英文锚点 + 中文提示），必须逐字保留——`test-designer` 和 `deep-review` 的 `spec-conformance` 审查者会 grep 英文锚点，所以不能把它们翻译掉。`validation-contract.md` 里的**结构关键字**（`VAL-XXX-NNN`、`Behavior`、`Tool`、`Evidence`、Tool 类别名）同样保持英文。**所有正文内容**——Why / Findings / What 正文、VAL 的 Behavior + Evidence 描述、切分轴理由、Open questions 等——必须用本次对话所用的语言来写。中文对话→正文写中文；英文对话→英文。同一段落里不要中英文混写。
 
-**C1.** Author `docs/specs/<topic>/spec.md` per `references/spec-template.md`.
+**C1.** 按 `references/spec-template.md` 撰写 `docs/specs/<topic>/spec.md`。
 
-**C2.** Author `docs/specs/<topic>/validation-contract.md` per `references/validation-contract-template.md`. Anti-pattern check: each VAL must say *what* counts as a pass, not *how* to test it — the latter is `test-designer`'s job. Fill the `## Toolchain` table from A1 research (the repo's concrete tool per category) so the toolchain finding is carried forward instead of re-discovered downstream.
+**C2.** 按 `references/validation-contract-template.md` 撰写 `docs/specs/<topic>/validation-contract.md`。反模式检查：每条 VAL 只说*什么*算通过，不说*怎么*测——后者是 `test-designer` 的活。用 A1 调研结果填 `## Toolchain` 表（仓库里每个类别对应的具体工具），把工具链调研结论往下游传递，省得下游重新发现。
 
-**C2.5.** If B0 triggered decomposition, author `docs/specs/<topic>/umbrella.md` per `references/umbrella-template.md`.
+**C2.5.** 若 B0 触发了拆分，按 `references/umbrella-template.md` 撰写 `docs/specs/<topic>/umbrella.md`。
 
-### Phase D — Gate & Handoff
+### Phase D — 闸门与交接
 
-**D1. Handoff review.** Apply the `## Handoff review checklist` from the consumer (test-designer / planner / future-you) perspective. Fix issues inline — do not redo phases.
+**D1. 交接审查。** 从消费方（test-designer / 规划者 / 一个月后的你）视角套用 `## 交接审查清单`。当场修问题——不要重跑前面的阶段。
 
-**D1.5. Offer review aid (three-way).** Use `AskUserQuestion` to present:
-- (c) **Skip** — go straight to D2. Default for small specs (≤ 5 VALs, single file).
-- (a) **Playground** — dispatch `playground:playground` (Anthropic official plugin) with the `document-critique` template; pass spec.md + validation-contract.md (+ umbrella.md if present) as inputs. Hide this option if the playground plugin isn't installed.
-- (b) **Static HTML** — generate a self-contained `docs/specs/<topic>/review.html` rendering both docs with anchors + a VAL table. Run `open <file>.html`. No interactivity, no playground dependency.
+**D1.5. 提供审查辅助（三选一）。** 用 `AskUserQuestion` 给出：
+- (c) **跳过** — 直接进 D2。小规模 spec（≤ 5 条 VAL、单文件）的默认项。
+- (a) **Playground** — 用 `document-critique` 模板派遣 `playground:playground`（Anthropic 官方插件）；把 spec.md + validation-contract.md（有 umbrella.md 也一并）作为输入传入。playground 插件没装就隐藏这一项。
+- (b) **静态 HTML** — 生成一份自包含的 `docs/specs/<topic>/review.html`，渲染两份文档并带锚点 + 一张 VAL 表。执行 `open <file>.html`。无交互，不依赖 playground。
 
-Option ordering must be `skip → playground → static HTML`. Skip is intentionally first; small specs shouldn't be pushed into tool ceremony.
+选项顺序必须是 `skip → playground → static HTML`。skip 故意放第一；小 spec 不该被推进工具化的繁文缛节。
 
-If the user picks playground and provides reject/comment feedback prompts, parse them, apply edits inline, and re-run D1 once before D2.
+如果用户选了 playground 并给出 reject / comment 反馈，解析它们，当场改，进 D2 前再跑一次 D1。
 
-**D2. Explicit-yes gate.** Print the spec file paths back to the user and wait for explicit approval. Do not start plan or Pre-coding on silence.
+**D2. 明确同意闸门。** 把 spec 文件路径打印回给用户，等明确批准。不要因为沉默就开始 plan 或编码前准备。
 
-**D3. Handoff.** Apply the scope triage in `CLAUDE.md`:
-- All three QDF predicates hold (single module, AC ≤ 5, no cross-boundary interface) → skip plan, go directly to Pre-coding / branch creation
-- Otherwise → hand off to the user's chosen plan-stage tool (built-in Plan, `planning-with-files`, or any downstream planning skill the user picks). Do not hardcode a specific plan-stage skill name; the workflow CLAUDE.md owns that decision.
+**D3. 交接。** 套用 `CLAUDE.md` 里的规模判定：
+- QDF 三条谓词全部成立（单模块、验收标准 ≤ 5、无跨边界接口）→ 跳过 plan，直接进编码前准备 / 建分支
+- 否则 → 交接给用户选定的 plan 阶段工具（内置 Plan、`planning-with-files`、或用户选的任何下游规划 skill）。不要写死某个具体的 plan 阶段 skill 名；那个决定归工作流 CLAUDE.md 管。
 
-## User-supplied spec audit
+## 用户自带 spec 审计
 
-When the user says "here's my spec", verify each item below. Anything missing becomes a Q in A2 — do not accept the spec as-is.
+当用户说"这是我的 spec"，逐条核对下面每一项。任何缺失都变成 A2 里的一个 Q——不要照单全收。
 
-1. **Why is clear** — motivation expressible in one sentence; if absent, add 1–3 sentences in collaboration with the user
-2. **Findings are grounded** — concrete evidence (file paths, commit SHAs, external URLs); if it's pure assertion, dig back into the repo or ask the user for sources
-3. **Validation Contract exists** — structured `VAL-XXX-NNN` assertions or equivalent; if only prose, reframe into a VAL list
-4. **Out of scope is annotated** — explicit "we are not doing this" list
-5. **No How leakage** — module names, class names, signatures, library choices are absent; if present, mark out of bounds and move to plan
+1. **Why 清晰** — 动机能用一句话表达；若缺失，与用户协作补 1–3 句
+2. **Findings 有据** — 有具体证据（文件路径、commit SHA、外链）；若只是空口断言，回仓库里挖，或向用户要来源
+3. **Validation Contract 存在** — 有结构化的 `VAL-XXX-NNN` 断言或等价物；若只有散文，重构成 VAL 列表
+4. **Out of scope 已标注** — 有明确的"本次不做"列表
+5. **没有 How 泄漏** — 没有模块名、类名、签名、库选择；若有，标为越界并挪到 plan
 
-## Templates
+## 模板
 
-The three Phase-C output templates each live in their own file beside this skill:
+三份 Phase-C 输出模板各自存在本 skill 旁边的独立文件里：
 
-| Output file | Template | When to use |
+| 输出文件 | 模板 | 何时用 |
 |---|---|---|
-| `docs/specs/<topic>/spec.md` | `references/spec-template.md` | Always (Phase C1) |
-| `docs/specs/<topic>/validation-contract.md` | `references/validation-contract-template.md` | Always (Phase C2) |
-| `docs/specs/<topic>/umbrella.md` | `references/umbrella-template.md` | Only when B0 decomposition triggered (Phase C2.5) |
+| `docs/specs/<topic>/spec.md` | `references/spec-template.md` | 总是（Phase C1） |
+| `docs/specs/<topic>/validation-contract.md` | `references/validation-contract-template.md` | 总是（Phase C2） |
+| `docs/specs/<topic>/umbrella.md` | `references/umbrella-template.md` | 仅当 B0 触发拆分（Phase C2.5） |
 
-Read the relevant template file before writing the corresponding Phase-C output. The skill body keeps the *intent* (what each section is for); the *shape* (exact headings, placeholders, table layouts, numbering conventions) is canonical in the template files. Copy the template block into `docs/specs/<topic>/<file>.md` and replace each `<placeholder>`.
+写对应的 Phase-C 输出前，先读相关的模板文件。skill 正文保留*意图*（每一节是干什么的）；*形态*（确切的标题、占位符、表格布局、编号约定）以模板文件为准。把模板块复制进 `docs/specs/<topic>/<file>.md`，替换每个 `<占位符>`。
 
-VAL numbering convention applies wherever VALs are written: `VAL-<CATEGORY>-<NNN>`. `CATEGORY` is a 3–5 letter uppercase tag (`WORK` / `DEP` / `UI` / `CLI` / …). `NNN` is zero-padded. Reuse a category across many VALs when they share a domain; do not skip numbers (gaps imply deleted assertions and break grep-based traceability).
+VAL 编号约定适用于所有写 VAL 的地方：`VAL-<CATEGORY>-<NNN>`。`CATEGORY` 是 3–5 个字母的大写标签（`WORK` / `DEP` / `UI` / `CLI` / …）。`NNN` 零填充。多条 VAL 共享同一领域时复用同一类别；不要跳号（跳号意味着删过断言，会破坏基于 grep 的可追溯性）。
 
-## Size gate for spec decomposition
+## 拆分规模闸门
 
-Any one signal triggers B0:
+任一信号触发 B0：
 
-- Estimated VAL count > 20
-- Touched modules > 5
-- Touched subsystems > 2 (e.g., CLI + Web UI + plugin manifest at once)
-- UI components > 10
-- User explicitly says "this is roughly > 3000 lines"
+- 预估 VAL 数量 > 20
+- 触及模块 > 5
+- 触及子系统 > 2（例：同时改 CLI + Web UI + 插件清单）
+- UI 组件 > 10
+- 用户明说"这大概 > 3000 行"
 
-## Decomposition decision tree
+## 拆分决策树
 
-Walk in order; first match wins. The axes match `incremental-impl`'s Step 2 vocabulary on purpose — once the spec picks an axis, downstream plan and impl reuse the same name without re-deciding.
+按顺序走，第一个命中的胜出。这些轴特意与 `incremental-impl` 第 2 步的词汇对齐——spec 一旦选定一条轴，下游 plan 和 impl 沿用同名，不再重新决定。
 
-1. **Greenfield (a brand-new subsystem)** → **Walking Skeleton**: thinnest end-to-end path first, thicken vertically after
-2. **High-risk / high-unknown technical surface** → **By risk**: address the most uncertain sub-spec first, validate, expand
-3. **Cross-module change with similar shape in each module** → **Horizontal sweep**: one sub-spec per module, serial
-4. **In-place migration of an existing surface** → **Branch by Abstraction**: introduce abstraction first, swap implementations under it
-5. **Fallback** → **Vertical slice**: cut by user story
+1. **全新地（一个全新子系统）** → **Walking Skeleton**：先打通最薄的端到端路径，之后纵向加厚
+2. **高风险 / 高未知的技术表面** → **By risk**：先攻最不确定的子规范，验证，再扩展
+3. **跨模块、各模块形态相似的改动** → **Horizontal sweep**：一个模块一个子规范，串行
+4. **对既有表面的原地迁移** → **Branch by Abstraction**：先引入抽象，在抽象之下替换实现
+5. **兜底** → **Vertical slice**：按用户故事切
 
-## Tool vocabulary
+## 工具词汇表
 
-VAL `Tool` field must pick one of the **categories** below — never name a specific tool (avoid locking implementation):
+VAL 的 `Tool` 字段必须从下面的**类别**里选——绝不写具体工具名（避免锁死实现）：
 
-| Tool | Use for |
+| Tool | 用于 |
 |---|---|
-| `unit-test` | In-process logic |
-| `integration-test` | Cross-module / cross-process within one runtime |
-| `e2e-browser` | Browser end-to-end (Browser Use / Playwright / Chrome MCP at plan time) |
-| `e2e-mobile` | Mobile / simulator end-to-end (Computer Use / XCUITest / Espresso at plan time) |
-| `e2e-cli` | Subprocess black-box of a CLI |
-| `http-probe` | HTTP request + response assertion |
-| `repo-check` | File existence / content / permissions |
-| `git-state` | Git branch / commit / tree state |
-| `gh-state` | GitHub PR / Issue / Release state |
-| `lint` | Static check (eslint / tsc --noEmit / shellcheck / etc.) |
-| `build` | Build artifact correctness (tsc / npm pack / artifact shape) |
-| `manual` | Human verification only; must state "what counts as a pass" |
+| `unit-test` | 进程内逻辑 |
+| `integration-test` | 单运行时内的跨模块 / 跨进程 |
+| `e2e-browser` | 浏览器端到端（plan 时再定 Browser Use / Playwright / Chrome MCP） |
+| `e2e-mobile` | 移动端 / 模拟器端到端（plan 时再定 Computer Use / XCUITest / Espresso） |
+| `e2e-cli` | 对 CLI 的子进程黑盒测试 |
+| `http-probe` | HTTP 请求 + 响应断言 |
+| `repo-check` | 文件存在性 / 内容 / 权限 |
+| `git-state` | Git 分支 / commit / 工作树状态 |
+| `gh-state` | GitHub PR / Issue / Release 状态 |
+| `lint` | 静态检查（eslint / tsc --noEmit / shellcheck 等） |
+| `build` | 构建产物正确性（tsc / npm pack / 产物形态） |
+| `manual` | 仅人工验证；必须写明"什么算通过" |
 
-The per-VAL `Tool` field stays a **category** — that keeps it grep-able and keeps the assertion implementation-agnostic. The repo's **concrete** tool for each category (which test runner, which browser driver, which build command) is a fact gathered during A1 research, not an implementation decision for this feature — record it **once** in the `## Toolchain` table of `validation-contract.md`, not per VAL. This carries the toolchain finding forward so `test-designer` can target the right runner / driver without re-inferring it (it still scans existing tests for fixture and naming conventions), and resolves real ambiguity inside a category (e.g. `e2e-browser` → Browser Use vs Playwright vs Chrome MCP, which have different evidence shapes). Only fill Toolchain rows for categories the contract's VALs actually use.
+单条 VAL 的 `Tool` 字段保持是**类别**——这让它可 grep，也让断言与实现无关。每个类别对应的仓库**具体**工具（用哪个测试运行器、哪个浏览器驱动、哪条构建命令）是 A1 调研所得的事实，不是本功能的实现决策——在 `validation-contract.md` 的 `## Toolchain` 表里记**一次**，不要逐条 VAL 重复。这把工具链调研结论往下游传递，`test-designer` 无需重新推断就能瞄准正确的运行器 / 驱动（它仍会扫描既有测试来摸清 fixture 和命名约定），也解决类别内部的真实歧义（例：`e2e-browser` → Browser Use vs Playwright vs Chrome MCP，三者的证据形态不同）。只为契约里 VAL 实际用到的类别填 Toolchain 行。
 
-## Handoff review checklist (D1)
+## 交接审查清单（D1）
 
-Look from a downstream consumer's seat (test-designer, planner, you-in-a-month). Fix in place — do not redo.
+从下游消费方的位置看（test-designer、规划者、一个月后的你）。当场修——不要重做。
 
-- [ ] No TBD / TODO / placeholder
-- [ ] Why is intelligible to a blank-context agent
-- [ ] Each VAL's Behavior is single-meaning (two implementations cannot both rationalize a pass)
-- [ ] No VAL says how to test, only what counts as a pass
-- [ ] `validation-contract.md` has a `## Toolchain` table covering every category its VALs use, each row naming a concrete tool observed in A1 research (the repo's existing harness, not a design decision)
-- [ ] Out of scope covers everything that "looks like it should be in" but isn't
-- [ ] No What ↔ VAL contradiction
-- [ ] Open questions contains only deliberately-deferred downstream decisions, each with a named owner (plan / impl) and a stated reason — no unresolved requirement ambiguity hiding there
-- [ ] If decomposed, umbrella.md gives a complete overview without opening sub-specs
+- [ ] 没有 TBD / TODO / 占位符
+- [ ] Why 对一个零上下文的 agent 也读得懂
+- [ ] 每条 VAL 的 Behavior 只有单一含义（不能出现两种实现都能自圆其说算通过）
+- [ ] 没有 VAL 在说怎么测，只说什么算通过
+- [ ] `validation-contract.md` 有一张 `## Toolchain` 表，覆盖其 VAL 用到的每个类别，每行点名一个 A1 调研中观察到的具体工具（仓库既有的测试设施，不是设计决策）
+- [ ] Out of scope 覆盖了所有"看起来该包含"但其实不包含的东西
+- [ ] What 与 VAL 之间没有矛盾
+- [ ] Open questions 里只有刻意推迟给下游的决策，每条都有点名的归属（plan / impl）和写明的理由——没有未解决的需求歧义藏在里面
+- [ ] 若已拆分，umbrella.md 不打开子规范也能给出完整概览
 
-## Anti-patterns
+## 反模式
 
-- ❌ Asking multiple questions in one round — burns the user's patience and conflates dimensions
-- ❌ Pushing past 95% confidence — the marginal question over-specifies
-- ❌ Writing implementation hints into `spec.md` ("we'll add a function `validateX` in `utils.ts`")
-- ❌ VALs that describe test mechanics ("call `assertEquals(parse(s), …)`") — those belong in test-designer
-- ❌ Padding VAL count to look thorough — fewer well-formed VALs beat many vague ones
-- ❌ Naming a concrete tool in a per-VAL `Tool` field — the concrete tool belongs once in the `## Toolchain` table
-- ❌ Manufacturing fake Open questions to fill the section — "无" is a valid and common result for a well-clarified spec
-- ❌ Dumping unresolved requirement ambiguity into Open questions instead of resolving it in the A2 loop — Open questions is for deliberately-deferred downstream decisions only
-- ❌ Accepting a user-supplied spec without running the audit
-- ❌ Skipping D1.5 silently — the option to review must be presented; the user may then skip
-- ❌ Splitting a small spec into sub-specs to look organized — the size gate is the gate
-- ❌ Treating Figma URL as readable; always ask for exported PNGs / screenshots
+- ❌ 一轮问多个问题——消耗用户耐心，还把不同维度搅在一起
+- ❌ 冲过 95% 置信度——边际上的那个问题会过度规定
+- ❌ 把实现提示写进 `spec.md`（"我们会在 `utils.ts` 加一个 `validateX` 函数"）
+- ❌ 描述测试机制的 VAL（"调用 `assertEquals(parse(s), …)`"）——那属于 test-designer
+- ❌ 为显得周全而凑 VAL 数量——少而规整的 VAL 胜过多而含糊的
+- ❌ 在单条 VAL 的 `Tool` 字段里写具体工具名——具体工具只在 `## Toolchain` 表里记一次
+- ❌ 为填满章节而编造假的 Open questions——对一份澄清充分的 spec 来说，"无"是合法且常见的结果
+- ❌ 把未解决的需求歧义倒进 Open questions，而不在 A2 循环里解决——Open questions 只装刻意推迟给下游的决策
+- ❌ 不跑审计就接受用户自带的 spec
+- ❌ 静默跳过 D1.5——审查选项必须呈现出来；之后用户可以自己选跳过
+- ❌ 为显得有条理而把小 spec 拆成子规范——规模闸门才是闸门
+- ❌ 把 Figma URL 当成可直接读取的；永远要导出的 PNG / 截图
 
-## Relationship to other skills
+## 和其他 skill 的关系
 
-- `test-designer` — consumes `validation-contract.md` as primary input (with `spec.md` prose as fallback context); writes failing tests
-- `incremental-impl` — picks up the same slicing-axis vocabulary chosen at B0; takes spec + plan into per-slice execution
-- Plan-stage tooling (built-in Plan, `planning-with-files`, or any planning skill the workflow CLAUDE.md names) — downstream of D3 when scope triage says full plan path
-- `deep-review`'s `spec-conformance` reviewer — validates PR diff against the VAL list; findings tag `VAL-XXX-NNN`
-- `playground:playground` (Anthropic official, soft dependency) — D1.5 review aid via `document-critique` template
-- `goalify` — once this skill's spec is settled, `goalify` consumes spec.md + validation-contract.md to package the long-running execution into a `/goal` script (autonomous continuous run, e.g. "drive this to PR Ready"). Out of band: not auto-invoked here; the user invokes it when they want unattended execution of an already-clarified requirement
+- `test-designer` — 把 `validation-contract.md` 作为主输入消费（`spec.md` 正文作为兜底上下文）；写失败测试
+- `incremental-impl` — 沿用 B0 选定的同一套切分轴词汇；把 spec + plan 带进逐切片执行
+- plan 阶段工具（内置 Plan、`planning-with-files`、或工作流 CLAUDE.md 点名的任何规划 skill）——当规模判定走完整 plan 路径时，是 D3 的下游
+- `deep-review` 的 `spec-conformance` 审查者 — 拿 PR diff 对照 VAL 列表验证；finding 标注 `VAL-XXX-NNN`
+- `playground:playground`（Anthropic 官方，软依赖）— 通过 `document-critique` 模板做 D1.5 审查辅助
+- `goalify` — 本 skill 的 spec 一旦定稿，`goalify` 消费 spec.md + validation-contract.md，把长程执行打包成一段 `/goal` 脚本（自主连续运行，例如"把这个推到 PR Ready"）。属于流程外：这里不自动调用；用户想无人值守地执行一个已澄清的需求时才自己调用
