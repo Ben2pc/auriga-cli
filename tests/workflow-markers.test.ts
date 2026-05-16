@@ -3,7 +3,7 @@ import { describe, test } from "node:test";
 
 import {
   MARKER_SCHEMA,
-  WORKFLOW_START_MARKER,
+  workflowStartMarker,
   WORKFLOW_HEADER_RE,
   workflowEndMarker,
   hashBlock,
@@ -20,9 +20,19 @@ function marked(blockBody: string, userRegion = ""): string {
 describe("workflow-markers — constants", () => {
   test("schema is v1 and the START marker carries it", () => {
     assert.equal(MARKER_SCHEMA, "v1");
-    assert.ok(WORKFLOW_START_MARKER.includes("AURIGA:WORKFLOW:v1 START"));
-    assert.ok(WORKFLOW_START_MARKER.startsWith("<!--"));
-    assert.ok(WORKFLOW_START_MARKER.trimEnd().endsWith("-->"));
+    for (const lang of ["en", "zh-CN"]) {
+      const m = workflowStartMarker(lang);
+      assert.ok(m.includes("AURIGA:WORKFLOW:v1 START"));
+      assert.ok(m.startsWith("<!--"));
+      assert.ok(m.trimEnd().endsWith("-->"));
+    }
+  });
+
+  test("START marker prose is language-aware; unknown lang falls back to en", () => {
+    assert.match(workflowStartMarker("en"), /Managed block/);
+    assert.match(workflowStartMarker("zh-CN"), /受管区块/);
+    assert.equal(workflowStartMarker("fr"), workflowStartMarker("en"));
+    assert.equal(workflowStartMarker(), workflowStartMarker("en"));
   });
 
   test("END marker embeds the given hash", () => {
@@ -61,7 +71,7 @@ describe("workflow-markers — parseMarkers", () => {
   });
 
   test("only a START marker → malformed", () => {
-    assert.equal(parseMarkers(`${WORKFLOW_START_MARKER}\nbody\n`).kind, "malformed");
+    assert.equal(parseMarkers(`${workflowStartMarker()}\nbody\n`).kind, "malformed");
   });
 
   test("only an END marker → malformed", () => {
@@ -69,7 +79,7 @@ describe("workflow-markers — parseMarkers", () => {
   });
 
   test("END appears before START → malformed", () => {
-    const file = `${workflowEndMarker("deadbeefcafe0123")}\nbody\n${WORKFLOW_START_MARKER}\n`;
+    const file = `${workflowEndMarker("deadbeefcafe0123")}\nbody\n${workflowStartMarker()}\n`;
     assert.equal(parseMarkers(file).kind, "malformed");
   });
 });
@@ -91,6 +101,21 @@ describe("workflow-markers — composeMarkedFile round-trip", () => {
     assert.equal(p.kind, "marked");
     if (p.kind !== "marked") return;
     assert.equal(p.endHash, hashBlock(body));
+  });
+
+  test("lang selects the START marker prose; parse is unaffected", () => {
+    const body = "b\n";
+    const en = composeMarkedFile({ blockBody: body, lang: "en" });
+    const zh = composeMarkedFile({ blockBody: body, lang: "zh-CN" });
+    assert.match(en.split("\n")[0], /Managed block/);
+    assert.match(zh.split("\n")[0], /受管区块/);
+    // Different prose, identical structure — both parse to the same block.
+    for (const file of [en, zh]) {
+      const p = parseMarkers(file);
+      assert.equal(p.kind, "marked");
+      if (p.kind !== "marked") return;
+      assert.equal(p.blockBody, body);
+    }
   });
 
   test("a prefix before the START marker is preserved", () => {

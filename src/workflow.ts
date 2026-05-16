@@ -93,7 +93,7 @@ export async function installWorkflow(
     // 1. Fresh install — write the marked template as-is, no backup.
     fs.writeFileSync(
       targetClaude,
-      composeMarkedFile({ blockBody: sourceBlock, userRegion: templateUserRegion }),
+      composeMarkedFile({ blockBody: sourceBlock, userRegion: templateUserRegion, lang }),
     );
     log.ok(`CLAUDE.md installed (${langOpt.label})`);
   } else {
@@ -126,6 +126,7 @@ export async function installWorkflow(
           prefix: parsed.prefix,
           blockBody: sourceBlock,
           userRegion: parsed.userRegion,
+          lang,
         }),
       );
       log.ok(
@@ -138,7 +139,7 @@ export async function installWorkflow(
       const bak = backupOnce(targetClaude);
       fs.writeFileSync(
         targetClaude,
-        composeMarkedFile({ blockBody: sourceBlock, userRegion: templateUserRegion }),
+        composeMarkedFile({ blockBody: sourceBlock, userRegion: templateUserRegion, lang }),
       );
       log.warn(
         `检测到旧版 CLAUDE.md(无受管标记);已备份到 ${path.basename(bak)}。` +
@@ -151,7 +152,7 @@ export async function installWorkflow(
       const foreign = current.endsWith("\n") ? current : current + "\n";
       fs.writeFileSync(
         targetClaude,
-        composeMarkedFile({ blockBody: sourceBlock, userRegion: "\n" + foreign }),
+        composeMarkedFile({ blockBody: sourceBlock, userRegion: "\n" + foreign, lang }),
       );
       log.ok(
         `CLAUDE.md installed (${langOpt.label}); your existing content was kept below the managed block`,
@@ -162,7 +163,7 @@ export async function installWorkflow(
       const bak = backupOnce(targetClaude);
       fs.writeFileSync(
         targetClaude,
-        composeMarkedFile({ blockBody: sourceBlock, userRegion: templateUserRegion }),
+        composeMarkedFile({ blockBody: sourceBlock, userRegion: templateUserRegion, lang }),
       );
       log.warn(
         `CLAUDE.md 的受管标记已损坏(${parsed.reason});已备份到 ${path.basename(bak)} 并重装。`,

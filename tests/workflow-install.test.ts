@@ -6,7 +6,7 @@ import { after, describe, test } from "node:test";
 
 import { installWorkflow } from "../src/workflow.js";
 import {
-  WORKFLOW_START_MARKER,
+  workflowStartMarker,
   composeMarkedFile,
   hashBlock,
   parseMarkers,
@@ -73,7 +73,8 @@ describe("installWorkflow — fresh install (VAL-WF-001, 002)", () => {
     const parsed = parseMarkers(content);
     assert.equal(parsed.kind, "marked");
     if (parsed.kind !== "marked") return;
-    assert.ok(WORKFLOW_START_MARKER.includes("AURIGA:WORKFLOW:v1"));
+    assert.ok(content.split("\n")[0].includes("AURIGA:WORKFLOW:v1 START"));
+    assert.match(content.split("\n")[0], /Managed block/, "en install gets the English marker");
     assert.match(parsed.blockBody, /# auriga Workflow \(v\d+\.\d+\.\d+\)/);
     assert.equal(parsed.prefix.trim(), "", "no non-blank content before the START marker");
   });
@@ -242,11 +243,11 @@ describe("installWorkflow — old-format migration (VAL-WF-007, 008)", () => {
 
 describe("installWorkflow — malformed markers (VAL-WF-009)", () => {
   const cases: Array<[string, string]> = [
-    ["only START", `${WORKFLOW_START_MARKER}\n# auriga Workflow (v1.0.0)\nbody\n`],
+    ["only START", `${workflowStartMarker()}\n# auriga Workflow (v1.0.0)\nbody\n`],
     ["only END", `${workflowEndMarker("deadbeefcafe0123")}\nbody\n`],
     [
       "END before START",
-      `${workflowEndMarker("deadbeefcafe0123")}\nmid\n${WORKFLOW_START_MARKER}\nbody\n`,
+      `${workflowEndMarker("deadbeefcafe0123")}\nmid\n${workflowStartMarker()}\nbody\n`,
     ],
   ];
 
@@ -331,7 +332,7 @@ describe("installWorkflow — marked file with a hash-less END marker", () => {
     const cwd = makeScratch("nohash");
     const claudePath = path.join(cwd, "CLAUDE.md");
     const noHashFile =
-      `${WORKFLOW_START_MARKER}\n# auriga Workflow (v1.0.0)\nbody\n` +
+      `${workflowStartMarker()}\n# auriga Workflow (v1.0.0)\nbody\n` +
       `<!-- AURIGA:WORKFLOW:v1 END -->\n## 我的规则\n- keep me\n`;
     fs.writeFileSync(claudePath, noHashFile);
 

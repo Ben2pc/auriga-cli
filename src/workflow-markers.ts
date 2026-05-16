@@ -20,9 +20,24 @@ import { createHash } from "node:crypto";
 /** Marker schema version. Frozen contract — bump only with a migration plan. */
 export const MARKER_SCHEMA = "v1";
 
-/** The START marker line written into every installed CLAUDE.md. */
-export const WORKFLOW_START_MARKER =
-  `<!-- AURIGA:WORKFLOW:${MARKER_SCHEMA} START — 受管区块,由 auriga-cli 维护,请勿手改;升级会整块覆盖。工程专属规则写在下方 END 标记之后。 -->`;
+/**
+ * START marker line, one per template language. Only the prose differs — the
+ * structural `AURIGA:WORKFLOW:v1 START` token is language-independent, so the
+ * parser (`START_LINE_RE`) keys on the token alone and never needs to know the
+ * language. The English `CLAUDE.md` gets the English marker; `CLAUDE.zh-CN.md`
+ * gets the Chinese one, so a downstream file never carries a comment in the
+ * wrong language for its document.
+ */
+const WORKFLOW_START_MARKERS: Record<string, string> = {
+  en: `<!-- AURIGA:WORKFLOW:${MARKER_SCHEMA} START — Managed block, maintained by auriga-cli. Do not edit by hand; upgrades replace it wholesale. Put project-specific instructions after the END marker below. -->`,
+  "zh-CN": `<!-- AURIGA:WORKFLOW:${MARKER_SCHEMA} START — 受管区块,由 auriga-cli 维护,请勿手改;升级会整块覆盖。工程专属规则写在下方 END 标记之后。 -->`,
+};
+
+/** The START marker line for the given template language. Unknown languages
+ *  fall back to English. */
+export function workflowStartMarker(lang?: string): string {
+  return WORKFLOW_START_MARKERS[lang ?? "en"] ?? WORKFLOW_START_MARKERS.en;
+}
 
 /** Build the END marker line, embedding the managed-block content hash so a
  *  later upgrade can tell an untouched block from a hand-edited one. */
@@ -108,15 +123,19 @@ export function parseMarkers(content: string): MarkerParse {
  * `blockBody` is expected to end with a newline (it is the content the START
  * line's newline leads into, up to the END line). `parseMarkers` and
  * `composeMarkedFile` are exact inverses for the block body and user region.
+ *
+ * `lang` selects the START marker's prose language (default English); it does
+ * not affect the parser, which keys on the language-independent token.
  */
 export function composeMarkedFile(opts: {
   prefix?: string;
   blockBody: string;
   userRegion?: string;
+  lang?: string;
 }): string {
   return (
     (opts.prefix ?? "") +
-    WORKFLOW_START_MARKER + "\n" +
+    workflowStartMarker(opts.lang) + "\n" +
     opts.blockBody +
     workflowEndMarker(hashBlock(opts.blockBody)) + "\n" +
     (opts.userRegion ?? "")

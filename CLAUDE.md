@@ -1,4 +1,4 @@
-<!-- AURIGA:WORKFLOW:v1 START — 受管区块,由 auriga-cli 维护,请勿手改;升级会整块覆盖。工程专属规则写在下方 END 标记之后。 -->
+<!-- AURIGA:WORKFLOW:v1 START — Managed block, maintained by auriga-cli. Do not edit by hand; upgrades replace it wholesale. Put project-specific instructions after the END marker below. -->
 # auriga Workflow (v1.9.0)
 
 1. Requirement Clarification: Use `spec-design` to clarify requirements for new features. **Requirements should focus on "what to do" and acceptance criteria, not specific technical paths.** For product features, prioritize "Why" and let the implementation-stage Agent decide how. **spec = why + what; plan = how.** If a change does not move the external behavior contract (refactor, algorithm swap, library replacement with same observable behavior), skip spec and go directly to plan.
