@@ -1,267 +1,258 @@
 ---
 name: test-designer
-description: Design failing tests for complex features using Independent Evaluation — dispatches a context-free agent that sees only the requirement spec and code paths (not the implementation approach), then returns executable failing tests. Use when starting TDD for a non-trivial feature, when the requirement is ambiguous enough that biased tests are a risk, or when the user asks for independent test design.
+description: 为复杂功能设计失败测试，采用独立评估机制——派发一个无上下文的代理，该代理只能看到需求规格和代码路径（而非实现方案），返回可执行的失败测试。当为非平凡功能开始 TDD、需求足够模糊以至于有产生偏向性测试的风险、或用户明确要求独立测试设计时使用。
 ---
 
-# Test Designer
+# 测试设计器 / Test Designer
 
-Independent test-design orchestrator. Encodes Independent Evaluation: the agent writing the tests must not be the agent implementing the feature, and must not inherit the implementation's assumptions.
+独立测试设计编排器。实现「独立评估」原则：编写测试的代理必须不是实现该功能的代理，且不能继承实现方案的假设。
 
-## When to Use
+## 何时使用 / When to Use
 
-- TDD red phase for a **complex / non-trivial** feature (multi-file, multi-branch logic, new subsystem)
-- Requirement is ambiguous enough that the implementer's tests would likely rationalize the implementation instead of catching bugs
-- User explicitly asks for "independent test design", "fresh-eyes tests", or runs `/test-designer`
+- 针对**复杂 / 非平凡**功能的 TDD red 阶段（多文件、多分支逻辑、新子系统）
+- 需求足够模糊，以至于实现者编写的测试很可能将实现合理化，而非捕捉缺陷
+- 用户明确要求「独立测试设计」、「无预设视角的测试」，或运行 `/test-designer`
 
-**Don't use for:**
-- Trivial changes (one-line fix, rename) — just write the test inline
-- Bug reproduction tests — write directly from the bug report
-- Non-code changes (pure docs, pure config, pure prompt)
+**不适用于：**
+- 平凡改动（单行修复、重命名）——直接内联编写测试
+- 缺陷复现测试——从缺陷报告直接编写
+- 非代码变更（纯文档、纯配置、纯提示词）
 
-## The Iron Law
+## 铁律 / The Iron Law
 
-**The agent designing the tests must not carry the implementation's context.** If you (the main Agent) are about to implement the feature, you are disqualified from designing its tests. Dispatch.
+**设计测试的代理不得携带该功能实现的上下文。** 如果你（主代理）即将实现该功能，你已失去设计其测试的资格。派发出去。
 
-Violating this = tests that pass because they mirror the buggy implementation.
+违反此铁律 = 测试因镜像了有缺陷的实现而通过。
 
-## Must not (orchestrator scope)
+## 编排方禁止事项 / Must not (orchestrator scope)
 
-The Iron Law above frames the discipline positively. These are the corresponding negative-space rules for the **main Agent invoking this skill** — distinct from the *Process constraints* that target the dispatched agent inside Step 3.
+上述铁律从正面阐述了这一原则。以下是**调用本技能的主代理**对应的反面规则——与步骤 3 中针对被派发代理的「流程约束」有所区别。
 
-- **Do not invoke this skill if you've already implemented or sketched the feature.** Same-context test design — whether by you or by a subagent spawned from this conversation — inherits the blind spots of whatever implementation you've already discussed. Once implementation context exists, the Independent-Evaluation guarantee is gone; defer test coverage to `deep-review`'s `test-quality` reviewer at PR time instead.
-- **Do not amend the requirement or acceptance criteria to fit a sketched implementation before dispatching.** The dispatched agent's input must be the requirement as the user stated it, not a version already mapped into code. If the requirement is ambiguous, ask the user — don't disambiguate it via implementation choices that then leak into the test design.
+- **如果你已经实现或草拟了该功能，不得调用本技能。** 同一上下文中的测试设计——无论是由你还是从本次对话派发的子代理完成——都会继承你已讨论过的实现方案的盲点。一旦实现上下文已存在，独立评估保证就消失了；将测试覆盖推迟到 PR 阶段 `deep-review` 的 `test-quality` 审查员处理。
+- **派发前不得为了适配已草拟的实现而修改需求或验收标准。** 被派发代理的输入必须是用户所表述的原始需求，而非已映射为代码的版本。如果需求有歧义，询问用户——不要通过实现选择来消除歧义，然后让其泄漏到测试设计中。
 
-## Steps
+## 步骤 / Steps
 
-### Step 1: Assemble the dispatch package
+### 步骤 1：组装派发包 / Step 1: Assemble the dispatch package
 
-Collect **only these inputs** — nothing else:
+**只收集这些输入**——不得包含其他内容：
 
-1. **Validation Contract (primary)** — `docs/specs/<topic>/validation-contract.md` from `spec-design`. The VAL list (`VAL-XXX-NNN: Behavior + Tool + Evidence`) **is the canonical contract**. Each VAL maps to one or more failing tests: pick a `Tool` category-appropriate test level and assert on the `Evidence` definition. The dispatched agent must enumerate failing tests by walking the VAL list, not by improvising behaviors of its own.
-2. **Requirement description (fallback context)** — `docs/specs/<topic>/spec.md`'s Why / Findings / What / Out of scope. Use this when a VAL's Behavior is too tight to interpret unambiguously, or when the VAL list appears incomplete (a behavior described in `spec.md` § What has no corresponding VAL). If you hit the fallback often, surface it — the spec contract is under-specified and `spec-design` should be re-invoked, not the gap papered over with improvised tests.
-3. **Relevant code file paths** — read-only access to the code the feature will touch or integrate with
-4. **Edge case prompts** — categories the dispatched agent should enumerate when VAL coverage on these axes is thin:
-   - Boundary inputs (empty, max, min, off-by-one)
-   - Concurrency / ordering (if applicable)
-   - Resource lifecycle (cleanup on error, partial failure)
-   - Invariants (data consistency, idempotency)
-   - Adversarial inputs (malformed, oversized, mis-encoded)
+1. **验证契约（主要来源）** — 来自 `spec-design` 的 `docs/specs/<topic>/validation-contract.md`。VAL 列表（`VAL-XXX-NNN: Behavior + Tool + Evidence`）**是规范契约**。每个 VAL 映射到一个或多个失败测试：选择符合 `Tool` 类别的测试级别，并对 `Evidence` 定义进行断言。被派发代理必须通过逐条遍历 VAL 列表来枚举失败测试，而不是自行发挥。
+2. **需求描述（备用上下文）** — `docs/specs/<topic>/spec.md` 的 Why / Findings / What / Out of scope。当某个 VAL 的 Behavior 过于简短难以明确解读，或 VAL 列表看起来不完整时使用（`spec.md` § What 中描述的行为没有对应的 VAL）。如果频繁触发备用路径，请浮出水面——规格契约存在欠规范问题，应重新调用 `spec-design`，而不是用即兴测试掩盖缺口。
+3. **相关代码文件路径** — 只读访问该功能将触及或集成的代码
+4. **边界场景提示** — 当这些维度的 VAL 覆盖偏薄时，被派发代理应枚举的类别：
+   - 边界输入（空值、最大值、最小值、差一错误）
+   - 并发 / 顺序（如适用）
+   - 资源生命周期（错误时的清理、部分失败）
+   - 不变量（数据一致性、幂等性）
+   - 对抗性输入（格式错误、超大、编码错误）
 
-**Explicitly exclude:**
-- The implementation plan or design you've been developing
-- Hints about which approach you've chosen
-- Code excerpts from a work-in-progress branch
-- Your own guesses about "the right way to test this"
+**明确排除：**
+- 你一直在开发的实现计划或设计
+- 关于你所选方案的任何提示
+- 进行中分支的代码摘录
+- 你自己对「正确测试方式」的猜测
 
-**VAL → test mapping rule:** one VAL may expand into N test assertions (1:N), never the reverse. Each generated test must trace back to a specific `VAL-XXX-NNN` id in a comment. Tests that don't trace are either (a) covering a Findings/§What item that has no VAL — surface as a `spec-design` gap, or (b) over-reach (testing implementation details) — drop them.
+**VAL → 测试映射规则：** 一个 VAL 可以扩展为 N 个测试断言（1:N），反向不成立。每个生成的测试必须在注释中追溯到特定的 `VAL-XXX-NNN` id。无法追溯的测试要么是：(a) 覆盖了 Findings/§What 中没有对应 VAL 的条目——作为 `spec-design` 缺口上报，要么是 (b) 过度扩展（测试了实现细节）——删除。
 
-### Step 2: Choose the executor
+### 步骤 2：选择执行者 / Step 2: Choose the executor
 
-| Task shape | Executor | Reason |
+| 任务形态 | 执行者 | 原因 |
 |---|---|---|
-| Complex, architectural implications | Independent Agent (e.g., `codex-agent` or `claude-code-agent` with fresh session) | True zero-context isolation; can use strongest model at highest effort |
-| Medium complexity, current conversation clean | In-conversation subagent | Cheaper; still acceptable if main Agent hasn't yet proposed an implementation |
-| Trivial | **Don't dispatch** — write tests inline |
+| 复杂、涉及架构影响 | 独立代理（如使用新会话的 `codex-agent` 或 `claude-code-agent`） | 真正的零上下文隔离；可使用最强模型和最高推理强度 |
+| 中等复杂度、当前对话干净 | 对话内子代理 | 更经济；如果主代理尚未提出实现方案，仍可接受 |
+| 平凡 | **不派发**——直接内联编写测试 |
 
-**Default to Independent Agent** when the main Agent has already discussed or sketched implementation. Subagent isolation within the same conversation doesn't undo prior context pollution.
+**当主代理已讨论或草拟实现方案时，默认使用独立代理。** 在同一对话内的子代理隔离无法消除先前的上下文污染。
 
-### Step 3: Dispatch with the strongest model and highest effort
+### 步骤 3：使用最强模型和最高推理强度派发 / Step 3: Dispatch with the strongest model and highest effort
 
-Test design is a correctness-critical reasoning task, not a rote mechanical one. Use:
+测试设计是一项对正确性至关重要的推理任务，而非机械性重复工作。使用：
 
-- **Model**: strongest reasoning model the runtime offers — inherit if the main Agent is already on that tier; otherwise override. Don't hardcode a specific brand name
-- **Effort**: `xhigh` (the maximum level the runtime supports). Escalation ladder: `low` → `medium` → `high` → `xhigh`
-- **Tools**: Read / Grep / Glob on code paths; Write on test files only
-- **Permission**: read-only on non-test files; writable on test files
+- **模型**：运行时所能提供的最强推理模型——如果主代理已在该层级则继承；否则覆盖。不要硬编码特定品牌名称
+- **推理强度**：`xhigh`（运行时支持的最高级别）。升级阶梯：`low` → `medium` → `high` → `xhigh`
+- **工具**：在代码路径上使用 Read / Grep / Glob；在测试文件上使用 Write
+- **权限**：非测试文件只读；测试文件可写
 
-Dispatch prompt skeleton — the **Test quality constraints** section is the rubric the dispatched agent must satisfy and that Step 4 validates against; treat it as load-bearing, not boilerplate:
+派发提示词骨架——**测试质量约束**部分是被派发代理必须满足的标准，也是步骤 4 的验证依据；将其视为关键内容，而非样板文字：
 
 ```
-You are designing failing tests for a feature. You will NOT see or write the
-implementation. Your job is to produce executable tests that fail today and
-pass only when the feature is correctly implemented.
+你正在为一个功能设计失败测试。你不会看到、也不会编写实现代码。你的任务
+是产出可执行的测试——这些测试今天会失败，只有当功能被正确实现后才通过。
 
-## Requirement
+## 需求 / Requirement
 <paste requirement description + acceptance criteria>
 
-## Code paths (read-only, for understanding context)
+## 代码路径（只读，用于理解上下文）/ Code paths (read-only, for understanding context)
 <list of file paths — public API surface, integration boundaries,
 existing test conventions>
 
-## Analyze first, write second
-Before drafting any test:
-1. Read the code paths; identify the public API / observable behavior surface.
-2. Scan existing test files in the repo; match their framework, runner,
-   fixture pattern, and naming style. If `validation-contract.md` ships a
-   `## Toolchain` table, take the runner / driver from it and confirm by
-   scanning, rather than re-inferring the stack from scratch.
-3. Enumerate behaviors to be tested across the 5 scenario categories
-   (happy / empty / boundary / error / concurrency).
+## 先分析，再编写 / Analyze first, write second
+在起草任何测试之前：
+1. 阅读代码路径；识别公开 API / 可观测的行为面。
+2. 扫描仓库中已有的测试文件；匹配其框架、runner、fixture 模式和命名风格。
+   如果 `validation-contract.md` 提供了 `## Toolchain` 表格，直接从中取用
+   runner / driver 并通过扫描确认，而不是从头重新推断技术栈。
+3. 按 5 个场景类别（happy / empty / boundary / error / concurrency）枚举
+   待测行为。
 
-## Test quality constraints
+## 测试质量约束 / Test quality constraints
 
-Tests MUST satisfy these standards. Reject your own draft if any fail.
+测试必须满足以下标准。如有任何一项不满足，否决你自己的草稿。
 
-### 1. Test at the right level
-- Pure logic, no I/O → unit test (small, milliseconds)
-- Crosses a boundary (DB / network / filesystem / clock) → integration test
-- End-to-end critical user flow only → E2E test
-Default to the lowest level that captures the behavior.
+### 1. 在正确层级测试 / Test at the right level
+- 纯逻辑、无 I/O → unit test（小、毫秒级）
+- 跨越边界（DB / 网络 / 文件系统 / 时钟）→ integration test
+- 仅限端到端的关键用户流程 → E2E test
+默认选择能捕捉该行为的最低层级。
 
-### 2. Behavior, not implementation
-- Assert on outcomes: return values, persisted state, observable side effects.
-- Do NOT assert on internal method-call sequences, private helpers, or exact
-  log strings.
-- A test that asserts only on what it itself mocked is a tautology —
-  disallowed.
+### 2. 测试行为，而非实现 / Behavior, not implementation
+- 对结果进行断言：返回值、持久化状态、可观测的副作用。
+- 不要对内部方法调用顺序、私有辅助方法或精确的日志字符串进行断言。
+- 仅对其自身 mock 出来的值进行断言的测试是一种 tautology（自证循环）——
+  禁止。
 
-### 3. Mock at boundaries only
-Preference order: real implementation > in-memory fake > stub > mock.
-Mock only:
-- External APIs / network endpoints
-- Time, randomness, other nondeterminism
-- Operations that are slow or destructive in real form (real email, prod DB)
-Do NOT mock the unit under test or pure internal dependencies.
+### 3. 仅在边界处 mock / Mock at boundaries only
+优先顺序：真实实现 > in-memory fake > stub > mock。
+仅 mock：
+- 外部 API / 网络端点
+- 时间、随机性及其他不确定性来源
+- 以真实形态运行会很慢或有破坏性的操作（真实邮件、生产 DB）
+不要 mock 被测单元或纯内部依赖。
 
-### 4. Required scenario coverage
-For each public behavior, include tests across these categories:
+### 4. 必须覆盖的场景 / Required scenario coverage
+对每个公开行为，纳入覆盖以下类别的测试：
 
-| Scenario | Example |
+| 场景 / Scenario | 示例 / Example |
 |---|---|
-| Happy path | Valid input → expected output |
+| Happy path | 合法输入 → 预期输出 |
 | Empty / null | "", [], null, undefined |
 | Boundary | 0, 1, max, max+1, negative |
-| Error path | Invalid input, timeout, permission denied |
-| Concurrency / order | Rapid repeats, out-of-order responses, races |
+| Error path | 非法输入、超时、权限拒绝 |
+| Concurrency / order | 快速重复、乱序响应、竞态 |
 
-Skip a category only when genuinely inapplicable (e.g., concurrency for a
-pure function). State why in the test plan when you skip one.
+仅当某类别确实不适用时才跳过（如纯函数的并发场景）。跳过时在测试计划中
+说明原因。
 
-### 5. Structural quality
-- Arrange-Act-Assert: visibly separated blocks per test.
-- One assertion concept per test. Name containing "and" → split into two.
-- Test names read like specification sentences. Good:
-  `it('rejects empty email with "Email required"')`. Bad: `it('test1')`,
-  `it('works')`, `it('handles errors')`.
-- DAMP > DRY in tests: each test self-contained. Don't hide what's being
-  verified behind shared `beforeEach` / helpers.
+### 5. 结构质量 / Structural quality
+- Arrange-Act-Assert：每个测试中三段可见地分隔开。
+- 每个测试一个断言概念。名称中含「and」→ 拆成两个。
+- 测试名称读起来像规格说明句子。好：
+  `it('rejects empty email with "Email required"')`。差：`it('test1')`、
+  `it('works')`、`it('handles errors')`。
+- 测试中 DAMP 优于 DRY：每个测试自包含。不要把被验证的内容藏在共享的
+  `beforeEach` / helper 后面。
 
-### 6. Flake risk — forbidden patterns
-- Time-dependent without fake timers (`setTimeout`, real `Date.now()`)
-- Order-dependent (shared mutable state across tests, iteration-order asserts)
-- Real network / live filesystem without isolation
-- Snapshot tests of unreviewed output
+### 6. 不稳定风险——禁止模式 / Flake risk — forbidden patterns
+- 依赖时间却不用 fake timers（`setTimeout`、真实 `Date.now()`）
+- 依赖顺序（测试间共享可变状态、依赖迭代顺序的断言）
+- 真实网络 / 真实文件系统且无隔离
+- 对未经审查的输出做 snapshot test
 
-### 7. Must actually fail
-- A test that passes against an empty implementation tests nothing.
-- A test that fails on `ImportError`, missing fixture, syntax error, or
-  "module not found" is **fake red** — it doesn't exercise the behavior it
-  claims to.
-- Run each test against current code; confirm the failure message matches
-  the rationale. Drop or fix any fake-red tests before returning.
+### 7. 测试必须真正失败 / Must actually fail
+- 针对空实现就能通过的测试什么也没测。
+- 因 `ImportError`、缺失 fixture、语法错误或「module not found」而失败的
+  测试是 **fake red**——它并未真正执行其声称要测的行为。
+- 对当前代码运行每个测试；确认失败信息与理由说明相符。返回前删除或修复
+  任何 fake-red 测试。
 
-### 8. Property over example
-A test asserting on specific happy-path values (e.g., output equals exactly
-`[1,2,3]` for one fixture) passes when input==fixture and breaks for any
-valid variant. Use property assertions (sorted, idempotent,
-contains-all-inputs) or pair the example with a variant-input test
-exercising the same invariant.
+### 8. 属性断言优于示例断言 / Property over example
+对特定 happy-path 值进行断言的测试（如断言某个 fixture 的输出恰好等于
+`[1,2,3]`），只在 input==fixture 时通过，对任何合法变体都会失败。改用
+属性断言（已排序、幂等、包含全部输入），或为示例配一个变体输入测试来
+验证同一不变量。
 
-## Produce
+## 产出 / Produce
 
-Return a single response with these four sections:
+返回单条响应，包含以下四个部分：
 
-### Current state
-- Existing test files covering this surface: `<file:line list>`, or "none"
-- Test framework / runner / assertion library detected
+### 当前状态 / Current state
+- 覆盖该行为面的已有测试文件：`<file:line list>`，或「none」
+- 检测到的测试框架 / runner / 断言库
 
-### Coverage gaps
-- Behaviors not yet tested: bullet list, grouped by 5-scenario category
+### 覆盖缺口 / Coverage gaps
+- 尚未被测试的行为：项目符号列表，按 5 场景类别分组
 
-### Recommended tests (with priority)
-- **Critical** — tests that catch data loss, security regressions, or
-  contract violations
-- **High** — tests for core business logic / acceptance criteria
-- **Medium** — tests for edge cases and error handling
-- **Low** — tests for utility / formatting helpers
+### 推荐测试（含优先级）/ Recommended tests (with priority)
+- **Critical** — 能捕捉数据丢失、安全回归或契约违反的测试
+- **High** — 针对核心业务逻辑 / 验收标准的测试
+- **Medium** — 针对边界场景和错误处理的测试
+- **Low** — 针对工具 / 格式化辅助函数的测试
 
-For each: one-line rationale stating the bug it would catch.
+每项附一行理由，说明它能捕捉的缺陷。
 
-### Executable tests
-- Test files, ready to run.
-- Each test has a one-line rationale comment.
-- Tests fail against current code, for the predicted reason (verified by
-  running them).
+### 可执行测试 / Executable tests
+- 测试文件，可直接运行。
+- 每个测试附一行理由注释。
+- 测试对当前代码失败，且失败原因与预测相符（通过运行测试验证）。
 
-## Process constraints
-- Do NOT propose or sketch an implementation.
-- Do NOT edit files outside the test directory.
-- Use the project's existing test framework, runner, and fixture conventions.
-- If you must assume something about the code that you couldn't verify from
-  the read-only files, list each assumption at the top of the test file.
+## 流程约束 / Process constraints
+- 不要提出或草拟实现方案。
+- 不要编辑测试目录以外的文件。
+- 使用项目已有的测试框架、runner 和 fixture 约定。
+- 如果你必须对代码做出某些无法从只读文件中验证的假设，在测试文件顶部
+  逐条列出每个假设。
 ```
 
-### Step 4: Validate the returned tests
+### 步骤 4：验证返回的测试 / Step 4: Validate the returned tests
 
-Before handing the tests to the implementation phase, the main Agent runs these checks. Reject the deliverable and request a redo if any fail.
+在将测试移交给实现阶段之前，主代理运行以下检查。如有任何一项失败，拒绝交付物并要求重做。
 
-#### Run-the-tests checks
-1. **Tests fail (red).** Every returned test fails against current code.
-2. **Failure reason matches the rationale.** Not `ImportError`, not "module not found", not syntax error. The test fails because the asserted behavior is missing — the rationale comment predicts the failure message.
+#### 运行测试检查 / Run-the-tests checks
+1. **测试失败（red）。** 每个返回的测试都对当前代码失败。
+2. **失败原因与理由说明相符。** 不是 `ImportError`，不是「module not found」，不是语法错误。测试失败是因为被断言的行为缺失——理由注释应能预测失败信息。
 
-#### Standards-based checks
-These cover Step 3's *Test quality constraints* §1–§6 + §8 (§7 "must actually fail" is enforced by the Run-the-tests checks above). Reject any test that violates them.
+#### 基于标准的检查 / Standards-based checks
+这些检查覆盖步骤 3 的「测试质量约束」§1–§6 + §8（§7「必须真正失败」由上方的运行测试检查强制执行）。违反任何一项则拒绝该测试。
 
-3. **Level appropriate** (§1) — unit-testable logic isn't wrapped in E2E; cross-boundary work isn't faked into a pure-unit test.
-4. **Behavior, not implementation** (§2) — no `expect(spy).toHaveBeenCalled…` chains where state assertions would suffice; no assertions on private helpers or exact log strings.
-5. **No tautological mock-only tests** (§2) — flag any test that asserts only on values it itself stubbed.
-6. **Mock granularity** (§3) — mocks live at network / DB / clock / FS / random boundaries; the unit under test is real.
-7. **5-scenario coverage** (§4) — happy / empty / boundary / error / concurrency all addressed or explicitly justified as inapplicable.
-8. **Structural quality** (§5) — AAA visible, one concept per test, names read as specifications, no over-DRY'd setup.
-9. **No flake patterns** (§6) — no real timers, no order-dependence, no real network, no unreviewed snapshots.
-10. **Property over example** (§8) — no shape-to-fixture happy-path-only assertions; property assertions or variant-pair tests where applicable.
+3. **层级适当**（§1）——可单元测试的逻辑不应包裹在 E2E 中；跨边界工作不应伪装成纯 unit test。
+4. **测试行为，而非实现**（§2）——在状态断言就足够的情况下，不使用 `expect(spy).toHaveBeenCalled…` 链；不对私有辅助方法或精确日志字符串进行断言。
+5. **无自证循环的纯 mock 测试**（§2）——标记任何仅对其自身 stub 值进行断言的测试（tautology）。
+6. **mock 粒度**（§3）——mock 位于网络 / DB / 时钟 / FS / 随机边界；被测单元为真实实现。
+7. **5 场景覆盖**（§4）——happy / empty / boundary / error / concurrency 全部覆盖，或明确说明不适用的理由。
+8. **结构质量**（§5）——AAA 清晰可见，每个测试一个概念，名称读起来像规格说明，无过度 DRY 的 setup。
+9. **无不稳定模式**（§6）——无真实计时器、无顺序依赖、无真实网络、无未审查的 snapshot tests。
+10. **属性断言优于示例断言**（§8）——无仅针对单一 fixture 的 happy-path 断言；适用时使用属性断言或变体对测试。
 
-#### Coverage checks
-11. **Distinct failure modes** — scan rationales; drop near-duplicates.
-12. **Critical-path priority addressed** — every Critical and High item from the *Recommended tests* section has an executable counterpart.
+#### 覆盖率检查 / Coverage checks
+11. **不同的失败模式** — 扫描理由说明；删除近似重复项。
+12. **关键路径优先级已覆盖** — 「推荐测试」部分中每个 Critical 和 High 条目都有对应的可执行测试。
 
-### Step 5: Hand off to implementation
+### 步骤 5：移交给实现 / Step 5: Hand off to implementation
 
-With the validated failing tests in place, implementation proceeds per `test-driven-development` skill: write minimal code to make them pass (green), then regression.
+验证过的失败测试就位后，实现按照 `test-driven-development` 技能进行：编写最小代码使测试通过（green），然后进行回归验证。
 
-## Anti-patterns
+## 反模式 / Anti-patterns
 
-These cover the **orchestration** of test design. Standards for individual tests live in Step 3's Constraints + Step 4's checks.
+以下覆盖测试设计的**编排**。单个测试的标准见步骤 3 的约束和步骤 4 的检查。
 
-- ❌ Main Agent writes the tests after sketching the implementation — tests will mirror the implementation's assumptions
-- ❌ Dispatching with medium effort / weaker model to save cost — test design quality compounds across the whole feature's lifetime
-- ❌ Passing the work-in-progress branch contents to the dispatched agent — defeats Independent Evaluation
-- ❌ Accepting tests that pass against an empty implementation — those tests don't constrain anything
-- ❌ Skipping Step 4 validation — unvalidated tests get merged as fake green
+- ❌ 主代理在草拟实现后编写测试——测试将镜像实现的假设
+- ❌ 为节省成本而以 medium 推理强度 / 较弱模型派发——测试设计质量会在整个功能的生命周期中持续产生影响
+- ❌ 将进行中分支的内容传递给被派发代理——破坏独立评估
+- ❌ 接受针对空实现就能通过的测试——这些测试不能约束任何行为
+- ❌ 跳过步骤 4 验证——未经验证的测试将以 fake green 状态合并
 
-## Relationship to other skills
+## 与其他技能的关系 / Relationship to other skills
 
-- `spec-design` → produces `validation-contract.md` (primary input) + `spec.md` (fallback context) consumed by this skill
-- `test-driven-development` → governs the red-green-refactor loop (downstream; consumes the failing tests)
-- `systematic-debugging` → kicks in if tests unexpectedly fail after implementation (downstream)
-- `verification-before-completion` → runs the tests at the "done" gate (downstream)
+- `spec-design` → 产出 `validation-contract.md`（主要输入）+ `spec.md`（备用上下文），被本技能消费
+- `test-driven-development` → 管理 red-green-refactor 循环（下游；消费失败测试）
+- `systematic-debugging` → 当测试在实现后意外失败时介入（下游）
+- `verification-before-completion` → 在「完成」关卡运行测试（下游）
 
-The deep-review plugin's `test-quality` reviewer applies the same standards in §1–§8 above when reviewing tests in a PR — front (this skill, at design time) and back (reviewer, at PR time) carry the rubric independently but in echo.
+deep-review 插件的 `test-quality` 审查员在 PR 审查测试时应用上述 §1–§8 相同标准——前端（本技能，在设计阶段）和后端（审查员，在 PR 阶段）各自独立地持有该标准，但互为呼应。
 
-## Example invocation
+## 调用示例 / Example invocation
 
 ```
-User: Starting work on the new plugin dependency resolver. Design tests first.
-Assistant:
-  1. Requirement: "Resolver takes a plugin manifest and returns install order
-     respecting deps and detecting cycles. Must handle: transitive deps,
-     diamond deps, self-references, missing deps, cycles."
-  2. Code paths: src/plugins.ts, .claude/plugins.json schema, tests/ dir
-  3. Dispatch to an independent-agent skill (fresh session) at `xhigh` effort,
-     read-only on src/, writable on tests/
-  4. Agent returns: Current state + Coverage gaps + Recommended tests
-     (5 Critical, 8 High, 5 Medium) + tests/resolver.test.ts with rationale
-     comments
-  5. Main Agent runs tests → all red → validates against the 12-point Step 4
-     checklist → hands off
+User：开始做新的插件依赖解析器。先设计测试。
+Assistant：
+  1. 需求：「解析器接收一份插件清单，返回遵守依赖关系并能检测循环的
+     安装顺序。必须处理：传递依赖、菱形依赖、自引用、缺失依赖、循环。」
+  2. 代码路径：src/plugins.ts、.claude/plugins.json schema、tests/ 目录
+  3. 派发给一个独立代理技能（新会话），推理强度 `xhigh`，src/ 只读、
+     tests/ 可写
+  4. 代理返回：当前状态 + 覆盖缺口 + 推荐测试
+     （5 个 Critical、8 个 High、5 个 Medium）+ 带理由注释的
+     tests/resolver.test.ts
+  5. 主代理运行测试 → 全部 red → 对照 12 点的步骤 4 检查清单验证 → 移交
 ```
