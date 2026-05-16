@@ -95,21 +95,38 @@ function stripQuoted(cmd) {
 // ---------------------------------------------------------------------
 // Body parsing
 
-// Heading text that marks the acceptance-criteria section. Matches the
-// English form and the Chinese form the bilingual PR-body convention
-// uses ("验收标准" / "验收条件" / "验收").
-const AC_HEADING = /acceptance\s+criteria|验收/i;
+// Heading text that marks the acceptance-criteria section. Anchored at
+// the start of the heading text so a heading that merely *mentions* the
+// phrase ("Why acceptance criteria matter") is not mistaken for the
+// section. Matches the English form and the Chinese forms the bilingual
+// PR-body convention uses ("验收标准" / "验收条件" / "验收").
+const AC_HEADING = /^(?:acceptance\s+criteria|验收(?:标准|条件|清单|准则)?)/i;
+
+// True for a fenced-code-block delimiter line (``` or ~~~, optionally
+// indented, optionally with an info string).
+function isFenceToggle(line) {
+  return /^\s*(?:```|~~~)/.test(line);
+}
 
 // Return the unchecked checklist items inside the PR body's Acceptance
 // criteria section. The section runs from its heading to the next
 // heading of the same or shallower level (a deeper heading is a
-// subsection and stays in scope). If there is no acceptance-criteria
-// heading, returns [] — nothing to enforce.
+// subsection and stays in scope). Fenced code blocks are skipped in
+// both the heading scan and the item scan — a ``` fence can hold `- [ ]`
+// examples and `#` lines that are not real checklist items / headings.
+// If there is no acceptance-criteria heading, returns [] — nothing to
+// enforce.
 function findAcceptanceUnchecked(body) {
   const lines = body.split(/\r?\n/);
+  let inFence = false;
   let level = 0;
   let start = -1;
   for (let i = 0; i < lines.length; i++) {
+    if (isFenceToggle(lines[i])) {
+      inFence = !inFence;
+      continue;
+    }
+    if (inFence) continue;
     const h = lines[i].match(/^(#{1,6})\s+(.+?)\s*$/);
     if (h && AC_HEADING.test(h[2])) {
       level = h[1].length;
@@ -119,8 +136,16 @@ function findAcceptanceUnchecked(body) {
   }
   if (start === -1) return [];
 
+  // The AC heading was found outside any fence, so fence state at
+  // `start` is "outside" — safe to rescan from a closed fence.
   const out = [];
+  inFence = false;
   for (let i = start; i < lines.length; i++) {
+    if (isFenceToggle(lines[i])) {
+      inFence = !inFence;
+      continue;
+    }
+    if (inFence) continue;
     const h = lines[i].match(/^(#{1,6})\s+\S/);
     if (h && h[1].length <= level) break; // next same-or-shallower heading
     const item = lines[i].match(/^\s*-\s+\[\s\]\s*(.*\S)?\s*$/);

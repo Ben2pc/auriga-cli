@@ -5,7 +5,9 @@
 // blocking / passing branches deterministically, each case runs the hook
 // with a fake `gh` on PATH that prints a fixture body. When a case omits
 // a fixture body the fake `gh` exits non-zero, which exercises the
-// gh-failure (non-fatal → pass) branch.
+// gh-failure (non-fatal → pass) branch. The fake `gh` also records its
+// argv so the ref-forwarding assertion can confirm `gh pr merge <ref>`
+// reaches `gh pr view <ref>`.
 //
 //     node tests/pr-merge-guard.test.mjs
 //
@@ -24,27 +26,41 @@ const ENTRY = path.resolve(
   "scripts",
   "pr-merge-guard.mjs",
 );
+const HOOKS_JSON = path.resolve(
+  HERE,
+  "..",
+  "plugins",
+  "auriga-workflow",
+  "hooks",
+  "hooks.json",
+);
+
+const cleanupDirs = [];
 
 // Build a scratch dir with a fake `gh` on PATH. When `body` is a string
 // it is written to <scratch>/pr-body.md and the fake gh cats it; when
-// `body` is null the fake gh exits 1 (gh-failure simulation).
+// `body` is null the fake gh exits 1 (gh-failure simulation). The fake
+// gh appends its argv to <scratch>/gh-argv.txt on every call.
 function makeScratch(body) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "pr-merge-guard-test-"));
+  cleanupDirs.push(dir);
   const bin = path.join(dir, ".bin");
   fs.mkdirSync(bin);
   const bodyFile = path.join(dir, "pr-body.md");
+  const argvFile = path.join(dir, "gh-argv.txt");
   // The hook only ever calls `gh pr view ... --json body -q .body`.
   fs.writeFileSync(
     path.join(bin, "gh"),
-    `#!/bin/sh\nif [ -f "${bodyFile}" ]; then cat "${bodyFile}"; exit 0; fi\nexit 1\n`,
+    `#!/bin/sh\nprintf '%s\\n' "$*" >> "${argvFile}"\n` +
+      `if [ -f "${bodyFile}" ]; then cat "${bodyFile}"; exit 0; fi\nexit 1\n`,
   );
   fs.chmodSync(path.join(bin, "gh"), 0o755);
   if (typeof body === "string") fs.writeFileSync(bodyFile, body);
-  return { dir, bin };
+  return { dir, bin, argvFile };
 }
 
 function run(command, body) {
-  const { dir, bin } = makeScratch(body);
+  const { dir, bin, argvFile } = makeScratch(body);
   const payload = JSON.stringify({
     session_id: "test",
     hook_event_name: "PreToolUse",
@@ -57,7 +73,10 @@ function run(command, body) {
     cwd: dir,
     env: { ...process.env, PATH: `${bin}:${process.env.PATH}` },
   });
-  return { status: r.status, stdout: r.stdout ?? "", stderr: r.stderr ?? "" };
+  const ghArgv = fs.existsSync(argvFile)
+    ? fs.readFileSync(argvFile, "utf8")
+    : "";
+  return { status: r.status, stdout: r.stdout ?? "", stderr: r.stderr ?? "", ghArgv };
 }
 
 // ---- Body fixtures ---------------------------------------------------
@@ -122,6 +141,30 @@ const UPPERCASE_X = `## Acceptance criteria
 
 - [X] Done with uppercase X
 `;
+
+// `- [ ]` inside a fenced code block under the AC heading is an example,
+// not a real checklist item — must not block.
+const FENCED_CHECKBOX_IN_AC = `## Acceptance criteria
+
+- [x] The real criterion is met
+
+Example of the body shape this guard checks:
+
+\`\`\`markdown
+## Acceptance criteria
+- [ ] illustrative unchecked item
+\`\`\`
+`;
+
+// A heading that merely mentions the phrase must not be treated as the
+// AC section (anchored heading match).
+const MENTIONS_PHRASE_NOT_SECTION = `## Why acceptance criteria matter
+
+- [ ] this is not inside a real Acceptance criteria section
+`;
+
+// ONE_UNCHECKED with CRLF line endings — must still block.
+const ONE_UNCHECKED_CRLF = ONE_UNCHECKED.replace(/\n/g, "\r\n");
 
 // ---- Cases -----------------------------------------------------------
 
@@ -204,12 +247,41 @@ const cases = [
     body: UPPERCASE_X,
     expect: { status: 0, stdoutEq: "" },
   },
+  {
+    name: "unchecked item inside a fenced code block → passes (example, not a task)",
+    cmd: "gh pr merge --squash",
+    body: FENCED_CHECKBOX_IN_AC,
+    expect: { status: 0, stdoutEq: "" },
+  },
+  {
+    name: "heading that only mentions the phrase is not the AC section → passes",
+    cmd: "gh pr merge --squash",
+    body: MENTIONS_PHRASE_NOT_SECTION,
+    expect: { status: 0, stdoutEq: "" },
+  },
+  {
+    name: "CRLF line endings → unchecked item still blocks",
+    cmd: "gh pr merge --squash",
+    body: ONE_UNCHECKED_CRLF,
+    expect: { status: 2, stderrIncludes: ["Second criterion not yet met"] },
+  },
 ];
 
 // ---- Runner ----------------------------------------------------------
 
 let passed = 0;
 let failed = 0;
+
+function check(name, errs) {
+  if (errs.length === 0) {
+    passed++;
+    console.log(`  ✓ ${name}`);
+  } else {
+    failed++;
+    console.log(`  ✗ ${name}`);
+    for (const e of errs) console.log(`      ${e}`);
+  }
+}
 
 for (const c of cases) {
   const r = run(c.cmd, c.body);
@@ -225,14 +297,61 @@ for (const c of cases) {
       errs.push(`expected stderr to include ${JSON.stringify(needle)}, got ${JSON.stringify(r.stderr)}`);
     }
   }
-  if (errs.length === 0) {
-    passed++;
-    console.log(`  ✓ ${c.name}`);
-  } else {
-    failed++;
-    console.log(`  ✗ ${c.name}`);
-    for (const e of errs) console.log(`      ${e}`);
+  check(c.name, errs);
+}
+
+// ---- Structural assertions -------------------------------------------
+
+// Ref forwarding: `gh pr merge <ref>` must reach `gh pr view <ref>`;
+// `gh pr merge` with only flags must NOT forward a positional ref.
+{
+  const withRef = run("gh pr merge 130 --squash", ONE_UNCHECKED);
+  check(
+    "gh pr merge 130 forwards ref 130 to gh pr view",
+    /(^|\s)pr view 130(\s|$)/.test(withRef.ghArgv)
+      ? []
+      : [`gh pr view argv did not carry ref 130: ${JSON.stringify(withRef.ghArgv)}`],
+  );
+  const noRef = run("gh pr merge --squash --delete-branch", ALL_CHECKED);
+  check(
+    "gh pr merge with only flags forwards no positional ref",
+    /(^|\s)pr view --json/.test(noRef.ghArgv)
+      ? []
+      : [`gh pr view argv unexpectedly carried a ref: ${JSON.stringify(noRef.ghArgv)}`],
+  );
+}
+
+// hooks.json wiring: pr-merge-guard.mjs must be registered as a
+// PreToolUse Bash hook gated on `gh pr merge`. A regression dropping
+// this entry would silently disable the guard.
+{
+  const errs = [];
+  try {
+    const hooks = JSON.parse(fs.readFileSync(HOOKS_JSON, "utf8"));
+    const bashGroups = (hooks?.hooks?.PreToolUse ?? []).filter(
+      (g) => g.matcher === "Bash",
+    );
+    const entries = bashGroups.flatMap((g) => g.hooks ?? []);
+    const merge = entries.find(
+      (h) =>
+        typeof h.command === "string" &&
+        h.command.includes("pr-merge-guard.mjs"),
+    );
+    if (!merge) {
+      errs.push("no PreToolUse Bash hook registers pr-merge-guard.mjs");
+    } else if (merge.if !== "Bash(gh pr merge)") {
+      errs.push(`pr-merge-guard hook gated on ${JSON.stringify(merge.if)}, expected "Bash(gh pr merge)"`);
+    }
+  } catch (e) {
+    errs.push(`failed to read/parse hooks.json: ${e.message}`);
   }
+  check("hooks.json registers pr-merge-guard.mjs for Bash(gh pr merge)", errs);
+}
+
+// ---- Teardown --------------------------------------------------------
+
+for (const d of cleanupDirs) {
+  fs.rmSync(d, { recursive: true, force: true });
 }
 
 console.log(`\n${passed} passed, ${failed} failed`);
