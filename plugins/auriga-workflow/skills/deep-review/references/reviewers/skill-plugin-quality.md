@@ -38,7 +38,7 @@
 - **Best for**: 捕捉在常规代码审查中漏掉的插件 / 技能 / 代理格式错误和质量问题
 - **Trigger**: detection-driven
 - **Reasoning**: workhorse
-- **Tools**: Read, Grep, Glob, WebFetch, Bash（只读——Bash 仅用于 `jq` / 行数统计，不写入；WebFetch 用于获取下方参考文献中的 Claude Code / Codex 官方文档）
+- **Tools**: Read, Grep, Glob, WebFetch, Bash（只读——Bash 用于 `jq` / 行数统计，以及运行 `skill-creator` 的 `quick_validate.py` 做可执行校验，不写入；WebFetch 用于获取下方参考文献中的 Claude Code / Codex 官方文档）
 - **Value**: 本仓库是市场；格式错误的插件会让每个尝试安装它的用户安装失败。在拉取请求阶段捕捉模式 / 版本 / 命名缺陷比合并后便宜得多
 
 ## Checklist — Universal core
@@ -61,6 +61,7 @@
 1. **Frontmatter**：`name` 和 `description` 都存在（Codex 要求两者；采用更严格规则以保持技能的可移植性）
 2. **Description quality**：用户实际会说的触发短语；第三人称（"本技能应在……时使用"）；具体场景优于模糊描述；长度适当（通常 50–500 字符）
 3. **Body**：精简（理想情况下 ≤ ~3000 词）；使用祈使 / 不定式风格（"要做 X，执行 Y"）而非第二人称；清晰的章节；具体指导
+4. **可执行校验**：若 `skill-creator` 可用，用其 `quick_validate.py` 对本 `SKILL.md` 做脚本级 frontmatter 校验——见下方「Executable validation」章节
 
 ### `.claude-plugin/plugin.json` OR `.codex-plugin/plugin.json` (manifest)
 
@@ -100,6 +101,23 @@
 1. **Both must exist** — blocking。Claude Code 官方内存文档指出"Claude Code 读取 CLAUDE.md，而非 AGENTS.md"并展示了符号链接修复方案 `ln -s AGENTS.md CLAUDE.md` [4]；Codex 官方 AGENTS.md 文档指出它"官方只识别 AGENTS.md 和 AGENTS.override.md" [6]。缺少任何一个都会破坏跨代理可移植性。推荐修复方案（任选其一）：任意方向的符号链接；在 CLAUDE.md 中 `@AGENTS.md` 导入（Claude Code 官方记录 [4]）；在 Codex 配置中添加 `project_doc_fallback_filenames` [6]
 2. **Consistency when both exist as separate files**（非符号链接）：内容应相同；分歧是 blocking——Claude 用户和 Codex 用户会收到不同的指令
 3. **Lean entry-point**（Claude Code 指导约 200 行 [4]）：指令文件是导航目录，而非百科全书。详细规范放在 `docs/` 下。不在此审查*内容*正确性——那是 `docs-sync` 的工作；本审查者只检查引用的一致性和存在性
+
+## Executable validation — `skill-creator`（当可用时）
+
+差异包含 `**/SKILL.md` 时，在静态 frontmatter 检查之外，尝试用 `skill-creator` 的 `quick_validate.py` 做**可执行校验**——把 frontmatter 判断从启发式提升为脚本判定。这是对上面 `**/SKILL.md` 检查清单的增强，不是替代。
+
+**探测（只读 Bash）**：查找 `skill-creator` 的校验脚本。两个代理各有安装位置：
+
+- Claude Code 插件缓存：`~/.claude/plugins/marketplaces/*/plugins/skill-creator/skills/skill-creator/scripts/quick_validate.py`
+- Codex 系统技能：`~/.codex/skills/.system/skill-creator/scripts/quick_validate.py`
+
+用一条只读命令探测，例如 `find ~/.claude/plugins ~/.codex/skills -name quick_validate.py -path '*skill-creator*' 2>/dev/null | head -1`。
+
+**可用时**：对差异中每个改动的 `SKILL.md`，以其所在目录为参数运行 `python3 <脚本路径> <SKILL.md 所在目录>`。脚本退出码非 0（或输出不是 `Skill is valid!`）即校验失败——作为发现报告，引用脚本的具体报错信息与 `SKILL.md` 路径，`file-class: skill`，严重度按问题性质判定（缺失必填字段 / 非法命名 / 描述含尖括号 → blocking；长度超限等 → 按上下文）。脚本通过则无需为此另报发现。
+
+**不可用时**（脚本未找到，或 `python3` / `PyYAML` 缺失导致脚本自身报错）：在摘要里明确注明 `[skill-creator validate unavailable — 回退到静态 frontmatter 检查清单]`，然后照常执行上面 `**/SKILL.md` 块的静态检查清单。不可用本身不是发现、不阻断——它只是能力声明，与本文件顶部 WebFetch 不可用时的处理方式一致。
+
+**范围**：`quick_validate.py` 只校验 `SKILL.md` 的 frontmatter——它**不**校验插件清单、`marketplace.json`、`hooks.json` 或 MCP 配置。这些维度仍只走静态检查清单；不要把脚本指向非技能目录。
 
 ## When to invoke
 
