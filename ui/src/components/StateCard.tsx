@@ -46,7 +46,7 @@ export interface StateCardProps {
    *  plugins today. When set with one entry the badge reads CLAUDE or
    *  CODEX; with two entries it reads BOTH. Omitted = no badge (the card
    *  doesn't belong to a category where agent split is meaningful, e.g.
-   *  workflow / skill / hook). */
+   *  workflow / skill). */
   agents?: ("claude" | "codex")[];
   /** True for plugins whose source lives in an upstream marketplace. Adds
    *  an EXTERNAL badge alongside the agent badge to signal "upgrades go

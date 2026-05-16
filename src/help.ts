@@ -15,9 +15,13 @@ export function renderHelp(catalog: Catalog, version: string): string {
 USAGE
   npx auriga-cli guide                                   Agent bootstrap SOP (start here)
   npx auriga-cli install                                 (TTY only) checkbox menu
+  npx auriga-cli install --preset [--scope <s>] [--agent <a>] [--lang <code>]
+                                                         curated default set: workflow doc
+                                                         + workflow skills + auriga-workflow plugin
+                                                         (defaults: scope user, agent both, lang en)
   npx auriga-cli install --all [--scope <s>] [--agent <a>]
-                                                         workflow + skills + plugins + hooks
-                                                         (excludes recommended — install separately)
+                                                         everything: workflow + skills
+                                                         + recommended + plugins
   npx auriga-cli install <type> [type-specific flags]    single category
   npx auriga-cli install <type> --help                   per-category help + catalog subset
   npx auriga-cli web-ui [--port <n>] [--ui-dir <path>] [--no-open]
@@ -26,14 +30,13 @@ USAGE
 
   For non-interactive (Agent) use, prepend npx's own -y flag:
     npx -y auriga-cli guide
-    npx -y auriga-cli install --all
+    npx -y auriga-cli install --preset
 
 TYPES (exactly one with <type> form)
   workflow       CLAUDE.md + AGENTS.md (workflow manifesto)
   skills         Default-on workflow skills (listed below)
   recommended    Opt-in utility skills (listed below)
   plugins        Claude Code and Codex plugins (listed below)
-  hooks          Project-level hooks for Claude Code (listed below)
 
 TYPE-SPECIFIC FLAGS
   workflow:       --lang <code>                  default en; available: en, zh-CN
@@ -45,9 +48,6 @@ TYPE-SPECIFIC FLAGS
   plugins:        --plugin <names...>
                   --agent <claude|codex|both>   default claude
                   --scope <project|user>         default project
-  hooks:          --hook <names...>              non-interactive default installs every
-                                                 hook with defaultOn != false
-                  --scope <project|user>         default project
 
 TOP-LEVEL OPTIONS
   -h, --help                     show this help
@@ -57,17 +57,14 @@ TOP-LEVEL OPTIONS
 CATALOG (what each category contains)
 ──────────────────────────────────────────────────────
 
-Workflow skills (category: skills)  ← installed by --all
+Workflow skills (category: skills)  ← installed by --all and --preset
 ${col(catalog.workflowSkills)}
 
-Recommended skills (category: recommended)  ← NOT installed by --all
+Recommended skills (category: recommended)  ← installed by --all, NOT by --preset
 ${col(catalog.recommendedSkills)}
 
 Plugins (category: plugins)
 ${col(catalog.plugins)}
-
-Hooks (category: hooks)
-${col(catalog.hooks)}
 
 More: https://github.com/Ben2pc/auriga-cli
 `;
@@ -128,7 +125,7 @@ FLAGS
                                    omit → install every recommended skill listed below
   --scope <project|user>           default project
 
-CATALOG (recommended skills — opt-in, NOT installed by --all)
+CATALOG (recommended skills — opt-in; installed by --all, not by --preset)
 ${col(catalog.recommendedSkills)}
 `;
 
@@ -148,22 +145,6 @@ FLAGS
 
 CATALOG (plugins)
 ${col(catalog.plugins)}
-`;
-
-    case "hooks":
-      return `${header}
-
-USAGE
-  npx auriga-cli install hooks [--hook <names...>] [--scope <project|user>]
-
-FLAGS
-  --hook <names...>        space-separated; '*' = every compatible hook
-                           omit → install every hook with defaultOn != false
-  --scope <project|user>   default project
-                           (project-local is only reachable via the TTY menu)
-
-CATALOG (hooks — entries flagged "(opt-in)" require explicit --hook)
-${col(catalog.hooks)}
 `;
   }
 }

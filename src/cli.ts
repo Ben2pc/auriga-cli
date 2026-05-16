@@ -17,7 +17,7 @@ import {
 import { installWorkflow } from "./workflow.js";
 import { installSkills, installRecommendedSkills } from "./skills.js";
 import { installPlugins } from "./plugins.js";
-import { installHooks } from "./hooks.js";
+import { installPreset } from "./preset.js";
 import { loadCatalog } from "./catalog.js";
 import { renderHelp, renderTypeHelp } from "./help.js";
 import { renderGuide } from "./guide.js";
@@ -33,6 +33,10 @@ const RELOAD_REMINDER =
 
 export interface InstallParsed {
   all: boolean;
+  /** `--preset` — atomic install of the curated default set (workflow
+   *  doc + workflow skills + auriga-workflow plugin). Mutually exclusive
+   *  with `all` / `type` / `filter`. */
+  preset?: boolean;
   type?: CategoryName;
   filter?: string[];
   lang?: string;
@@ -65,7 +69,6 @@ const TYPE_FOR_FILTER = {
   "--skill": "skills",
   "--recommended-skill": "recommended",
   "--plugin": "plugins",
-  "--hook": "hooks",
 } as const;
 
 function parseErr(msg: string): never {
@@ -226,6 +229,19 @@ function parseInstall(argv: string[]): InstallParsed {
       continue;
     }
 
+    // `--preset` is a boolean flag — it takes no value. Reject the
+    // `--preset=...` equals form explicitly rather than letting it fall
+    // through to the generic "unknown argument" branch, so the user gets
+    // a message that names the actual mistake.
+    if (t === "--preset") {
+      out.preset = true;
+      i += 1;
+      continue;
+    }
+    if (t.startsWith("--preset=")) {
+      parseErr("--preset takes no value.");
+    }
+
     // Accept both `--lang en` and `--lang=en` (and same for --cwd, --scope).
     // The equals form is a common CLI affordance; rejecting it confuses
     // users with any prior gnu-style / node util.parseArgs experience.
@@ -296,6 +312,38 @@ function parseInstall(argv: string[]): InstallParsed {
 }
 
 function validateInstall(out: InstallParsed, filterFlag: string | null): void {
+  // Rule 1: --preset is atomic. It installs the curated default set
+  // (workflow doc + workflow skills + auriga-workflow plugin) and cannot
+  // combine with a <type>, a sub-item filter, or --all. Unlike a category
+  // install it DOES accept --scope / --agent / --lang as preset modifiers
+  // (the preset defaults differ: user / both / en). --cwd is not a preset
+  // modifier — the workflow doc always lands in the current directory.
+  if (out.preset) {
+    if (out.all) {
+      parseErr("--preset and --all are both atomic; pass only one.");
+    }
+    if (out.type) {
+      parseErr(`--preset is atomic; it cannot combine with the '${out.type}' type.`);
+    }
+    if (out.filter) {
+      parseErr(
+        "--preset is atomic; it cannot combine with --skill/--recommended-skill/--plugin.",
+      );
+    }
+    if (out.cwd !== undefined) {
+      parseErr("--cwd does not apply to --preset.");
+    }
+    if (out.scope !== undefined) validateScopeValue(out.scope);
+    if (out.agent !== undefined) validateAgentValue(out.agent);
+    if (out.lang !== undefined) {
+      const valid = LANGUAGES.map((l) => l.value);
+      if (!valid.includes(out.lang)) {
+        parseErr(`unknown language '${out.lang}'; available: ${valid.join(", ")}`);
+      }
+    }
+    return;
+  }
+
   // Rule 2: --all is atomic.
   if (out.all) {
     if (out.type || out.filter || out.lang !== undefined || out.cwd !== undefined) {
@@ -320,7 +368,7 @@ function validateInstall(out: InstallParsed, filterFlag: string | null): void {
     parseErr("--lang/--cwd only apply to workflow.");
   }
 
-  // Rule 6: --scope only for skills / recommended / plugins / hooks.
+  // Rule 6: --scope only for skills / recommended / plugins.
   // workflow (single file + symlink) has no scope concept.
   if (out.scope !== undefined) {
     if (out.type === "workflow") {
@@ -364,7 +412,6 @@ function validateFilterAgainstCatalog(type: CategoryName, filter: string[]): voi
     type === "skills" ? catalog.workflowSkills
     : type === "recommended" ? catalog.recommendedSkills
     : type === "plugins" ? catalog.plugins
-    : type === "hooks" ? catalog.hooks
     : null;
   if (!bucket) return;
   const available = bucket.map((e: { name: string }) => e.name);
@@ -384,9 +431,6 @@ function migratedPluginHint(type: CategoryName, name: string): string | undefine
     ["incremental-impl", "test-designer", "session-compound"].includes(name)
   ) {
     return "This skill moved to the auriga-workflow plugin; install it with `install plugins --plugin auriga-workflow`.";
-  }
-  if (type === "hooks" && name === "notify") {
-    return "The notify hook moved to the auriga-notify plugin; install it with `install plugins --plugin auriga-notify`.";
   }
   return undefined;
 }
@@ -413,8 +457,16 @@ function validateAgentValue(agent: string): void {
 // main — returns exit code (spec §5.3.1 / §7)
 // ---------------------------------------------------------------------------
 
-// --all excludes `recommended` (per spec §3.2) — they're opt-in utilities.
-const ALL_CATEGORIES: CategoryName[] = ["workflow", "skills", "plugins", "hooks"];
+// --all is "install everything": every category, including the opt-in
+// recommended skills. Order matches the menu / execution order
+// (workflow → skills → recommended → plugins). The curated subset lives
+// behind --preset (workflow doc + workflow skills + auriga-workflow).
+const ALL_CATEGORIES: CategoryName[] = [
+  "workflow",
+  "skills",
+  "recommended",
+  "plugins",
+];
 
 
 export async function main(argv: string[]): Promise<number> {
@@ -472,8 +524,9 @@ export async function main(argv: string[]): Promise<number> {
 }
 
 async function runInstall(p: InstallParsed): Promise<number> {
-  // Bare `install` (no type, no --all, no filter): TTY → menu, non-TTY → exit 1.
-  if (!p.all && !p.type) {
+  // Bare `install` (no type, no --all, no --preset, no filter):
+  // TTY → menu, non-TTY → exit 1.
+  if (!p.all && !p.preset && !p.type) {
     if (isNonInteractive()) {
       log.error(
         "Interactive mode requires a TTY. Run 'npx auriga-cli --help' for non-interactive options.",
@@ -483,6 +536,11 @@ async function runInstall(p: InstallParsed): Promise<number> {
     return runLegacyMenu();
   }
 
+  // --preset: curated default-set install (precheck + ordered fan-out).
+  if (p.preset) {
+    return runPreset(p);
+  }
+
   // --all: precheck + fan-out.
   if (p.all) {
     return runAll(p);
@@ -490,6 +548,53 @@ async function runInstall(p: InstallParsed): Promise<number> {
 
   // Single-category install.
   return runSingle(p);
+}
+
+/**
+ * `install --preset` — installs the curated default set via the shared
+ * `installPreset` orchestrator. Graded exit mirrors `runAll`: all steps
+ * succeed → 0; any step fails → 2 with per-step status on stderr.
+ *
+ * The preset defaults differ from a category install — scope=user,
+ * agent=both, lang=en — and are resolved here before handing off, so
+ * `installPreset` itself stays default-free (the TUI / Web UI callers
+ * resolve their own defaults the same way).
+ */
+async function runPreset(p: InstallParsed): Promise<number> {
+  const agent: PluginAgent = p.agent ?? "both";
+  const prep = await prepareInstall(["plugins"], agent);
+  if ("exit" in prep) return prep.exit;
+  const { packageRoot } = prep;
+
+  const results = await installPreset(packageRoot, {
+    interactive: false,
+    scope: p.scope ?? "user",
+    agent,
+    lang: p.lang ?? "en",
+  });
+
+  for (const r of results) {
+    if (r.ok) {
+      process.stderr.write(`[OK]   ${r.category}\n`);
+    } else {
+      process.stderr.write(`[FAIL] ${r.category} — ${r.err}\n`);
+    }
+  }
+
+  const failed = results.filter((r) => !r.ok);
+  if (failed.length === 0) {
+    process.stderr.write(RELOAD_REMINDER);
+    return 0;
+  }
+
+  // The preset is one atomic "install the right defaults" action — the
+  // retry is the whole command again, not a per-category fan-out like
+  // runAll's hint.
+  process.stderr.write("\nRetry:\n  npx -y auriga-cli install --preset\n");
+  if (failed.length < results.length) {
+    process.stderr.write(RELOAD_REMINDER);
+  }
+  return 2;
 }
 
 /**
@@ -552,7 +657,7 @@ async function runAll(p: InstallParsed): Promise<number> {
   for (const category of ALL_CATEGORIES) {
     // Forward `scope` only when the user actually passed one. Each
     // installer picks its own default for undefined so category-specific
-    // defaults (skills/recommended/plugins/hooks all map undefined → project)
+    // defaults (skills/recommended/plugins all map undefined → project)
     // aren't flattened by a one-size-fits-all fallback here.
     const opts: InstallOpts = {
       interactive: false,
@@ -645,7 +750,6 @@ async function dispatchInstaller(
     case "skills": return installSkills(packageRoot, opts);
     case "recommended": return installRecommendedSkills(packageRoot, opts);
     case "plugins": return installPlugins(packageRoot, opts);
-    case "hooks": return installHooks(packageRoot, opts);
   }
 }
 
@@ -750,7 +854,9 @@ async function runUi(p: UiParsed, version: string): Promise<number> {
       Object.keys(scanCatalog.recommendedSkills),
     ),
     plugin: new Set<string>(Object.keys(scanCatalog.plugins)),
-    hook: new Set<string>(Object.keys(scanCatalog.hooks)),
+    // Preset is a singleton apply target — the sentinel name "preset"
+    // matches what the Dashboard's preset button sends.
+    preset: new Set<string>(["preset"]),
   };
   const pluginAgentsByName = new Map<string, ("claude" | "codex")[]>();
   for (const [name, def] of Object.entries(scanCatalog.plugins)) {
@@ -874,6 +980,40 @@ function highlight(text: string): string {
 // and `npx auriga-cli` with no args.
 // ---------------------------------------------------------------------------
 
+type LegacyMenuValue = "preset" | "recommended" | "plugins";
+
+/**
+ * The TUI's three menu items, in fixed order. Lifted to a module-level
+ * constant so VAL-TUI-001 / VAL-TUI-002 can assert the "exactly 3 items /
+ * order / default-checked" contract without driving inquirer.
+ *
+ * Workflow + Skills are absorbed by the「推荐预设」item.
+ * The preset label spells out the silent defaults (scope user / agent
+ * both / lang en) so a TTY user knows what they're getting — fine-tuning
+ * those goes through the non-interactive `install --preset` flags.
+ */
+export const LEGACY_MENU_CHOICES: ReadonlyArray<{
+  value: LegacyMenuValue;
+  name: string;
+  checked: boolean;
+}> = [
+  {
+    value: "preset",
+    name: "Recommended preset — CLAUDE.md/AGENTS.md + workflow skills + auriga-workflow plugin (scope user · agent both · lang en)",
+    checked: true,
+  },
+  {
+    value: "recommended",
+    name: "Optional skills — opt-in utility skills (claude-code-agent, codex-agent...)",
+    checked: false,
+  },
+  {
+    value: "plugins",
+    name: "Other plugins — everything except auriga-workflow (auriga-notify, skill-creator, codex...)",
+    checked: false,
+  },
+];
+
 async function runLegacyMenu(): Promise<number> {
   // Lazy-load TTY-only deps so the non-interactive code path doesn't
   // force inquirer / printBanner / withEsc into the module graph.
@@ -892,43 +1032,44 @@ async function runLegacyMenu(): Promise<number> {
   const packageRoot = await fetchContentRoot();
   if (process.env.DEV !== "1") console.log("");
 
-  const moduleTypes = await withEsc(checkbox({
-    message: "Select module types to install:",
-    choices: [
-      { name: "Workflow — CLAUDE.md + AGENTS.md", value: "workflow" as const, checked: true },
-      { name: "Skills — Development process skills (TDD, debugging, verification, planning...)", value: "skills" as const, checked: true },
-      { name: "Recommended Skills — Extra utility skills (claude-code-agent, codex-agent...)", value: "recommended" as const, checked: true },
-      { name: "Plugins — Claude Code / Codex plugins (skill-creator, codex, auriga-workflow...)", value: "plugins" as const, checked: true },
-      { name: "Hooks — Claude Code hooks (notifications, etc.)", value: "hooks" as const, checked: true },
-    ],
+  const picks = await withEsc(checkbox<LegacyMenuValue>({
+    message: "Select what to install:",
+    choices: LEGACY_MENU_CHOICES.map((c) => ({
+      name: c.name,
+      value: c.value,
+      checked: c.checked,
+    })),
   }));
 
-  if (moduleTypes.length === 0) {
+  if (picks.length === 0) {
     console.log("Nothing selected. Bye!");
     return 0;
   }
 
-  const interactiveOpts: InstallOpts = { interactive: true };
-
-  if (moduleTypes.includes("workflow")) {
-    console.log("\n--- Workflow ---\n");
-    await installWorkflow(packageRoot, interactiveOpts);
+  // 「推荐预设」silently uses the preset defaults (scope user / agent
+  // both / lang en) — it does not prompt for them. The other two items
+  // drill down into their category's per-item sub-selection as before.
+  if (picks.includes("preset")) {
+    console.log("\n--- Recommended preset ---\n");
+    await installPreset(packageRoot, {
+      interactive: true,
+      scope: "user",
+      agent: "both",
+      lang: "en",
+    });
   }
-  if (moduleTypes.includes("skills")) {
-    console.log("\n--- Skills ---\n");
-    await installSkills(packageRoot, interactiveOpts);
+  if (picks.includes("recommended")) {
+    console.log("\n--- Optional skills ---\n");
+    await installRecommendedSkills(packageRoot, { interactive: true });
   }
-  if (moduleTypes.includes("recommended")) {
-    console.log("\n--- Recommended Skills ---\n");
-    await installRecommendedSkills(packageRoot, interactiveOpts);
-  }
-  if (moduleTypes.includes("plugins")) {
-    console.log("\n--- Plugins ---\n");
-    await installPlugins(packageRoot, interactiveOpts);
-  }
-  if (moduleTypes.includes("hooks")) {
-    console.log("\n--- Hooks ---\n");
-    await installHooks(packageRoot, interactiveOpts);
+  if (picks.includes("plugins")) {
+    console.log("\n--- Other plugins ---\n");
+    await installPlugins(packageRoot, {
+      interactive: true,
+      // auriga-workflow is already covered by the preset — keep it out
+      // of this sub-selection (VAL-TUI-005).
+      excludePlugins: ["auriga-workflow"],
+    });
   }
 
   console.log("\n✨ Installation complete!\n");

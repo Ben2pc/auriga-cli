@@ -166,7 +166,6 @@ describe("GET /api/state (spec §6.1)", () => {
         "skills",
         "recommendedSkills",
         "plugins",
-        "hooks",
         "warnings",
       ]) {
         assert.ok(key in body, `StateReport missing key: ${key}`);
@@ -179,7 +178,6 @@ describe("GET /api/state (spec §6.1)", () => {
       assert.ok(Array.isArray(body.skills));
       assert.ok(Array.isArray(body.recommendedSkills));
       assert.ok(Array.isArray(body.plugins));
-      assert.ok(Array.isArray(body.hooks));
       assert.ok(Array.isArray(body.warnings));
       const wf = body.workflow as Record<string, unknown>;
       assert.equal(typeof wf.status, "string");
@@ -203,7 +201,7 @@ describe("POST /api/apply (spec §6.1 / §6.4)", () => {
       const body = {
         items: [
           { category: "skill", name: "systematic-debugging", action: "install" },
-          { category: "hook", name: "notify", action: "uninstall" },
+          { category: "plugin", name: "auriga-notify", action: "uninstall" },
         ],
       };
       const res = await fetch(`${baseUrl}/api/apply`, {

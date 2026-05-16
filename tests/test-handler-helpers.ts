@@ -25,6 +25,7 @@ export interface ApplyHandlerOptions {
   onLog: (line: string, level: LogLevel) => void;
   scope?: "project" | "user";
   lang?: "en" | "zh-CN";
+  agent?: "claude" | "codex" | "both";
 }
 
 export type ApplyHandler = (
@@ -38,7 +39,7 @@ export interface ApplyHandlers {
   skill: ApplyHandler;
   "recommended-skill": ApplyHandler;
   plugin: ApplyHandler;
-  hook: ApplyHandler;
+  preset: ApplyHandler;
 }
 
 export interface ApplyCatalog {
@@ -46,7 +47,7 @@ export interface ApplyCatalog {
   skill: Set<string>;
   "recommended-skill": Set<string>;
   plugin: Set<string>;
-  hook: Set<string>;
+  preset: Set<string>;
 }
 
 // ---------------------------------------------------------------------------
@@ -101,7 +102,7 @@ export function uniformHandlers(h: ApplyHandler): ApplyHandlers {
     skill: h,
     "recommended-skill": h,
     plugin: h,
-    hook: h,
+    preset: h,
   };
 }
 
@@ -117,7 +118,7 @@ export function makeCatalog(
     skill: new Set(),
     "recommended-skill": new Set(),
     plugin: new Set(),
-    hook: new Set(),
+    preset: new Set(),
   };
   for (const [category, name] of entries) {
     cat[category].add(name);

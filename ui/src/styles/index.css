@@ -92,15 +92,15 @@ body {
 }
 
 /* Dashboard grid — responsive layout
- *  Default (≥ 1440px): 5 category columns + 320px LogPanel on the right
- *  1024px–1439px:       5 category columns + LogPanel wraps to a second row
+ *  Default (≥ 1440px): 4 category columns + 320px LogPanel on the right
+ *  1024px–1439px:       4 category columns + LogPanel wraps to a second row
  *  640px–1023px:        2 columns + LogPanel below
  *  < 640px:             single-column stack
  */
 .dashboard-grid {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr)) 320px;
-  grid-template-areas: "workflow skills recommended plugins hooks log";
+  grid-template-columns: repeat(4, minmax(0, 1fr)) 320px;
+  grid-template-areas: "workflow skills recommended plugins log";
   gap: 12px;
   align-items: stretch;
   min-height: calc(100vh - 160px);
@@ -109,15 +109,14 @@ body {
 .dashboard-grid > [data-section="skill"]        { grid-area: skills; }
 .dashboard-grid > [data-section="recommended"]  { grid-area: recommended; }
 .dashboard-grid > [data-section="plugin"]       { grid-area: plugins; }
-.dashboard-grid > [data-section="hook"]         { grid-area: hooks; }
 .dashboard-grid > [data-section="log"]          { grid-area: log; min-height: 320px; }
 
 @media (max-width: 1439px) {
   .dashboard-grid {
-    grid-template-columns: repeat(5, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     grid-template-areas:
-      "workflow skills recommended plugins hooks"
-      "log      log    log         log     log";
+      "workflow skills recommended plugins"
+      "log      log    log         log";
   }
 }
 
@@ -127,7 +126,6 @@ body {
     grid-template-areas:
       "workflow    skills"
       "recommended plugins"
-      "hooks       hooks"
       "log         log";
   }
 }
@@ -140,7 +138,6 @@ body {
       "skills"
       "recommended"
       "plugins"
-      "hooks"
       "log";
   }
 }

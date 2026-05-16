@@ -5,12 +5,11 @@
  * entrypoint just to pull one union.
  */
 
-export type CategoryName = "workflow" | "skills" | "recommended" | "plugins" | "hooks";
+export type CategoryName = "workflow" | "skills" | "recommended" | "plugins";
 
 export const CATEGORY_NAMES: readonly CategoryName[] = [
   "workflow",
   "skills",
   "recommended",
   "plugins",
-  "hooks",
 ] as const;

@@ -4,7 +4,7 @@
 
 ## What This Is
 
-Interactive CLI (`npx auriga-cli`) that modularly installs Claude Code harness components: Workflow, Skills, Recommended Skills, Plugins, Hooks.
+Interactive CLI (`npx auriga-cli`) that modularly installs Claude Code harness components: Workflow, Skills, Recommended Skills, Plugins. `install --preset` is the one-shot "workflow core" entry point (workflow doc + workflow skills + the auriga-workflow plugin).
 
 ## Architecture
 
@@ -16,13 +16,13 @@ src/
   catalog.ts    — Catalog type + loadCatalog() (reads dist/catalog.json)
   types.ts      — Shared leaf types (CategoryName, CATEGORY_NAMES); kept out of cli.ts so help.ts doesn't reverse-import the entrypoint
   build/
-    generate-catalog.ts — Build-time: parses SKILL.md + plugin/hook configs → dist/catalog.json
+    generate-catalog.ts — Build-time: parses SKILL.md + plugin configs → dist/catalog.json
   codex-plugin-config.ts — Codex plugin manifest/config validators + safe local-path helpers
   utils.ts      — Constants, remote fetch, exec, logging, InstallOpts, getPackageRoot
   workflow.ts   — CLAUDE.md + AGENTS.md installation (throws on failure in non-interactive). Also exports `uninstallWorkflow({force, cwd})` for the Web UI's /api/apply route.
   skills.ts     — Workflow + recommended skills installation; exports WORKFLOW_SKILLS and `uninstallSkill(name, opts)`
-  plugins.ts    — Plugin + marketplace installation; exports `uninstallPlugin(id, agent, opts)`
-  hooks.ts      — Per-hook directory copy + idempotent settings merge; exports `uninstallHook(name, opts)`
+  plugins.ts    — Plugin + marketplace installation; exports `uninstallPlugin(id, agent, opts)` and `excludeByName` (TUI「其他插件」filter)
+  preset.ts     — `installPreset(packageRoot, opts)` — orchestrates the curated preset (workflow doc + workflow skills + auriga-workflow plugin); shared by CLI `--preset`, the TUI, and the Web UI apply handler
   api-types.ts  — Shared TS types between src/server.ts and ui/ (StateReport, ApplyRequest, ProgressEvent…)
   state.ts      — `scanState(projectRoot, catalog)` — per-category presence-only scanner for /api/state (3 states: installed / not-installed / partial-install; v1.19.0 dropped update-available — re-install is the update path)
   scan-catalog.ts — Build-time catalog → runtime ScanCatalog adapter (consumes baked plugin agent map + plugin external flag from dist/catalog.json; no version / hash / event fields since v1.19.0)
@@ -118,11 +118,12 @@ extra_plugin_configs.json
   Add entries here only for upstream-owned plugins or fields like `defaultOn`.
 
 tests/
-  hooks.test.ts         — hook installer unit + integration
   skills.test.ts        — skill planner unit tests
   catalog.test.ts       — build-time catalog shape + description overrides
   cli-parse.test.ts     — parseArgs matrix (spec §3.5 / §5.2)
   install-nontty.test.ts — non-interactive install dispatch + graded exit
+  preset.test.ts        — `--preset` parse / dispatch / graded exit; `--all` includes recommended
+  legacy-menu.test.ts   — TUI 3-item menu contract + excludeByName filter
   guide.test.ts         — renderGuide snapshot + ANSI branch
   validators.test.ts    — validateSkillsLock / validateExtraPluginConfigs
   entrypoint.test.ts    — dist/cli.js symlinked-bin guard regression
@@ -135,7 +136,7 @@ tests/
 - No CLI framework — hand-rolled `parseArgs` in `cli.ts` for the non-interactive path; `@inquirer/prompts` (lazy-loaded) for the TTY menu
 - Content fetched from GitHub at runtime (`fetchContentRoot()`)
 - `withEsc()` wraps all prompts for ESC cancellation support
-- Installers (`workflow.ts` / `skills.ts` / `plugins.ts` / `hooks.ts`) **throw** on failure when `opts.interactive === false`; the interactive path keeps the log-and-continue behavior so the TTY menu surfaces errors inline without aborting the whole menu
+- Installers (`workflow.ts` / `skills.ts` / `plugins.ts`) **throw** on failure when `opts.interactive === false`; the interactive path keeps the log-and-continue behavior so the TTY menu surfaces errors inline without aborting the whole menu
 
 ## Key Conventions
 
@@ -149,9 +150,8 @@ tests/
 - **Adding an external-marketplace plugin** (a plugin authored in another GitHub repo that this CLI merely registers): no plugin source authored in this repo — the plugin lives upstream and we just register it in `extra_plugin_configs.json`. For Claude Code, set `claude.package` and, when the marketplace is not already known, `claude.marketplace`. For Codex, set `codex.marketplace`; auriga-cli runs `codex plugin marketplace add https://github.com/<source>.git` and then installs from Codex's marketplace cache. The `marketplace.{name, source}` shape is shared through `validateMarketplaceField` in `src/marketplace.ts`. **Skip upstream manifest fetch at build time** — `src/build/generate-catalog.ts` uses the extra config description for external entries because the upstream Codex manifest may not exist or may be resolved by the downstream CLI.
 - **Plugin-bundled hooks**: register hooks via `plugins/<name>/hooks/hooks.json` with `command: "${CLAUDE_PLUGIN_ROOT}/..."`. This substitution expands reliably in both `claude -p` and interactive mode (empirically verified). Skill-bundled hooks via `SKILL.md` frontmatter `hooks:` field can *also* register hooks, but `${CLAUDE_SKILL_DIR}` does NOT currently expand in the hook command string (Claude Code bug), and the hook's cwd is the project root rather than the skill dir, so the `./scripts/...` doc example also fails. Workaround when a skill needs a hook: bundle the skill inside a plugin and lift the hook to the plugin root (see `plugins/auriga-workflow/` as the canonical dual-Agent example). Do not reintroduce a root `.claude/hooks/hooks.json` for new hooks; future hooks should distribute with plugins.
 - **Plugin config**: `.claude-plugin/marketplace.json` and `.agents/plugins/marketplace.json` define the local plugin surface. `extra_plugin_configs.json` defines external plugins and local default-policy overrides.
-- **Hook config**: root hook registry support remains only for legacy compatibility. New repo-owned hooks must be plugin-bundled via `plugins/<name>/hooks/hooks.json`. The `auriga-notify` migration is the reference shape for a Claude Code-only hook plugin with user config migration.
+- **Hook config**: repo-owned hooks are plugin-bundled via `plugins/<name>/hooks/hooks.json`; there is no longer a CLI-installable `hooks` category. The `auriga-notify` migration is the reference shape for a Claude Code-only hook plugin with user config migration.
 - **Agent portability**: skills and plugins serve teammates on different coding agents (Claude Code / Codex / Gemini) — the `auriga-workflow` plugin is explicitly dual-Agent. When authoring or editing anything under `plugins/<name>/`, don't let prose or tooling silently assume the agent is Claude Code: generic-agent prose using "Claude", Claude-only tool names without the Codex equivalent, shared features misattributed to one agent, or `CLAUDE.md` referenced without `AGENTS.md`. Full checklist: [`docs/rules/agent-portability.md`](../docs/rules/agent-portability.md).
-- **Settings merge**: `addHookToSettings` (and its inverse `removeHookFromSettings`) in `hooks.ts` are the only places that mutate a settings JSON object. They are pure, idempotent (primary by `_marker` sentinel, secondary by command-string equality), throw on shape corruption rather than silently overwriting user data, and do not touch sibling keys. When a marker already exists but its `matcher` or `if` drifts from the desired values (registry upgrade), the two fields are updated in place; the action's `command` and sibling entries stay untouched. `addHookToSettings` also defense-in-depth revalidates its `options.matcher` / `options.ifRule` against `EVENT_NAME_RE` / `IF_RE`, so a direct library caller can't bypass the registry validator. The atomic write helper uses a random tmp suffix + `O_CREAT | O_EXCL` to be safe against TOCTOU symlink races. All hook installs go through these primitives.
 - **Subprocess calls**: Use `exec()` wrapper, `{ inherit: true }` for streaming output.
 - **User-facing output**: Use `log.ok/warn/error/skip` for consistent colored output.
 
@@ -164,9 +164,9 @@ npm start        # node dist/cli.js
 DEV=1 npm start  # use local files instead of fetching from GitHub
 
 npm test         # tsc -p tsconfig.test.json → dist-test/, then node --test
-                 #   Hook installer unit + integration tests live in tests/.
-                 #   Run before opening any PR that touches src/hooks.ts,
-                 #   src/utils.ts, or .claude/hooks/.
+                 #   Unit + integration tests live in tests/. The test
+                 #   file whitelist is hand-maintained in package.json's
+                 #   `test` / `test:watch` scripts — add new test files there.
 
 npm run test:e2e # Full tarball install e2e (~90-120s). Packs the actual npm
                  # tarball, installs into a scratch project, runs
@@ -222,6 +222,17 @@ Per-row checks: workflow `status` reflects on-disk reality (CLAUDE.md exists ⊕
 
 For unreleased work (no published version yet), swap `npx auriga-cli@<version>` for a locally-packed tarball (`npm pack --pack-destination /tmp` → install to a scratch prefix → run `auriga-cli web-ui` from that bin). Do NOT run `node dist/cli.js web-ui` from the repo — it bypasses the tarball boundary and hides the entire `runtime-reads-non-shipped-paths` bug class (the v1.18.x regression series).
 
+## Manual e2e probe hygiene
+
+Manual e2e probes that run `auriga-cli install` against a scratch project — `install --preset`, `install plugins`, or anything reaching `claude plugins install` / `codex plugin marketplace add` — mutate **real global** agent state: the Claude plugin registry under `~/.claude` and `~/.codex/config.toml`. `--scope project` contains only the *files* (CLAUDE.md / skills land under the scratch dir); the plugin registry entry is **global**, keyed by the project's absolute path. So `rm -rf <scratch-dir>` does NOT undo the install — it orphans a plugin registry entry pointing at a now-deleted directory (`claude plugins list` keeps showing it).
+
+When probing manually, do one of:
+
+- **HOME-redirect** the probe (`HOME=/tmp/<scratch> <command>`) so the real `~/.claude` / `~/.codex` are never touched — this is what `tests/web-ui-e2e.test.ts` does (hermetic, canary-checked), and why it needs no cleanup step.
+- **Explicitly uninstall** as cleanup *before* deleting the scratch dir: `claude plugins uninstall <id> --scope project` (run from the scratch dir — project scope resolves by cwd), plus the matching Codex removal when `--agent codex|both` was used.
+
+`rm -rf` of the scratch directory alone is not cleanup for anything that touched a global agent registry.
+
 ## Data Sources
 
 | File | Maintained by | Purpose |
@@ -231,7 +242,7 @@ For unreleased work (no published version yet), swap `npx auriga-cli@<version>` 
 | `.claude-plugin/marketplace.json` | Manual | Claude Code marketplace manifest for plugins shipped from this repo |
 | `.agents/plugins/marketplace.json` | Manual | Codex marketplace manifest for plugins shipped from this repo |
 | `extra_plugin_configs.json` | Manual | External plugin registry and default-policy overlay for marketplace plugins |
-| `dist/catalog.json` | `npm run build` (via `src/build/generate-catalog.ts`) | Build-time catalog of workflow skills / recommended skills / plugins / hooks — name + description. Source of truth for `--help` output and the non-interactive filter-name validator. Ships inside the npm tarball. Regenerate after changing any `SKILL.md` frontmatter, plugin marketplace/config, plugin manifest, or plugin `hooks/hooks.json`. |
+| `dist/catalog.json` | `npm run build` (via `src/build/generate-catalog.ts`) | Build-time catalog of workflow skills / recommended skills / plugins — name + description. Source of truth for `--help` output and the non-interactive filter-name validator. Ships inside the npm tarball. Regenerate after changing any `SKILL.md` frontmatter, plugin marketplace/config, plugin manifest, or plugin `hooks/hooks.json`. |
 | `CLAUDE.md` / `CLAUDE.zh-CN.md` | Manual | Workflow templates (the product). **Must be edited in tandem** — both languages must stay in sync |
 | `README.md` / `README.zh-CN.md` | Manual | Public docs. **Must be edited in tandem** — both languages must stay in sync |
 
@@ -261,7 +272,7 @@ For unreleased work (no published version yet), swap `npx auriga-cli@<version>` 
 ## Principles
 
 - Keep it simple — no abstractions for one-time operations.
-- Main menu order = execution order: Workflow -> Skills -> Recommended Skills -> Plugins -> Hooks.
+- Main menu order = execution order: Workflow -> Skills -> Recommended Skills -> Plugins. The TUI surfaces these as 3 items (Recommended preset / Optional skills / Other plugins); non-interactive `install <type>` still addresses the four categories individually.
 - ESM throughout (`"type": "module"`, `.js` extensions in imports).
 - **Runtime reads must hit shipped paths only.** `package.json` `files` allowlists exactly `dist/*.js`, `dist/*.d.ts`, `dist/catalog.json` (plus the npm-default `README*` / `LICENSE` / `package.json`). Everything else in this repo — `plugins/<name>/`, `.claude/`, `.agents/`, `skills/`, `src/` source TS — **does not exist** in the installed npm tarball. If `src/*.ts` resolves a path inside `packageRoot/<something-not-in-the-allowlist>/` at runtime, that read will silently fail for npm-installed users (`fs.readFile` → ENOENT → caught → degraded behavior). The dev environment hides the bug because `packageRoot === repoRoot` and the repo files exist there. Anything a runtime module needs from a non-shipped location must be **baked into `dist/catalog.json` at build time** (extend `CatalogEntry` if needed), **fetched from GitHub at runtime** via `CONTENT_FILES` when it is an auriga-cli install input (pinned to the `v<package.version>` tag by `fetchContentRoot`), or resolved from the Agent plugin marketplace cache when it is plugin payload (`claude plugins marketplace update` / `claude plugins update`; `codex plugin marketplace add/upgrade` then `~/.codex/.tmp/marketplaces/<marketplace>`). Do not add plugin payload files to `CONTENT_FILES`; plugin freshness belongs to the plugin marketplace, not the CLI tarball. Verify by extracting `npm pack`'s tarball and grepping for whatever you expect to read at runtime — *runtime correctness is a tarball-shape question, not a source-tree question*.
   - Concrete example: plugin agents map (e.g. `auriga-workflow` targets both Claude and Codex) is derived from `.claude-plugin/marketplace.json`, `.agents/plugins/marketplace.json`, and `extra_plugin_configs.json` — all outside the tarball allowlist. `src/build/generate-catalog.ts` reads them at build time and bakes `agents` into each plugin's `CatalogEntry`; `src/scan-catalog.ts` consumes the baked field. Catalog regression in `tests/catalog.test.ts` + `tests/tarball-shape.test.ts` pin the contract. Historical note: v1.18.x also baked an `expectedVersion` field for update-available detection; v1.19.0 deprecated that surface and removed the field — see [`docs/worklog/worklog-2026-05-13-refactor-drop-update-status/web-ui-history.md`](../docs/worklog/worklog-2026-05-13-refactor-drop-update-status/web-ui-history.md) for the rollback story.

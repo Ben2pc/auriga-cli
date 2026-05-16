@@ -49,11 +49,14 @@ describe("spec-design skill — repo-check VALs", () => {
     const text = read(
       "plugins/auriga-workflow/skills/spec-design/SKILL.md",
     );
+    // Anchor on the stable `### Phase X` header prefix only — the skill body
+    // is authored in Chinese, so the descriptive suffix (调研 / 定方向… ) is
+    // translatable; the `Phase A/B/C/D` token is the structural contract.
     for (const phase of [
-      "Phase A — Discover",
-      "Phase B — Decide & Design",
-      "Phase C — Write",
-      "Phase D — Gate & Handoff",
+      "### Phase A",
+      "### Phase B",
+      "### Phase C",
+      "### Phase D",
     ]) {
       assert.ok(
         text.includes(phase),
@@ -95,8 +98,11 @@ describe("spec-design skill — repo-check VALs", () => {
       text.includes("## Open questions"),
       "spec template must keep the Open questions section",
     );
+    // The placeholder is authored in Chinese — assert on the contract it
+    // encodes: every open question must name an owner (归属) and a
+    // deferral reason (推迟理由).
     assert.ok(
-      /name its owner/i.test(text) && /defer/i.test(text),
+      /归属/.test(text) && /推迟理由/.test(text),
       "Open questions placeholder must require a named owner and a deferral reason",
     );
   });

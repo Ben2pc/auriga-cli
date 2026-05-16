@@ -58,13 +58,11 @@
 //     skills:             SkillState[]    (each carries observedScope)
 //     recommendedSkills:  SkillState[]    (each carries observedScope)
 //     plugins:            PluginState[]   (each carries observedScope)
-//     hooks:              HookState[]     (each carries observedScope)
 //     warnings:           StateWarning[]
 //
 //   WorkflowState extends prior shape with: observedScope: 'user' | 'project'
 //   SkillState    extends prior shape with: observedScope: 'user' | 'project'
 //   PluginState   extends prior shape with: observedScope: 'user' | 'project'
-//   HookState     extends prior shape with: observedScope: 'user' | 'project'
 //
 //   StateWarning.code union must include (in addition to existing codes):
 //     - "claude-code-not-installed"   (both ~/.claude and <proj>/.claude absent)
@@ -152,7 +150,6 @@ import { mergePluginsById, scanState } from "../src/state.js";
 import type { Catalog, ScanOptions } from "../src/state.js";
 import { generateCatalog } from "../src/build/generate-catalog.js";
 import type {
-  HookState,
   ItemStatus,
   PluginState,
   SkillState,
@@ -207,7 +204,6 @@ function makeCatalog(over: Partial<Catalog> = {}): Catalog {
     skills: {},
     recommendedSkills: {},
     plugins: {},
-    hooks: {},
     ...over,
   };
 }
@@ -224,33 +220,6 @@ function writeWorkflowFile(p: string, version: string | null, extraBody = ""): v
 function writeSkill(skillDir: string, content: string): void {
   fs.mkdirSync(skillDir, { recursive: true });
   fs.writeFileSync(path.join(skillDir, "SKILL.md"), content);
-}
-
-/** Build a Claude settings.json `hooks` segment with one hook keyed by
- *  marker = hookName. The `matcher` field can be customized to test drift. */
-function makeHookSettings(args: {
-  hookName: string;
-  event?: string;
-  matcher?: string;
-  command?: string;
-}): object {
-  const event = args.event ?? "PostToolUse";
-  return {
-    hooks: {
-      [event]: [
-        {
-          matcher: args.matcher ?? "Write|Edit",
-          hooks: [
-            {
-              type: "command",
-              command: args.command ?? `node /some/path/${args.hookName}/index.mjs`,
-              _marker: args.hookName,
-            },
-          ],
-        },
-      ],
-    },
-  };
 }
 
 /** Spy: returns an execPluginList mock that records the scope arg it was
@@ -284,7 +253,6 @@ type AnyScanOptions = ScanOptions & {
     workflow?: "user" | "project";
     skills?: "user" | "project";
     plugins?: "user" | "project";
-    hooks?: "user" | "project";
   };
   homeDir?: string;
 };
@@ -321,20 +289,14 @@ function generatedScanCatalog(): Catalog {
         },
       ]),
     ),
-    hooks: Object.fromEntries(
-      generated.hooks.map((entry) => [
-        entry.name,
-        { description: entry.description },
-      ]),
-    ),
   };
 }
 
 describe("scanState — generated catalog migration surface", () => {
-  test("Web UI rows expose migrated assets as plugins, not standalone skills or hooks", async () => {
+  test("Web UI rows expose migrated assets as plugins, not standalone skills", async () => {
     // rationale: /api/state uses the generated catalog as its row source.
     // Migrated repo-owned assets must therefore disappear from the Web UI's
-    // standalone skill/hook columns and reappear in the plugin column.
+    // standalone skill column and reappear in the plugin column.
     const home = makeScratch("home-migrated-catalog");
     redirectHome(home);
     const report = await scan(makeScratch("proj-migrated-catalog"), generatedScanCatalog(), {
@@ -348,7 +310,6 @@ describe("scanState — generated catalog migration surface", () => {
     for (const name of ["incremental-impl", "test-designer", "session-compound"]) {
       assert.equal(skillNames.includes(name), false, `${name} must not render as a standalone skill row`);
     }
-    assert.equal(report.hooks.some((h) => h.name === "notify"), false);
 
     const pluginNames = report.plugins.map((p) => p.id).sort();
     assert.ok(pluginNames.includes("auriga-workflow"));
@@ -893,127 +854,6 @@ describe("scanState — #15 Plugins (Codex) sanity (unchanged behavior)", () => 
 });
 
 // ===========================================================================
-// #16 — Hooks / user scope: settings.json marker match
-// ===========================================================================
-describe("scanState — #16 Hooks / user scope happy path", () => {
-  test("#16 hooks/user installed when ~/.claude/settings.json carries _marker for catalog hook", async () => {
-    // rationale: catches scanner still reading <proj>/.claude/hooks/hooks.json
-    // (dev-repo registry) instead of the user's actual settings.json
-    const home = makeScratch("home16");
-    fs.mkdirSync(path.join(home, ".claude"), { recursive: true });
-    fs.writeFileSync(
-      path.join(home, ".claude", "settings.json"),
-      JSON.stringify(makeHookSettings({ hookName: "notify" })),
-    );
-    redirectHome(home);
-
-    const catalog = makeCatalog({
-      hooks: { notify: { description: "" } },
-    });
-    const report = await scan(makeScratch("proj16"), catalog, {
-      scopes: { hooks: "user" },
-      homeDir: home,
-    });
-
-    const h = report.hooks.find((x: HookState) => x.name === "notify")!;
-    assert.ok(h, "hook row present");
-    assert.equal(h.status, "installed");
-    assert.equal((h as any).observedScope, "user");
-  });
-});
-
-// ===========================================================================
-// #17 — Hooks / project scope: settings.json marker match
-// ===========================================================================
-describe("scanState — #17 Hooks / project scope happy path", () => {
-  test("#17 hooks/project installed when <proj>/.claude/settings.json carries marker", async () => {
-    // rationale: catches scanner reading the wrong scope's settings.json
-    const home = makeScratch("home17");
-    redirectHome(home);
-    const proj = makeScratch("proj17");
-    fs.mkdirSync(path.join(proj, ".claude"), { recursive: true });
-    fs.writeFileSync(
-      path.join(proj, ".claude", "settings.json"),
-      JSON.stringify(makeHookSettings({ hookName: "notify" })),
-    );
-
-    const catalog = makeCatalog({
-      hooks: { notify: { description: "" } },
-    });
-    const report = await scan(proj, catalog, {
-      scopes: { hooks: "project" },
-      homeDir: home,
-    });
-
-    const h = report.hooks.find((x) => x.name === "notify")!;
-    assert.equal(h.status, "installed");
-    assert.equal((h as any).observedScope, "project");
-  });
-});
-
-// ===========================================================================
-// #18 — Hooks / settings.json corrupt JSON → settings-unreadable warning
-// ===========================================================================
-describe("scanState — #18 Hooks settings.json corrupt", () => {
-  test("#18 hooks: corrupt settings.json → all hooks not-installed + settings-unreadable warning, no crash", async () => {
-    // rationale: catches scanner crashing on broken JSON or silently
-    // classifying hooks as installed
-    const home = makeScratch("home18");
-    fs.mkdirSync(path.join(home, ".claude"), { recursive: true });
-    fs.writeFileSync(path.join(home, ".claude", "settings.json"), "{not valid json");
-    redirectHome(home);
-
-    const catalog = makeCatalog({
-      hooks: { notify: { description: "" } },
-    });
-    let report: StateReport;
-    await assert.doesNotReject(async () => {
-      report = await scan(makeScratch("proj18"), catalog, {
-        scopes: { hooks: "user" },
-        homeDir: home,
-      });
-    });
-
-    const h = report!.hooks.find((x) => x.name === "notify")!;
-    assert.ok(h, "row present even with broken settings.json");
-    assert.equal(h.status, "not-installed");
-    assert.ok(
-      report!.warnings.some((w) => (w.code as string) === "settings-unreadable"),
-      "must emit settings-unreadable warning",
-    );
-  });
-});
-
-// ===========================================================================
-// #19 — Hooks / settings.json missing → silent not-installed
-// ===========================================================================
-describe("scanState — #19 Hooks settings.json absent (common case)", () => {
-  test("#19 hooks: settings.json missing → all hooks not-installed, NO warning", async () => {
-    // rationale: catches scanner emitting a warning every page-load on
-    // first-time users (most users haven't touched settings.json)
-    const home = makeScratch("home19");
-    // Make ~/.claude exist so we don't trip claude-code-not-installed.
-    fs.mkdirSync(path.join(home, ".claude"), { recursive: true });
-    redirectHome(home);
-
-    const catalog = makeCatalog({
-      hooks: { notify: { description: "" } },
-    });
-    const report = await scan(makeScratch("proj19"), catalog, {
-      scopes: { hooks: "user" },
-      homeDir: home,
-    });
-
-    const h = report.hooks.find((x) => x.name === "notify")!;
-    assert.equal(h.status, "not-installed");
-    assert.ok(
-      !report.warnings.some((w) => (w.code as string) === "settings-unreadable"),
-      "no settings-unreadable warning when file is simply absent",
-    );
-  });
-});
-
-// ===========================================================================
 // #21 — Aggregate: no Claude install at all
 // ===========================================================================
 describe("scanState — #21 No Claude install detected at all", () => {
@@ -1030,10 +870,9 @@ describe("scanState — #21 No Claude install detected at all", () => {
       skills: {
         "systematic-debugging": { description: "", isWorkflow: true },
       },
-      hooks: { notify: { description: "" } },
     });
     const report = await scan(proj, catalog, {
-      scopes: { workflow: "user", skills: "user", plugins: "user", hooks: "user" },
+      scopes: { workflow: "user", skills: "user", plugins: "user" },
       homeDir: home,
       ...codexNone,
     });
@@ -1042,9 +881,6 @@ describe("scanState — #21 No Claude install detected at all", () => {
     assert.equal(report.workflow.status, "not-installed");
     for (const s of report.skills) {
       assert.equal(s.status, "not-installed", `${s.name} not-installed when no Claude install`);
-    }
-    for (const h of report.hooks) {
-      assert.equal(h.status, "not-installed", `${h.name} not-installed when no Claude install`);
     }
     // Exactly ONE claude-code-not-installed warning surfaced, not one per category.
     const matches = report.warnings.filter((w) => (w.code as string) === "claude-code-not-installed");
@@ -1112,28 +948,6 @@ describe("scanState — #22 Default scopes when opts.scopes omitted", () => {
     }
   });
 
-  test("#22 default hooks scope = 'user'", async () => {
-    const home = makeScratch("home22h");
-    fs.mkdirSync(path.join(home, ".claude"), { recursive: true });
-    fs.writeFileSync(
-      path.join(home, ".claude", "settings.json"),
-      JSON.stringify(makeHookSettings({ hookName: "notify" })),
-    );
-    redirectHome(home);
-    const proj = makeScratch("proj22h");
-    // Project-scope settings.json that does NOT have the hook — proves
-    // default scanned user, not project.
-    fs.mkdirSync(path.join(proj, ".claude"), { recursive: true });
-    fs.writeFileSync(path.join(proj, ".claude", "settings.json"), JSON.stringify({ hooks: {} }));
-
-    const catalog = makeCatalog({
-      hooks: { notify: { description: "" } },
-    });
-    const report = await scan(proj, catalog, { homeDir: home });
-    const h = report.hooks.find((x) => x.name === "notify")!;
-    assert.equal((h as any).observedScope, "user");
-    assert.equal(h.status, "installed", "must have read user settings.json (which has the hook)");
-  });
 });
 
 // ===========================================================================
@@ -1167,22 +981,11 @@ describe("scanState — #23 Per-category scope picker independence", () => {
       available: [{ id: "auriga-go@auriga-cli", source: { ref: "v1.0.0" } }],
     });
 
-    // hooks = 'project'         → <proj>/.claude/settings.json has notify
-    fs.mkdirSync(path.join(proj, ".claude"), { recursive: true });
-    fs.writeFileSync(
-      path.join(proj, ".claude", "settings.json"),
-      JSON.stringify(makeHookSettings({ hookName: "notify" })),
-    );
-    //   counter-evidence at user: settings WITHOUT the hook
-    fs.mkdirSync(path.join(home, ".claude"), { recursive: true });
-    fs.writeFileSync(path.join(home, ".claude", "settings.json"), JSON.stringify({ hooks: {} }));
-
     const catalog = makeCatalog({
       skills: {
         "systematic-debugging": { description: "", isWorkflow: true },
       },
       plugins: { "auriga-go@auriga-cli": { description: "", agents: ["claude"] } },
-      hooks: { notify: { description: "" } },
     });
 
     const report = await scan(proj, catalog, {
@@ -1191,7 +994,6 @@ describe("scanState — #23 Per-category scope picker independence", () => {
         workflow: "user",
         skills: "project",
         plugins: "user",
-        hooks: "project",
       },
       homeDir: home,
       ...codexNone,
@@ -1214,11 +1016,6 @@ describe("scanState — #23 Per-category scope picker independence", () => {
     const pl = report.plugins.find((x) => x.id === "auriga-go@auriga-cli")!;
     assert.equal((pl as any).observedScope, "user");
     assert.equal(pl.status, "installed");
-
-    // Hooks: read project scope (which has the hook) — installed.
-    const hk = report.hooks.find((x) => x.name === "notify")!;
-    assert.equal((hk as any).observedScope, "project");
-    assert.equal(hk.status, "installed");
   });
 });
 

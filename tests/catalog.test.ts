@@ -7,7 +7,7 @@ import path from "node:path";
 import type { Catalog, CatalogEntry } from "../src/catalog.js";
 import { loadCatalog } from "../src/catalog.js";
 import { generateCatalog } from "../src/build/generate-catalog.js";
-import { renderTypeHelp } from "../src/help.js";
+import { renderHelp, renderTypeHelp } from "../src/help.js";
 
 // Covers spec §5.4 "Catalog 生成"
 
@@ -34,12 +34,20 @@ function assertEntriesShape(entries: CatalogEntry[], label: string): void {
 describe("generateCatalog (build-time)", () => {
   const catalog: Catalog = generateCatalog(REPO_ROOT);
 
-  test("catalog has all four top-level sections", () => {
+  test("catalog has all three top-level sections", () => {
     assert.ok(Array.isArray(catalog.workflowSkills));
     assert.ok(Array.isArray(catalog.recommendedSkills));
     assert.ok(Array.isArray(catalog.plugins));
-    assert.ok(Array.isArray(catalog.hooks));
     assert.ok(typeof catalog.generatedAt === "string" && catalog.generatedAt.length > 0);
+  });
+
+  // VAL-CAT-001: hooks 安装表面已移除,catalog 不再有 hooks 字段。
+  test("catalog 不再含 hooks 字段", () => {
+    assert.equal(
+      Object.hasOwn(catalog as object, "hooks"),
+      false,
+      "catalog 不应再有 hooks 键",
+    );
   });
 
   test("workflow skills exclude repo-owned skills migrated into auriga-workflow (and dropped retired brainstorming)", () => {
@@ -121,13 +129,6 @@ describe("generateCatalog (build-time)", () => {
     assert.match(renderTypeHelp(extraCatalog, "plugins", "0.0.0-test"), /external-codex-plugin/);
   });
 
-  test("hooks: notify is no longer exposed as a traditional hook", () => {
-    assert.equal(catalog.hooks.length, 0);
-    const names = catalog.hooks.map((e) => e.name).sort();
-    assert.deepEqual(names, []);
-    assertEntriesShape(catalog.hooks, "hooks");
-  });
-
   test("plugins carry baked agents map (build-time, no runtime IO)", () => {
     // rationale: scan-catalog used to derive the agent map from non-tarball
     // plugin config files at runtime. Those files are NOT in the npm tarball
@@ -184,9 +185,26 @@ describe("generateCatalog (build-time)", () => {
     const pluginHelp = renderTypeHelp(catalog, "plugins", "0.0.0-test");
     assert.match(pluginHelp, /\bauriga-workflow\b/);
     assert.match(pluginHelp, /\bauriga-notify\b/);
+  });
 
-    const hookHelp = renderTypeHelp(catalog, "hooks", "0.0.0-test");
-    assert.doesNotMatch(hookHelp, /\bnotify\b/);
+  // VAL-HELP-001: top-level `--help` advertises the `install --preset` entry
+  // point with its three modifier flags.
+  test("top-level --help advertises install --preset", () => {
+    const help = renderHelp(catalog, "0.0.0-test");
+    assert.match(help, /install --preset/);
+    assert.match(help, /--preset[\s\S]*--scope[\s\S]*--agent[\s\S]*--lang/);
+  });
+
+  // VAL-HELP-002: the removed `hooks` install surface must not resurface in
+  // top-level help — no `install hooks` invocation, no `hooks` <type> row,
+  // no `(category: hooks)`. (The word "hook" still legitimately appears in
+  // plugin descriptions — e.g. auriga-notify's notification hook — so the
+  // assertions target the install-surface tokens, not the bare word.)
+  test("top-level --help no longer mentions the removed hooks surface", () => {
+    const help = renderHelp(catalog, "0.0.0-test");
+    assert.doesNotMatch(help, /install hooks/);
+    assert.doesNotMatch(help, /^\s+hooks\s/m);
+    assert.doesNotMatch(help, /category: hooks/);
   });
 });
 

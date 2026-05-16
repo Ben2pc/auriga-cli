@@ -79,13 +79,6 @@ function makeReport(overrides: Partial<StateReport> = {}): StateReport {
         missingAgents: ["codex"],
       },
     ],
-    hooks: [
-      {
-        name: "notify",
-        description: "Desktop notifications",
-        status: "not-installed",
-      },
-    ],
     warnings: [],
     ...overrides,
   };
@@ -96,7 +89,6 @@ function emptyReport(): StateReport {
     skills: [],
     recommendedSkills: [],
     plugins: [],
-    hooks: [],
   });
 }
 
@@ -149,7 +141,7 @@ describe("Dashboard — mount + fetch lifecycle", () => {
     );
   });
 
-  test("fetch success renders all 5 category sections + their cards", async () => {
+  test("fetch success renders all 4 category sections + their cards", async () => {
     stubFetch((url) => {
       if (url.includes("/api/state")) return jsonResponse(makeReport());
       return jsonResponse({ ok: true });
@@ -164,10 +156,9 @@ describe("Dashboard — mount + fetch lifecycle", () => {
       screen.getByTestId("section-recommended-skills"),
     ).toBeInTheDocument();
     expect(screen.getByTestId("section-plugins")).toBeInTheDocument();
-    expect(screen.getByTestId("section-hooks")).toBeInTheDocument();
 
-    // The fixture has 1 workflow + 2 skills + 1 rec + 2 plugins + 1 hook = 7 cards.
-    expect(screen.getAllByTestId("statecard")).toHaveLength(7);
+    // The fixture has 1 workflow + 2 skills + 1 rec + 2 plugins = 6 cards.
+    expect(screen.getAllByTestId("statecard")).toHaveLength(6);
   });
 
   test("fetch failure (500) renders an error banner instead of categories", async () => {
@@ -189,7 +180,6 @@ describe("Dashboard — mount + fetch lifecycle", () => {
     expect(screen.queryByTestId("section-skills")).toBeNull();
     expect(screen.queryByTestId("section-recommended-skills")).toBeNull();
     expect(screen.queryByTestId("section-plugins")).toBeNull();
-    expect(screen.queryByTestId("section-hooks")).toBeNull();
   });
 });
 
@@ -674,14 +664,13 @@ describe("Dashboard — changeWorkflowLang re-derives already-selected workflow"
       ) as HTMLInputElement,
     );
 
-    // Find the workflow column's lang dropdown. The selector is unique
-    // to that column (`en` / `zh-CN` options).
-    const dropdowns = screen.getAllByRole("combobox") as HTMLSelectElement[];
-    const langDropdown = dropdowns.find((s) =>
-      Array.from(s.options).some((o) => o.value === "zh-CN"),
-    );
-    expect(langDropdown).toBeDefined();
-    fireEvent.change(langDropdown!, { target: { value: "zh-CN" } });
+    // The workflow column's lang dropdown. Located by its dedicated
+    // test id — the preset bar also has a zh-CN dropdown, so a
+    // "first select with a zh-CN option" heuristic would be ambiguous.
+    const langDropdown = screen.getByTestId(
+      "section-workflow-lang",
+    ) as HTMLSelectElement;
+    fireEvent.change(langDropdown, { target: { value: "zh-CN" } });
 
     await act(async () => {
       fireEvent.click(screen.getByTestId("log-panel-apply"));
@@ -695,5 +684,125 @@ describe("Dashboard — changeWorkflowLang re-derives already-selected workflow"
     const wf = body.items.find((i) => i.category === "workflow");
     expect(wf).toBeDefined();
     expect(wf!.lang).toBe("zh-CN");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Preset bar — one-click preset install (VAL-WEB-002 / 003 / 005)
+// ---------------------------------------------------------------------------
+
+describe("Dashboard — preset bar", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+  });
+
+  async function renderDashboard(
+    calls: Array<{ url: string; init?: RequestInit }>,
+  ): Promise<void> {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((url: string, init?: RequestInit) => {
+        calls.push({ url, init });
+        if (url.includes("/api/apply")) {
+          return Promise.resolve(jsonResponse({ jobId: "preset-job" }, 202));
+        }
+        if (url.includes("/api/state")) {
+          return Promise.resolve(jsonResponse(makeReport()));
+        }
+        return Promise.resolve(jsonResponse({ ok: true }));
+      }),
+    );
+    render(<Dashboard />);
+    await waitFor(() =>
+      expect(screen.getByTestId("dashboard-root")).toBeInTheDocument(),
+    );
+  }
+
+  // VAL-WEB-002: the preset button + its three controls are present.
+  test("renders the install button alongside scope / agent / lang controls", async () => {
+    await renderDashboard([]);
+    expect(screen.getByTestId("preset-bar")).toBeInTheDocument();
+    expect(screen.getByTestId("preset-apply")).toBeInTheDocument();
+    expect(screen.getByTestId("preset-scope")).toBeInTheDocument();
+    expect(screen.getByTestId("preset-agent")).toBeInTheDocument();
+    expect(screen.getByTestId("preset-lang")).toBeInTheDocument();
+  });
+
+  // VAL-WEB-005: control defaults are user / both / en.
+  test("control defaults are scope=user / agent=both / lang=en", async () => {
+    await renderDashboard([]);
+    expect((screen.getByTestId("preset-scope") as HTMLSelectElement).value).toBe(
+      "user",
+    );
+    expect((screen.getByTestId("preset-agent") as HTMLSelectElement).value).toBe(
+      "both",
+    );
+    expect((screen.getByTestId("preset-lang") as HTMLSelectElement).value).toBe(
+      "en",
+    );
+  });
+
+  // VAL-WEB-003: clicking submits a single preset apply item with the
+  // default control values.
+  test("clicking the button submits one preset apply item with default values", async () => {
+    const calls: Array<{ url: string; init?: RequestInit }> = [];
+    await renderDashboard(calls);
+
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("preset-apply"));
+    });
+
+    const applyCall = calls.find((c) => c.url.includes("/api/apply"));
+    expect(applyCall).toBeDefined();
+    const body = JSON.parse(applyCall!.init!.body as string) as {
+      items: Array<{
+        category: string;
+        action: string;
+        scope?: string;
+        agent?: string;
+        lang?: string;
+      }>;
+    };
+    expect(body.items).toHaveLength(1);
+    expect(body.items[0]).toMatchObject({
+      category: "preset",
+      action: "install",
+      scope: "user",
+      agent: "both",
+      lang: "en",
+    });
+  });
+
+  // VAL-WEB-003 / 005: control changes flow into the submitted apply item.
+  test("changed control values are carried into the submitted apply item", async () => {
+    const calls: Array<{ url: string; init?: RequestInit }> = [];
+    await renderDashboard(calls);
+
+    fireEvent.change(screen.getByTestId("preset-scope"), {
+      target: { value: "project" },
+    });
+    fireEvent.change(screen.getByTestId("preset-agent"), {
+      target: { value: "codex" },
+    });
+    fireEvent.change(screen.getByTestId("preset-lang"), {
+      target: { value: "zh-CN" },
+    });
+
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("preset-apply"));
+    });
+
+    const applyCall = calls.find((c) => c.url.includes("/api/apply"));
+    expect(applyCall).toBeDefined();
+    const body = JSON.parse(applyCall!.init!.body as string) as {
+      items: Array<{ category: string; scope?: string; agent?: string; lang?: string }>;
+    };
+    expect(body.items[0]).toMatchObject({
+      category: "preset",
+      scope: "project",
+      agent: "codex",
+      lang: "zh-CN",
+    });
   });
 });

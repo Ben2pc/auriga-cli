@@ -22,16 +22,6 @@ import {
 
 const WORKFLOW_SKILLS = new Set(WORKFLOW_SKILL_LIST);
 
-interface HookEntry {
-  name: string;
-  description: string;
-  defaultOn?: boolean;
-}
-
-interface HooksConfig {
-  hooks: HookEntry[];
-}
-
 /**
  * English `--help` summaries for skills whose authoritative upstream
  * SKILL.md is non-English. The SKILL.md still drives runtime behavior;
@@ -205,21 +195,11 @@ export function generateCatalog(repoRoot: string): Catalog {
   }
   const plugins: CatalogEntry[] = [...pluginByName.values()];
 
-  const hooksPath = path.join(repoRoot, ".claude", "hooks", "hooks.json");
-  const hooksCfg = fs.existsSync(hooksPath)
-    ? JSON.parse(fs.readFileSync(hooksPath, "utf-8")) as HooksConfig
-    : { hooks: [] };
-  const hooks: CatalogEntry[] = hooksCfg.hooks.map((h) => ({
-    name: h.name,
-    description: h.defaultOn === false ? `(opt-in) ${h.description}` : h.description,
-  }));
-
   return {
     generatedAt: new Date().toISOString(),
     workflowSkills,
     recommendedSkills,
     plugins,
-    hooks,
   };
 }
 
@@ -234,7 +214,7 @@ function main(): void {
   fs.mkdirSync(path.dirname(outPath), { recursive: true });
   fs.writeFileSync(outPath, JSON.stringify(catalog, null, 2) + "\n");
   console.log(
-    `✓ catalog.json: ${catalog.workflowSkills.length} workflow / ${catalog.recommendedSkills.length} recommended / ${catalog.plugins.length} plugins / ${catalog.hooks.length} hooks`,
+    `✓ catalog.json: ${catalog.workflowSkills.length} workflow / ${catalog.recommendedSkills.length} recommended / ${catalog.plugins.length} plugins`,
   );
 }
 

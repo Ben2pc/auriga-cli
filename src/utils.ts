@@ -50,10 +50,16 @@ export interface InstallOpts {
   lang?: string;
   /** workflow only — install target directory (absolute or cwd-relative). */
   cwd?: string;
-  /** skills / recommended / plugins / hooks — `"user"` means install globally. */
+  /** skills / recommended / plugins — `"user"` means install globally. */
   scope?: "project" | "user";
   /** plugins only — runtime to install plugins for. Defaults to Claude Code. */
   agent?: PluginAgent;
+  /**
+   * plugins only — plugin names to drop from the interactive selection
+   * list. The TUI's「其他插件」item sets this to `["auriga-workflow"]`
+   * so the plugin already covered by the preset isn't offered twice.
+   */
+  excludePlugins?: string[];
   /**
    * sub-item filter. `undefined` = full set of this category.
    * Names are validated against the catalog by the CLI layer; installers
