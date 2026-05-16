@@ -82,6 +82,7 @@ function makeKey(category: ApplyCategory, name: string): string {
 
 type Scope = "project" | "user";
 type Lang = "en" | "zh-CN";
+const DEFAULT_WORKFLOW_LANG: Lang = "zh-CN";
 /** Preset install runtime — Claude Code, Codex, or both. */
 type PresetAgent = ApplyPresetAgent;
 
@@ -459,9 +460,9 @@ export default function Dashboard(): JSX.Element {
   const [scopeByCategory, setScopeByCategory] = useState<
     Map<ScopableCategory, Scope>
   >(() => initialScopeMap());
-  // CLAUDE.md language picker. Workflow is a singleton, so we keep this
+  // Workflow language picker. Workflow is a singleton, so we keep this
   // as a flat top-level state rather than per-category map.
-  const [workflowLang, setWorkflowLang] = useState<Lang>("en");
+  const [workflowLang, setWorkflowLang] = useState<Lang>(DEFAULT_WORKFLOW_LANG);
   // Global Apply mode. Default "install" — selecting an installed row
   // re-installs (= refresh to latest upstream). Flipped to "uninstall" via
   // the output-bar toggle for explicit removal intent. Not-installed rows
@@ -471,10 +472,10 @@ export default function Dashboard(): JSX.Element {
   const [applying, setApplying] = useState(false);
 
   // Preset bar controls. The defaults differ from a category install —
-  // scope=user, agent=both, lang=en — matching the `--preset` CLI flag.
+  // scope=user, agent=both, lang=zh-CN — matching the `--preset` CLI flag.
   const [presetScope, setPresetScope] = useState<Scope>("user");
   const [presetAgent, setPresetAgent] = useState<PresetAgent>("both");
-  const [presetLang, setPresetLang] = useState<Lang>("en");
+  const [presetLang, setPresetLang] = useState<Lang>(DEFAULT_WORKFLOW_LANG);
 
   // Derive the /api/state `scopes` query payload from the per-column scope
   // pickers. The server splits skill/recommended-skill into one `skills`
@@ -1210,4 +1211,3 @@ function PluginsSection({
     </CategorySection>
   );
 }
-

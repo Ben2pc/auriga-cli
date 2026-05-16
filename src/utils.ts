@@ -199,6 +199,9 @@ export interface LangOption {
   file: string;
 }
 
+export const DEFAULT_WORKFLOW_LANG = "zh-CN";
+export const DEFAULT_WORKFLOW_TEMPLATE_FILE = "CLAUDE.zh-CN.md";
+
 export const LANGUAGES: LangOption[] = [
   { value: "en", label: "English", file: "CLAUDE.md" },
   { value: "zh-CN", label: "中文", file: "CLAUDE.zh-CN.md" },
@@ -251,6 +254,7 @@ function resolveContentRef(): string {
 
 const CONTENT_FILES = [
   "CLAUDE.md",
+  DEFAULT_WORKFLOW_TEMPLATE_FILE,
   "skills-lock.json",
   ".claude-plugin/marketplace.json",
   ".agents/plugins/marketplace.json",
@@ -294,8 +298,9 @@ export async function fetchExtraContent(
   tmpDir: string,
   file: string,
 ): Promise<void> {
-  const content = await fetchFile(file);
   const dest = path.join(tmpDir, file);
+  if (fs.existsSync(dest)) return;
+  const content = await fetchFile(file);
   fs.mkdirSync(path.dirname(dest), { recursive: true });
   fs.writeFileSync(dest, content);
 }

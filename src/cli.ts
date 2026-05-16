@@ -5,6 +5,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   exec,
+  DEFAULT_WORKFLOW_LANG,
   fetchContentRoot,
   getPackageRoot,
   isNonInteractive,
@@ -556,7 +557,7 @@ async function runInstall(p: InstallParsed): Promise<number> {
  * succeed → 0; any step fails → 2 with per-step status on stderr.
  *
  * The preset defaults differ from a category install — scope=user,
- * agent=both, lang=en — and are resolved here before handing off, so
+ * agent=both, lang=zh-CN — and are resolved here before handing off, so
  * `installPreset` itself stays default-free (the TUI / Web UI callers
  * resolve their own defaults the same way).
  */
@@ -570,7 +571,7 @@ async function runPreset(p: InstallParsed): Promise<number> {
     interactive: false,
     scope: p.scope ?? "user",
     agent,
-    lang: p.lang ?? "en",
+    lang: p.lang ?? DEFAULT_WORKFLOW_LANG,
   });
 
   for (const r of results) {
@@ -989,7 +990,7 @@ type LegacyMenuValue = "preset" | "recommended" | "plugins";
  *
  * Workflow + Skills are absorbed by the「推荐预设」item.
  * The preset label spells out the silent defaults (scope user / agent
- * both / lang en) so a TTY user knows what they're getting — fine-tuning
+ * both / lang zh-CN) so a TTY user knows what they're getting — fine-tuning
  * those goes through the non-interactive `install --preset` flags.
  */
 export const LEGACY_MENU_CHOICES: ReadonlyArray<{
@@ -999,7 +1000,7 @@ export const LEGACY_MENU_CHOICES: ReadonlyArray<{
 }> = [
   {
     value: "preset",
-    name: "Recommended preset — CLAUDE.md/AGENTS.md + workflow skills + auriga-workflow plugin (scope user · agent both · lang en)",
+    name: "Recommended preset — AGENTS.md/CLAUDE.md + workflow skills + auriga-workflow plugin (scope user · agent both · lang zh-CN)",
     checked: true,
   },
   {
@@ -1047,7 +1048,7 @@ async function runLegacyMenu(): Promise<number> {
   }
 
   // 「推荐预设」silently uses the preset defaults (scope user / agent
-  // both / lang en) — it does not prompt for them. The other two items
+  // both / lang zh-CN) — it does not prompt for them. The other two items
   // drill down into their category's per-item sub-selection as before.
   if (picks.includes("preset")) {
     console.log("\n--- Recommended preset ---\n");
@@ -1055,7 +1056,7 @@ async function runLegacyMenu(): Promise<number> {
       interactive: true,
       scope: "user",
       agent: "both",
-      lang: "en",
+      lang: DEFAULT_WORKFLOW_LANG,
     });
   }
   if (picks.includes("recommended")) {

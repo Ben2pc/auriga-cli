@@ -2,6 +2,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { input, select } from "@inquirer/prompts";
 import {
+  DEFAULT_WORKFLOW_LANG,
+  DEFAULT_WORKFLOW_TEMPLATE_FILE,
   LANGUAGES,
   fetchExtraContent,
   log,
@@ -69,11 +71,11 @@ export async function installWorkflow(
 ): Promise<void> {
   const lang = opts.interactive
     ? await withEsc(select({
-      message: "CLAUDE.md language:",
+      message: "Workflow language:",
       choices: LANGUAGES.map((l) => ({ name: l.label, value: l.value })),
-      default: "en",
+      default: DEFAULT_WORKFLOW_LANG,
     }))
-    : (opts.lang ?? "en");
+    : (opts.lang ?? DEFAULT_WORKFLOW_LANG);
 
   const targetDir = opts.interactive
     ? await withEsc(input({
@@ -91,8 +93,8 @@ export async function installWorkflow(
 
   const langOpt = LANGUAGES.find((l) => l.value === lang)!;
 
-  // Lazy fetch: only download non-default language file when needed
-  if (langOpt.file !== "CLAUDE.md") {
+  // Lazy fetch: only download non-default language files when needed.
+  if (langOpt.file !== DEFAULT_WORKFLOW_TEMPLATE_FILE) {
     console.log(`Fetching ${langOpt.label} template...`);
     await fetchExtraContent(packageRoot, langOpt.file);
   }

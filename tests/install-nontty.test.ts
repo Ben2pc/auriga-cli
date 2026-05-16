@@ -35,6 +35,8 @@ async function importMain(overrides: {
 } = {}) {
   mock.module(new URL("../src/utils.js", import.meta.url), {
     namedExports: {
+      DEFAULT_WORKFLOW_LANG: "zh-CN",
+      DEFAULT_WORKFLOW_TEMPLATE_FILE: "CLAUDE.zh-CN.md",
       LANGUAGES: [
         { value: "en", label: "English", file: "CLAUDE.md" },
         { value: "zh-CN", label: "中文", file: "CLAUDE.zh-CN.md" },

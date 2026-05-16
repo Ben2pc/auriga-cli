@@ -30,7 +30,7 @@ import type { InstallOpts, PluginAgent } from "./utils.js";
 export const PRESET_PLUGINS = ["auriga-workflow"] as const;
 
 /**
- * installPreset 的输入。三个默认值(scope=user / agent=both / lang=en)
+ * installPreset 的输入。三个默认值(scope=user / agent=both / lang=zh-CN)
  * 与分类安装不同,由调用方负责落定后再传入 —— 预设的默认不在本函数内
  * 兜底,使「默认值是什么」对每个调用端都显式可见。
  */

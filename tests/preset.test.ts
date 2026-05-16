@@ -23,7 +23,7 @@ import { parseArgs } from "../src/cli.js";
 //         以 `install.preset === true` 断言。若实现选用别的字段名(如
 //         `mode:"preset"`),本文件解析层断言需同步改字段名——但行为契约
 //         (互斥拒绝、默认值、覆盖)不变。
-// 假设 3:`--preset` 的三个默认值按 spec §1:scope=user、agent=both、lang=en。
+// 假设 3:`--preset` 的三个默认值按 spec §1:scope=user、agent=both、lang=zh-CN。
 //         分发层测试断言这三个默认值最终出现在传给 installer 的 opts 上。
 // 假设 4:`--preset` 安装覆盖三类成员:workflow 文档、`auriga-workflow` 插件、
 //         5 个 WORKFLOW_SKILLS。分发层以「这三个 installer 各被调用恰一次、
@@ -94,7 +94,7 @@ describe("parseArgs --preset 解析契约", () => {
 
   // VAL-CLI-002 / VAL-CLI-003 / VAL-CLI-004
   // rationale: 三个默认值是 `--preset` 与分类安装的核心差异点。spec §1 明确
-  // 默认 scope=user / agent=both / lang=en。这条断言「不带修饰标志时解析
+  // 默认 scope=user / agent=both / lang=zh-CN。这条断言「不带修饰标志时解析
   // 结果不会携带与默认相矛盾的显式值」—— 即默认值要么在解析层落定、要么
   // 留空给分发层兜底,但绝不能解析成 project/claude(分类安装的默认)。
   // 用属性断言:scope 不得为 "project"、agent 不得为 "claude"。
@@ -314,6 +314,8 @@ async function importMainWithSpies(overrides: {
 
   mock.module(new URL("../src/utils.js", import.meta.url), {
     namedExports: {
+      DEFAULT_WORKFLOW_LANG: "zh-CN",
+      DEFAULT_WORKFLOW_TEMPLATE_FILE: "CLAUDE.zh-CN.md",
       LANGUAGES: [
         { value: "en", label: "English", file: "CLAUDE.md" },
         { value: "zh-CN", label: "中文", file: "CLAUDE.zh-CN.md" },
@@ -432,9 +434,9 @@ describe("main --preset 安装分发", () => {
 
   // VAL-CLI-002 / VAL-CLI-003 / VAL-CLI-004
   // rationale: 三个默认值是本特性的核心契约。这条断言不带任何修饰标志时,
-  // 每个 installer 收到的 opts 都是 scope=user / agent=both / lang=en。
+  // 每个 installer 收到的 opts 都是 scope=user / agent=both / lang=zh-CN。
   // 用属性断言遍历所有 installer 调用,而非只查单个。
-  test("install --preset 默认把 scope=user / agent=both / lang=en 传给每个 installer", async () => {
+  test("install --preset 默认把 scope=user / agent=both / lang=zh-CN 传给每个 installer", async () => {
     const { main, calls } = await importMainWithSpies();
     const { result } = await captureStderr(() => main(["install", "--preset"]));
     assert.equal(result, 0);
@@ -443,10 +445,10 @@ describe("main --preset 安装分发", () => {
       assert.equal(c.scope, "user", `${c.category} 默认 scope 应为 user`);
       assert.equal(c.agent, "both", `${c.category} 默认 agent 应为 both`);
     }
-    // lang 默认 en —— 只有 workflow installer 接收 lang。
+    // lang 默认 zh-CN —— 只有 workflow installer 接收 lang。
     const workflowCall = calls.find((c) => c.category === "workflow");
     assert.ok(workflowCall, "应触达 workflow installer");
-    assert.equal(workflowCall.lang, "en", "默认 lang 应为 en");
+    assert.equal(workflowCall.lang, "zh-CN", "默认 lang 应为 zh-CN");
   });
 
   // VAL-CLI-005

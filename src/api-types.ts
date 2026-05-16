@@ -150,7 +150,7 @@ export interface ApplyItemRef {
    *  server rejects this field for category="workflow" because workflow
    *  has no scope concept (it's a single file at the project root). */
   scope?: ApplyScope;
-  /** Workflow CLAUDE.md language variant. Omitted = "en" (back-compat
+  /** Workflow CLAUDE.md language variant. Omitted = "zh-CN"
    *  default). The server accepts this field only for category="workflow"
    *  and category="preset" (the preset installs the workflow doc). */
   lang?: ApplyLang;

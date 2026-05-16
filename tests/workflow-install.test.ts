@@ -26,12 +26,20 @@ const DEFAULT_BLOCK = "# auriga Workflow (v1.9.0)\nworkflow content line\n";
 const DEFAULT_USER_REGION =
   "\n<!-- 工程专属规则写在这里;auriga 升级不会改动此区域。 -->\n";
 
-/** A package root whose CLAUDE.md is an authored (marked) workflow template. */
+/** A package root whose workflow templates are authored with managed markers. */
 function makePackageRoot(block = DEFAULT_BLOCK, userRegion = DEFAULT_USER_REGION): string {
   const dir = makeScratch("pkg");
   fs.writeFileSync(
     path.join(dir, "CLAUDE.md"),
     composeMarkedFile({ blockBody: block, userRegion }),
+  );
+  fs.writeFileSync(
+    path.join(dir, "CLAUDE.zh-CN.md"),
+    composeMarkedFile({
+      blockBody: block.replace("# auriga Workflow", "# auriga 工作流"),
+      userRegion,
+      lang: "zh-CN",
+    }),
   );
   return dir;
 }
@@ -86,6 +94,15 @@ describe("installWorkflow — fresh install (VAL-WF-001, 002)", () => {
       fs.readdirSync(cwd).filter((n) => n.endsWith(".bak") || n.includes(".bak.")),
       [],
     );
+  });
+
+  test("VAL-LANG-001: omitted lang defaults to the Chinese workflow template", async () => {
+    const cwd = makeScratch("fresh-default-zh");
+    await installWorkflow(makePackageRoot(), { interactive: false, cwd });
+
+    const content = fs.readFileSync(path.join(cwd, "AGENTS.md"), "utf-8");
+    assert.match(content, /# auriga 工作流/);
+    assert.match(content.split("\n")[0], /受管区块/);
   });
 
   test("VAL-WF-001: writes a marked file, header inside the block, START at the top", async () => {

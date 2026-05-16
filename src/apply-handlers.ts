@@ -32,6 +32,7 @@ import {
   installSkills,
   uninstallSkill,
 } from "./skills.js";
+import { DEFAULT_WORKFLOW_LANG } from "./utils.js";
 import type {
   ApplyHandler,
   ApplyHandlers,
@@ -49,7 +50,7 @@ export interface ApplyHandlerContext {
    *  and the handler iterates the list, installing to each agent in turn.
    *  Names not in the map default to `["claude"]` (existing CLI default). */
   pluginAgentsByName: Map<string, ("claude" | "codex")[]>;
-  /** Workflow language for install. Defaults to "en". */
+  /** Workflow language for install. Defaults to "zh-CN". */
   workflowLang?: ApplyLang;
 }
 
@@ -70,7 +71,7 @@ export function buildDefaultApplyHandlers(
   ctx: ApplyHandlerContext,
 ): ApplyHandlers {
   const { packageRoot, cwd, pluginAgentsByName } = ctx;
-  const lang = ctx.workflowLang ?? "en";
+  const lang = ctx.workflowLang ?? DEFAULT_WORKFLOW_LANG;
 
   const workflow: ApplyHandler = async (
     action,
@@ -202,7 +203,7 @@ export function buildDefaultApplyHandlers(
   // The preset is a single apply item that drives the whole installPreset
   // orchestration. scope / agent / lang come from the Dashboard's preset
   // controls; omitted values fall back to the preset defaults
-  // (user / both / en). Uninstall is not a preset operation.
+  // (user / both / zh-CN). Uninstall is not a preset operation.
   const preset: ApplyHandler = async (
     action,
     _name,

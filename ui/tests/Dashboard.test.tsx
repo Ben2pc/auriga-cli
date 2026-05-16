@@ -729,8 +729,8 @@ describe("Dashboard — preset bar", () => {
     expect(screen.getByTestId("preset-lang")).toBeInTheDocument();
   });
 
-  // VAL-WEB-005: control defaults are user / both / en.
-  test("control defaults are scope=user / agent=both / lang=en", async () => {
+  // VAL-WEB-005: control defaults are user / both / zh-CN.
+  test("control defaults are scope=user / agent=both / lang=zh-CN", async () => {
     await renderDashboard([]);
     expect((screen.getByTestId("preset-scope") as HTMLSelectElement).value).toBe(
       "user",
@@ -739,7 +739,7 @@ describe("Dashboard — preset bar", () => {
       "both",
     );
     expect((screen.getByTestId("preset-lang") as HTMLSelectElement).value).toBe(
-      "en",
+      "zh-CN",
     );
   });
 
@@ -770,7 +770,7 @@ describe("Dashboard — preset bar", () => {
       action: "install",
       scope: "user",
       agent: "both",
-      lang: "en",
+      lang: "zh-CN",
     });
   });
 

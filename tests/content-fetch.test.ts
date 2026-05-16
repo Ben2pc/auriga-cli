@@ -6,6 +6,7 @@ import { fetchContentRoot } from "../src/utils.js";
 
 const BASE_RESPONSES: Record<string, string> = {
   "CLAUDE.md": "# Claude\n",
+  "CLAUDE.zh-CN.md": "# Claude 中文\n",
   "skills-lock.json": JSON.stringify({ skills: {} }),
   ".claude-plugin/marketplace.json": JSON.stringify({ name: "auriga-cli", plugins: [] }),
   ".agents/plugins/marketplace.json": JSON.stringify({
