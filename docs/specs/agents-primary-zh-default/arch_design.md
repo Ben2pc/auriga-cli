@@ -76,10 +76,10 @@ graph TD
 
 ```
 auriga-cli/
-  AGENTS.md                 (改:产品模板主文件)
-  AGENTS.zh-CN.md           (新增或改:中文产品模板主文件)
+  AGENTS.md                 (改:中文产品模板主文件,默认安装源)
+  AGENTS.en.md              (新增或改:英文产品模板)
   CLAUDE.md                 (改:指向 AGENTS.md 的兼容软链)
-  CLAUDE.zh-CN.md           (删或兼容处理:由 plan 判定是否保留为拉取兼容入口)
+  CLAUDE.zh-CN.md           (兼容软链:指向 AGENTS.md)
   src/
     workflow-docs.ts        (新增:主文件/兼容软链/语言模板/备份槽语义)
     workflow.ts             (改:消费 workflow-docs,执行安装和迁移)
@@ -148,7 +148,7 @@ graph TD
 - `src/cli.ts` / `src/help.ts` / `src/guide.ts` / `src/preset.ts` — 默认值、提示和菜单标签同步中文默认与新文件形态。
 - `src/apply-handlers.ts` / `ui/src/pages/Dashboard.tsx` — Web UI 默认语言和工作流文案同步。
 - `tests/` 与 `ui/tests/` — 大量断言需要从旧文件形态改为新文件形态,并补旧形态迁移回归。
-- `.claude/CLAUDE.md`、README、`docs/rules/agent-portability.md`、deep-review reviewer 文档 — 当前契约说明需要改成 `AGENTS.md` 主体。
+- `.claude/AGENTS.md`、README、`docs/rules/agent-portability.md`、deep-review reviewer 文档 — 当前契约说明需要改成 `AGENTS.md` 主体。
 
 ## Consequences / 后果
 
@@ -156,6 +156,6 @@ graph TD
 - **要承受的**:短期会触及较多测试和说明文本;内部仍会有少量历史 `CLAUDE` 命名需要作为兼容语义保留。
 - **需要后续跟进的**:PR Ready 前要决定 `docs/specs/agents-primary-zh-default/` 是归档到 worklog 还是提炼成长期架构文档。
 
-## Open Questions / 未决问题
+## Resolved Questions / 已决问题
 
-- `CLAUDE.zh-CN.md` 是否保留为兼容远程拉取入口,还是随主文件改名为 `AGENTS.zh-CN.md` 后只保留新入口。这个问题不影响行为契约,但会影响发布后旧版本 CLI 是否能继续按 tag 拉取内容。
+- 根 `AGENTS.md` 是中文默认模板;英文模板命名为 `AGENTS.en.md`。`CLAUDE.md` 是指向 `AGENTS.md` 的兼容软链;`CLAUDE.zh-CN.md` 保留为指向 `AGENTS.md` 的兼容软链。

@@ -12,20 +12,21 @@
 
 ## Findings (调研发现)
 
-- 根目录当前形态是 `AGENTS.md -> CLAUDE.md` 软链,`CLAUDE.md` 与 `CLAUDE.zh-CN.md` 是两个实体模板文件。
+- 任务开始时根目录形态是 `AGENTS.md -> CLAUDE.md` 软链,`CLAUDE.md` 与 `CLAUDE.zh-CN.md` 是两个实体模板文件。
 - `src/workflow.ts` 当前安装行为是读取语言模板,写入目标目录的 `CLAUDE.md` 实体文件,再创建 `AGENTS.md -> CLAUDE.md` 软链。
 - `src/workflow.ts` 已有五类受管块迁移行为:新装、标记格式升级、旧格式迁移、foreign 首装、标记损坏重装;并已有 backup-once 规则,避免覆盖首个 `.bak`。
 - `src/workflow-markers.ts` 的受管块标记语义目前写死为面向 `CLAUDE.md` 的说明,但结构令牌是 `AURIGA:WORKFLOW:v1 START/END`,本身不依赖文件名。
-- `src/utils.ts` 的 `LANGUAGES` 当前把 `en` 映射到 `CLAUDE.md`,把 `zh-CN` 映射到 `CLAUDE.zh-CN.md`;`fetchContentRoot()` 只拉取 `CLAUDE.md` 等内容文件,非默认语言由安装时按需拉取。
+- 任务开始时 `src/utils.ts` 的 `LANGUAGES` 把 `en` 映射到 `CLAUDE.md`,把 `zh-CN` 映射到 `CLAUDE.zh-CN.md`;`fetchContentRoot()` 只拉取 `CLAUDE.md` 等内容文件,非默认语言由安装时按需拉取。
 - 非交互 `install workflow` 在 `src/workflow.ts` 中把缺省语言落到 `en`;`install --preset` 在 `src/cli.ts` 中把缺省语言落到 `en`;交互菜单的推荐预设也显式传 `lang: "en"`。
 - Web UI 默认语言存在多处:服务端 apply handler 默认 `en`,工作流语言控件默认 `en`,推荐预设语言控件默认 `en`,相关测试也把 `en` 作为契约。
 - `src/state.ts` 当前项目范围只扫描 `<project>/CLAUDE.md`,并把 foreign `CLAUDE.md` 报成 `workflow-foreign-claudemd`;测试覆盖了标记格式 `CLAUDE.md` 的已安装识别。
 - `README.md`、`README.zh-CN.md`、`src/help.ts`、`src/guide.ts` 和多个测试描述仍把工作流安装表述为 `CLAUDE.md + AGENTS.md` 且默认语言为 `en`。
-- 全仓库当前契约描述分布较散: `.claude/CLAUDE.md` 开发指南、`docs/rules/agent-portability.md`、deep-review 的 `skill-plugin-quality` 审查者、`src/*` 注释、`ui/src/pages/Dashboard.tsx` 文案、`tests/*` 场景名和 helper 都含有 `CLAUDE.md` 主体或 `lang en` 的当前约定。
+- 全仓库当前契约描述分布较散: `.claude/AGENTS.md` 开发指南、`docs/rules/agent-portability.md`、deep-review 的 `skill-plugin-quality` 审查者、`src/*` 注释、`ui/src/pages/Dashboard.tsx` 文案、`tests/*` 场景名和 helper 都含有 `CLAUDE.md` 主体或 `lang en` 的旧约定。
 - `docs/worklog/` 下也有大量历史条目记录当时的 `CLAUDE.md` 主体和英文默认值,但这些是历史证据,不应为了当前契约而机械改写。
 - `tests/e2e-install.test.ts` 的 tarball 安装 smoke 当前断言 `install workflow` 产生 `CLAUDE.md` 实体和 `AGENTS.md -> CLAUDE.md` 软链。
 - 记忆中已有约束:根 `CLAUDE.md` 是安装到用户项目的产品模板,`.claude/CLAUDE.md` 才是本仓库开发指南;运行时读取必须以发布包和远程内容拉取形态为准,不能只在源码树里成立。
 - 用户已确认旧形态迁移采用“自动安全翻转”:把旧 `CLAUDE.md` 主文件内容迁到 `AGENTS.md` 实体文件,再把 `CLAUDE.md` 改成指向 `AGENTS.md` 的软链;遇到内容或软链冲突时先备份。
+- 用户补充确认仓库根模板命名:`AGENTS.md` 本身是中文默认模板,英文模板为 `AGENTS.en.md`。
 
 ## What (做什么)
 
