@@ -74,8 +74,7 @@ workflow skills + the auriga-workflow plugin). Defaults: scope user,
 agent both (Claude Code + Codex), lang en:
   ${cmd("npx -y auriga-cli install --preset")}
 
-Full — workflow + skills + default plugins (recommended skills are
-NOT included):
+Everything — workflow + skills + recommended skills + default plugins:
   ${cmd("npx -y auriga-cli install --all")}
 
 Targeted — single category, picking from the catalog surfaced in Step 2:

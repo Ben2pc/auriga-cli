@@ -20,8 +20,8 @@ USAGE
                                                          + workflow skills + auriga-workflow plugin
                                                          (defaults: scope user, agent both, lang en)
   npx auriga-cli install --all [--scope <s>] [--agent <a>]
-                                                         workflow + skills + plugins
-                                                         (excludes recommended — install separately)
+                                                         everything: workflow + skills
+                                                         + recommended + plugins
   npx auriga-cli install <type> [type-specific flags]    single category
   npx auriga-cli install <type> --help                   per-category help + catalog subset
   npx auriga-cli web-ui [--port <n>] [--ui-dir <path>] [--no-open]
@@ -57,10 +57,10 @@ TOP-LEVEL OPTIONS
 CATALOG (what each category contains)
 ──────────────────────────────────────────────────────
 
-Workflow skills (category: skills)  ← installed by --all
+Workflow skills (category: skills)  ← installed by --all and --preset
 ${col(catalog.workflowSkills)}
 
-Recommended skills (category: recommended)  ← NOT installed by --all
+Recommended skills (category: recommended)  ← installed by --all, NOT by --preset
 ${col(catalog.recommendedSkills)}
 
 Plugins (category: plugins)
@@ -125,7 +125,7 @@ FLAGS
                                    omit → install every recommended skill listed below
   --scope <project|user>           default project
 
-CATALOG (recommended skills — opt-in, NOT installed by --all)
+CATALOG (recommended skills — opt-in; installed by --all, not by --preset)
 ${col(catalog.recommendedSkills)}
 `;
 

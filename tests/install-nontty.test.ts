@@ -29,6 +29,7 @@ async function importMain(overrides: {
   isNonInteractive?: () => boolean;
   installWorkflow?: (packageRoot: string, opts: { scope?: string }) => Promise<void>;
   installSkills?: (packageRoot: string, opts: { scope?: string }) => Promise<void>;
+  installRecommendedSkills?: (packageRoot: string, opts: { scope?: string }) => Promise<void>;
   installPlugins?: (packageRoot: string, opts: { scope?: string; agent?: string }) => Promise<void>;
   loadCatalog?: () => unknown;
 } = {}) {
@@ -66,7 +67,7 @@ async function importMain(overrides: {
   mock.module(new URL("../src/skills.js", import.meta.url), {
     namedExports: {
       installSkills: overrides.installSkills ?? (async () => {}),
-      installRecommendedSkills: async () => {},
+      installRecommendedSkills: overrides.installRecommendedSkills ?? (async () => {}),
     },
   });
   mock.module(new URL("../src/plugins.js", import.meta.url), {
@@ -265,10 +266,13 @@ describe("main non-interactive install flow", () => {
   });
   // Conversely, a full failure (no category succeeded → nothing was
   // installed → nothing to reload) must NOT print the reload reminder.
+  // --all now spans four categories — recommended must also fail for the
+  // run to count as a full failure.
   test("full failure suppresses the reload reminder", async () => {
     const main = await importMain({
       installWorkflow: async () => { throw new Error("w"); },
       installSkills: async () => { throw new Error("s"); },
+      installRecommendedSkills: async () => { throw new Error("r"); },
       installPlugins: async () => { throw new Error("p"); },
     });
     const { result, stderr } = await captureStderr(() => main(["install", "--all"]));

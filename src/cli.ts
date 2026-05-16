@@ -457,8 +457,16 @@ function validateAgentValue(agent: string): void {
 // main — returns exit code (spec §5.3.1 / §7)
 // ---------------------------------------------------------------------------
 
-// --all excludes `recommended` (per spec §3.2) — they're opt-in utilities.
-const ALL_CATEGORIES: CategoryName[] = ["workflow", "skills", "plugins"];
+// --all is "install everything": every category, including the opt-in
+// recommended skills. Order matches the menu / execution order
+// (workflow → skills → recommended → plugins). The curated subset lives
+// behind --preset (workflow doc + workflow skills + auriga-workflow).
+const ALL_CATEGORIES: CategoryName[] = [
+  "workflow",
+  "skills",
+  "recommended",
+  "plugins",
+];
 
 
 export async function main(argv: string[]): Promise<number> {
