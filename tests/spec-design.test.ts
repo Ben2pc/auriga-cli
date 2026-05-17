@@ -198,15 +198,19 @@ describe("spec-design skill — repo-check VALs", () => {
 
   test("repo instruction entrypoints are separated from product templates", () => {
     const text = read("AGENTS.md");
-    assert.match(text, /# auriga-cli Development Guide/);
+    assert.equal(
+      text.startsWith("<!-- AURIGA:WORKFLOW:v1 START"),
+      true,
+      "root AGENTS.md should be shaped like an installed workflow sample",
+    );
+    assert.match(text, /# auriga 工作流/);
     assert.match(text, /Interactive CLI/);
-    assert.match(text, /## auriga Workflow Contract/);
     assert.match(text, /需求澄清：新需求先用 `spec-design`/);
     assert.match(text, /docs\/rules\/test\//);
-    assert.doesNotMatch(
-      text,
-      /AURIGA:WORKFLOW:v1 START/,
-      "root AGENTS.md includes the workflow contract as repo instructions, not as a managed install block",
+    assert.match(text, /# auriga-cli 工程专属规则/);
+    assert.ok(
+      text.indexOf("# auriga-cli 工程专属规则") > text.indexOf("AURIGA:WORKFLOW:v1 END"),
+      "repo-specific rules should live below the managed workflow block",
     );
     assert.ok(
       Buffer.byteLength(text, "utf-8") < 32 * 1024,
@@ -215,11 +219,6 @@ describe("spec-design skill — repo-check VALs", () => {
     assert.ok(
       text.split("\n").length <= 200,
       "root AGENTS.md must stay lean enough for Claude Code memory guidance",
-    );
-    assert.equal(
-      text.startsWith("<!-- AURIGA:WORKFLOW:v1 START"),
-      false,
-      "root AGENTS.md must be the repo dev guide, not the installed product workflow template",
     );
     assert.equal(
       fs.existsSync(path.join(repoRoot, ".claude/AGENTS.md")),

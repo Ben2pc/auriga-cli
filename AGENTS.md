@@ -1,17 +1,5 @@
-# auriga-cli Development Guide
-
-This is the repository instruction entrypoint for Codex and Claude Code (`CLAUDE.md -> AGENTS.md`). Keep it short enough for default instruction budgets. The full developer guide lives in `docs/architecture/auriga-cli-dev-guide.md`.
-
-auriga-cli is an Interactive CLI for installing workflow docs, skills, recommended skills, and plugins.
-
-Product workflow templates are separate root files:
-
-- `AGENTS.template.zh-CN.md`
-- `AGENTS.template.en.md`
-
-They are installed into user projects as `AGENTS.md` plus `CLAUDE.md -> AGENTS.md`; do not confuse template source names with install target names. The Chinese template is also the authoritative workflow contract for this repository; the English template should mirror it for users.
-
-## auriga Workflow Contract
+<!-- AURIGA:WORKFLOW:v1 START — 受管区块,由 auriga-cli 维护,请勿手改;升级会整块覆盖。工程专属规则写在下方 END 标记之后。 -->
+# auriga 工作流 (v1.9.0)
 
 1. 需求澄清：新需求先用 `spec-design` 澄清 requirement。**requirement聚焦"做什么"和验收标准，不写具体技术路径**，如果是产品功能优先关注"Why"，让实现阶段的 Agent 自行决定怎么做。**spec = why + what; plan = how。** 如果改动不影响外部行为契约（重构、换算法、换库但可观察行为不变），跳过 spec 直接进 plan。
 
@@ -35,7 +23,7 @@ They are installed into user projects as `AGENTS.md` plus `CLAUDE.md -> AGENTS.m
 
 11. 合并后复利：PR 合并完成的那一刻，用 `AskUserQuestion` 主动询问用户是否运行 `session-compound` skill。该 skill 把本次会话沉淀为自包含的交互式 HTML 报告（叙事时间线 + token / cache / 工具健康度 + playground 面板，列出生态 skill 安装、AGENTS.md 修改、缺失 skill 等可勾选候选项），让本次会话的洞察落到对的位置，而不是合并完就蒸发。每次合并询问一次；不要静默执行，用户拒绝后也不要反复追问。
 
-### 快速开发流程（bug fix / 小重构 / 小功能）
+## 快速开发流程（bug fix / 小重构 / 小功能）
 
 由 planning 阶段入口的规模判定三条谓词全部命中时触发。只跳过 planning——需求澄清、分支、Draft PR、TDD、验证和 review 规则仍然适用。步骤：
 
@@ -46,7 +34,7 @@ They are installed into user projects as `AGENTS.md` plus `CLAUDE.md -> AGENTS.m
 
 跳过 TDD 的唯一例外：纯文档、纯配置 改动（无代码逻辑变更）。
 
-### 文档规范
+## 文档规范
 
 仓库文档统一放 `docs/` 下，按用途分目录，让 Agent、`pr-ready-guard` hook、人工 reviewer 对"文档该放哪、从哪找"有一致认知。
 
@@ -59,6 +47,50 @@ They are installed into user projects as `AGENTS.md` plus `CLAUDE.md -> AGENTS.m
 | `docs/specs/` | **`spec-design` 和 `arch-design` 输出的默认归宿。** 开发期间存放活跃 spec / 架构设计 / 需求澄清的临时工作区。**PR Ready 前必须清空**——每个 spec 晋升到 `docs/architecture/`（长期参考）、归档到 `docs/worklog/worklog-<YYYY-MM-DD>-<branch-name>/`（历史轨迹），或删除。由 `pr-ready-guard` 强制（同时覆盖 `gh pr ready` 和不带 `--draft` 的 `gh pr create`） | 开发期临时 |
 | `docs/architecture/` | 稳定、长期的设计文档（模块布局、数据流、组件职责）。新条目通常由 `docs/specs/` 晋升而来 | 长期 |
 | `docs/` 其他 | 按需新增：`runbooks/`（运维流程）、`adr/`（架构决策记录）、`onboarding/` 等。一类文档一个目录，不混放 | 因类而异 |
+
+# Harness 原则
+
+- **约束靠机制执行，不靠提示词**：核心架构规则尽量用 linter / CI / 类型系统执行，不依赖 Agent 自觉遵守。
+- **仓库是唯一信息源**：Agent 无法访问的东西等于不存在。外部文档需要搬入仓库才算数。
+- **Independent Evaluation（独立评估）**：复杂功能的测试设计和正式 review 必须由独立 agent 执行，不要让 Agent 评估自己的工作。
+- **浏览器工作流不只属于编码后验证**：当任务需要打开或浏览页面、检查本地网页界面、复现浏览器问题、检查交互、截图，或设计和运行浏览器端到端场景时，优先使用 `Browser Use`。需要可重复、脚本化、适合持续集成的浏览器回归检查时，使用 `playwright-cli`。移动端模拟器或原生应用界面自动化使用 `Computer Use`。
+- **持续对抗熵增**：技术债务小额持续偿还，不等积累后痛苦处理。
+- **组件可拆卸**：流程中的每个步骤都编码了"模型做不好这件事"的假设，随模型能力提升定期审视，每次只动一个变量。
+- **指令文件是目录，不是百科全书**：什么都重要等于什么都不重要。AGENTS.md / CLAUDE.md 保持精简（~100 行），作为入口和导航，详细规范拆分到 `docs/` 下的专题文件中。子系统可以有自己的局部指令文件。以 AGENTS.md 作为主文件，并为 Claude Code 创建 `CLAUDE.md -> AGENTS.md` 兼容软链（`ln -s AGENTS.md CLAUDE.md`），确保不同 Agent 框架读取同一份指令。
+
+# Agent 分发原则
+
+根据任务性质选择合适的委派层级：
+
+| 场景 | 方案 |
+|------|------|
+| 单文件修复，方案明确 | 自己做——不需要 subagent 开销 |
+| 并行只读任务（review、搜索、分析） | 对话内 subagent，无需隔离 |
+| 单个 subagent 写代码 | 对话内 subagent，无需隔离 |
+| 多个 subagent 写代码 | 调用 `incremental-impl`——派遣门槛达标时返回分片计划，按计划用 `isolation: "worktree"` 派遣 |
+| 需要零上下文污染的全新视角 | 独立 Agent（如 TDD 红灯阶段的测试设计） |
+| 跨模型盲区覆盖 | 独立 Agent（如 GPT review Claude 的代码） |
+| 不确定该用哪种方案 | 用 `AskUserQuestion` 询问，列出选项并给出建议 |
+
+对话内 subagent 共享主 Agent 的工作目录。核心规则：
+
+- **并行写必须隔离**：并行写代码**必须**使用 `isolation: "worktree"`；单个写者无需隔离。切片决策（轴向选择、粒度、并行与否、碰撞合并、大小过滤）由 `incremental-impl` skill 负责。派遣门槛未达标时 skill 终止并行路径，主 Agent 顺序写。
+- **按任务选模型和 effort**：模型（Claude sonnet / opus，或 Codex 旗舰 / mini）与 effort 按任务选。**Effort 默认值：写代码 / agentic 子任务用 `xhigh`；设计与正式评审用 `high`；只有短小、范围明确的查询才用 `medium`；只有当 `xhigh` 仍欠思考时才升 `max`。** 强推理模型严格遵守 `low` / `medium` 力度，复杂任务用低力度有欠思考风险。
+  - ✅ "给 cli.ts 的 `parseArgs()` 加输入校验" → sonnet @ xhigh
+  - ✅ "设计插件依赖解析策略" → opus @ xhigh
+  - ✅ 涉及大量架构权衡的复杂 review → Codex 旗舰 @ high，跨模型盲区覆盖
+- **始终显式指定输出格式**（shape + scope/length）：规则本身只约束"必须显式"——具体格式按任务选，例如 "summary ≤300 字"、"punch list，每项一行"、"diff + 每处一行理由"、"结构化 JSON `{...}`"、"一段话判断 + 一行依据"。不穷举格式清单，按任务选合适的。
+<!-- AURIGA:WORKFLOW:v1 END -->
+
+<!-- 在下方添加你的工程专属规则。上方受管区块由 auriga-cli 维护,升级时整块替换;此处内容会被保留。 -->
+
+# auriga-cli 工程专属规则
+
+This repository is intentionally shaped as a sample project with the auriga Workflow installed: the managed workflow block comes first, and repository-specific rules live below the END marker. Root `CLAUDE.md` points to this file.
+
+auriga-cli is an Interactive CLI for installing workflow docs, skills, recommended skills, and plugins. Product workflow templates are root files named `AGENTS.template.zh-CN.md` and `AGENTS.template.en.md`; they install into user projects as `AGENTS.md` plus `CLAUDE.md -> AGENTS.md`.
+
+The full developer guide lives in `docs/architecture/auriga-cli-dev-guide.md`. Keep this root file focused on executable repository instructions and sample-install shape.
 
 ## Repository Shape
 
