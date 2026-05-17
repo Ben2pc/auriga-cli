@@ -132,6 +132,28 @@ describe("spec-design skill — repo-check VALs", () => {
     }
   });
 
+  test("workflow docs define review/test rule subdirectories and consumers", () => {
+    for (const f of ["AGENTS.md", "AGENTS.en.md"]) {
+      const text = read(f);
+      assert.ok(
+        text.includes("docs/rules/review/"),
+        `${f} must document the custom-reviewer rules directory`,
+      );
+      assert.ok(
+        text.includes("docs/rules/test/"),
+        `${f} must document the test rules directory`,
+      );
+      assert.ok(
+        /deep-review/.test(text) && /reviewer-creator/.test(text),
+        `${f} must connect docs/rules/review/ with deep-review custom reviewers`,
+      );
+      assert.ok(
+        /test-designer/.test(text) && /docs\/rules\/test\//.test(text),
+        `${f} must require test writers to consult docs/rules/test/`,
+      );
+    }
+  });
+
   test("VAL-DEP-002: skills-lock.json no longer contains brainstorming entry; .agents/skills/brainstorming/ is gone", () => {
     const lock = JSON.parse(read("skills-lock.json"));
     assert.equal(
