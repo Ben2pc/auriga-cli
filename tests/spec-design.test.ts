@@ -107,8 +107,8 @@ describe("spec-design skill — repo-check VALs", () => {
     );
   });
 
-  test("VAL-DEP-001: AGENTS.md templates (both languages) reference spec-design and not brainstorming", () => {
-    for (const f of ["AGENTS.md", "AGENTS.en.md"]) {
+  test("VAL-DEP-001: product workflow templates (both languages) reference spec-design and not brainstorming", () => {
+    for (const f of ["AGENTS.template.zh-CN.md", "AGENTS.template.en.md"]) {
       const text = read(f);
       assert.ok(
         text.includes("spec-design"),
@@ -133,7 +133,7 @@ describe("spec-design skill — repo-check VALs", () => {
   });
 
   test("workflow docs define review/test rule subdirectories and consumers", () => {
-    for (const f of ["AGENTS.md", "AGENTS.en.md"]) {
+    for (const f of ["AGENTS.template.zh-CN.md", "AGENTS.template.en.md"]) {
       const text = read(f);
       assert.ok(
         text.includes("docs/rules/review/"),
@@ -193,6 +193,47 @@ describe("spec-design skill — repo-check VALs", () => {
     assert.ok(
       /VAL-XXX-NNN|VAL-[A-Z]+/.test(text),
       "spec-conformance reviewer must tag findings with VAL ids",
+    );
+  });
+
+  test("repo instruction entrypoints are separated from product templates", () => {
+    const text = read("AGENTS.md");
+    assert.equal(
+      text.startsWith("<!-- AURIGA:WORKFLOW:v1 START"),
+      true,
+      "root AGENTS.md should be shaped like an installed workflow sample",
+    );
+    assert.match(text, /# auriga 工作流/);
+    assert.match(text, /Interactive CLI/);
+    assert.match(text, /需求澄清：新需求先用 `spec-design`/);
+    assert.match(text, /docs\/rules\/test\//);
+    assert.match(text, /# auriga-cli 工程专属规则/);
+    assert.ok(
+      text.indexOf("# auriga-cli 工程专属规则") > text.indexOf("AURIGA:WORKFLOW:v1 END"),
+      "repo-specific rules should live below the managed workflow block",
+    );
+    assert.ok(
+      Buffer.byteLength(text, "utf-8") < 32 * 1024,
+      "root AGENTS.md must stay under Codex's default instruction budget",
+    );
+    assert.ok(
+      text.split("\n").length <= 200,
+      "root AGENTS.md must stay lean enough for Claude Code memory guidance",
+    );
+    assert.equal(
+      fs.existsSync(path.join(repoRoot, ".claude/AGENTS.md")),
+      false,
+      ".claude/AGENTS.md compatibility entry should be removed",
+    );
+    assert.equal(
+      fs.existsSync(path.join(repoRoot, ".claude/CLAUDE.md")),
+      false,
+      ".claude/CLAUDE.md compatibility entry should be removed",
+    );
+    assert.deepEqual(
+      JSON.parse(read(".agents/plugins/session-instructions-loader.json")),
+      {},
+      "session-instructions-loader repo config should be retained but empty",
     );
   });
 

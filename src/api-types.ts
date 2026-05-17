@@ -123,8 +123,8 @@ export type ApplyScope = "project" | "user";
 /**
  * Workflow AGENTS.md language variant.
  *
- * - "zh-CN": Simplified Chinese AGENTS.md (the default).
- * - "en":    English AGENTS.en.md.
+ * - "zh-CN": Simplified Chinese workflow template (the default).
+ * - "en":    English workflow template.
  *
  * Only meaningful for `category === "workflow"`; rejected for other
  * categories so the API surface stays explicit.

@@ -200,11 +200,11 @@ export interface LangOption {
 }
 
 export const DEFAULT_WORKFLOW_LANG = "zh-CN";
-export const DEFAULT_WORKFLOW_TEMPLATE_FILE = "AGENTS.md";
+export const DEFAULT_WORKFLOW_TEMPLATE_FILE = "AGENTS.template.zh-CN.md";
 
 export const LANGUAGES: LangOption[] = [
-  { value: "zh-CN", label: "中文", file: "AGENTS.md" },
-  { value: "en", label: "English", file: "AGENTS.en.md" },
+  { value: "zh-CN", label: "中文", file: "AGENTS.template.zh-CN.md" },
+  { value: "en", label: "English", file: "AGENTS.template.en.md" },
 ];
 
 // --- Remote content ---
@@ -254,12 +254,17 @@ function resolveContentRef(): string {
 
 const CONTENT_FILES = [
   DEFAULT_WORKFLOW_TEMPLATE_FILE,
-  "AGENTS.en.md",
+  "AGENTS.template.en.md",
   "skills-lock.json",
   ".claude-plugin/marketplace.json",
   ".agents/plugins/marketplace.json",
   "extra_plugin_configs.json",
 ];
+
+const LEGACY_CONTENT_FILE_FALLBACKS: Record<string, string> = {
+  "AGENTS.template.zh-CN.md": "AGENTS.md",
+  "AGENTS.template.en.md": "AGENTS.en.md",
+};
 
 async function fetchFile(file: string): Promise<string> {
   const ref = resolveContentRef();
@@ -267,6 +272,18 @@ async function fetchFile(file: string): Promise<string> {
   const res = await fetch(url);
   if (!res.ok) throw new Error(`Failed to fetch ${url}: ${res.status}`);
   return res.text();
+}
+
+async function fetchContentFile(file: string): Promise<string> {
+  try {
+    return await fetchFile(file);
+  } catch (err) {
+    const legacyFile = LEGACY_CONTENT_FILE_FALLBACKS[file];
+    if (!legacyFile || !(err instanceof Error) || !/: 404$/.test(err.message)) {
+      throw err;
+    }
+    return fetchFile(legacyFile);
+  }
 }
 
 async function fetchFileBinary(file: string): Promise<Buffer> {
@@ -285,7 +302,7 @@ export async function fetchContentRoot(): Promise<string> {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "auriga-cli-"));
 
   for (const file of CONTENT_FILES) {
-    const content = await fetchFile(file);
+    const content = await fetchContentFile(file);
     const dest = path.join(tmpDir, file);
     fs.mkdirSync(path.dirname(dest), { recursive: true });
     fs.writeFileSync(dest, content);

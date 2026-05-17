@@ -39,8 +39,9 @@ description: 当有一定复杂度的功能要开始 TDD、需求模糊到容易
 
 1. **验证契约（主要来源）** — 来自 `spec-design` 的 `docs/specs/<topic>/validation-contract.md`。VAL 列表（`VAL-XXX-NNN: Behavior + Tool + Evidence`）**是规范契约**。每个 VAL 映射到一个或多个失败测试：选择符合 `Tool` 类别的测试级别，并对 `Evidence` 定义进行断言。被派发代理必须通过逐条遍历 VAL 列表来枚举失败测试，而不是自行发挥。
 2. **需求描述（备用上下文）** — `docs/specs/<topic>/spec.md` 的 Why / Findings / What / Out of scope。当某个 VAL 的 Behavior 过于简短难以明确解读，或 VAL 列表看起来不完整时使用（`spec.md` § What 中描述的行为没有对应的 VAL）。如果频繁触发备用路径，请浮出水面——规格契约存在欠规范问题，应重新调用 `spec-design`，而不是用即兴测试掩盖缺口。
-3. **相关代码文件路径** — 只读访问该功能将触及或集成的代码
-4. **边界场景提示** — 当这些维度的 VAL 覆盖偏薄时，被派发代理应枚举的类别：
+3. **项目测试规则** — 先检查仓库中的 `docs/rules/test/`，收集与当前模块、测试类型、fixture 或 runner 相关的规则。若目录不存在或没有相关文件，派发包中明确写明「无项目专属测试规则」。被派发代理必须按这些规则设计测试；若规则与 VAL 冲突，先上报冲突，不要自行取舍。
+4. **相关代码文件路径** — 只读访问该功能将触及或集成的代码
+5. **边界场景提示** — 当这些维度的 VAL 覆盖偏薄时，被派发代理应枚举的类别：
    - 边界输入（空值、最大值、最小值、差一错误）
    - 并发 / 顺序（如适用）
    - 资源生命周期（错误时的清理、部分失败）
@@ -89,10 +90,11 @@ description: 当有一定复杂度的功能要开始 TDD、需求模糊到容易
 ## 先分析，再编写 / Analyze first, write second
 在起草任何测试之前：
 1. 阅读代码路径；识别公开 API / 可观测的行为面。
-2. 扫描仓库中已有的测试文件；匹配其框架、runner、fixture 模式和命名风格。
+2. 阅读 `docs/rules/test/` 中与当前模块或测试类型相关的规则；没有相关规则时，在输出中明确说明。
+3. 扫描仓库中已有的测试文件；匹配其框架、runner、fixture 模式和命名风格。
    如果 `validation-contract.md` 提供了 `## Toolchain` 表格，直接从中取用
    runner / driver 并通过扫描确认，而不是从头重新推断技术栈。
-3. 按 5 个场景类别（happy / empty / boundary / error / concurrency）枚举
+4. 按 5 个场景类别（happy / empty / boundary / error / concurrency）枚举
    待测行为。
 
 ## 测试质量约束 / Test quality constraints

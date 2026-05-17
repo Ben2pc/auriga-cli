@@ -1,5 +1,5 @@
 // Tarball-shape regression — pin the rule that runtime reads must hit
-// shipped paths only (.claude/CLAUDE.md → Principles).
+// shipped paths only (see the runtime-read rule in AGENTS.md).
 //
 // The v1.18.x scanner shipped 4 distinct "read from disk at runtime, but the
 // file isn't in the tarball" bugs in quick succession (workflowVersion,

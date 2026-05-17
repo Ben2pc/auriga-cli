@@ -145,8 +145,8 @@ describe(
       // Scrub DEV from the inherited env: a dev shell with `DEV=1`
       // exported (documented in README as the dev flow) would make
       // `fetchContentRoot` short-circuit to `getPackageRoot()`. The
-      // installed tarball's package root does not carry AGENTS.md /
-      // skills-lock.json / .claude/*.json (those are excluded from
+      // installed tarball's package root does not carry workflow templates /
+      // skills-lock.json / marketplace JSON (those are excluded from
       // the `files` manifest on purpose — they live on GitHub), so
       // every scenario would fail with a misleading "file missing"
       // error. The e2e's whole point is to exercise the real fetch
