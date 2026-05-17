@@ -1,85 +1,287 @@
-<!-- AURIGA:WORKFLOW:v1 START — 受管区块,由 auriga-cli 维护,请勿手改;升级会整块覆盖。工程专属规则写在下方 END 标记之后。 -->
-# auriga 工作流 (v1.9.0)
+# auriga-cli Development Guide
 
-1. 需求澄清：新需求先用 `spec-design` 澄清 requirement。**requirement聚焦"做什么"和验收标准，不写具体技术路径**，如果是产品功能优先关注"Why"，让实现阶段的 Agent 自行决定怎么做。**spec = why + what; plan = how。** 如果改动不影响外部行为契约（重构、换算法、换库但可观察行为不变），跳过 spec 直接进 plan。
+> The root `AGENTS.md` is the auriga-cli repository development guide. Product workflow templates live beside it as `AGENTS.template.zh-CN.md` and `AGENTS.template.en.md`.
 
-2. 方案计划：完成需求澄清后，先做一次**规模判定**再决定 plan 方式。**满足以下三条全部成立**才走快速开发流程（详见下文「快速开发流程」段；跳过 planning，直接进入 pre-coding / 建分支阶段）：(a) 工作落在单一模块或单一概念内；(b) 验收标准 ≤5 条 bullet；(c) 不涉及跨边界接口改动（公共 API、schema、共享模块）。把判定结果记进任务追踪器（例：「规模判定 → QDF：单模块，3 条验收，无接口改动」）。任一不成立或拿不准，就走完整路径。先显式判断并表态：工作是否架构吃重（跨多个模块、重划模块边界、或"怎么做"并不显然）；若是，先跑 `arch-design`——它是执行跟踪方式的前置步骤而非替代，也是"跳过 spec 的架构级重构"入口。然后用 `AskUserQuestion` 选执行跟踪方式，要摆出完整菜单、不要默认只给两项：内置 Plan（中等复杂度）、`planning-with-files`（长程、持久跟踪）、`goalify`（自驱 `/goal` 执行）。计划、设计决策、技术债务应作为仓库内的版本化产物，方便后续 Agent 推理上下文。
+## What This Is
 
-3. 编码前准备1：**开始写代码前，先从 main 创建开发分支**，所有 commit 在分支上完成，禁止直接提交到 main。分支命名规范：`feat/`（新功能）、`fix/`（修复）、`docs/`（文档）、`refactor/`（重构）、`chore/`（杂项）。所有 git/gh 操作（建分支、commit、PR create/ready、review 后处理）都使用 `git-workflow` skill（随 `auriga-workflow` 插件分发）。
+Interactive CLI (`npx auriga-cli`) that modularly installs Claude Code harness components: Workflow, Skills, Recommended Skills, Plugins. `install --preset` is the one-shot "workflow core" entry point (workflow doc + workflow skills + the auriga-workflow plugin).
 
-4. 编码前准备2：创建开发分支并完成第一个有意义的 commit 后，尽早创建 Draft Pull Request，让 CI、范围对齐和增量反馈在实现完成前就可以开始。
+## Architecture
 
-5. 编码前准备3：遇到 bug、测试失败或异常行为时，先按 `systematic-debugging` 找根因，再决定修复。
+```
+src/
+  cli.ts        — Entry point. parseArgs (non-interactive) + legacy TTY menu + graded exit (0/1/2)
+  guide.ts      — `npx auriga-cli guide` SOP output (Agent bootstrap)
+  help.ts       — `--help` renderer, reads the build-time catalog
+  catalog.ts    — Catalog type + loadCatalog() (reads dist/catalog.json)
+  types.ts      — Shared leaf types (CategoryName, CATEGORY_NAMES); kept out of cli.ts so help.ts doesn't reverse-import the entrypoint
+  build/
+    generate-catalog.ts — Build-time: parses SKILL.md + plugin configs → dist/catalog.json
+  codex-plugin-config.ts — Codex plugin manifest/config validators + safe local-path helpers
+  utils.ts      — Constants, remote fetch, exec, logging, InstallOpts, getPackageRoot
+  workflow.ts   — AGENTS.md + CLAUDE.md compatibility-symlink installation. Install/upgrade is a managed-block splice (five cases: fresh / marked-upgrade / hand-edited-block / foreign / old-format migration), not a whole-file overwrite. Throws on failure in non-interactive. Also exports `uninstallWorkflow({force, cwd})` for the Web UI's /api/apply route.
+  workflow-markers.ts — Single source of truth for the AGENTS.md managed-block marker contract (`<!-- AURIGA:WORKFLOW:v1 START/END -->`). Exports parseMarkers / composeMarkedFile / hashBlock / hasAurigaHeader / WORKFLOW_HEADER_RE. No heavy imports — workflow.ts AND state.ts both consume it (state.ts must not import workflow.ts, which pulls in @inquirer/prompts).
+  skills.ts     — Workflow + recommended skills installation; exports WORKFLOW_SKILLS and `uninstallSkill(name, opts)`
+  plugins.ts    — Plugin + marketplace installation; exports `uninstallPlugin(id, agent, opts)` and `excludeByName` (TUI「其他插件」filter)
+  preset.ts     — `installPreset(packageRoot, opts)` — orchestrates the curated preset (workflow doc + workflow skills + auriga-workflow plugin); shared by CLI `--preset`, the TUI, and the Web UI apply handler
+  api-types.ts  — Shared TS types between src/server.ts and ui/ (StateReport, ApplyRequest, ProgressEvent…)
+  state.ts      — `scanState(projectRoot, catalog)` — per-category presence-only scanner for /api/state (3 states: installed / not-installed / partial-install; v1.19.0 dropped update-available — re-install is the update path)
+  scan-catalog.ts — Build-time catalog → runtime ScanCatalog adapter (consumes baked plugin agent map + plugin external flag from dist/catalog.json; no version / hash / event fields since v1.19.0)
+  server.ts     — Local HTTP server (token + Origin auth, SSE /api/progress, static asset serve from uiDir). Boots via `npx auriga-cli web-ui`
+  apply-handlers.ts — `buildDefaultApplyHandlers(ctx)` wires the bulk installers as per-item ApplyHandlers via `selected: [name]`. Web UI's CLI mode uses this; tests inject their own mocks
+  ui-fetch.ts   — Downloads `ui-bundle.tar.gz` + `.sha256` for the current CLI version from GitHub Releases, SHA256-verifies, extracts to `~/.cache/auriga-cli/ui-v<version>/`. LRU eviction keeps last 3 versions.
 
-6. TDD：所有代码改动都遵循 `test-driven-development`（唯一例外见「快速开发流程」段：纯文档、纯配置）：先写失败测试，再写最小实现，再回归验证。**每个 task 开始前明确可测试的验收标准**（具体功能点 + 验收条件 + 边界场景），不是最后才检查。写/更新测试前，主 Agent 或 `test-designer` 必须先查看 `docs/rules/test/` 下与当前模块或测试类型相关的规则；目录不存在或无相关文件时，明确记录为无项目专属测试规则。满足以下**任一**条件时调用 `test-designer` skill：(a) 需求跨 ≥2 个模块且交互非显然；(b) 边界场景难以让实现 Agent 公平自测；(c) 你正想跳过 TDD，因为"实现看起来比测试更显然"。skill 内置 **Independent Evaluation**，派遣零上下文的 agent，仅接收需求描述和代码路径（不包含实现方案），以最高推理力度返回可执行的失败测试。
+ui/             — Vite + React 19 + Tailwind v4 subproject. Built artifacts ship as a GitHub Release asset (ui-bundle.tar.gz) — release.yml builds + uploads on tag push. CLI lazy-fetches via ui-fetch.ts.
+                    src/components/  TopBar / Layout / StateCard / LogPanel
+                    src/pages/Dashboard.tsx
+                    src/styles/tokens.css     Anthropic visual tokens (see docs/design/anthropic-style-reference.md)
+                    src/styles/index.css      Tailwind v4 @theme + base
+                    src/lib/api.ts            fetch wrapper (token from URL ?token=)
+                    vite.config.ts            dev proxy /api → http://127.0.0.1:4747 (changeOrigin: false)
 
-7. 增量实现：绿灯阶段对任何非平凡的实现工作调用 `incremental-impl`——多文件改动、跨文件重构、落地一个已规划的 task（来源不限：内置 Plan、`planning-with-files`、`spec-design` spec、`arch-design` 的 arch_design.md、或用户直接给的任务）、跨切面修改、或预计要写超过 ~100 行。规模判定（XS–XL）、切片策略、按需并行派遣、片间执行纪律都由 skill 自身负责——具体规则看 skill 本身。仅当 skill 的规模判定为 XS、或改动是纯文档 / 纯配置时跳过。
+tests/web-ui-e2e.test.ts — Hermetic end-to-end harness for `npx auriga-cli web-ui`. Spawns the real CLI in a HOME-redirected scratch dir, hits /api/state + /api/apply, asserts filesystem side effects in scratch and verifies the real $HOME stays untouched (canary). Not part of `npm test` — invoke via `npm run test:web-ui-e2e`.
 
-8. 完成编码后：任何"已完成 / 已修复 / 可以提交 / 可以进入评审"的判断前，都先按 `verification-before-completion` 运行并检查完整验证。运行受影响的自动化测试，以及必要的浏览器、界面或移动端交互检查；不要只靠阅读实现来判断完成。
+plugins/
+  auriga-workflow/
+                  Repo-owned dual-Agent plugin (Claude Code + Codex)
+                  bundling every auriga-owned workflow skill plus the git
+                  lifecycle hooks that enforce the workflow.
+                    .claude-plugin/plugin.json  (Claude Code manifest)
+                    .codex-plugin/plugin.json   (Codex manifest)
+                    skills/incremental-impl/SKILL.md
+                    skills/test-designer/SKILL.md
+                    skills/spec-design/SKILL.md  (+ references/)
+                    skills/session-compound/
+                    skills/arch-design/SKILL.md  (+ references/)
+                    skills/code-simplify/SKILL.md (+ references/)
+                    skills/goalify/SKILL.md      (plans a goal and dispatches
+                                                 it via Claude Code's built-in
+                                                 /goal command)
+                    skills/deep-review/          (PR review orchestrator +
+                                                 references/reviewers/<name>.md
+                                                 per-dimension reviewer files)
+                    skills/reviewer-creator/     (scaffolds project-level
+                                                 custom reviewers under
+                                                 docs/rules/review/)
+                    skills/git-workflow/SKILL.md (git lifecycle skill)
+                    hooks/hooks.json            (PreToolUse + PostToolUse,
+                                                 shared shape; uses
+                                                 ${CLAUDE_PLUGIN_ROOT} which
+                                                 Codex deliberately mirrors
+                                                 for OOTB compat)
+                    scripts/commit-reminder.mjs (PostToolUse:
+                                                 Edit|Write|MultiEdit|apply_patch
+                                                 — covers Claude Code's tool
+                                                 names plus Codex's canonical
+                                                 file-edit name `apply_patch`)
+                    scripts/pr-create-guard.mjs (PostToolUse: gh pr create)
+                    scripts/pr-ready-guard.mjs  (PreToolUse: gh pr ready +
+                                                 non-draft gh pr create)
+                    scripts/pr-merge-guard.mjs  (PreToolUse: gh pr merge —
+                                                 blocks while the PR body's
+                                                 Acceptance criteria section
+                                                 has unchecked checklist
+                                                 items)
+                  Formed by merging the former auriga-go (goalify only),
+                  deep-review, and auriga-git-guards plugins. Codex
+                  currently fail-opens on PreToolUse `additionalContext`
+                  (parses but does not surface yet); block path is
+                  identical. PostToolUse `additionalContext` is supported,
+                  so commit-reminder and pr-create-guard work at full
+                  parity. Owned skills carry NO `.agents/skills/<name>` or
+                  `.claude/skills/<name>` symlinks — plugin-bundled skills
+                  are discovered via the plugin's marketplace + `skills:`
+                  manifest field.
+  auriga-notify/ Claude Code-only opt-in plugin for Notification events.
+                    .claude-plugin/plugin.json
+                    hooks/hooks.json
+                    scripts/notify.mjs
+                    scripts/test-notify.mjs
+                    defaults/config.json
+                    assets/icon.png
+                  Legacy `.claude/hooks/notify/` installs are migrated by
+                  plugins.ts when this plugin installs successfully.
+  session-instructions-loader/
+                  Codex-only plugin.
+                    .codex-plugin/plugin.json   (Codex manifest)
+                    hooks/hooks.json            (SessionStart)
+                    scripts/session-start.mjs   (injects ancestor AGENTS.md
+                                                 files plus repo-configured
+                                                 extra instruction files)
+.claude-plugin/
+  marketplace.json — Marketplace manifest for this repo; lists
+                     auriga-workflow + auriga-notify for Claude Code.
 
-9. PR就绪：在验证完成、基准分支确认无误，并且 PR 描述已补全五要素——变更范围、验收标准、设计决策、风险、剩余 TODO 之前，保持 PR 为 Draft。完成这些条件后，将 PR 标记为 Ready for Review。如果 `spec-design`、`arch-design` 或 `planning-with-files` 产生了设计文档（`spec.md`、`arch_design.md`）、findings.md、progress.md、task_plan.md 等产物，用 `AskUserQuestion` 询问用户：删除还是存档到 `docs/worklog/worklog-<YYYY-MM-DD>-<分支名>/` 目录下便于回溯。
+.agents/plugins/
+  marketplace.json — Codex-native marketplace manifest for this repo; lists
+                     auriga-workflow + session-instructions-loader.
+                     Codex prefers this repo-scoped file when present instead
+                     of falling back to the Claude-style marketplace.
 
-10. PR评审：Draft PR 阶段可以先获取早期反馈。PR 标记为 Ready for Review 后，正式 review 必须通过 `deep-review` skill（打包在 `auriga-workflow` 插件中）发起。`/review` 保留作为轻量 fallback。**评审 Agent 必须报告所有 finding 并附 severity + confidence，不要按重要性预过滤**——强推理模型会字面执行 "only report high-severity" 类指令，导致真实 bug 召回下降；过滤交给人来做。
+extra_plugin_configs.json
+  Auriga CLI plugin overlay for external plugins and local default-policy
+  overrides. Local repo plugins come from the standard marketplaces above.
+  Add entries here only for upstream-owned plugins or fields like `defaultOn`.
 
-11. 合并后复利：PR 合并完成的那一刻，用 `AskUserQuestion` 主动询问用户是否运行 `session-compound` skill。该 skill 把本次会话沉淀为自包含的交互式 HTML 报告（叙事时间线 + token / cache / 工具健康度 + playground 面板，列出生态 skill 安装、AGENTS.md 修改、缺失 skill 等可勾选候选项），让本次会话的洞察落到对的位置，而不是合并完就蒸发。每次合并询问一次；不要静默执行，用户拒绝后也不要反复追问。
+tests/
+  skills.test.ts        — skill planner unit tests
+  catalog.test.ts       — build-time catalog shape + description overrides
+  cli-parse.test.ts     — parseArgs matrix (spec §3.5 / §5.2)
+  install-nontty.test.ts — non-interactive install dispatch + graded exit
+  preset.test.ts        — `--preset` parse / dispatch / graded exit; `--all` includes recommended
+  legacy-menu.test.ts   — TUI 3-item menu contract + excludeByName filter
+  guide.test.ts         — renderGuide snapshot + ANSI branch
+  validators.test.ts    — validateSkillsLock / validateExtraPluginConfigs
+  entrypoint.test.ts    — dist/cli.js symlinked-bin guard regression
+  e2e-install.test.ts   — tarball → npm install → auriga-cli install (network + local, runs via npm run test:e2e, not `npm test`)
+  commit-reminder.test.mjs — smoke tests for plugins/auriga-workflow/scripts/commit-reminder.mjs
+  pr-create-guard.test.mjs — smoke tests for plugins/auriga-workflow/scripts/pr-create-guard.mjs
+  pr-ready-guard.test.mjs  — smoke tests for plugins/auriga-workflow/scripts/pr-ready-guard.mjs
+  pr-merge-guard.test.mjs  — smoke tests for plugins/auriga-workflow/scripts/pr-merge-guard.mjs
+```
 
-## 快速开发流程（bug fix / 小重构 / 小功能）
+- No CLI framework — hand-rolled `parseArgs` in `cli.ts` for the non-interactive path; `@inquirer/prompts` (lazy-loaded) for the TTY menu
+- Content fetched from GitHub at runtime (`fetchContentRoot()`)
+- `withEsc()` wraps all prompts for ESC cancellation support
+- Installers (`workflow.ts` / `skills.ts` / `plugins.ts`) **throw** on failure when `opts.interactive === false`; the interactive path keeps the log-and-continue behavior so the TTY menu surfaces errors inline without aborting the whole menu
 
-由 planning 阶段入口的规模判定三条谓词全部命中时触发。只跳过 planning——需求澄清、分支、Draft PR、TDD、验证和 review 规则仍然适用。步骤：
+## Key Conventions
 
-1. **跑基线**：先跑受影响模块的现有测试，确认当前状态（全绿 or 已有失败）
-2. **写/更新测试**（红灯）：用 `test-driven-development` 描述期望行为。改动涉及公共模块时，确认所有消费方的测试都在基线内
-3. **实现**（绿灯）：写最小代码让测试通过
-4. **回归验证**：跑全量受影响测试，不只是新写的
+- **Skill categorization**: `WORKFLOW_SKILLS` in `skills.ts` is the curated default-on set for external workflow skills installed via `npx skills add`. Everything else in `skills-lock.json` is "recommended" (opt-in utilities). auriga-cli-owned workflow skills now live in `plugins/auriga-workflow/` and install through the plugin path.
+  - **Adding a workflow skill from an external repo**: author `SKILL.md` upstream and PR-merge → `npx skills add <repo> --skill <name> --agent claude-code codex --yes` to update `skills-lock.json` and populate `.agents/skills/` → add name to the `WORKFLOW_SKILLS` array in `src/skills.ts` → add a row to both README skills tables → reference it from the relevant `AGENTS.md` step if the skill replaces prose there. **Do not edit `.agents/skills/<name>/SKILL.md` directly** — it is generated by `npx skills add` and silently clobbered on re-sync. To refresh an external skill after an upstream merge, **re-run `npx skills add <repo> --skill <name>` per skill** (not `npx skills update --project`) so the blast radius stays limited to the skill you actually want to update.
+  - **Editing an auriga-cli-owned workflow skill** (`incremental-impl`, `session-compound`, `test-designer`, `spec-design`, `arch-design`, `code-simplify`): edit the source under `plugins/auriga-workflow/skills/<name>/`. Owned skills carry **no `.claude/skills/<name>` or `.agents/skills/<name>` symlinks** — plugin-bundled skills are discovered through the plugin's marketplace + `skills:` manifest field. Do not add owned-skill names back to `skills-lock.json` or `WORKFLOW_SKILLS`; the user-facing install surface is the `auriga-workflow` plugin. When an edit changes a skill's **output contract** (the files / fields / content it produces for downstream skills to consume), update its consumer skills in the same change — owned skills form a pipeline (`spec-design` → `test-designer` / `deep-review` → `incremental-impl`), and a contract change that isn't propagated becomes cross-skill drift (PR #119: a new `## Toolchain` table in `validation-contract.md` nearly shipped with `test-designer`'s SKILL.md still telling the agent to scan the test stack from scratch — caught only by deep-review).
+  - **Adding a new owned workflow skill**: add it under `plugins/auriga-workflow/skills/<new-name>/` with its own `SKILL.md` (+ `references/` for progressive disclosure if the body would otherwise exceed ~500 lines). **Do NOT** create symlinks under `.claude/skills/` or `.agents/skills/` — the plugin manifest is the canonical discovery path. Bump the auriga-workflow plugin manifests (both Claude + Codex) and the `auriga-workflow` description in `.claude-plugin/marketplace.json` so the new skill propagates into `dist/catalog.json`. Update the product workflow templates only if the skill becomes part of the workflow contract.
+  - **Adding a recommended skill**: `npx skills add <repo> --skill <name>` is enough — the skill's `SKILL.md` frontmatter description is picked up at build time by `src/build/generate-catalog.ts` and embedded into `dist/catalog.json`, which drives both `--help` output and the interactive menu. **Do not** hand-maintain a description list anywhere in code.
+    - **Prefer the plugin path when the upstream ships a single-skill plugin**: before vendoring via `npx skills add`, check the upstream repo — if it distributes the skill as a plugin whose content is **exactly that one skill** (a `.claude-plugin/plugin.json` / marketplace entry whose `skills/` resolves to just this skill), register it in `extra_plugin_configs.json` as an external plugin instead. Plugin marketplaces carry real version + upgrade semantics (`claude plugins update`, pinned versions); the `npx skills add` path resolves upstream HEAD with no version pinning. This rule applies only to the clean **1:1** case — multi-skill "skills library" plugins (`obra/superpowers`, `addyosmani/agent-skills`, `anthropics/skills` `example-skills`) do **not** qualify, since routing one skill through them drags in the rest. As of the [#131](https://github.com/Ben2pc/auriga-cli/issues/131) audit no current `skills-lock.json` entry meets this bar; the rule governs **future** additions, not a migration of existing entries.
+- **Adding an auriga-cli-owned plugin** (e.g. `auriga-workflow` — skills + hooks — or `auriga-notify` — hooks only): author at repo root `plugins/<name>/` — this repo *is* the source of truth. Required layout: `.claude-plugin/plugin.json` (metadata), optional `hooks/hooks.json` + hook scripts (see `plugins/auriga-workflow/` for the canonical hook example), optional `skills/<skill-name>/SKILL.md` (+ optional `references/`). **Everything under `plugins/<name>/` ships to users** — keep dev-only assets (tests, generators) at repo-root `tests/`. Then: register in `.claude-plugin/marketplace.json` (listing `"source": "./plugins/<name>"`). If the plugin should also target Codex, register it in `.agents/plugins/marketplace.json` and add `.codex-plugin/plugin.json`. Use `extra_plugin_configs.json` only for policy overrides such as `defaultOn`, not as the local plugin source of truth. Users install via `npx auriga-cli` → Plugins.
+  - **Dual-Agent variant (Claude Code + Codex)**: Codex's hook system is schema-compatible with Claude Code (nested `hooks.<Event>[].matcher + hooks[]` shape, `${CLAUDE_PLUGIN_ROOT}` deliberately mirrored by Codex for OOTB compat, stdin/stdout contract identical). Register the plugin in both marketplaces: `.claude-plugin/marketplace.json` for Claude Code, and `.agents/plugins/marketplace.json` for Codex. Add a second manifest at `.codex-plugin/plugin.json` with the Codex-specific richer schema (`version`, `homepage`, `repository`, `license`, `keywords`, `interface` block with `displayName` / `category` / etc.); keep `.claude-plugin/plugin.json` minimal but mirror `version` for upgrade comparators. Same `hooks/hooks.json` payload, same `scripts/`, same README — see `plugins/auriga-workflow/` as the canonical example. Caveat: Codex currently fail-opens on `hookSpecificOutput.additionalContext` for `PreToolUse` (parsed but not surfaced to the model); the block path (`exit 2 + stderr`, or `permissionDecision: "deny"`) works identically. Document this asymmetry in the plugin's README. Claude-Code-specific `if: "Bash(...)"` filtering inside `hooks/hooks.json` is kept (Codex docs don't reject unknown fields per general JSON registry behavior); if a future Codex version strictly validates and rejects `if`, drop it and rely on script-internal substring checks (no behavioral regression — scripts already validate their own command match).
+- **Adding an external-marketplace plugin** (a plugin authored in another GitHub repo that this CLI merely registers): no plugin source authored in this repo — the plugin lives upstream and we just register it in `extra_plugin_configs.json`. For Claude Code, set `claude.package` and, when the marketplace is not already known, `claude.marketplace`. For Codex, set `codex.marketplace`; auriga-cli runs `codex plugin marketplace add https://github.com/<source>.git` and then installs from Codex's marketplace cache. The `marketplace.{name, source}` shape is shared through `validateMarketplaceField` in `src/marketplace.ts`. **Skip upstream manifest fetch at build time** — `src/build/generate-catalog.ts` uses the extra config description for external entries because the upstream Codex manifest may not exist or may be resolved by the downstream CLI.
+- **Plugin-bundled hooks**: register hooks via `plugins/<name>/hooks/hooks.json` with `command: "${CLAUDE_PLUGIN_ROOT}/..."`. This substitution expands reliably in both `claude -p` and interactive mode (empirically verified). Skill-bundled hooks via `SKILL.md` frontmatter `hooks:` field can *also* register hooks, but `${CLAUDE_SKILL_DIR}` does NOT currently expand in the hook command string (Claude Code bug), and the hook's cwd is the project root rather than the skill dir, so the `./scripts/...` doc example also fails. Workaround when a skill needs a hook: bundle the skill inside a plugin and lift the hook to the plugin root (see `plugins/auriga-workflow/` as the canonical dual-Agent example). Do not reintroduce a root `.claude/hooks/hooks.json` for new hooks; future hooks should distribute with plugins.
+- **Plugin config**: `.claude-plugin/marketplace.json` and `.agents/plugins/marketplace.json` define the local plugin surface. `extra_plugin_configs.json` defines external plugins and local default-policy overrides.
+- **Hook config**: repo-owned hooks are plugin-bundled via `plugins/<name>/hooks/hooks.json`; there is no longer a CLI-installable `hooks` category. The `auriga-notify` migration is the reference shape for a Claude Code-only hook plugin with user config migration.
+- **Agent portability**: skills and plugins serve teammates on different coding agents (Claude Code / Codex / Gemini) — the `auriga-workflow` plugin is explicitly dual-Agent. When authoring or editing anything under `plugins/<name>/`, don't let prose or tooling silently assume the agent is Claude Code: generic-agent prose using "Claude", Claude-only tool names without the Codex equivalent, shared features misattributed to one agent, or project instructions referenced only as `CLAUDE.md` without `AGENTS.md`. Full checklist: [`docs/rules/agent-portability.md`](docs/rules/agent-portability.md).
+- **Subprocess calls**: Use `exec()` wrapper, `{ inherit: true }` for streaming output.
+- **User-facing output**: Use `log.ok/warn/error/skip` for consistent colored output.
 
-跳过 TDD 的唯一例外：纯文档、纯配置 改动（无代码逻辑变更）。
+## Commands
 
-## 文档规范
+```bash
+npm run build    # tsc → dist/, then node dist/build/generate-catalog.js → dist/catalog.json
+npm run dev      # tsc --watch
+npm start        # node dist/cli.js
+DEV=1 npm start  # use local files instead of fetching from GitHub
 
-仓库文档统一放 `docs/` 下，按用途分目录，让 Agent、`pr-ready-guard` hook、人工 reviewer 对"文档该放哪、从哪找"有一致认知。
+npm test         # tsc -p tsconfig.test.json → dist-test/, then node --test
+                 #   Unit + integration tests live in tests/. The test
+                 #   file whitelist is hand-maintained in package.json's
+                 #   `test` / `test:watch` scripts — add new test files there.
 
-| 目录 | 用途 | 生命周期 |
-|---|---|---|
-| `docs/worklog/worklog-<YYYY-MM-DD>-<branch-name>/` | 已归档的 session-ephemeral planning 产物（`findings.md`、`progress.md`、`task_plan.md`、设计 spec）。在 PR-readiness 阶段归档。一个 PR 一个子目录，`docs/worklog/` 作为统一父目录，方便集中查阅 | PR merge 后永久保留 |
-| `docs/rules/` | 编码规范、review checklist、命名 / 风格约定 | 长期维护 |
-| `docs/rules/review/` | 项目级自定义 reviewer；每个文件对应一个 `deep-review` 扩展维度，由 `reviewer-creator` 创建，`deep-review` 自动发现并分派 | 长期维护 |
-| `docs/rules/test/` | 项目级测试规则、测试设计约束和测试夹具约定；`test-designer` 或主 Agent 写/更新测试前必须先参考相关文件 | 长期维护 |
-| `docs/specs/` | **`spec-design` 和 `arch-design` 输出的默认归宿。** 开发期间存放活跃 spec / 架构设计 / 需求澄清的临时工作区。**PR Ready 前必须清空**——每个 spec 晋升到 `docs/architecture/`（长期参考）、归档到 `docs/worklog/worklog-<YYYY-MM-DD>-<branch-name>/`（历史轨迹），或删除。由 `pr-ready-guard` 强制（同时覆盖 `gh pr ready` 和不带 `--draft` 的 `gh pr create`） | 开发期临时 |
-| `docs/architecture/` | 稳定、长期的设计文档（模块布局、数据流、组件职责）。新条目通常由 `docs/specs/` 晋升而来 | 长期 |
-| `docs/` 其他 | 按需新增：`runbooks/`（运维流程）、`adr/`（架构决策记录）、`onboarding/` 等。一类文档一个目录，不混放 | 因类而异 |
+npm run test:e2e # Full tarball install e2e (~90-120s). Packs the actual npm
+                 # tarball, installs into a scratch project, runs
+                 # `auriga-cli install` against GitHub content pinned to
+                 # HEAD SHA. Pretest hook runs `npm run build` so the
+                 # tarball always reflects current src/. Requires HEAD to be
+                 # pushed (preflight skips otherwise); `plugins` and `--all`
+                 # scenarios additionally require `claude` CLI on PATH.
+                 # Not in `npm test` — network-bound and slow. Run before
+                 # cutting a release tag.
 
-# Harness 原则
+npm run test:git-guards
+                 # Smoke tests for plugins/auriga-workflow/scripts/*.mjs
+                 # (commit-reminder + pr-create-guard + pr-ready-guard
+                 # + pr-merge-guard).
+                 # Plain Node, not the node:test framework, so they run as a
+                 # separate npm script rather than being wired into `npm test`
+                 # alongside the TS suite. Run before any PR that touches
+                 # plugins/auriga-workflow/scripts/ or the plugin's
+                 # hooks/hooks.json.
 
-- **约束靠机制执行，不靠提示词**：核心架构规则尽量用 linter / CI / 类型系统执行，不依赖 Agent 自觉遵守。
-- **仓库是唯一信息源**：Agent 无法访问的东西等于不存在。外部文档需要搬入仓库才算数。
-- **Independent Evaluation（独立评估）**：复杂功能的测试设计和正式 review 必须由独立 agent 执行，不要让 Agent 评估自己的工作。
-- **浏览器工作流不只属于编码后验证**：当任务需要打开或浏览页面、检查本地网页界面、复现浏览器问题、检查交互、截图，或设计和运行浏览器端到端场景时，优先使用 `Browser Use`。需要可重复、脚本化、适合持续集成的浏览器回归检查时，使用 `playwright-cli`。移动端模拟器或原生应用界面自动化使用 `Computer Use`。
-- **持续对抗熵增**：技术债务小额持续偿还，不等积累后痛苦处理。
-- **组件可拆卸**：流程中的每个步骤都编码了"模型做不好这件事"的假设，随模型能力提升定期审视，每次只动一个变量。
-- **指令文件是目录，不是百科全书**：什么都重要等于什么都不重要。AGENTS.md / CLAUDE.md 保持精简（~100 行），作为入口和导航，详细规范拆分到 `docs/` 下的专题文件中。子系统可以有自己的局部指令文件。以 AGENTS.md 作为主文件，并为 Claude Code 创建 `CLAUDE.md -> AGENTS.md` 兼容软链（`ln -s AGENTS.md CLAUDE.md`），确保不同 Agent 框架读取同一份指令。
+npm run test:session-instructions-loader
+                 # Smoke tests for plugins/session-instructions-loader/scripts/session-start.mjs.
+                 # Run before any PR that touches that plugin's SessionStart
+                 # hook or Codex marketplace metadata.
 
-# Agent 分发原则
+npx skills update --project
+                 # Refresh every external vendored skill from its upstream source
+                 # (writes skills-lock.json + .agents/skills/<name>/SKILL.md).
+                 # Run after upstream PR-merges. Does not commit or push.
+```
 
-根据任务性质选择合适的委派层级：
+## Web UI manual verification
 
-| 场景 | 方案 |
-|------|------|
-| 单文件修复，方案明确 | 自己做——不需要 subagent 开销 |
-| 并行只读任务（review、搜索、分析） | 对话内 subagent，无需隔离 |
-| 单个 subagent 写代码 | 对话内 subagent，无需隔离 |
-| 多个 subagent 写代码 | 调用 `incremental-impl`——派遣门槛达标时返回分片计划，按计划用 `isolation: "worktree"` 派遣 |
-| 需要零上下文污染的全新视角 | 独立 Agent（如 TDD 红灯阶段的测试设计） |
-| 跨模型盲区覆盖 | 独立 Agent（如 GPT review Claude 的代码） |
-| 不确定该用哪种方案 | 用 `AskUserQuestion` 询问，列出选项并给出建议 |
+Before PR Ready (and again before merging) any change touching `src/state.ts`, `src/scan-catalog.ts`, `src/server.ts`, `src/api-types.ts`, `src/build/generate-catalog.ts`, `ui/`, or any input flowing into `dist/catalog.json` (AGENTS.md, `.claude-plugin/marketplace.json`, `.agents/plugins/marketplace.json`, `extra_plugin_configs.json`, `skills-lock.json`, `plugins/<name>/.claude-plugin/plugin.json`, `plugins/<name>/.codex-plugin/plugin.json`, plugin `hooks/hooks.json`), spin up the installed `web-ui` from three project roots and eyeball every row. Automated `tests/tarball-shape.test.ts` covers the build-time tarball-shape contract; this manual step covers runtime behavior against real install state, which can't be unit-tested without a hermetic fixture for every project shape.
 
-对话内 subagent 共享主 Agent 的工作目录。核心规则：
+1. `~/` — exposes scope-boundary corner cases (e.g. `<proj>/.claude/CLAUDE.md` collapsing onto `$HOME/.claude/CLAUDE.md`)
+2. `~/Workspace/` (or any non-auriga-cli parent dir) — baseline "nothing installed" state
+3. The current repo dir — fully-installed dev state
 
-- **并行写必须隔离**：并行写代码**必须**使用 `isolation: "worktree"`；单个写者无需隔离。切片决策（轴向选择、粒度、并行与否、碰撞合并、大小过滤）由 `incremental-impl` skill 负责。派遣门槛未达标时 skill 终止并行路径，主 Agent 顺序写。
-- **按任务选模型和 effort**：模型（Claude sonnet / opus，或 Codex 旗舰 / mini）与 effort 按任务选。**Effort 默认值：写代码 / agentic 子任务用 `xhigh`；设计与正式评审用 `high`；只有短小、范围明确的查询才用 `medium`；只有当 `xhigh` 仍欠思考时才升 `max`。** 强推理模型严格遵守 `low` / `medium` 力度，复杂任务用低力度有欠思考风险。
-  - ✅ "给 cli.ts 的 `parseArgs()` 加输入校验" → sonnet @ xhigh
-  - ✅ "设计插件依赖解析策略" → opus @ xhigh
-  - ✅ 涉及大量架构权衡的复杂 review → Codex 旗舰 @ high，跨模型盲区覆盖
-- **始终显式指定输出格式**（shape + scope/length）：规则本身只约束"必须显式"——具体格式按任务选，例如 "summary ≤300 字"、"punch list，每项一行"、"diff + 每处一行理由"、"结构化 JSON `{...}`"、"一段话判断 + 一行依据"。不穷举格式清单，按任务选合适的。
-<!-- AURIGA:WORKFLOW:v1 END -->
+Recipe per root:
 
-<!-- 在下方添加你的工程专属规则。上方受管区块由 auriga-cli 维护,升级时整块替换;此处内容会被保留。 -->
+```bash
+cd <test-root>
+nohup npx -y auriga-cli@<version> web-ui --no-open > /tmp/auriga-web-ui.log 2>&1 &
+sleep 6
+TOKEN=$(grep -oE 'token=[a-f0-9]+' /tmp/auriga-web-ui.log | head -1 | cut -d= -f2)
+curl -s "http://127.0.0.1:4747/api/state?token=$TOKEN&projectRoot=$PWD" | python3 -m json.tool
+# UI view: http://127.0.0.1:4747/?token=$TOKEN
+pkill -f 'auriga-cli web-ui'
+```
+
+Per-row checks: workflow `status` reflects on-disk reality (AGENTS.md exists ⊕ auriga header present — "exists but no header" must not silently become `installed`), plugin `agents` map correct, `external: true` on upstream-owned plugins (skill-creator / claude-md-management / codex), dual-Agent partial installs surface as `partial-install` with `missingAgents`, top-level `warnings[]` populated when AGENTS.md / settings.json are present-but-foreign. Cards show no version strings since v1.19.0 (re-install is the update path).
+
+For unreleased work (no published version yet), swap `npx auriga-cli@<version>` for a locally-packed tarball (`npm pack --pack-destination /tmp` → install to a scratch prefix → run `auriga-cli web-ui` from that bin). Do NOT run `node dist/cli.js web-ui` from the repo — it bypasses the tarball boundary and hides the entire `runtime-reads-non-shipped-paths` bug class (the v1.18.x regression series).
+
+## Manual e2e probe hygiene
+
+Manual e2e probes that run `auriga-cli install` against a scratch project — `install --preset`, `install plugins`, or anything reaching `claude plugins install` / `codex plugin marketplace add` — mutate **real global** agent state: the Claude plugin registry under `~/.claude` and `~/.codex/config.toml`. `--scope project` contains only the *files* (AGENTS.md / skills land under the scratch dir); the plugin registry entry is **global**, keyed by the project's absolute path. So `rm -rf <scratch-dir>` does NOT undo the install — it orphans a plugin registry entry pointing at a now-deleted directory (`claude plugins list` keeps showing it).
+
+When probing manually, do one of:
+
+- **HOME-redirect** the probe (`HOME=/tmp/<scratch> <command>`) so the real `~/.claude` / `~/.codex` are never touched — this is what `tests/web-ui-e2e.test.ts` does (hermetic, canary-checked), and why it needs no cleanup step.
+- **Explicitly uninstall** as cleanup *before* deleting the scratch dir: `claude plugins uninstall <id> --scope project` (run from the scratch dir — project scope resolves by cwd), plus the matching Codex removal when `--agent codex|both` was used.
+
+`rm -rf` of the scratch directory alone is not cleanup for anything that touched a global agent registry.
+
+## Data Sources
+
+| File | Maintained by | Purpose |
+|------|--------------|---------|
+| `skills-lock.json` | `npx skills` CLI | External skill registry (do NOT edit structure manually). The synced copies under `.agents/skills/<name>/SKILL.md` are generated — do **not** edit them directly. auriga-cli-owned workflow skills live under `plugins/auriga-workflow/` and must not be added back to the lock |
+| `plugins/<name>/` | Manual | auriga-cli-owned plugin source (e.g. `plugins/auriga-workflow/`). Distributed via the repo-root `.claude-plugin/marketplace.json`. Everything inside the dir ships to users — keep dev-only assets (tests) at repo-root `tests/` |
+| `.claude-plugin/marketplace.json` | Manual | Claude Code marketplace manifest for plugins shipped from this repo |
+| `.agents/plugins/marketplace.json` | Manual | Codex marketplace manifest for plugins shipped from this repo |
+| `extra_plugin_configs.json` | Manual | External plugin registry and default-policy overlay for marketplace plugins |
+| `dist/catalog.json` | `npm run build` (via `src/build/generate-catalog.ts`) | Build-time catalog of workflow skills / recommended skills / plugins — name + description. Source of truth for `--help` output and the non-interactive filter-name validator. Ships inside the npm tarball. Regenerate after changing any `SKILL.md` frontmatter, plugin marketplace/config, plugin manifest, or plugin `hooks/hooks.json`. |
+| `AGENTS.template.zh-CN.md` / `AGENTS.template.en.md` | Manual | Workflow templates (the product). **Must be edited in tandem** — both languages must stay in sync |
+| `README.md` / `README.zh-CN.md` | Manual | Public docs. **Must be edited in tandem** — both languages must stay in sync |
+
+## Versioning & Release
+
+- Version in `package.json` follows semver: patch for bugfixes, minor for new features, major for breaking changes.
+- **Bump rule**: bump CLI version (`package.json`) before merging any PR that changes **user-visible state**.
+  - **Bump triggers** (any of these touched):
+    - `src/` — rebuilt into `dist/`, ships in tarball
+    - `.claude-plugin/marketplace.json`, `.agents/plugins/marketplace.json`, `extra_plugin_configs.json` — CONTENT_FILES fetched at runtime AND inputs to `dist/catalog.json` / install behavior
+    - Plugin install surface changes in marketplace manifests or `extra_plugin_configs.json` — these decide which plugins auriga-cli offers or installs by default
+    - **`skills-lock.json` *structural* changes** — adding/removing an entry, or editing `source` / `skillPath`. These change which skills auriga-cli offers (`dist/catalog.json`) or where the install pulls from. **`computedHash` drift alone is NOT a bump trigger** (see Exempt below).
+    - **`.agents/skills/<name>/SKILL.md` frontmatter `description:` changes** — baked into `dist/catalog.json` at build time, drives `--help` output and the interactive menu. Body / scripts / hooks changes are NOT (see Exempt below).
+    - `AGENTS.template.zh-CN.md` / `AGENTS.template.en.md` — workflow templates, fetched at runtime
+    - `README.md` / `README.zh-CN.md` — ship in tarball (always-included by npm); README.md drives the npmjs.com landing page
+  - **Exempt** (no bump needed):
+    - `AGENTS.md` / `CLAUDE.md` (this repo dev guide and compatibility symlink — not shipped, not fetched)
+    - `.claude/skills/<name>` symlinks (dev-only, used by Agents in this repo; never shipped, never fetched)
+    - `tests/`, `tsconfig*.json`, CI configs (`.github/`)
+    - `docs/`
+    - `plugins/<name>/*` payload-only changes — fetched by the Agent plugin marketplaces directly. Claude Code uses `claude plugins marketplace update` + `claude plugins update`; Codex uses `codex plugin marketplace add/upgrade`, then auriga-cli materializes Codex plugin cache from `~/.codex/.tmp/marketplaces/<marketplace>` when present. Plugin payload-only changes therefore propagate without a CLI bump; bump the plugin's own manifest version when the plugin contract/content changes.
+    - **External skill refresh — `skills-lock.json` `computedHash` drift and `.agents/skills/<name>/*` body/hooks/scripts changes** when no structural lock fields and no SKILL.md frontmatter `description:` change. The install path `src/skills.ts` emits `npx -y skills add <source> --skill <name>`, which **resolves from upstream HEAD at install time** — auriga-cli does not pin users to the lock's `computedHash`. External skill content freshness belongs to the upstream repo (same boundary model as `plugins/<name>/*`); bump the external skill's own version upstream when its contract changes.
+  - **Why**: the runtime pins auriga-cli-owned install inputs to `v<package.version>` AND `dist/catalog.json` is frozen in the tarball. Without a version bump + tag, changes to workflow templates, marketplace install surfaces, extra plugin config, or CLI behavior are invisible to `npx auriga-cli` users (PR #57 was the breaking case). Plugin payload updates AND external skill body/script updates are the two exceptions — both have upstream freshness channels (plugin marketplaces / `npx skills add` to upstream HEAD) that propagate without a CLI bump.
+- **Release flow (tag push triggers CI publish)**: `fetchContentRoot` in `src/utils.ts` pins to the git tag `v<package.version>`, so the tag must exist on GitHub BEFORE users can `npx auriga-cli@<version>`. `.github/workflows/release.yml` enforces this: triggered on `push: tags: ['v*']`, it checks out the tag, verifies `tag == package.json version` (fail-loud if mismatched), runs unit → git-guards → e2e tests (each step's `pretest*` hook rebuilds `dist/`), `npm publish --provenance` (OIDC + explicit provenance attestation; Node 24 required — Node ≤ 22 bundles npm 10.x which doesn't support OIDC handshake), then `gh release create --generate-notes` to publish a GitHub Release alongside the npm artifact (auto-categorizes commits by Conventional Commits prefix; tags like `v1.2.3-rc.1` are auto-flagged as prerelease). Publish + Release only run if all gates pass. Canonical sequence: bump version in a PR → merge → `git tag v<version> && git push origin v<version>` → CI takes over. Manual `npm publish` / release creation is no longer part of the flow. Auth: **npm Trusted Publishing (OIDC)** — zero secrets to rotate; the workflow uses a short-lived GitHub-issued OIDC token. One-time setup on npmjs.com → package page → Settings → Publishing → Add trusted publisher, bound to this repo + exact workflow filename `release.yml`. Renaming the workflow file breaks publish until the npm config is updated. Set `AURIGA_CONTENT_REF=main` to bypass the tag pin in development. Manual `workflow_dispatch` with `dry_run=true` exercises the pipeline without publishing — useful when iterating on the workflow itself.
+- **Two versions track independently**: `package.json` is the **CLI tool** version (bumps per the rule above whenever shipped state changes). The workflow header inside `AGENTS.template.zh-CN.md` / `AGENTS.template.en.md` (e.g. `# auriga 工作流 (v1.5.0)`) is the **workflow content** version — bumps independently when the workflow template's contract changes (steps reorganized, principles renamed). A typo fix or wording polish in the workflow template still bumps the CLI version (it's user-visible) but does not bump the workflow header. The two version numbers exist for different audiences: CLI version answers "what tarball am I running?"; workflow header answers "what workflow contract am I following?".
+
+## Principles
+
+- Keep it simple — no abstractions for one-time operations.
+- Main menu order = execution order: Workflow -> Skills -> Recommended Skills -> Plugins. The TUI surfaces these as 3 items (Recommended preset / Optional skills / Other plugins); non-interactive `install <type>` still addresses the four categories individually.
+- ESM throughout (`"type": "module"`, `.js` extensions in imports).
+- **Runtime reads must hit shipped paths only.** `package.json` `files` allowlists exactly `dist/*.js`, `dist/*.d.ts`, `dist/catalog.json` (plus the npm-default `README*` / `LICENSE` / `package.json`). Everything else in this repo — `plugins/<name>/`, `.claude/`, `.agents/`, `skills/`, `src/` source TS — **does not exist** in the installed npm tarball. If `src/*.ts` resolves a path inside `packageRoot/<something-not-in-the-allowlist>/` at runtime, that read will silently fail for npm-installed users (`fs.readFile` → ENOENT → caught → degraded behavior). The dev environment hides the bug because `packageRoot === repoRoot` and the repo files exist there. Anything a runtime module needs from a non-shipped location must be **baked into `dist/catalog.json` at build time** (extend `CatalogEntry` if needed), **fetched from GitHub at runtime** via `CONTENT_FILES` when it is an auriga-cli install input (pinned to the `v<package.version>` tag by `fetchContentRoot`), or resolved from the Agent plugin marketplace cache when it is plugin payload (`claude plugins marketplace update` / `claude plugins update`; `codex plugin marketplace add/upgrade` then `~/.codex/.tmp/marketplaces/<marketplace>`). Do not add plugin payload files to `CONTENT_FILES`; plugin freshness belongs to the plugin marketplace, not the CLI tarball. Verify by extracting `npm pack`'s tarball and grepping for whatever you expect to read at runtime — *runtime correctness is a tarball-shape question, not a source-tree question*.
+  - Concrete example: plugin agents map (e.g. `auriga-workflow` targets both Claude and Codex) is derived from `.claude-plugin/marketplace.json`, `.agents/plugins/marketplace.json`, and `extra_plugin_configs.json` — all outside the tarball allowlist. `src/build/generate-catalog.ts` reads them at build time and bakes `agents` into each plugin's `CatalogEntry`; `src/scan-catalog.ts` consumes the baked field. Catalog regression in `tests/catalog.test.ts` + `tests/tarball-shape.test.ts` pin the contract. Historical note: v1.18.x also baked an `expectedVersion` field for update-available detection; v1.19.0 deprecated that surface and removed the field — see [`docs/worklog/worklog-2026-05-13-refactor-drop-update-status/web-ui-history.md`](docs/worklog/worklog-2026-05-13-refactor-drop-update-status/web-ui-history.md) for the rollback story.

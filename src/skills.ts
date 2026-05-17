@@ -5,7 +5,7 @@ import { checkbox, select } from "@inquirer/prompts";
 import { atomicWriteFile, exec, execAsync, log, withEsc } from "./utils.js";
 import type { InstallOpts, SkillEntry, SkillsLock } from "./utils.js";
 
-// Curated default-on set: skills that the workflow in the root AGENTS.md
+// Curated default-on set: skills that the shipped workflow template
 // directly references. Anything else in skills-lock.json is surfaced via
 // installRecommendedSkills as an opt-in utility.
 export const WORKFLOW_SKILLS = [

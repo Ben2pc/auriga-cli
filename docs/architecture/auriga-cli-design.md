@@ -1,6 +1,6 @@
 # auriga-cli Design Spec
 
-> **Historical snapshot — v1.0.0 original design intent.** This document captures the initial product vision from April 2026; the repo has since grown (Recommended Skills, Hooks, upstream skill submodule, workflow-guard hooks, etc.). For the authoritative current state, see `README.md`, `CLAUDE.md`, and `.claude/CLAUDE.md`. Kept here as architectural context for "why the repo is shaped this way".
+> **Historical snapshot — v1.0.0 original design intent.** This document captures the initial product vision from April 2026; the repo has since grown (Recommended Skills, Hooks, upstream skill submodule, workflow-guard hooks, etc.). For the authoritative current state, see `README.md`, root `AGENTS.md`, and `CLAUDE.md -> AGENTS.md`. Kept here as architectural context for "why the repo is shaped this way".
 
 ## Overview
 

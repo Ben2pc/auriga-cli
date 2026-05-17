@@ -200,11 +200,11 @@ export interface LangOption {
 }
 
 export const DEFAULT_WORKFLOW_LANG = "zh-CN";
-export const DEFAULT_WORKFLOW_TEMPLATE_FILE = "AGENTS.md";
+export const DEFAULT_WORKFLOW_TEMPLATE_FILE = "AGENTS.template.zh-CN.md";
 
 export const LANGUAGES: LangOption[] = [
-  { value: "zh-CN", label: "中文", file: "AGENTS.md" },
-  { value: "en", label: "English", file: "AGENTS.en.md" },
+  { value: "zh-CN", label: "中文", file: "AGENTS.template.zh-CN.md" },
+  { value: "en", label: "English", file: "AGENTS.template.en.md" },
 ];
 
 // --- Remote content ---
@@ -254,7 +254,7 @@ function resolveContentRef(): string {
 
 const CONTENT_FILES = [
   DEFAULT_WORKFLOW_TEMPLATE_FILE,
-  "AGENTS.en.md",
+  "AGENTS.template.en.md",
   "skills-lock.json",
   ".claude-plugin/marketplace.json",
   ".agents/plugins/marketplace.json",

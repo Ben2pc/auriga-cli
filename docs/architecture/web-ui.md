@@ -1,6 +1,6 @@
 # auriga-cli Web UI 设计文档（v0.1）
 
-> **历史快照 —— 初始设计意图。** 本文按当时的 5 类目结构（含 Hooks）描述 Web UI。`hooks` 安装表面后续被整体移除，UI 重构为 3 类（workflow / skills+recommended 经预设吸收 / plugins），并新增「安装推荐预设」入口。文中 `HookState`、`src/hooks.ts`、hooks 卡片、hooks scope 等内容均已过时；当前实现以 `src/state.ts`、`src/api-types.ts`、`ui/src/pages/Dashboard.tsx` 与 `.claude/CLAUDE.md` 为准。本文保留作架构背景。
+> **历史快照 —— 初始设计意图。** 本文按当时的 5 类目结构（含 Hooks）描述 Web UI。`hooks` 安装表面后续被整体移除，UI 重构为 3 类（workflow / skills+recommended 经预设吸收 / plugins），并新增「安装推荐预设」入口。文中 `HookState`、`src/hooks.ts`、hooks 卡片、hooks scope 等内容均已过时；当前实现以 `src/state.ts`、`src/api-types.ts`、`ui/src/pages/Dashboard.tsx` 与根 `AGENTS.md` 为准。本文保留作架构背景。
 >
 > 受众：实现该功能的工程师 / Agent
 > 语言：中文（代码、路径、字段名保留英文）
@@ -637,4 +637,3 @@ M6 阶段独立调 `make-interfaces-feel-better` skill，覆盖：
 - **打印 / 高对比无障碍**：DESIGN.md 本身高对比，但 polish 阶段验证一遍
 
 polish 完毕的验收：随机 3 个 fixture 项目走完 install + uninstall，所有交互在 hover / focus / loading / error 任一状态下都不出现 token 外的视觉元素，且 100% 通过键盘可达。
-

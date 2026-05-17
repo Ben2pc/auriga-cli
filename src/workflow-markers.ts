@@ -24,9 +24,9 @@ export const MARKER_SCHEMA = "v1";
  * START marker line, one per template language. Only the prose differs — the
  * structural `AURIGA:WORKFLOW:v1 START` token is language-independent, so the
  * parser (`START_LINE_RE`) keys on the token alone and never needs to know the
- * language. The English `AGENTS.en.md` gets the English marker; `AGENTS.md`
- * gets the Chinese one, so a downstream file never carries a comment in the
- * wrong language for its document.
+ * language. `AGENTS.template.en.md` gets the English marker;
+ * `AGENTS.template.zh-CN.md` gets the Chinese one, so a downstream file never
+ * carries a comment in the wrong language for its document.
  */
 const WORKFLOW_START_MARKERS: Record<string, string> = {
   en: `<!-- AURIGA:WORKFLOW:${MARKER_SCHEMA} START — Managed block, maintained by auriga-cli. Do not edit by hand; upgrades replace it wholesale. Put project-specific instructions after the END marker below. -->`,

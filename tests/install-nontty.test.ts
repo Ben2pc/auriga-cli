@@ -36,10 +36,10 @@ async function importMain(overrides: {
   mock.module(new URL("../src/utils.js", import.meta.url), {
     namedExports: {
       DEFAULT_WORKFLOW_LANG: "zh-CN",
-      DEFAULT_WORKFLOW_TEMPLATE_FILE: "AGENTS.md",
+      DEFAULT_WORKFLOW_TEMPLATE_FILE: "AGENTS.template.zh-CN.md",
       LANGUAGES: [
-        { value: "zh-CN", label: "中文", file: "AGENTS.md" },
-        { value: "en", label: "English", file: "AGENTS.en.md" },
+        { value: "zh-CN", label: "中文", file: "AGENTS.template.zh-CN.md" },
+        { value: "en", label: "English", file: "AGENTS.template.en.md" },
       ],
       exec: overrides.exec ?? (() => ""),
       execAsync: async () => "",
