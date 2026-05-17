@@ -86,61 +86,61 @@
 
 # auriga-cli 工程专属规则
 
-This repository is intentionally shaped as a sample project with the auriga Workflow installed: the managed workflow block comes first, and repository-specific rules live below the END marker. Root `CLAUDE.md` points to this file.
+这个仓库是一个带有 auriga Workflow 的示例项目：受管工作流区块放在最前面，仓库专属规则写在 END 标记下面。根目录的 `CLAUDE.md` 指向这个文件。
 
-auriga-cli is an Interactive CLI for installing workflow docs, skills, recommended skills, and plugins. Product workflow templates are root files named `AGENTS.template.zh-CN.md` and `AGENTS.template.en.md`; they install into user projects as `AGENTS.md` plus `CLAUDE.md -> AGENTS.md`.
+`auriga-cli` 是一个用于安装 workflow docs、skills、recommended skills 和 plugins 的 Interactive CLI。产品工作流模板位于根目录，文件名是 `AGENTS.template.zh-CN.md` 和 `AGENTS.template.en.md`；它们会安装到用户项目中，生成 `AGENTS.md` 以及 `CLAUDE.md -> AGENTS.md`。
 
-The full developer guide lives in `docs/architecture/auriga-cli-dev-guide.md`. Keep this root file focused on executable repository instructions and sample-install shape.
+完整的开发者指南位于 `docs/architecture/auriga-cli-dev-guide.md`。这个根文件应尽量只保留可执行的仓库指令和示例安装形态。
 
-## Repository Shape
+## 仓库结构
 
-Important runtime files:
+重要的运行时文件：
 
-- `src/utils.ts` owns `DEFAULT_WORKFLOW_TEMPLATE_FILE`, `LANGUAGES`, and `CONTENT_FILES`.
-- `src/workflow.ts` reads template source files and writes user-project `AGENTS.md`.
-- `src/workflow-docs.ts` owns user-project instruction filenames.
-- `src/workflow-markers.ts` owns the managed block marker contract.
-- `plugins/auriga-workflow/` owns workflow skills and git lifecycle hooks.
-- `plugins/session-instructions-loader/` owns Codex SessionStart ancestor instruction injection.
-- `.agents/plugins/session-instructions-loader.json` is intentionally `{}` in this repo; do not re-add `.claude/CLAUDE.md` extra injection.
-- `.claude/` keeps local settings and external skill symlinks only. Do not reintroduce `.claude/AGENTS.md` or `.claude/CLAUDE.md` compatibility entries.
+- `src/utils.ts` 负责 `DEFAULT_WORKFLOW_TEMPLATE_FILE`、`LANGUAGES` 和 `CONTENT_FILES`。
+- `src/workflow.ts` 读取模板源文件，并写入用户项目的 `AGENTS.md`。
+- `src/workflow-docs.ts` 负责用户项目的指令文件名。
+- `src/workflow-markers.ts` 负责受管区块 marker 协议。
+- `plugins/auriga-workflow/` 负责 workflow skills 和 git 生命周期钩子。
+- `plugins/session-instructions-loader/` 负责 Codex SessionStart 的祖先指令注入。
+- `.agents/plugins/session-instructions-loader.json` 在这个仓库里有意保持为 `{}`；不要重新加回 `.claude/CLAUDE.md` 的额外注入。
+- `.claude/` 只保留本地设置和外部 skill 的符号链接。不要重新引入 `.claude/AGENTS.md` 或 `.claude/CLAUDE.md` 兼容项。
 
-Key tests for this area:
+这个区域的关键测试：
 
-- `tests/content-fetch.test.ts` checks runtime content fetch inputs and legacy template fallback.
-- `tests/workflow-install.test.ts` checks template source files still install as user-project `AGENTS.md`.
-- `tests/spec-design.test.ts` includes repo-checks for workflow template and instruction-entrypoint contracts.
-- `tests/session-instructions-loader.test.mjs` checks SessionStart behavior.
-- `tests/tarball-shape.test.ts` checks runtime reads do not rely on non-shipped tarball paths.
+- `tests/content-fetch.test.ts` 检查 runtime content fetch 的输入和旧版模板回退。
+- `tests/workflow-install.test.ts` 检查模板源文件是否仍然会安装为用户项目的 `AGENTS.md`。
+- `tests/spec-design.test.ts` 包含对 workflow 模板和指令入口契约的仓库级检查。
+- `tests/session-instructions-loader.test.mjs` 检查 SessionStart 行为。
+- `tests/tarball-shape.test.ts` 检查运行时读取不会依赖未随包发布的 tarball 路径。
 
-## Versioning
+## 版本管理
 
-`package.json` is the CLI version. It must be bumped before releasing user-visible shipped state, normally in the same PR that changes:
+`package.json` 是 CLI 版本号。只要要发布用户可见的交付内容，就必须先提升版本，通常和下面这些变更放在同一个 PR 里：
 
 - `src/`
 - `.claude-plugin/marketplace.json`
 - `.agents/plugins/marketplace.json`
 - `extra_plugin_configs.json`
-- structural `skills-lock.json` changes
-- `.agents/skills/<name>/SKILL.md` frontmatter `description:`
+- `skills-lock.json` 的结构性变化
+- `.agents/skills/<name>/SKILL.md` frontmatter 的 `description:`
 - `AGENTS.template.zh-CN.md` / `AGENTS.template.en.md`
 - `README.md` / `README.zh-CN.md`
 
-No bump is needed for:
+以下情况不需要提升版本：
 
-- root `AGENTS.md` / `CLAUDE.md` dev instructions
-- `.claude/skills/<name>` symlinks
+- 根目录 `AGENTS.md` / `CLAUDE.md` 开发指令
+- `.claude/skills/<name>` 软链
 - `tests/`, `docs/`, `tsconfig*.json`, `.github/`
-- plugin payload-only changes under `plugins/<name>/*` when the plugin's own marketplace/version path handles freshness
-- external skill body/hash refreshes without structural lock or frontmatter-description changes
+- `plugins/<name>/*` 下仅变更 plugin payload 的内容，且 freshness 由插件自己的 marketplace/version 路径负责时
+- 仅刷新外部 skill 的正文或 hash，且没有结构性锁文件字段变化或 frontmatter `description:` 变化时
 
-Release flow: merge the version-bump PR, tag `v<package.version>`, push the tag, and let release CI publish. `fetchContentRoot()` pins runtime content to `v<package.version>` unless `AURIGA_CONTENT_REF` overrides it.
+发布流程：合并版本提升 PR，打上 `v<package.version>` 标签，推送该标签，然后让 release CI 完成发布。`fetchContentRoot()` 会把 runtime content 固定到 `v<package.version>`，除非被 `AURIGA_CONTENT_REF` 覆盖。
 
-If the user explicitly batches a version bump into a follow-up pre-release PR, document that in the PR risk section and keep runtime compatibility in place. This PR intentionally includes such a temporary legacy content fallback for old tags: if a new template source path 404s, `fetchContentRoot()` may fetch the pre-rename `AGENTS.md` / `AGENTS.en.md` and write it into the new template filename in its temp content root. Keep that fallback until the next release tag that contains `AGENTS.template.*` has shipped.
+如果用户明确把版本提升拆到后续的 pre-release PR 里，要在 PR 的风险部分写明，并保留 runtime 兼容性。这个 PR 里有意包含了针对旧标签的临时旧内容回退：如果新的模板源路径返回 404，`fetchContentRoot()` 可能会抓取重命名之前的 `AGENTS.md` / `AGENTS.en.md`，并把它写到临时 content root 里的新模板文件名下。这个回退要保留到下一个包含 `AGENTS.template.*` 的 release tag 已经发布之后。
 
-## Verification Commands
+## 验证命令
 
-Run the narrowest meaningful set first, then broaden before PR Ready:
+先运行最窄、但仍然有意义的一组命令，然后在 PR Ready 之前再扩大范围：
 
 ```bash
 npm test
@@ -148,27 +148,27 @@ npm run test:session-instructions-loader
 npm run test:git-guards
 ```
 
-`npm run test:e2e` is slow and network-bound. Do not run it by default for ordinary docs, tests, comments, or repo-instruction-only changes. Run it when a change touches tarball/package shape, `package.json` version or bin metadata, `fetchContentRoot()` / runtime content fetch, workflow/skill/plugin install behavior, marketplace install paths, or before cutting a release. It requires the current HEAD to be pushed because it installs the tarball and fetches GitHub content pinned to the branch HEAD.
+`npm run test:e2e` 很慢，而且依赖网络。普通的文档、测试、注释，或者只改仓库指令时，不要默认运行它。只有当变更会影响 tarball/package 形态、`package.json` 版本或 bin 元数据、`fetchContentRoot()` / runtime content fetch、workflow/skill/plugin 的安装行为、marketplace 安装路径，或者在准备发布前，才运行它。它要求当前 HEAD 已经推送，因为它会安装 tarball，并抓取固定到分支 HEAD 的 GitHub 内容。
 
-Before PR Ready, any change touching Web UI state/catalog inputs should also follow the manual Web UI check in `docs/architecture/auriga-cli-dev-guide.md`.
+在把 PR 标记为 Ready 之前，任何会影响 Web UI state/catalog inputs 的变更，都还要按 `docs/architecture/auriga-cli-dev-guide.md` 里的说明做一次手工 Web UI 检查。
 
-## Documentation Rules
+## 文档规则
 
-- Active planning/design artifacts live in `docs/specs/` only during development.
-- PR Ready requires `docs/specs/` to be empty: promote to `docs/architecture/`, archive to `docs/worklog/worklog-<YYYY-MM-DD>-<branch-name>/`, or delete.
-- Stable module and process docs live under `docs/architecture/`, `docs/rules/`, `docs/runbooks/`, or another purpose-specific directory.
-- `docs/rules/review/` is for project custom reviewers consumed by `deep-review`.
-- `docs/rules/test/` is for project test rules; `test-designer` or the main agent must check relevant files before writing tests.
+- 活动中的规划 / 设计产物只在开发期间放在 `docs/specs/`。
+- PR Ready 时要求 `docs/specs/` 为空：要么晋升到 `docs/architecture/`，要么归档到 `docs/worklog/worklog-<YYYY-MM-DD>-<branch-name>/`，要么删除。
+- 稳定的模块和流程文档放在 `docs/architecture/`、`docs/rules/`、`docs/runbooks/`，或者其他按用途划分的目录下。
+- `docs/rules/review/` 放的是给 `deep-review` 使用的项目自定义 reviewer。
+- `docs/rules/test/` 放的是项目测试规则；`test-designer` 或主 agent 在写测试前必须先检查相关文件。
 
-## Editing Guidance
+## 编辑指引
 
-- Prefer existing repo patterns and helpers over new abstractions.
-- Keep template source edits in both languages unless explicitly scoped otherwise.
-- Do not add plugin payloads to `CONTENT_FILES`; plugin freshness belongs to plugin marketplaces.
-- Do not add auriga-owned workflow skills back to `skills-lock.json` or `.agents/skills/`; they ship through the `auriga-workflow` plugin.
-- When editing plugin or skill assets, keep Claude Code and Codex portability in mind. The portability checklist is `docs/rules/agent-portability.md`.
-- Use concise comments only when they explain non-obvious constraints or history.
+- 优先使用仓库里已有的模式和辅助函数，不要轻易新增抽象。
+- 除非明确只限于某一语言，否则模板源编辑要同时保持两种语言一致。
+- 不要把 plugin payload 加进 `CONTENT_FILES`；plugin 的 freshness 属于 plugin marketplace 的职责。
+- 不要把 auriga 自己负责的 workflow skills 再加回 `skills-lock.json` 或 `.agents/skills/`；它们通过 `auriga-workflow` plugin 发布。
+- 编辑 plugin 或 skill 资产时，要同时考虑 Claude Code 和 Codex 的可移植性。可移植性检查清单见 `docs/rules/agent-portability.md`。
+- 只在注释能够解释不明显的约束或历史背景时，才写简短注释。
 
-## Communication
+## 沟通
 
-Use Chinese by default with the user. Keep routine updates concise, but explain tradeoffs when the work touches unfamiliar domains, testing strategy, release behavior, or cross-module contracts.
+默认用中文和用户沟通。日常更新保持简洁；但当工作涉及不熟悉的领域、测试策略、发布行为或跨模块契约时，要把取舍讲清楚。
