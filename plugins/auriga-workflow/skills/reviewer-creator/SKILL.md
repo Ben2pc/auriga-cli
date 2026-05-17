@@ -29,7 +29,7 @@ description: "当用户要求创建自定义审查者、添加项目专属审查
 
 1. **Name** — kebab-case（例如 `migration-safety`、`i18n-keys`）。校验：
    - 全小写 / 连字符分隔 / 无空格或特殊字符
-   - **拒绝与内置审查者重名**：`spec-conformance`、`correctness`、`test-quality`、`docs-sync`、`robustness`、`security`、`ux`、`performance`、`architecture`、`code-quality`、`skill-plugin-quality` — 与内置重名本就会被调度器拦截，但在此处提前捕获以求清晰
+   - **拒绝与内置审查者重名**：`spec-conformance`、`correctness`、`test-quality`、`docs-sync`、`robustness`、`security`、`ux`、`performance`、`architecture`、`code-quality`、`skill-plugin-quality` — 与内置重名会被 `deep-review` 视为必然重叠，直接吸收进同名内置审查者；自定义审查者应取一个区别于内置的名字，避免被意外吸收
 2. **One-line "Best for"** — 简短的职责描述（12–25 字）
 3. **Domain** — 用于范围前言的一个短语（例如"迁移安全"、"特性标志清理"）
 4. **Trigger category** — 恰好选一项：
@@ -81,7 +81,7 @@ mkdir -p docs/rules/review/
 
 ## Anti-patterns
 
-- ❌ 使用内置审查者的名称——调度器会跳过重名并警告
+- ❌ 使用内置审查者的名称——`deep-review` 会把重名的自定义审查者吸收进同名内置审查者；要新增一个维度，就取一个区别于内置的名字
 - ❌ 为窄关切设置 `always` 触发——每个拉取请求都要付出分派成本；优先用带具体信号的 `detection-driven`
 - ❌ 省略 Detection signals——`detection-driven` 必需，在其他场景也可作为关注提示
 - ❌ 删除"起点，而非边界"的范围前言——缺少它的审查者往往会漏掉清单之外的发现（较新的推理模型倾向于把枚举列表当成封闭集合）
