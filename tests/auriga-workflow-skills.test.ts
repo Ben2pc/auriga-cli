@@ -34,3 +34,91 @@ describe("auriga-workflow skill contracts", () => {
     );
   });
 });
+
+describe("deep-review custom-reviewer scope overlap", () => {
+  const deepReview = (): string =>
+    read("plugins/auriga-workflow/skills/deep-review/SKILL.md");
+
+  // VAL-OVL-001 — overlapping custom reviewer is not dispatched separately
+  test("overlapping custom reviewer is not dispatched as a separate subagent", () => {
+    const text = deepReview();
+    assert.ok(
+      text.includes("范围重叠"),
+      "SKILL.md must define the scope-overlap concept for custom reviewers",
+    );
+    assert.ok(
+      text.includes("不再为该自定义审查者分派独立子代理"),
+      "an overlapping custom reviewer must not be dispatched as a separate subagent",
+    );
+  });
+
+  // VAL-OVL-002 — overlapping custom reviewer's content is absorbed into the host
+  test("overlapping custom reviewer's checklist is absorbed into the host built-in", () => {
+    const text = deepReview();
+    assert.ok(
+      text.includes("项目专属补充"),
+      "absorbed custom content must be labelled as a project-specific supplement",
+    );
+    assert.ok(
+      /Checklist[^。]*worked scenarios/.test(text),
+      "the absorbed content must be the custom reviewer's Checklist and worked scenarios",
+    );
+  });
+
+  // VAL-OVL-003 — non-overlapping custom reviewer still dispatched standalone
+  test("non-overlapping custom reviewer is still dispatched as an independent reviewer", () => {
+    const text = deepReview();
+    assert.ok(
+      text.includes("全新维度"),
+      "SKILL.md must describe a non-overlapping custom reviewer as a new dimension",
+    );
+    assert.ok(
+      /不重叠[^]*?独立[^]*?分派/.test(text),
+      "a non-overlapping custom reviewer must still be dispatched as an independent reviewer",
+    );
+  });
+
+  // VAL-OVL-004 — overlap decided semantically, optional explicit field wins
+  test("overlap is decided semantically with an optional explicit Extends field", () => {
+    const text = deepReview();
+    assert.ok(
+      text.includes("语义判断"),
+      "overlap detection must be primarily a semantic judgment",
+    );
+    assert.ok(
+      text.includes("Extends"),
+      "an explicit Extends field, when present, must take precedence",
+    );
+  });
+
+  // VAL-OVL-005 — name collision unified into absorption, old skip rule removed
+  test("name collision is treated as guaranteed overlap, not skip-and-warn", () => {
+    const text = deepReview();
+    assert.ok(
+      /重名[^]*?必然重叠/.test(text),
+      "a name collision must be treated as a guaranteed overlap",
+    );
+    assert.ok(
+      !text.includes("跳过并给出警告"),
+      "the old skip-and-warn rule for name collisions must be removed",
+    );
+  });
+
+  // VAL-OVL-006 — host not triggered → absorbed content does not run
+  test("absorbed content does not run when the host built-in is not triggered", () => {
+    const text = deepReview();
+    assert.ok(
+      text.includes("随 host 一并不运行"),
+      "absorbed custom content must not run when its host built-in is not triggered",
+    );
+  });
+
+  // VAL-OVL-007 — absorbed findings attributed to the host built-in name
+  test("absorbed findings are attributed to the host built-in reviewer name", () => {
+    const text = deepReview();
+    assert.ok(
+      text.includes("按 host 内置审查者名标注"),
+      "findings from absorbed content must be attributed to the host built-in name",
+    );
+  });
+});
