@@ -146,10 +146,9 @@ Run the narrowest meaningful set first, then broaden before PR Ready:
 npm test
 npm run test:session-instructions-loader
 npm run test:git-guards
-npm run test:e2e
 ```
 
-`npm run test:e2e` is slow and network-bound. It requires the current HEAD to be pushed because it installs the tarball and fetches GitHub content pinned to the branch HEAD.
+`npm run test:e2e` is slow and network-bound. Do not run it by default for ordinary docs, tests, comments, or repo-instruction-only changes. Run it when a change touches tarball/package shape, `package.json` version or bin metadata, `fetchContentRoot()` / runtime content fetch, workflow/skill/plugin install behavior, marketplace install paths, or before cutting a release. It requires the current HEAD to be pushed because it installs the tarball and fetches GitHub content pinned to the branch HEAD.
 
 Before PR Ready, any change touching Web UI state/catalog inputs should also follow the manual Web UI check in `docs/architecture/auriga-cli-dev-guide.md`.
 
