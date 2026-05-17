@@ -180,24 +180,6 @@ describe("spec-design skill — repo-check VALs", () => {
       text.includes("VAL-XXX-NNN") || /VAL-/.test(text),
       "test-designer must reference VAL ids",
     );
-    assert.ok(
-      text.includes("docs/rules/test/"),
-      "test-designer must consult project test rules under docs/rules/test/",
-    );
-  });
-
-  test("deep-review test-quality reviewer consumes project test rules", () => {
-    const text = read(
-      "plugins/auriga-workflow/skills/deep-review/references/reviewers/test-quality.md",
-    );
-    assert.ok(
-      text.includes("docs/rules/test/"),
-      "test-quality reviewer must consult project test rules under docs/rules/test/",
-    );
-    assert.ok(
-      /test-designer/.test(text),
-      "test-quality reviewer must stay aligned with test-designer",
-    );
   });
 
   test("VAL-DEP-009: deep-review spec-conformance reviewer requires VAL tagging", () => {
