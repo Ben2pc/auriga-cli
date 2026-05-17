@@ -464,8 +464,9 @@ describe("workflow templates — bilingual markers (VAL-WF-011)", () => {
   // The install splice logic is language-agnostic — it operates on file bytes,
   // not language. The only language-specific risk is whether each shipped
   // template carries the markers, so this is a repo-check on both templates.
-  // (A real `lang:"zh-CN"` install can't be exercised hermetically: it routes
-  // through fetchExtraContent → a live GitHub fetch of the tagged version.)
+  // A real non-default-language install would otherwise route through
+  // fetchExtraContent; this repo-check keeps the language-specific marker risk
+  // hermetic by reading both shipped templates directly.
   for (const file of ["AGENTS.template.zh-CN.md", "AGENTS.template.en.md"]) {
     test(`VAL-WF-011: ${file} is shipped as a marked template`, () => {
       const parsed = parseMarkers(fs.readFileSync(path.join(REPO_ROOT, file), "utf-8"));

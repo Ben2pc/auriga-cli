@@ -200,6 +200,14 @@ describe("spec-design skill — repo-check VALs", () => {
     const text = read("AGENTS.md");
     assert.match(text, /# auriga-cli Development Guide/);
     assert.match(text, /Interactive CLI/);
+    assert.ok(
+      Buffer.byteLength(text, "utf-8") < 32 * 1024,
+      "root AGENTS.md must stay under Codex's default instruction budget",
+    );
+    assert.ok(
+      text.split("\n").length <= 200,
+      "root AGENTS.md must stay lean enough for Claude Code memory guidance",
+    );
     assert.equal(
       text.startsWith("<!-- AURIGA:WORKFLOW:v1 START"),
       false,

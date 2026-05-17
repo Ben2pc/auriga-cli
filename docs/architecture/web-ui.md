@@ -271,7 +271,7 @@ scanner 按 Claude Code 实际安装位置读真值源，**支持 per-category �
 
 | 类目 | User scope 真值 | Project scope 真值 | 三态判定 |
 |---|---|---|---|
-| Workflow | `~/.claude/CLAUDE.md` | `<proj>/CLAUDE.md`（v1.18.5 起仅这一路径——撤掉 `.claude/CLAUDE.md` 回落，原回落在 `projectRoot === $HOME` 时坍塌到 user-scope） | 文件缺失 → not-installed；解析到 `# auriga Workflow (vX.Y.Z)` 头部 → installed（v1.19.0 起不再做版本比对——re-install 是 update 路径）；文件存在但无 auriga 头 → **not-installed** + `workflow-foreign-claudemd` warning（install 路径用 `CLAUDE.md.bak` 保护用户内容，且 v1.19.0 起 backup-once，不会覆盖原始 .bak） |
+| Workflow | `~/.claude/CLAUDE.md` | `<proj>/AGENTS.md` primary；legacy `<proj>/CLAUDE.md` remains a compatibility fallback | 文件缺失 → not-installed；解析到 `# auriga Workflow (vX.Y.Z)` / `# auriga 工作流 (vX.Y.Z)` 头部或受管标记 → installed（v1.19.0 起不再做版本比对——re-install 是 update 路径）；文件存在但无 auriga 头 → **not-installed** + foreign workflow warning（install 路径会保护用户内容，且 v1.19.0 起 backup-once，不会覆盖原始 .bak） |
 | Skills / Recommended | `~/.claude/skills/<name>/SKILL.md` 文件系统 | `<proj>/.claude/skills/<name>/SKILL.md` 文件系统 | 目录缺 → not-installed；SKILL.md 不可读 → installed + `skill-malformed` warning（不影响其他 skill）；SKILL.md 存在 → installed。Scanner 是 presence-only，内容 drift 不做比对（v1.19.0 起；前期通过 `npx skills update --project` 直接对每个 skill 的上游 HEAD 比对，本扫描器只判存在性） |
 | Plugins (Claude) | `claude plugins list --json` + 客户端按 `record.scope === "user"` 过滤 | 同命令 + 按 `record.scope === "project"` 且 `record.projectPath === <projectRoot>` 过滤 | `installed[id].version` 存在 → installed（id 双索引：CLI 用 `<plugin>@<marketplace>` 形式，catalog 用裸名）；CLI 不在 PATH → 类目降级 + `claude-cli-missing` warning |
 | Plugins (Codex) | `~/.codex/config.toml` 启用项 + `~/.codex/plugins/cache/<marketplace>/<plugin>/<version>/` 存在 → installed | n/a — Codex 设计上 user-scope only | 不做版本比对 |
@@ -527,7 +527,7 @@ UI bundle 路径键就是 `v<package.version>`，CLI 启动时根据自身版本
 
 7. **M7：文档收尾**
    - README 中英更新
-   - CLAUDE.md（dev guide）补"如何跑 e2e"
+   - AGENTS.md（dev guide）补"如何跑 e2e"
    - 收尾打磨
 
 > 不附工时估算——里程碑只表达**顺序与拆分粒度**，实际投入由实现 Agent 与人按当下节奏判断。
@@ -568,7 +568,7 @@ UI bundle 路径键就是 `v<package.version>`，CLI 启动时根据自身版本
 
 ### 13.1 视觉系统 of record
 
-[`docs/design/anthropic-style-reference.md`](../design/anthropic-style-reference.md)（385 行）是本期 UI 的视觉真值源。该文件从外部 Anthropic style reference 复制入仓，遵循 [Harness Principles](../../CLAUDE.md) 的 "repo as truth"。
+[`docs/design/anthropic-style-reference.md`](../design/anthropic-style-reference.md)（385 行）是本期 UI 的视觉真值源。该文件从外部 Anthropic style reference 复制入仓，遵循 [Harness Principles](../../AGENTS.md) 的 "repo as truth"。
 
 实现路径：
 

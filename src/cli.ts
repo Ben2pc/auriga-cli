@@ -784,8 +784,9 @@ async function runUi(p: UiParsed, version: string): Promise<number> {
   //   - tarballRoot: where `dist/catalog.json` + the bundled DEV ui/dist live.
   //     Always read from the installed npm package; can't be fetched because
   //     dist/ is built artifact, not git content.
-  //   - contentRoot: where the runtime install recipes live (AGENTS.md,
-  //     marketplace manifests, extra_plugin_configs.json, skills-lock.json).
+  //   - contentRoot: where the runtime install recipes live (workflow
+  //     templates, marketplace manifests, extra_plugin_configs.json,
+  //     skills-lock.json).
   //     These files are
   //     NOT in the npm tarball — the `files` allowlist only ships `dist/*`
   //     + npm defaults. They are fetched from GitHub, pinned to the CLI
@@ -868,8 +869,9 @@ async function runUi(p: UiParsed, version: string): Promise<number> {
     pluginAgentsByName.set(name, def.agents);
   }
   const applyHandlers = buildDefaultApplyHandlers({
-    // contentRoot: install handlers read AGENTS.md, marketplace manifests,
-    // extra_plugin_configs.json, and skills-lock.json — all CONTENT_FILES.
+    // contentRoot: install handlers read workflow templates, marketplace
+    // manifests, extra_plugin_configs.json, and skills-lock.json — all
+    // CONTENT_FILES.
     // Routing them at tarballRoot fails ENOENT for npm-installed users.
     packageRoot: contentRoot,
     cwd,
@@ -896,8 +898,8 @@ async function runUi(p: UiParsed, version: string): Promise<number> {
         cwd,
         // server reads dist/catalog.json (tarball-shipped) via
         // buildScanCatalog on each /api/state call; install-time content
-        // (marketplace manifests, extra plugin config, AGENTS.md, …) was already injected
-        // into applyHandlers above with contentRoot.
+        // (workflow templates, marketplace manifests, extra plugin config, …)
+        // was already injected into applyHandlers above with contentRoot.
         packageRoot: tarballRoot,
         heartbeatTimeoutMs: UI_HEARTBEAT_TIMEOUT_MS,
         applyHandlers,
