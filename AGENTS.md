@@ -9,18 +9,56 @@ Product workflow templates are separate root files:
 - `AGENTS.template.zh-CN.md`
 - `AGENTS.template.en.md`
 
-They are installed into user projects as `AGENTS.md` plus `CLAUDE.md -> AGENTS.md`; do not confuse template source names with install target names.
+They are installed into user projects as `AGENTS.md` plus `CLAUDE.md -> AGENTS.md`; do not confuse template source names with install target names. The Chinese template is also the authoritative workflow contract for this repository; the English template should mirror it for users.
 
-## Core Workflow
+## auriga Workflow Contract
 
-- Work on a branch, never commit directly to `main`.
-- Use `git-workflow` for branch, commit, PR create, PR Ready, and review-feedback handling.
-- For new behavior, use TDD: baseline, failing test, minimal implementation, regression verification.
-- For bugs or unexpected failures, use `systematic-debugging` before fixing.
-- For multi-file or non-trivial implementation work, use `incremental-impl` to decide size, slicing, and verification discipline.
-- Before claiming completion, committing, or moving a PR forward, run fresh verification per `verification-before-completion`.
-- PRs start as Draft. Mark Ready only after verification is complete, PR body has scope, acceptance criteria, design decisions, risks, test plan, and remaining TODOs, and `docs/specs/` has been cleared.
-- After Ready, run formal `deep-review`; fix blocking findings. Non-blocking findings may be fixed or explicitly deferred with rationale.
+1. 需求澄清：新需求先用 `spec-design` 澄清 requirement。**requirement聚焦"做什么"和验收标准，不写具体技术路径**，如果是产品功能优先关注"Why"，让实现阶段的 Agent 自行决定怎么做。**spec = why + what; plan = how。** 如果改动不影响外部行为契约（重构、换算法、换库但可观察行为不变），跳过 spec 直接进 plan。
+
+2. 方案计划：完成需求澄清后，先做一次**规模判定**再决定 plan 方式。**满足以下三条全部成立**才走快速开发流程（详见下文「快速开发流程」段；跳过 planning，直接进入 pre-coding / 建分支阶段）：(a) 工作落在单一模块或单一概念内；(b) 验收标准 ≤5 条 bullet；(c) 不涉及跨边界接口改动（公共 API、schema、共享模块）。把判定结果记进任务追踪器（例：「规模判定 → QDF：单模块，3 条验收，无接口改动」）。任一不成立或拿不准，就走完整路径。先显式判断并表态：工作是否架构吃重（跨多个模块、重划模块边界、或"怎么做"并不显然）；若是，先跑 `arch-design`——它是执行跟踪方式的前置步骤而非替代，也是"跳过 spec 的架构级重构"入口。然后用 `AskUserQuestion` 选执行跟踪方式，要摆出完整菜单、不要默认只给两项：内置 Plan（中等复杂度）、`planning-with-files`（长程、持久跟踪）、`goalify`（自驱 `/goal` 执行）。计划、设计决策、技术债务应作为仓库内的版本化产物，方便后续 Agent 推理上下文。
+
+3. 编码前准备1：**开始写代码前，先从 main 创建开发分支**，所有 commit 在分支上完成，禁止直接提交到 main。分支命名规范：`feat/`（新功能）、`fix/`（修复）、`docs/`（文档）、`refactor/`（重构）、`chore/`（杂项）。所有 git/gh 操作（建分支、commit、PR create/ready、review 后处理）都使用 `git-workflow` skill（随 `auriga-workflow` 插件分发）。
+
+4. 编码前准备2：创建开发分支并完成第一个有意义的 commit 后，尽早创建 Draft Pull Request，让 CI、范围对齐和增量反馈在实现完成前就可以开始。
+
+5. 编码前准备3：遇到 bug、测试失败或异常行为时，先按 `systematic-debugging` 找根因，再决定修复。
+
+6. TDD：所有代码改动都遵循 `test-driven-development`（唯一例外见「快速开发流程」段：纯文档、纯配置）：先写失败测试，再写最小实现，再回归验证。**每个 task 开始前明确可测试的验收标准**（具体功能点 + 验收条件 + 边界场景），不是最后才检查。写/更新测试前，主 Agent 或 `test-designer` 必须先查看 `docs/rules/test/` 下与当前模块或测试类型相关的规则；目录不存在或无相关文件时，明确记录为无项目专属测试规则。满足以下**任一**条件时调用 `test-designer` skill：(a) 需求跨 ≥2 个模块且交互非显然；(b) 边界场景难以让实现 Agent 公平自测；(c) 你正想跳过 TDD，因为"实现看起来比测试更显然"。skill 内置 **Independent Evaluation**，派遣零上下文的 agent，仅接收需求描述和代码路径（不包含实现方案），以最高推理力度返回可执行的失败测试。
+
+7. 增量实现：绿灯阶段对任何非平凡的实现工作调用 `incremental-impl`——多文件改动、跨文件重构、落地一个已规划的 task（来源不限：内置 Plan、`planning-with-files`、`spec-design` spec、`arch-design` 的 arch_design.md、或用户直接给的任务）、跨切面修改、或预计要写超过 ~100 行。规模判定（XS–XL）、切片策略、按需并行派遣、片间执行纪律都由 skill 自身负责——具体规则看 skill 本身。仅当 skill 的规模判定为 XS、或改动是纯文档 / 纯配置时跳过。
+
+8. 完成编码后：任何"已完成 / 已修复 / 可以提交 / 可以进入评审"的判断前，都先按 `verification-before-completion` 运行并检查完整验证。运行受影响的自动化测试，以及必要的浏览器、界面或移动端交互检查；不要只靠阅读实现来判断完成。
+
+9. PR就绪：在验证完成、基准分支确认无误，并且 PR 描述已补全五要素——变更范围、验收标准、设计决策、风险、剩余 TODO 之前，保持 PR 为 Draft。完成这些条件后，将 PR 标记为 Ready for Review。如果 `spec-design`、`arch-design` 或 `planning-with-files` 产生了设计文档（`spec.md`、`arch_design.md`）、findings.md、progress.md、task_plan.md 等产物，用 `AskUserQuestion` 询问用户：删除还是存档到 `docs/worklog/worklog-<YYYY-MM-DD>-<分支名>/` 目录下便于回溯。
+
+10. PR评审：Draft PR 阶段可以先获取早期反馈。PR 标记为 Ready for Review 后，正式 review 必须通过 `deep-review` skill（打包在 `auriga-workflow` 插件中）发起。`/review` 保留作为轻量 fallback。**评审 Agent 必须报告所有 finding 并附 severity + confidence，不要按重要性预过滤**——强推理模型会字面执行 "only report high-severity" 类指令，导致真实 bug 召回下降；过滤交给人来做。
+
+11. 合并后复利：PR 合并完成的那一刻，用 `AskUserQuestion` 主动询问用户是否运行 `session-compound` skill。该 skill 把本次会话沉淀为自包含的交互式 HTML 报告（叙事时间线 + token / cache / 工具健康度 + playground 面板，列出生态 skill 安装、AGENTS.md 修改、缺失 skill 等可勾选候选项），让本次会话的洞察落到对的位置，而不是合并完就蒸发。每次合并询问一次；不要静默执行，用户拒绝后也不要反复追问。
+
+### 快速开发流程（bug fix / 小重构 / 小功能）
+
+由 planning 阶段入口的规模判定三条谓词全部命中时触发。只跳过 planning——需求澄清、分支、Draft PR、TDD、验证和 review 规则仍然适用。步骤：
+
+1. **跑基线**：先跑受影响模块的现有测试，确认当前状态（全绿 or 已有失败）
+2. **写/更新测试**（红灯）：用 `test-driven-development` 描述期望行为。改动涉及公共模块时，确认所有消费方的测试都在基线内
+3. **实现**（绿灯）：写最小代码让测试通过
+4. **回归验证**：跑全量受影响测试，不只是新写的
+
+跳过 TDD 的唯一例外：纯文档、纯配置 改动（无代码逻辑变更）。
+
+### 文档规范
+
+仓库文档统一放 `docs/` 下，按用途分目录，让 Agent、`pr-ready-guard` hook、人工 reviewer 对"文档该放哪、从哪找"有一致认知。
+
+| 目录 | 用途 | 生命周期 |
+|---|---|---|
+| `docs/worklog/worklog-<YYYY-MM-DD>-<branch-name>/` | 已归档的 session-ephemeral planning 产物（`findings.md`、`progress.md`、`task_plan.md`、设计 spec）。在 PR-readiness 阶段归档。一个 PR 一个子目录，`docs/worklog/` 作为统一父目录，方便集中查阅 | PR merge 后永久保留 |
+| `docs/rules/` | 编码规范、review checklist、命名 / 风格约定 | 长期维护 |
+| `docs/rules/review/` | 项目级自定义 reviewer；每个文件对应一个 `deep-review` 扩展维度，由 `reviewer-creator` 创建，`deep-review` 自动发现并分派 | 长期维护 |
+| `docs/rules/test/` | 项目级测试规则、测试设计约束和测试夹具约定；`test-designer` 或主 Agent 写/更新测试前必须先参考相关文件 | 长期维护 |
+| `docs/specs/` | **`spec-design` 和 `arch-design` 输出的默认归宿。** 开发期间存放活跃 spec / 架构设计 / 需求澄清的临时工作区。**PR Ready 前必须清空**——每个 spec 晋升到 `docs/architecture/`（长期参考）、归档到 `docs/worklog/worklog-<YYYY-MM-DD>-<branch-name>/`（历史轨迹），或删除。由 `pr-ready-guard` 强制（同时覆盖 `gh pr ready` 和不带 `--draft` 的 `gh pr create`） | 开发期临时 |
+| `docs/architecture/` | 稳定、长期的设计文档（模块布局、数据流、组件职责）。新条目通常由 `docs/specs/` 晋升而来 | 长期 |
+| `docs/` 其他 | 按需新增：`runbooks/`（运维流程）、`adr/`（架构决策记录）、`onboarding/` 等。一类文档一个目录，不混放 | 因类而异 |
 
 ## Repository Shape
 

@@ -200,6 +200,14 @@ describe("spec-design skill — repo-check VALs", () => {
     const text = read("AGENTS.md");
     assert.match(text, /# auriga-cli Development Guide/);
     assert.match(text, /Interactive CLI/);
+    assert.match(text, /## auriga Workflow Contract/);
+    assert.match(text, /需求澄清：新需求先用 `spec-design`/);
+    assert.match(text, /docs\/rules\/test\//);
+    assert.doesNotMatch(
+      text,
+      /AURIGA:WORKFLOW:v1 START/,
+      "root AGENTS.md includes the workflow contract as repo instructions, not as a managed install block",
+    );
     assert.ok(
       Buffer.byteLength(text, "utf-8") < 32 * 1024,
       "root AGENTS.md must stay under Codex's default instruction budget",
