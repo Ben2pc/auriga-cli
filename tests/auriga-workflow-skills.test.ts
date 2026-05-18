@@ -33,6 +33,20 @@ describe("auriga-workflow skill contracts", () => {
       "test-quality reviewer must stay aligned with test-designer",
     );
   });
+
+  test("test-quality reviewer may run unit tests only", () => {
+    const text = read(
+      "plugins/auriga-workflow/skills/deep-review/references/reviewers/test-quality.md",
+    );
+    assert.ok(
+      /\*\*Tools\*\*.*Bash/.test(text),
+      "test-quality reviewer must be granted Bash to run tests",
+    );
+    assert.ok(
+      text.includes("Running tests — unit only"),
+      "test-quality reviewer must scope test execution to unit tests only",
+    );
+  });
 });
 
 describe("deep-review custom-reviewer scope overlap", () => {
