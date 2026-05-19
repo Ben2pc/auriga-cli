@@ -5,7 +5,6 @@ import { checkbox, select } from "@inquirer/prompts";
 import { parse as parseToml } from "smol-toml";
 import type { TomlTable } from "smol-toml";
 import {
-  codexManifestPath,
   validateCodexMarketplace,
   type CodexMarketplace,
   type CodexMarketplacePlugin,
@@ -608,12 +607,15 @@ function codexSupportsPluginAdd(): boolean {
 }
 
 // `--enable plugins` turns on the global Codex plugins feature; `--enable
-// plugin_hooks` is appended only for plugins that ship hooks. We pass the
-// feature flags explicitly rather than relying on `codex plugin add` to
-// flip them — both flags are idempotent, so re-passing them across
-// multiple `add` calls is harmless. The plugin key (`<name>@<marketplace>`)
-// is validated upstream (PLUGIN_NAME_RE / MARKETPLACE_NAME_RE), so no
-// shell metacharacter can reach this interpolated command.
+// plugin_hooks` turns on the global plugin-hooks feature. Both are plain
+// Codex feature toggles (`-c features.<name>=true`), not per-plugin state —
+// `plugin_hooks` is appended for first-party plugins, which ship hooks, and
+// is harmless for any that don't (the feature simply has no hooks to run).
+// We do not inspect plugin payload to decide this: Codex owns plugin
+// content via `codex plugin add`, and the published CLI never fetches the
+// payload anyway. The plugin key (`<name>@<marketplace>`) is validated
+// upstream (PLUGIN_NAME_RE / MARKETPLACE_NAME_RE), so no shell
+// metacharacter can reach this interpolated command.
 function codexPluginAddCommand(pluginKey: string, hasHooks: boolean): string {
   const enable = hasHooks
     ? "--enable plugins --enable plugin_hooks"
@@ -663,15 +665,6 @@ function isCodexMarketplaceDifferentSource(error: unknown): boolean {
   return /already added from a different source/i.test(commandErrorText(error));
 }
 
-function pluginHasHooks(packageRoot: string, plugin: CodexMarketplacePlugin): boolean {
-  const relativeManifestPath = codexManifestPath(plugin);
-  if (!relativeManifestPath) return false;
-  const manifestPath = path.join(packageRoot, relativeManifestPath);
-  if (!fs.existsSync(manifestPath)) return false;
-  const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf-8")) as { hooks?: unknown };
-  return typeof manifest.hooks === "string" || Array.isArray(manifest.hooks);
-}
-
 function resolveSelectedCodexMarketplacePlugins(
   localMarketplace: CodexMarketplace,
   localSelected: CodexInstallPlugin[],
@@ -686,20 +679,6 @@ function resolveSelectedCodexMarketplacePlugins(
     }
     return plugin;
   });
-}
-
-function ensureCodexPluginManifests(
-  packageRoot: string,
-  plugins: CodexMarketplacePlugin[],
-): void {
-  for (const plugin of plugins) {
-    const manifestPath = codexManifestPath(plugin);
-    if (!manifestPath) {
-      throw new Error(`Codex marketplace.json: plugin ${plugin.name} must use a local source.path`);
-    }
-    if (fs.existsSync(path.join(packageRoot, manifestPath))) continue;
-    throw new Error(`Codex plugin ${plugin.name} manifest missing at ${manifestPath}`);
-  }
 }
 
 async function addCodexMarketplaceWithRetry(
@@ -764,19 +743,20 @@ interface CodexPluginAdd {
   key: string;
   // Plugin name, for post-install migration bookkeeping.
   name: string;
-  // Whether this plugin ships hooks (drives `--enable plugin_hooks`).
+  // Whether to pass `--enable plugin_hooks` (a global Codex feature toggle).
   hasHooks: boolean;
 }
 
 // Builds the `codex plugin add` work list: one entry per selected plugin.
-// Local plugins resolve their hooks flag from this repo's manifest;
-// external plugins emit a key straight from extra_plugin_configs.json
-// (Codex CLI fetches the upstream manifest itself) and never set
-// `hasHooks` — we don't have their manifest at install time. Acceptable
-// while no external plugin ships hooks; once one does, prefer fetching the
-// manifest or adding an explicit flag to the extra config entry.
+// Local (first-party) plugins always enable `plugin_hooks` — they ship
+// hooks, and the flag is a harmless global toggle for any that don't. We
+// deliberately do not inspect plugin payload to decide this: Codex owns
+// plugin content via `codex plugin add`, and the published CLI never
+// fetches the payload. External plugins emit a key straight from
+// extra_plugin_configs.json (Codex CLI fetches the upstream manifest
+// itself) and never set `hasHooks` — acceptable while no external plugin
+// ships hooks; once one does, add an explicit flag to the extra config entry.
 function composeCodexPluginAdds(
-  pluginContentRoot: string,
   localMarketplace: CodexMarketplace | null,
   selectedMarketplacePlugins: CodexMarketplacePlugin[],
   externalSelected: ExternalSelection[],
@@ -787,7 +767,7 @@ function composeCodexPluginAdds(
       adds.push({
         key: `${plugin.name}@${localMarketplace.name}`,
         name: plugin.name,
-        hasHooks: pluginHasHooks(pluginContentRoot, plugin),
+        hasHooks: true,
       });
     }
   }
@@ -909,17 +889,14 @@ async function installCodexPlugins(
   }
 
   if (failures.length === 0) {
-    // Hooks detection reads this repo's manifest directly: local plugins
-    // listed in .agents/plugins/marketplace.json are sourced from this
-    // repo, so packageRoot is the authoritative manifest location. The
-    // plugin payload itself is materialized by `codex plugin add` from the
-    // marketplace snapshot registered above — no manual cache copy.
+    // The plugin payload is materialized by `codex plugin add` from the
+    // marketplace snapshot registered above — no manual cache copy, and no
+    // local manifest inspection. A plugin missing from the snapshot surfaces
+    // as a `codex plugin add` failure, already caught and aggregated below.
     const selectedMarketplacePlugins = localMarketplace
       ? resolveSelectedCodexMarketplacePlugins(localMarketplace, localSelected)
       : [];
-    ensureCodexPluginManifests(packageRoot, selectedMarketplacePlugins);
     const pluginAdds = composeCodexPluginAdds(
-      packageRoot,
       localMarketplace,
       selectedMarketplacePlugins,
       externalSelected,

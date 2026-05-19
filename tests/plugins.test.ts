@@ -283,6 +283,43 @@ describe("installPlugins — Codex target", () => {
     ]);
   });
 
+  test("installs local Codex plugins when plugin payload is absent (published runtime — content fetch never materializes plugins/*/.codex-plugin/plugin.json)", async () => {
+    // The published CLI fetches CONTENT_FILES (including .agents/plugins/
+    // marketplace.json) into a temp content root but never fetches plugin
+    // payload — `codex plugin add` materializes it from the marketplace
+    // snapshot. Install must not depend on a locally readable plugin manifest.
+    const packageRoot = fs.mkdtempSync(path.join(os.tmpdir(), "auriga-plugin-test-"));
+    writeJson(path.join(packageRoot, ".agents/plugins/marketplace.json"), {
+      name: "auriga-cli",
+      plugins: [
+        {
+          name: "session-instructions-loader",
+          source: { source: "local", path: "./plugins/session-instructions-loader" },
+          policy: { installation: "AVAILABLE", authentication: "ON_INSTALL" },
+        },
+      ],
+    });
+    const codexHome = fs.mkdtempSync(path.join(os.tmpdir(), "auriga-codex-home-"));
+    process.env.CODEX_HOME = codexHome;
+    const commands: string[] = [];
+    const { installPlugins } = await importPlugins((cmd) => {
+      commands.push(cmd);
+      return "";
+    });
+
+    await installPlugins(packageRoot, {
+      interactive: false,
+      agent: "codex",
+      selected: ["session-instructions-loader"],
+    });
+
+    assert.deepEqual(commands, [
+      "codex plugin add --help",
+      `codex plugin marketplace add '${packageRoot}'`,
+      "codex plugin add session-instructions-loader@auriga-cli --enable plugins --enable plugin_hooks",
+    ]);
+  });
+
   test("uses the full HTTPS marketplace source outside DEV mode", async () => {
     const previousDev = process.env.DEV;
     delete process.env.DEV;
