@@ -45,7 +45,7 @@
 | `docs/rules/review/` | 项目级自定义 reviewer；每个文件对应一个 `deep-review` 扩展维度，由 `reviewer-creator` 创建，`deep-review` 自动发现并分派 | 长期维护 |
 | `docs/rules/test/` | 项目级测试规则、测试设计约束和测试夹具约定；`test-designer` 或主 Agent 写/更新测试前必须先参考相关文件 | 长期维护 |
 | `docs/specs/` | **`spec-design` 和 `arch-design` 输出的默认归宿。** 开发期间存放活跃 spec / 架构设计 / 需求澄清的临时工作区。**PR Ready 前必须清空**——每个 spec 晋升到 `docs/architecture/`、归档到 `docs/worklog/worklog-<YYYY-MM-DD>-<branch-name>/`，或删除。 | 开发期临时 |
-| `docs/architecture/` | 稳定、长期的设计文档（模块布局、数据流、组件职责）。 | 长期 |
+| `docs/architecture/` | 稳定、长期的设计文档（模块布局、数据流、组件职责），以及架构决策记录（ADR，文件名 `ADR-<序号>-<标题>.md`）。 | 长期 |
 | `docs/` 其他 | 按需新增：`CI/`、`onboarding/` 等。一类文档一个目录，不混放 | 因类而异 |
 
 # Harness 原则

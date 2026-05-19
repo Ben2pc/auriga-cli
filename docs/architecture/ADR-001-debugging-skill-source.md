@@ -1,4 +1,4 @@
-# ADR-0001: systematic-debugging skill 的来源选型
+# ADR-001: systematic-debugging skill 的来源选型
 
 - 状态：**已评估，决策延后**
 - 日期：2026-05-12

@@ -45,7 +45,7 @@ Repo documentation lives under `docs/`, directory-per-purpose, so Agents, the `p
 | `docs/rules/review/` | Project-level custom reviewers; each file maps to one `deep-review` extension dimension, created by `reviewer-creator` and auto-discovered by `deep-review`. | Long-lived, maintained |
 | `docs/rules/test/` | Project-level test rules, test-design constraints, and fixture conventions; `test-designer` or the main Agent must consult relevant files before writing or updating tests. | Long-lived, maintained |
 | `docs/specs/` | **Default destination for `spec-design` and `arch-design` outputs.** Temporary working area for active specs / architecture designs / requirement clarifications during development. **Must be empty by PR Ready** — promote each spec to `docs/architecture/`, archive to `docs/worklog/worklog-<YYYY-MM-DD>-<branch-name>/`, or delete. | Ephemeral during dev |
-| `docs/architecture/` | Stable, long-lived design docs (module layouts, data flows, component responsibilities). | Long-lived |
+| `docs/architecture/` | Stable, long-lived design docs (module layouts, data flows, component responsibilities), plus architecture decision records (ADRs, filename `ADR-<n>-<title>.md`). | Long-lived |
 | `docs/` (other categories) | Add one directory per new document category on demand: `CI/`, `onboarding/`, etc. One directory per category; don't mix. | Varies |
 
 # Harness Principles
