@@ -63,15 +63,14 @@ describe("generateCatalog (build-time)", () => {
     assertEntriesShape(catalog.workflowSkills, "workflowSkills");
   });
 
-  test("recommended skills: 7 entries (cross-model delegators + frontend skills + deprecation-and-migration + documentation-and-adrs)", () => {
-    assert.equal(catalog.recommendedSkills.length, 7);
+  test("recommended skills: 6 entries (cross-model delegators + frontend skills + deprecation-and-migration); documentation-and-adrs forked into auriga-workflow", () => {
+    assert.equal(catalog.recommendedSkills.length, 6);
     const names = catalog.recommendedSkills.map((e) => e.name).sort();
     assert.deepEqual(names, [
       "claude-code-agent",
       "codex-agent",
       "deprecation-and-migration",
       "design-taste-frontend",
-      "documentation-and-adrs",
       "frontend-design",
       "make-interfaces-feel-better",
     ]);
