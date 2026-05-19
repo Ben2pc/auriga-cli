@@ -467,6 +467,45 @@ describe("installPlugins — Codex target", () => {
     }
   });
 
+  test("propagates a per-plugin `codex plugin add` failure through the failures aggregator", async () => {
+    const previousDev = process.env.DEV;
+    delete process.env.DEV;
+    try {
+      const packageRoot = makeCodexMarketplace();
+      const codexHome = fs.mkdtempSync(path.join(os.tmpdir(), "auriga-codex-home-"));
+      process.env.CODEX_HOME = codexHome;
+      const commands: string[] = [];
+      const { installPlugins } = await importPlugins((cmd) => {
+        commands.push(cmd);
+        if (cmd.startsWith("codex plugin add session-instructions-loader@")) {
+          throw new Error("Command failed: codex plugin add — snapshot missing the plugin");
+        }
+        return "";
+      });
+
+      // The marketplace registers fine; the per-plugin `codex plugin add`
+      // throws. Non-interactive must surface it through the aggregator,
+      // not swallow it.
+      await assert.rejects(
+        () => installPlugins(packageRoot, {
+          interactive: false,
+          agent: "codex",
+          selected: ["session-instructions-loader"],
+        }),
+        /1 Codex plugin operation\(s\) failed: codex plugin session-instructions-loader@auriga-cli/,
+      );
+
+      assert.deepEqual(commands, [
+        "codex plugin add --help",
+        "codex plugin marketplace add https://github.com/Ben2pc/auriga-cli.git",
+        "codex plugin add session-instructions-loader@auriga-cli --enable plugins --enable plugin_hooks",
+      ]);
+    } finally {
+      if (previousDev === undefined) delete process.env.DEV;
+      else process.env.DEV = previousDev;
+    }
+  });
+
   test("keeps interactive Codex marketplace and plugin commands attached to the terminal", async () => {
     const previousDev = process.env.DEV;
     delete process.env.DEV;
