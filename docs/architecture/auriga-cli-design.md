@@ -66,10 +66,11 @@ auriga-cli/
 ### Plugins
 
 - **内容**：本仓库插件来自 `.claude-plugin/marketplace.json` 和 `.agents/plugins/marketplace.json`；外部插件和 `defaultOn` 覆盖来自 `extra_plugin_configs.json`
-- **安装方式**：Claude 走 `claude plugins install <package> --scope <user|project>`；Codex 走 `codex plugin marketplace add/upgrade` 后写入 `~/.codex/config.toml`
-- **Scope 选择**：Claude 支持 user（默认）或 project；Codex 插件启用写入用户级 `~/.codex/config.toml`
-- **Marketplace 处理**：Claude 新 marketplace 自动执行 `claude plugins marketplace add`，已存在的执行 `claude plugins marketplace update`；Codex 执行 `codex plugin marketplace add/upgrade` 并从 Codex marketplace cache 复制本仓库插件 payload
-- **冲突处理**：Claude 通过 `claude plugins list` 检查；Codex 通过 marketplace 注册结果和 `~/.codex/config.toml` 收敛
+- **安装方式**：Claude 走 `claude plugins install <package> --scope <user|project>`；Codex 走 `codex plugin marketplace add/upgrade` 注册 marketplace 后，对每个选中插件执行原生的 `codex plugin add <plugin>@<marketplace>`（由 Codex 负责物化 cache 与写入 `~/.codex/config.toml`）
+- **Scope 选择**：Claude 支持 user（默认）或 project；Codex 插件由 `codex plugin add` 安装到用户级 `~/.codex`
+- **Marketplace 处理**：Claude 新 marketplace 自动执行 `claude plugins marketplace add`，已存在的执行 `claude plugins marketplace update`；Codex 执行 `codex plugin marketplace add/upgrade` 注册 marketplace，再由 `codex plugin add` 从 marketplace snapshot 安装本仓库插件
+- **版本门槛**：Codex 路径要求 Codex CLI 支持 `codex plugin add`，通过 `codex plugin add --help` 的退出码做能力探测；不支持时中止 Codex 侧安装并提示升级
+- **冲突处理**：Claude 通过 `claude plugins list` 检查；Codex 通过 marketplace 注册结果和 `codex plugin add` 的退出码收敛
 - **交互**：展示 plugin 列表（名称 + 描述），用户 checkbox 多选
 
 ## 插件来源文件
