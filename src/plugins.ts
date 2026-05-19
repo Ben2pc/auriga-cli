@@ -1418,29 +1418,25 @@ function removeCodexPluginFromConfig(
  *     surfaces nuanced failure modes (marketplace gone, network) that
  *     the caller needs to see verbatim.
  *
- *   Codex side: no `codex plugin uninstall` exists today (spec §10.4
- *     flagged this as v0.1 needs-confirm). We mimic the install path
- *     in reverse:
- *       1. Read + parse `~/.codex/config.toml`, delete `[plugins."<id>"]`,
- *          atomic write back. Throws on parse error (don't half-corrupt).
- *       2. rm `~/.codex/plugins/cache/<marketplace>/<plugin>/` directory.
- *     Both steps are idempotent — missing config / missing cache dir is
- *     a no-op (the user may have manually cleaned half of the install).
+ *   Codex side: shells out to `codex plugin remove <id>`, which deletes
+ *     the plugin from Codex's local config and cache. We deliberately do
+ *     NOT remove the marketplace itself — a single marketplace may host
+ *     multiple plugins, and tearing it down because one plugin left would
+ *     break the others. The user can `codex plugin marketplace remove`
+ *     separately when they want. Errors are propagated like the Claude
+ *     side; idempotency (removing an already-absent plugin) is the Codex
+ *     CLI's responsibility.
  *
- *     Caveat: we deliberately do NOT remove the marketplace itself. A
- *     single marketplace may host multiple plugins; tearing it down
- *     because one plugin left would break others. The user can
- *     `codex plugin marketplace remove` separately when they want.
- *
- * Validation happens before any I/O — a malformed id throws cleanly with
- * no side effects, so retries are safe.
+ * `parsePluginId` validates the id shape — and rejects shell
+ * metacharacters in either segment — before any command runs, so a
+ * malformed id throws cleanly with no side effects and retries are safe.
  */
 export async function uninstallPlugin(
   id: string,
   agent: "claude" | "codex",
   opts: { cwd: string; onLog?: (line: string) => void },
 ): Promise<void> {
-  const { plugin, marketplace } = parsePluginId(id);
+  parsePluginId(id);
   const emit = (line: string): void => { opts.onLog?.(line); };
 
   if (agent === "claude") {
@@ -1454,43 +1450,10 @@ export async function uninstallPlugin(
     return;
   }
 
-  // Codex path.
-  const home = codexHome();
-  const configPath = path.join(home, "config.toml");
-
-  if (fs.existsSync(configPath)) {
-    const content = fs.readFileSync(configPath, "utf-8");
-    // Parse-then-mutate: any parse failure aborts BEFORE we touch the
-    // filesystem (cache dir removal also gets skipped) so a damaged
-    // config doesn't end up half-uninstalled. The test "config.toml
-    // damaged → throw before mutation" locks this in.
-    const parsed = parseCodexConfigToml(content, configPath);
-    const removed = removeCodexPluginFromConfig(parsed, id);
-    if (removed) {
-      const next = stringifyToml(parsed);
-      atomicWriteFile(configPath, next.endsWith("\n") ? next : `${next}\n`);
-      log.ok(`${id} disabled in Codex config.toml`);
-      emit(`removed ${id} from Codex config.toml`);
-    } else {
-      log.skip(`${id} not present in Codex config.toml`);
-      emit(`${id} not present in Codex config.toml`);
-    }
-  } else {
-    log.skip(`Codex config.toml not present`);
-    emit(`Codex config.toml not present`);
-  }
-
-  // Cache dir: ~/.codex/plugins/cache/<marketplace>/<plugin>/
-  // PLUGIN_ID_RE constrains both segments to a safe charset, so the
-  // path can't escape via injection. rmSync with recursive+force is
-  // the standard rm-rf idiom; missing dir is a no-op.
-  const cacheDir = path.join(home, "plugins", "cache", marketplace, plugin);
-  if (fs.existsSync(cacheDir)) {
-    fs.rmSync(cacheDir, { recursive: true, force: true });
-    log.ok(`${id} cache directory removed`);
-    emit(`removed Codex cache directory for ${id}`);
-  } else {
-    log.skip(`${id} cache directory not present`);
-    emit(`Codex cache directory for ${id} not present`);
-  }
+  // Codex path: `codex plugin remove` deletes the plugin from Codex's
+  // local config and cache. `id` was validated above, so it carries no
+  // shell metacharacter.
+  exec(`codex plugin remove ${id}`, { cwd: opts.cwd, inherit: true });
+  log.ok(`${id} removed from Codex`);
+  emit(`removed ${id} from Codex`);
 }
