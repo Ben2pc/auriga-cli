@@ -608,6 +608,36 @@ function codexMarketplaceUpgradeCommand(marketplaceName: string): string {
   return `codex plugin marketplace upgrade ${shellQuote(marketplaceName)}`;
 }
 
+// Capability probe for the native `codex plugin add` command. Older Codex
+// versions expose `codex plugin marketplace` but not `add`; probing the
+// subcommand's `--help` is version-number-agnostic — it needs no knowledge
+// of which Codex release introduced `add`, so it can't rot the way a
+// hardcoded minimum-version compare would. `--help` prints and exits 0
+// when the subcommand exists, and exits non-zero (throwing here) when it
+// doesn't.
+function codexSupportsPluginAdd(): boolean {
+  try {
+    exec("codex plugin add --help");
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// `--enable plugins` turns on the global Codex plugins feature; `--enable
+// plugin_hooks` is appended only for plugins that ship hooks. We pass the
+// feature flags explicitly rather than relying on `codex plugin add` to
+// flip them — both flags are idempotent, so re-passing them across
+// multiple `add` calls is harmless. The plugin key (`<name>@<marketplace>`)
+// is validated upstream (PLUGIN_NAME_RE / MARKETPLACE_NAME_RE), so no
+// shell metacharacter can reach this interpolated command.
+function codexPluginAddCommand(pluginKey: string, hasHooks: boolean): string {
+  const enable = hasHooks
+    ? "--enable plugins --enable plugin_hooks"
+    : "--enable plugins";
+  return `codex plugin add ${pluginKey} ${enable}`;
+}
+
 function commandErrorText(error: unknown): string {
   if (!(error instanceof Error)) return String(error);
   const parts = [error.message];
@@ -946,6 +976,48 @@ async function composeCodexPluginKeys(
   return { pluginKeys, needsPluginHooks };
 }
 
+interface CodexPluginAdd {
+  // `<name>@<marketplace>` selector passed to `codex plugin add`.
+  key: string;
+  // Plugin name, for post-install migration bookkeeping.
+  name: string;
+  // Whether this plugin ships hooks (drives `--enable plugin_hooks`).
+  hasHooks: boolean;
+}
+
+// Builds the `codex plugin add` work list: one entry per selected plugin.
+// Local plugins resolve their hooks flag from this repo's manifest;
+// external plugins emit a key straight from extra_plugin_configs.json
+// (Codex CLI fetches the upstream manifest itself) and never set
+// `hasHooks` — we don't have their manifest at install time. Acceptable
+// while no external plugin ships hooks; once one does, prefer fetching the
+// manifest or adding an explicit flag to the extra config entry.
+function composeCodexPluginAdds(
+  pluginContentRoot: string,
+  localMarketplace: CodexMarketplace | null,
+  selectedMarketplacePlugins: CodexMarketplacePlugin[],
+  externalSelected: ExternalSelection[],
+): CodexPluginAdd[] {
+  const adds: CodexPluginAdd[] = [];
+  if (localMarketplace) {
+    for (const plugin of selectedMarketplacePlugins) {
+      adds.push({
+        key: `${plugin.name}@${localMarketplace.name}`,
+        name: plugin.name,
+        hasHooks: pluginHasHooks(pluginContentRoot, plugin),
+      });
+    }
+  }
+  for (const p of externalSelected) {
+    adds.push({
+      key: `${p.name}@${p.marketplace.name}`,
+      name: p.name,
+      hasHooks: false,
+    });
+  }
+  return adds;
+}
+
 async function installCodexPlugins(
   packageRoot: string,
   opts: InstallOpts,
@@ -974,6 +1046,20 @@ async function installCodexPlugins(
 
   if (selected.length === 0) {
     log.skip("No Codex plugins selected");
+    return;
+  }
+
+  // Version gate: native `codex plugin add` materializes the plugin cache
+  // and writes the enable config itself. Without it there is no supported
+  // install path — fail fast with an actionable upgrade hint rather than
+  // falling back to a hand-rolled cache/config mechanism. Under `--agent
+  // both` this throw is caught by installPlugins' aggregator, so the
+  // Claude-side install still completes (the Codex side is recorded as a
+  // failure).
+  if (!codexSupportsPluginAdd()) {
+    const msg = "Codex CLI does not support `codex plugin add` — upgrade the Codex CLI and retry";
+    if (!opts.interactive) throw new Error(msg);
+    log.error(msg);
     return;
   }
 
@@ -1040,38 +1126,30 @@ async function installCodexPlugins(
   }
 
   if (failures.length === 0) {
-    const localMarketplaceContentRoot = localMarketplace
-      ? resolveCodexMarketplaceContentRoot(packageRoot, localMarketplace.name)
-      : packageRoot;
-    const effectiveLocalMarketplace = localMarketplace
-      ? loadCodexMarketplace(localMarketplaceContentRoot) ?? localMarketplace
-      : null;
-    const selectedMarketplacePlugins = effectiveLocalMarketplace
-      ? resolveSelectedCodexMarketplacePlugins(effectiveLocalMarketplace, localSelected)
+    // Hooks detection reads this repo's manifest directly: local plugins
+    // listed in .agents/plugins/marketplace.json are sourced from this
+    // repo, so packageRoot is the authoritative manifest location. The
+    // plugin payload itself is materialized by `codex plugin add` from the
+    // marketplace snapshot registered above — no manual cache copy.
+    const selectedMarketplacePlugins = localMarketplace
+      ? resolveSelectedCodexMarketplacePlugins(localMarketplace, localSelected)
       : [];
-    ensureCodexPluginManifests(localMarketplaceContentRoot, selectedMarketplacePlugins);
-    if (effectiveLocalMarketplace) {
-      materializeLocalCodexPluginCache(
-        localMarketplaceContentRoot,
-        effectiveLocalMarketplace.name,
-        selectedMarketplacePlugins,
-      );
-    }
-    const { pluginKeys, needsPluginHooks } = await composeCodexPluginKeys(
-      localMarketplaceContentRoot,
-      effectiveLocalMarketplace,
+    ensureCodexPluginManifests(packageRoot, selectedMarketplacePlugins);
+    const pluginAdds = composeCodexPluginAdds(
+      packageRoot,
+      localMarketplace,
       selectedMarketplacePlugins,
       externalSelected,
     );
-
-    enableCodexPluginConfig(
-      path.join(codexHome(), "config.toml"),
-      pluginKeys,
-      needsPluginHooks,
-    );
-    for (const plugin of [...localSelected, ...externalSelected]) {
-      log.ok(`${plugin.name} enabled for Codex`);
-      runPostInstallMigration(plugin.name, opts, ["codex"]);
+    for (const entry of pluginAdds) {
+      try {
+        exec(codexPluginAddCommand(entry.key, entry.hasHooks), marketplaceExecOpts);
+        log.ok(`Codex plugin ${entry.key} added`);
+        runPostInstallMigration(entry.name, opts, ["codex"]);
+      } catch (e) {
+        log.error(`Failed to add Codex plugin ${entry.key}\n${commandErrorText(e)}`);
+        failures.push(`codex plugin ${entry.key}`);
+      }
     }
   }
 

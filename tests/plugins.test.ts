@@ -4,7 +4,6 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, mock, test } from "node:test";
-import { parse } from "smol-toml";
 
 let importSerial = 0;
 const ORIGINAL_HOME = process.env.HOME;
@@ -73,14 +72,6 @@ function renameCodexMarketplace(packageRoot: string, name: string): void {
   const marketplace = JSON.parse(fs.readFileSync(marketplacePath, "utf-8")) as { name: string };
   marketplace.name = name;
   writeJson(marketplacePath, marketplace);
-}
-
-function seedCodexMarketplaceCache(packageRoot: string, codexHome: string): string {
-  const marketplacePath = path.join(packageRoot, ".agents/plugins/marketplace.json");
-  const marketplace = JSON.parse(fs.readFileSync(marketplacePath, "utf-8")) as { name: string };
-  const cacheRoot = path.join(codexHome, ".tmp", "marketplaces", marketplace.name);
-  fs.cpSync(packageRoot, cacheRoot, { recursive: true });
-  return cacheRoot;
 }
 
 function makeClaudePluginsConfig(): string {
@@ -246,11 +237,10 @@ afterEach(() => {
 });
 
 describe("installPlugins — Codex target", () => {
-  test("adds the Codex marketplace and enables selected plugins plus plugin hooks", async () => {
+  test("probes plugin support, adds the marketplace, and installs a hooks plugin via codex plugin add", async () => {
     const packageRoot = makeCodexMarketplace();
     const codexHome = fs.mkdtempSync(path.join(os.tmpdir(), "auriga-codex-home-"));
     process.env.CODEX_HOME = codexHome;
-    seedCodexMarketplaceCache(packageRoot, codexHome);
     const commands: string[] = [];
     const { installPlugins } = await importPlugins((cmd) => {
       commands.push(cmd);
@@ -263,19 +253,17 @@ describe("installPlugins — Codex target", () => {
       selected: ["session-instructions-loader"],
     });
 
-    assert.deepEqual(commands, [`codex plugin marketplace add '${packageRoot}'`]);
-    const config = fs.readFileSync(path.join(codexHome, "config.toml"), "utf-8");
-    assert.match(config, /\[features\]\n(?:.*\n)*plugins = true/);
-    assert.match(config, /plugin_hooks = true/);
-    assert.match(config, /\[plugins\."session-instructions-loader@auriga-cli"\]\nenabled = true/);
-    assert.doesNotMatch(config, /auriga-go@auriga-cli/);
+    assert.deepEqual(commands, [
+      "codex plugin add --help",
+      `codex plugin marketplace add '${packageRoot}'`,
+      "codex plugin add session-instructions-loader@auriga-cli --enable plugins --enable plugin_hooks",
+    ]);
   });
 
   test("installs local Codex plugins from marketplace.json without an install list", async () => {
     const packageRoot = makeCodexMarketplace();
     const codexHome = fs.mkdtempSync(path.join(os.tmpdir(), "auriga-codex-home-"));
     process.env.CODEX_HOME = codexHome;
-    seedCodexMarketplaceCache(packageRoot, codexHome);
     const commands: string[] = [];
     const { installPlugins } = await importPlugins((cmd) => {
       commands.push(cmd);
@@ -288,9 +276,11 @@ describe("installPlugins — Codex target", () => {
       selected: ["marketplace-only"],
     });
 
-    assert.deepEqual(commands, [`codex plugin marketplace add '${packageRoot}'`]);
-    const config = fs.readFileSync(path.join(codexHome, "config.toml"), "utf-8");
-    assert.match(config, /\[plugins\."marketplace-only@auriga-cli"\]\nenabled = true/);
+    assert.deepEqual(commands, [
+      "codex plugin add --help",
+      `codex plugin marketplace add '${packageRoot}'`,
+      "codex plugin add marketplace-only@auriga-cli --enable plugins --enable plugin_hooks",
+    ]);
   });
 
   test("uses the full HTTPS marketplace source outside DEV mode", async () => {
@@ -300,7 +290,6 @@ describe("installPlugins — Codex target", () => {
       const packageRoot = makeCodexMarketplace();
       const codexHome = fs.mkdtempSync(path.join(os.tmpdir(), "auriga-codex-home-"));
       process.env.CODEX_HOME = codexHome;
-      seedCodexMarketplaceCache(packageRoot, codexHome);
       const commands: string[] = [];
       const { installPlugins } = await importPlugins((cmd) => {
         commands.push(cmd);
@@ -314,7 +303,9 @@ describe("installPlugins — Codex target", () => {
       });
 
       assert.deepEqual(commands, [
+        "codex plugin add --help",
         "codex plugin marketplace add https://github.com/Ben2pc/auriga-cli.git",
+        "codex plugin add session-instructions-loader@auriga-cli --enable plugins --enable plugin_hooks",
       ]);
     } finally {
       if (previousDev === undefined) delete process.env.DEV;
@@ -329,7 +320,6 @@ describe("installPlugins — Codex target", () => {
       const packageRoot = makeCodexMarketplace();
       const codexHome = fs.mkdtempSync(path.join(os.tmpdir(), "auriga-codex-home-"));
       process.env.CODEX_HOME = codexHome;
-      seedCodexMarketplaceCache(packageRoot, codexHome);
       fs.writeFileSync(
         path.join(codexHome, "config.toml"),
         [
@@ -353,24 +343,23 @@ describe("installPlugins — Codex target", () => {
       });
 
       assert.deepEqual(commands, [
+        "codex plugin add --help",
         "codex plugin marketplace upgrade 'auriga-cli'",
+        "codex plugin add session-instructions-loader@auriga-cli --enable plugins --enable plugin_hooks",
       ]);
-      const config = fs.readFileSync(path.join(codexHome, "config.toml"), "utf-8");
-      assert.match(config, /\[plugins\."session-instructions-loader@auriga-cli"\]\nenabled = true/);
     } finally {
       if (previousDev === undefined) delete process.env.DEV;
       else process.env.DEV = previousDev;
     }
   });
 
-  test("upgrades an already-registered Codex marketplace and still enables selected plugins", async () => {
+  test("upgrades an already-registered Codex marketplace and still installs selected plugins", async () => {
     const previousDev = process.env.DEV;
     delete process.env.DEV;
     try {
       const packageRoot = makeCodexMarketplace();
       const codexHome = fs.mkdtempSync(path.join(os.tmpdir(), "auriga-codex-home-"));
       process.env.CODEX_HOME = codexHome;
-      seedCodexMarketplaceCache(packageRoot, codexHome);
       fs.writeFileSync(
         path.join(codexHome, "config.toml"),
         '[marketplaces.auriga-cli]\nsource = "https://github.com/Ben2pc/auriga-cli.git"\n',
@@ -388,10 +377,10 @@ describe("installPlugins — Codex target", () => {
       });
 
       assert.deepEqual(commands, [
+        "codex plugin add --help",
         "codex plugin marketplace upgrade 'auriga-cli'",
+        "codex plugin add session-instructions-loader@auriga-cli --enable plugins --enable plugin_hooks",
       ]);
-      const config = fs.readFileSync(path.join(codexHome, "config.toml"), "utf-8");
-      assert.match(config, /\[plugins\."session-instructions-loader@auriga-cli"\]\nenabled = true/);
     } finally {
       if (previousDev === undefined) delete process.env.DEV;
       else process.env.DEV = previousDev;
@@ -405,10 +394,8 @@ describe("installPlugins — Codex target", () => {
       const packageRoot = makeCodexMarketplace();
       const codexHome = fs.mkdtempSync(path.join(os.tmpdir(), "auriga-codex-home-"));
       process.env.CODEX_HOME = codexHome;
-      seedCodexMarketplaceCache(packageRoot, codexHome);
       // Hostile state: a fork has been registered under the same name.
-      // The install must refuse to upgrade it (which would materialize
-      // fork content into our local cache).
+      // The install must refuse to upgrade it.
       fs.writeFileSync(
         path.join(codexHome, "config.toml"),
         '[marketplaces.auriga-cli]\nsource = "https://github.com/attacker/fork.git"\n',
@@ -428,26 +415,22 @@ describe("installPlugins — Codex target", () => {
         /different source/i,
       );
 
-      // Neither add nor upgrade was issued — the guard runs before either.
-      assert.deepEqual(commands, []);
-      // config.toml must not be rewritten with our plugin enabled — the
-      // hostile entry stays as-is, the user has to resolve it.
-      const config = fs.readFileSync(path.join(codexHome, "config.toml"), "utf-8");
-      assert.doesNotMatch(config, /session-instructions-loader/);
+      // Only the capability probe ran — the guard rejects before any
+      // marketplace or plugin command is issued.
+      assert.deepEqual(commands, ["codex plugin add --help"]);
     } finally {
       if (previousDev === undefined) delete process.env.DEV;
       else process.env.DEV = previousDev;
     }
   });
 
-  test("propagates upgrade failure (registered marketplace, exec throws) through the failures aggregator", async () => {
+  test("propagates marketplace upgrade failure (exec throws) through the failures aggregator", async () => {
     const previousDev = process.env.DEV;
     delete process.env.DEV;
     try {
       const packageRoot = makeCodexMarketplace();
       const codexHome = fs.mkdtempSync(path.join(os.tmpdir(), "auriga-codex-home-"));
       process.env.CODEX_HOME = codexHome;
-      seedCodexMarketplaceCache(packageRoot, codexHome);
       fs.writeFileSync(
         path.join(codexHome, "config.toml"),
         '[marketplaces.auriga-cli]\nsource = "https://github.com/Ben2pc/auriga-cli.git"\n',
@@ -473,27 +456,24 @@ describe("installPlugins — Codex target", () => {
         /codex marketplace auriga-cli/,
       );
 
-      // Upgrade was attempted (and failed); the plugin enable step was skipped.
-      assert.deepEqual(commands, ["codex plugin marketplace upgrade 'auriga-cli'"]);
-      assert.equal(
-        fs.existsSync(path.join(codexHome, "plugins/cache/auriga-cli/session-instructions-loader")),
-        false,
-        "plugin payload must not be materialized when marketplace upgrade fails",
-      );
+      // Upgrade was attempted (and failed); the plugin add step was skipped.
+      assert.deepEqual(commands, [
+        "codex plugin add --help",
+        "codex plugin marketplace upgrade 'auriga-cli'",
+      ]);
     } finally {
       if (previousDev === undefined) delete process.env.DEV;
       else process.env.DEV = previousDev;
     }
   });
 
-  test("keeps interactive Codex marketplace commands attached to the terminal", async () => {
+  test("keeps interactive Codex marketplace and plugin commands attached to the terminal", async () => {
     const previousDev = process.env.DEV;
     delete process.env.DEV;
     try {
       const packageRoot = makeCodexMarketplace();
       const codexHome = fs.mkdtempSync(path.join(os.tmpdir(), "auriga-codex-home-"));
       process.env.CODEX_HOME = codexHome;
-      seedCodexMarketplaceCache(packageRoot, codexHome);
       fs.writeFileSync(
         path.join(codexHome, "config.toml"),
         '[marketplaces.auriga-cli]\nsource = "https://github.com/Ben2pc/auriga-cli.git"\n',
@@ -507,23 +487,30 @@ describe("installPlugins — Codex target", () => {
       await installPlugins(packageRoot, {
         interactive: true,
         agent: "codex",
-        selected: ["session-instructions-loader"],
       });
 
-      assert.deepEqual(calls, [
-        { cmd: "which codex", inherit: undefined },
-        {
-          cmd: "codex plugin marketplace upgrade 'auriga-cli'",
-          inherit: true,
-        },
-      ]);
+      // `which` and the capability probe are captured (no inherit);
+      // marketplace and plugin-add commands stay attached to the terminal.
+      const byCmd = (c: string) => calls.find((call) => call.cmd === c);
+      assert.equal(byCmd("which codex")?.inherit, undefined);
+      assert.equal(byCmd("codex plugin add --help")?.inherit, undefined);
+      assert.equal(byCmd("codex plugin marketplace upgrade 'auriga-cli'")?.inherit, true);
+      const pluginAdds = calls.filter(
+        (call) => call.cmd.startsWith("codex plugin add ")
+          && call.cmd !== "codex plugin add --help",
+      );
+      assert.ok(pluginAdds.length > 0, "expected codex plugin add calls");
+      assert.ok(
+        pluginAdds.every((call) => call.inherit === true),
+        "interactive codex plugin add calls must inherit the terminal",
+      );
     } finally {
       if (previousDev === undefined) delete process.env.DEV;
       else process.env.DEV = previousDev;
     }
   });
 
-  test("upgrades the marketplace using the local marketplace.json name (not the source URL)", async () => {
+  test("installs plugins using the local marketplace.json name (not the source URL)", async () => {
     const previousDev = process.env.DEV;
     delete process.env.DEV;
     try {
@@ -531,7 +518,6 @@ describe("installPlugins — Codex target", () => {
       renameCodexMarketplace(packageRoot, "forked-marketplace");
       const codexHome = fs.mkdtempSync(path.join(os.tmpdir(), "auriga-codex-home-"));
       process.env.CODEX_HOME = codexHome;
-      seedCodexMarketplaceCache(packageRoot, codexHome);
       fs.writeFileSync(
         path.join(codexHome, "config.toml"),
         '[marketplaces.forked-marketplace]\nsource = "https://github.com/Ben2pc/auriga-cli.git"\n',
@@ -549,147 +535,39 @@ describe("installPlugins — Codex target", () => {
       });
 
       assert.deepEqual(commands, [
+        "codex plugin add --help",
         "codex plugin marketplace upgrade 'forked-marketplace'",
+        "codex plugin add session-instructions-loader@forked-marketplace --enable plugins --enable plugin_hooks",
       ]);
-      const config = fs.readFileSync(path.join(codexHome, "config.toml"), "utf-8");
-      assert.match(
-        config,
-        /\[plugins\."session-instructions-loader@forked-marketplace"\]\nenabled = true/,
-      );
     } finally {
       if (previousDev === undefined) delete process.env.DEV;
       else process.env.DEV = previousDev;
     }
   });
 
-  test("writes Codex config through the shared atomic writer", async () => {
+  test("installs every local Codex marketplace plugin by default", async () => {
     const packageRoot = makeCodexMarketplace();
     const codexHome = fs.mkdtempSync(path.join(os.tmpdir(), "auriga-codex-home-"));
     process.env.CODEX_HOME = codexHome;
-    seedCodexMarketplaceCache(packageRoot, codexHome);
-    const atomicWrites: string[] = [];
-    const { installPlugins } = await importPlugins(() => "", {
-      atomicWriteFile: (filePath, content) => {
-        atomicWrites.push(filePath);
-        fs.writeFileSync(filePath, content);
-      },
+    const commands: string[] = [];
+    const { installPlugins } = await importPlugins((cmd) => {
+      commands.push(cmd);
+      return "";
     });
-
-    await installPlugins(packageRoot, {
-      interactive: false,
-      agent: "codex",
-      selected: ["session-instructions-loader"],
-    });
-
-    assert.deepEqual(atomicWrites, [path.join(codexHome, "config.toml")]);
-  });
-
-  test("materializes local Codex plugin cache for selected plugins", async () => {
-    const packageRoot = makeCodexMarketplace();
-    const codexHome = fs.mkdtempSync(path.join(os.tmpdir(), "auriga-codex-home-"));
-    process.env.CODEX_HOME = codexHome;
-    seedCodexMarketplaceCache(packageRoot, codexHome);
-    const { installPlugins } = await importPlugins(() => "");
-
-    await installPlugins(packageRoot, {
-      interactive: false,
-      agent: "codex",
-      selected: ["session-instructions-loader"],
-    });
-
-    const cachedPluginRoot = path.join(
-      codexHome,
-      "plugins/cache/auriga-cli/session-instructions-loader/1.0.0",
-    );
-    assert.equal(
-      fs.existsSync(path.join(cachedPluginRoot, ".codex-plugin/plugin.json")),
-      true,
-      "selected plugin manifest should be present in the Codex cache",
-    );
-    assert.equal(
-      fs.existsSync(path.join(cachedPluginRoot, "skills/session-loader/SKILL.md")),
-      true,
-      "selected plugin content should be present in the Codex cache",
-    );
-    assert.equal(
-      fs.existsSync(path.join(codexHome, "plugins/cache/auriga-cli/auriga-go")),
-      false,
-      "unselected local plugins should not be materialized",
-    );
-  });
-
-  test("materializes local Codex plugins from the refreshed marketplace cache when present", async () => {
-    const packageRoot = makeCodexMarketplace();
-    const codexHome = fs.mkdtempSync(path.join(os.tmpdir(), "auriga-codex-home-"));
-    process.env.CODEX_HOME = codexHome;
-    seedCodexMarketplaceCache(packageRoot, codexHome);
-
-    const refreshedMarketplaceRoot = path.join(codexHome, ".tmp/marketplaces/auriga-cli");
-    fs.cpSync(packageRoot, refreshedMarketplaceRoot, { recursive: true });
-    writeJson(
-      path.join(
-        refreshedMarketplaceRoot,
-        "plugins/session-instructions-loader/.codex-plugin/plugin.json",
-      ),
-      {
-        name: "session-instructions-loader",
-        version: "2.0.0",
-        hooks: "./hooks/hooks.json",
-      },
-    );
-    fs.writeFileSync(
-      path.join(
-        refreshedMarketplaceRoot,
-        "plugins/session-instructions-loader/skills/session-loader/SKILL.md",
-      ),
-      "# session loader from refreshed marketplace\n",
-    );
-
-    const { installPlugins } = await importPlugins(() => "");
-
-    await installPlugins(packageRoot, {
-      interactive: false,
-      agent: "codex",
-      selected: ["session-instructions-loader"],
-    });
-
-    const cachedPluginRoot = path.join(
-      codexHome,
-      "plugins/cache/auriga-cli/session-instructions-loader/2.0.0",
-    );
-    assert.equal(
-      fs.existsSync(path.join(cachedPluginRoot, ".codex-plugin/plugin.json")),
-      true,
-      "selected plugin should be materialized under the refreshed marketplace version",
-    );
-    assert.equal(
-      fs.readFileSync(path.join(cachedPluginRoot, "skills/session-loader/SKILL.md"), "utf-8"),
-      "# session loader from refreshed marketplace\n",
-      "selected plugin content should come from the refreshed Codex marketplace cache",
-    );
-    assert.equal(
-      fs.existsSync(path.join(codexHome, "plugins/cache/auriga-cli/session-instructions-loader/1.0.0")),
-      false,
-      "stale packageRoot plugin version should not be materialized when refreshed marketplace content exists",
-    );
-  });
-
-  test("uses the Codex marketplace as the default local plugin install list", async () => {
-    const packageRoot = makeCodexMarketplace();
-    const codexHome = fs.mkdtempSync(path.join(os.tmpdir(), "auriga-codex-home-"));
-    process.env.CODEX_HOME = codexHome;
-    seedCodexMarketplaceCache(packageRoot, codexHome);
-    const { installPlugins } = await importPlugins(() => "");
 
     await installPlugins(packageRoot, {
       interactive: false,
       agent: "codex",
     });
 
-    const config = fs.readFileSync(path.join(codexHome, "config.toml"), "utf-8");
-    assert.match(config, /auriga-go@auriga-cli/);
-    assert.match(config, /session-instructions-loader@auriga-cli/);
-    assert.match(config, /marketplace-only@auriga-cli/);
+    const addCalls = commands.filter(
+      (c) => c.startsWith("codex plugin add ") && c !== "codex plugin add --help",
+    );
+    assert.deepEqual(addCalls, [
+      "codex plugin add auriga-go@auriga-cli --enable plugins --enable plugin_hooks",
+      "codex plugin add session-instructions-loader@auriga-cli --enable plugins --enable plugin_hooks",
+      "codex plugin add marketplace-only@auriga-cli --enable plugins --enable plugin_hooks",
+    ]);
   });
 
   test("extra plugin config can opt a local Codex marketplace plugin out of defaults", async () => {
@@ -703,46 +581,24 @@ describe("installPlugins — Codex target", () => {
     ]);
     const codexHome = fs.mkdtempSync(path.join(os.tmpdir(), "auriga-codex-home-"));
     process.env.CODEX_HOME = codexHome;
-    seedCodexMarketplaceCache(packageRoot, codexHome);
-    const { installPlugins } = await importPlugins(() => "");
+    const commands: string[] = [];
+    const { installPlugins } = await importPlugins((cmd) => {
+      commands.push(cmd);
+      return "";
+    });
 
     await installPlugins(packageRoot, {
       interactive: false,
       agent: "codex",
     });
 
-    const config = fs.readFileSync(path.join(codexHome, "config.toml"), "utf-8");
-    assert.match(config, /auriga-go@auriga-cli/);
-    assert.doesNotMatch(config, /session-instructions-loader@auriga-cli/);
-  });
-
-  test("keeps Codex config valid when existing TOML uses inline tables", async () => {
-    const packageRoot = makeCodexMarketplace();
-    const codexHome = fs.mkdtempSync(path.join(os.tmpdir(), "auriga-codex-home-"));
-    process.env.CODEX_HOME = codexHome;
-    seedCodexMarketplaceCache(packageRoot, codexHome);
-    fs.writeFileSync(
-      path.join(codexHome, "config.toml"),
-      'features = { plugins = false }\n\n[profiles.default]\nmodel = "gpt-5"\n',
+    const addCalls = commands.filter(
+      (c) => c.startsWith("codex plugin add ") && c !== "codex plugin add --help",
     );
-    const { installPlugins } = await importPlugins(() => "");
-
-    await installPlugins(packageRoot, {
-      interactive: false,
-      agent: "codex",
-      selected: ["session-instructions-loader"],
-    });
-
-    const config = fs.readFileSync(path.join(codexHome, "config.toml"), "utf-8");
-    const parsed = parse(config) as {
-      features?: { plugins?: boolean; plugin_hooks?: boolean };
-      plugins?: Record<string, { enabled?: boolean }>;
-      profiles?: { default?: { model?: string } };
-    };
-    assert.equal(parsed.features?.plugins, true);
-    assert.equal(parsed.features?.plugin_hooks, true);
-    assert.equal(parsed.plugins?.["session-instructions-loader@auriga-cli"]?.enabled, true);
-    assert.equal(parsed.profiles?.default?.model, "gpt-5");
+    assert.deepEqual(addCalls, [
+      "codex plugin add auriga-go@auriga-cli --enable plugins --enable plugin_hooks",
+      "codex plugin add marketplace-only@auriga-cli --enable plugins --enable plugin_hooks",
+    ]);
   });
 
   test("fails non-interactive Codex install when selected plugin is not in the Codex marketplace", async () => {
@@ -756,22 +612,6 @@ describe("installPlugins — Codex target", () => {
         selected: ["missing"],
       }),
       /not available for Codex/i,
-    );
-  });
-
-  test("fails local Codex plugin install when the refreshed marketplace cache is missing", async () => {
-    const packageRoot = makeCodexMarketplace();
-    const codexHome = fs.mkdtempSync(path.join(os.tmpdir(), "auriga-codex-home-"));
-    process.env.CODEX_HOME = codexHome;
-    const { installPlugins } = await importPlugins(() => "");
-
-    await assert.rejects(
-      () => installPlugins(packageRoot, {
-        interactive: false,
-        agent: "codex",
-        selected: ["session-instructions-loader"],
-      }),
-      /marketplace auriga-cli cache missing/i,
     );
   });
 
@@ -832,7 +672,6 @@ describe("installPlugins — Codex target", () => {
       ]);
       const codexHome = fs.mkdtempSync(path.join(os.tmpdir(), "auriga-codex-home-"));
       process.env.CODEX_HOME = codexHome;
-      seedCodexMarketplaceCache(packageRoot, codexHome);
       const commands: string[] = [];
       const { installPlugins } = await importPlugins((cmd) => {
         commands.push(cmd);
@@ -845,18 +684,14 @@ describe("installPlugins — Codex target", () => {
         selected: ["external-stub-plugin"],
       });
 
-      // No local plugin selected → no local marketplace add. Only the
-      // external `stub-marketplace` marketplace is registered.
+      // No local plugin selected → no local marketplace add. External
+      // plugins never carry `--enable plugin_hooks` (their upstream
+      // manifest isn't read at install time).
       assert.deepEqual(commands, [
+        "codex plugin add --help",
         "codex plugin marketplace add https://github.com/Ben2pc/stub-marketplace.git",
+        "codex plugin add external-stub-plugin@stub-marketplace --enable plugins",
       ]);
-      const config = fs.readFileSync(path.join(codexHome, "config.toml"), "utf-8");
-      assert.match(
-        config,
-        /\[plugins\."external-stub-plugin@stub-marketplace"\]\nenabled = true/,
-      );
-      // External plugins don't drive features.plugin_hooks.
-      assert.doesNotMatch(config, /plugin_hooks = true/);
     } finally {
       if (previousDev === undefined) delete process.env.DEV;
       else process.env.DEV = previousDev;
@@ -883,7 +718,6 @@ describe("installPlugins — Codex target", () => {
       ]);
       const codexHome = fs.mkdtempSync(path.join(os.tmpdir(), "auriga-codex-home-"));
       process.env.CODEX_HOME = codexHome;
-      seedCodexMarketplaceCache(packageRoot, codexHome);
       const commands: string[] = [];
       const { installPlugins } = await importPlugins((cmd) => {
         commands.push(cmd);
@@ -897,17 +731,12 @@ describe("installPlugins — Codex target", () => {
       });
 
       assert.deepEqual(commands, [
+        "codex plugin add --help",
         "codex plugin marketplace add https://github.com/Ben2pc/auriga-cli.git",
         "codex plugin marketplace add https://github.com/Ben2pc/stub-marketplace.git",
+        "codex plugin add auriga-go@auriga-cli --enable plugins --enable plugin_hooks",
+        "codex plugin add external-stub-plugin@stub-marketplace --enable plugins",
       ]);
-      const config = fs.readFileSync(path.join(codexHome, "config.toml"), "utf-8");
-      assert.match(config, /\[plugins\."auriga-go@auriga-cli"\]\nenabled = true/);
-      assert.match(
-        config,
-        /\[plugins\."external-stub-plugin@stub-marketplace"\]\nenabled = true/,
-      );
-      // auriga-go has hooks → plugin_hooks must flip on.
-      assert.match(config, /plugin_hooks = true/);
     } finally {
       if (previousDev === undefined) delete process.env.DEV;
       else process.env.DEV = previousDev;
@@ -959,9 +788,13 @@ describe("installPlugins — Codex target", () => {
         1,
         `expected one marketplace add for shared upstream; got ${addCalls.length}: ${addCalls.join(", ")}`,
       );
-      const config = fs.readFileSync(path.join(codexHome, "config.toml"), "utf-8");
-      assert.match(config, /\[plugins\."external-stub-plugin@stub-marketplace"\]\nenabled = true/);
-      assert.match(config, /\[plugins\."another-external-stub@stub-marketplace"\]\nenabled = true/);
+      const pluginAdds = commands.filter(
+        (c) => c.startsWith("codex plugin add ") && c !== "codex plugin add --help",
+      );
+      assert.deepEqual(pluginAdds, [
+        "codex plugin add external-stub-plugin@stub-marketplace --enable plugins",
+        "codex plugin add another-external-stub@stub-marketplace --enable plugins",
+      ]);
     } finally {
       if (previousDev === undefined) delete process.env.DEV;
       else process.env.DEV = previousDev;
@@ -1002,10 +835,10 @@ describe("installPlugins — Codex target", () => {
       });
 
       assert.deepEqual(commands, [
+        "codex plugin add --help",
         "codex plugin marketplace upgrade 'stub-marketplace'",
+        "codex plugin add external-stub-plugin@stub-marketplace --enable plugins",
       ]);
-      const config = fs.readFileSync(path.join(codexHome, "config.toml"), "utf-8");
-      assert.match(config, /\[plugins\."external-stub-plugin@stub-marketplace"\]\nenabled = true/);
     } finally {
       if (previousDev === undefined) delete process.env.DEV;
       else process.env.DEV = previousDev;
@@ -1019,7 +852,6 @@ describe("installPlugins — Codex target", () => {
       const packageRoot = makeCodexMarketplace();
       const codexHome = fs.mkdtempSync(path.join(os.tmpdir(), "auriga-codex-home-"));
       process.env.CODEX_HOME = codexHome;
-      seedCodexMarketplaceCache(packageRoot, codexHome);
       const commands: string[] = [];
       const { installPlugins } = await importPlugins((cmd) => {
         commands.push(cmd);
@@ -1041,19 +873,11 @@ describe("installPlugins — Codex target", () => {
         /different source/i,
       );
 
+      // The plugin add step is skipped after the marketplace failure.
       assert.deepEqual(commands, [
+        "codex plugin add --help",
         "codex plugin marketplace add https://github.com/Ben2pc/auriga-cli.git",
       ]);
-      assert.equal(
-        fs.existsSync(path.join(codexHome, "config.toml")),
-        false,
-        "config.toml must not be written after source mismatch",
-      );
-      assert.equal(
-        fs.existsSync(path.join(codexHome, "plugins/cache/auriga-cli/auriga-go")),
-        false,
-        "plugin payload must not be materialized from an untrusted same-name marketplace",
-      );
     } finally {
       if (previousDev === undefined) delete process.env.DEV;
       else process.env.DEV = previousDev;
@@ -1093,14 +917,16 @@ describe("installPlugins — Codex target", () => {
       });
 
       // No local marketplace add (packageRoot has no marketplace.json).
-      // Only the external one runs.
       const addCalls = commands.filter((c) => c.startsWith("codex plugin marketplace add"));
       assert.deepEqual(addCalls, [
         "codex plugin marketplace add https://github.com/Ben2pc/stub-marketplace.git",
       ]);
-      const config = fs.readFileSync(path.join(codexHome, "config.toml"), "utf-8");
-      assert.match(config, /\[plugins\."external-stub-plugin@stub-marketplace"\]\nenabled = true/);
-      assert.doesNotMatch(config, /auriga-go@auriga-cli/);
+      const pluginAdds = commands.filter(
+        (c) => c.startsWith("codex plugin add ") && c !== "codex plugin add --help",
+      );
+      assert.deepEqual(pluginAdds, [
+        "codex plugin add external-stub-plugin@stub-marketplace --enable plugins",
+      ]);
     } finally {
       if (previousDev === undefined) delete process.env.DEV;
       else process.env.DEV = previousDev;
@@ -1121,7 +947,6 @@ describe("installPlugins — Codex target", () => {
     });
     const codexHome = fs.mkdtempSync(path.join(os.tmpdir(), "auriga-codex-home-"));
     process.env.CODEX_HOME = codexHome;
-    seedCodexMarketplaceCache(packageRoot, codexHome);
     const commands: string[] = [];
     const { installPlugins } = await importPlugins((cmd) => {
       commands.push(cmd);
@@ -1144,15 +969,16 @@ describe("installPlugins — Codex target", () => {
       commands.some((cmd) => cmd.startsWith("codex plugin marketplace add")),
       "Codex installer should still run after a Claude-side failure",
     );
-    const config = fs.readFileSync(path.join(codexHome, "config.toml"), "utf-8");
-    assert.match(config, /auriga-go@auriga-cli/);
+    assert.ok(
+      commands.includes("codex plugin add auriga-go@auriga-cli --enable plugins --enable plugin_hooks"),
+      `Codex plugin add should run after a Claude-side failure; got: ${commands.join(" | ")}`,
+    );
   });
 
   test("agent both attempts Codex install when the Claude plugin config is missing", async () => {
     const packageRoot = makeCodexMarketplace();
     const codexHome = fs.mkdtempSync(path.join(os.tmpdir(), "auriga-codex-home-"));
     process.env.CODEX_HOME = codexHome;
-    seedCodexMarketplaceCache(packageRoot, codexHome);
     const commands: string[] = [];
     const { installPlugins } = await importPlugins((cmd) => {
       commands.push(cmd);
@@ -1169,11 +995,84 @@ describe("installPlugins — Codex target", () => {
     );
 
     assert.ok(
-      commands.some((cmd) => cmd.startsWith("codex plugin marketplace add")),
-      "Codex installer should still run when the Claude plugin config is missing",
+      commands.includes(
+        "codex plugin add session-instructions-loader@auriga-cli --enable plugins --enable plugin_hooks",
+      ),
+      `Codex plugin add should run when the Claude plugin config is missing; got: ${commands.join(" | ")}`,
     );
-    const config = fs.readFileSync(path.join(codexHome, "config.toml"), "utf-8");
-    assert.match(config, /session-instructions-loader@auriga-cli/);
+  });
+
+  test("fails the Codex install with an upgrade hint when codex plugin add is unsupported", async () => {
+    const packageRoot = makeCodexMarketplace();
+    const codexHome = fs.mkdtempSync(path.join(os.tmpdir(), "auriga-codex-home-"));
+    process.env.CODEX_HOME = codexHome;
+    const commands: string[] = [];
+    const { installPlugins } = await importPlugins((cmd) => {
+      commands.push(cmd);
+      if (cmd === "codex plugin add --help") {
+        throw new Error("Command failed: error: unrecognized subcommand 'add'");
+      }
+      return "";
+    });
+
+    await assert.rejects(
+      () => installPlugins(packageRoot, {
+        interactive: false,
+        agent: "codex",
+        selected: ["session-instructions-loader"],
+      }),
+      /upgrade the Codex CLI/i,
+    );
+
+    // The probe runs and fails first — no marketplace or plugin command
+    // is issued, and no manual fallback kicks in.
+    assert.deepEqual(commands, ["codex plugin add --help"]);
+  });
+
+  test("agent both completes the Claude side when codex plugin add is unsupported", async () => {
+    const packageRoot = makeCodexMarketplace();
+    writeJson(path.join(packageRoot, ".claude-plugin/marketplace.json"), {
+      name: "auriga-cli",
+      plugins: [
+        {
+          name: "auriga-go",
+          description: "Workflow autopilot",
+          source: "./plugins/auriga-go",
+        },
+      ],
+    });
+    const codexHome = fs.mkdtempSync(path.join(os.tmpdir(), "auriga-codex-home-"));
+    process.env.CODEX_HOME = codexHome;
+    const commands: string[] = [];
+    const { installPlugins } = await importPlugins((cmd) => {
+      commands.push(cmd);
+      if (cmd === "claude plugins list --json") return "[]";
+      if (cmd === "claude plugins marketplace list") return "";
+      if (cmd === "codex plugin add --help") {
+        throw new Error("Command failed: error: unrecognized subcommand 'add'");
+      }
+      return "";
+    });
+
+    await assert.rejects(
+      () => installPlugins(packageRoot, {
+        interactive: false,
+        agent: "both",
+        selected: ["auriga-go"],
+      }),
+      /plugin operation/i,
+    );
+
+    // Claude side completed despite the Codex version gate failing.
+    assert.ok(
+      commands.includes("claude plugins install auriga-go@auriga-cli --scope project"),
+      `Claude install must complete when the Codex side is gated out; got: ${commands.join(" | ")}`,
+    );
+    // Codex side stopped at the probe — no marketplace command was issued.
+    assert.ok(
+      !commands.some((cmd) => cmd.startsWith("codex plugin marketplace")),
+      `Codex marketplace must not be touched when the version gate fails; got: ${commands.join(" | ")}`,
+    );
   });
 });
 
@@ -1291,7 +1190,6 @@ describe("installPlugins — Claude target", () => {
     const cwd = fs.mkdtempSync(path.join(os.tmpdir(), "auriga-migrated-skills-project-"));
     const codexHome = fs.mkdtempSync(path.join(os.tmpdir(), "auriga-codex-home-"));
     process.env.CODEX_HOME = codexHome;
-    seedCodexMarketplaceCache(packageRoot, codexHome);
     for (const name of [
       "incremental-impl",
       "test-designer",
@@ -1353,7 +1251,6 @@ describe("installPlugins — Claude target", () => {
     const cwd = fs.mkdtempSync(path.join(os.tmpdir(), "auriga-migrated-skills-codex-only-"));
     const codexHome = fs.mkdtempSync(path.join(os.tmpdir(), "auriga-codex-home-"));
     process.env.CODEX_HOME = codexHome;
-    seedCodexMarketplaceCache(packageRoot, codexHome);
     for (const name of ["incremental-impl", "test-designer", "session-compound"]) {
       seedLegacySkill(cwd, name);
     }
@@ -1386,7 +1283,6 @@ describe("installPlugins — Claude target", () => {
     const cwd = fs.mkdtempSync(path.join(os.tmpdir(), "auriga-migrated-skills-dev-symlink-"));
     const codexHome = fs.mkdtempSync(path.join(os.tmpdir(), "auriga-codex-home-"));
     process.env.CODEX_HOME = codexHome;
-    seedCodexMarketplaceCache(packageRoot, codexHome);
     for (const name of ["incremental-impl", "test-designer", "session-compound"]) {
       const pluginSkillDir = path.join(cwd, "plugins", "auriga-workflow", "skills", name);
       fs.mkdirSync(pluginSkillDir, { recursive: true });
@@ -1422,7 +1318,6 @@ describe("installPlugins — Claude target", () => {
     const cwd = fs.mkdtempSync(path.join(os.tmpdir(), "auriga-migrated-skills-quiet-"));
     const codexHome = fs.mkdtempSync(path.join(os.tmpdir(), "auriga-codex-home-"));
     process.env.CODEX_HOME = codexHome;
-    seedCodexMarketplaceCache(packageRoot, codexHome);
     const logs: string[] = [];
     const { installPlugins } = await importPlugins((cmd) => {
       if (cmd === "claude plugins list --json") return "[]";
