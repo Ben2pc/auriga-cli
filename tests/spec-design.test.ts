@@ -168,6 +168,45 @@ describe("spec-design skill — repo-check VALs", () => {
     );
   });
 
+  test("VAL-DOC-001: documentation-and-adrs forked into auriga-workflow — gone from skills-lock + .agents/skills, present as plugin-bundled skill", () => {
+    const lock = JSON.parse(read("skills-lock.json"));
+    assert.equal(
+      "documentation-and-adrs" in lock.skills,
+      false,
+      "skills-lock.json must not contain documentation-and-adrs (forked into auriga-workflow)",
+    );
+    assert.equal(
+      fs.existsSync(path.join(repoRoot, ".agents/skills/documentation-and-adrs")),
+      false,
+      ".agents/skills/documentation-and-adrs/ must be deleted",
+    );
+    assert.equal(
+      fs.existsSync(
+        path.join(
+          repoRoot,
+          "plugins/auriga-workflow/skills/documentation-and-adrs/SKILL.md",
+        ),
+      ),
+      true,
+      "documentation-and-adrs must ship as a plugin-bundled auriga-workflow skill",
+    );
+  });
+
+  test("VAL-DOC-002: forked documentation-and-adrs stores ADRs under docs/architecture/, not docs/decisions/", () => {
+    const text = read(
+      "plugins/auriga-workflow/skills/documentation-and-adrs/SKILL.md",
+    );
+    assert.ok(
+      text.includes("docs/architecture/"),
+      "forked skill must point ADRs at docs/architecture/",
+    );
+    assert.equal(
+      text.includes("docs/decisions/"),
+      false,
+      "forked skill must not retain the upstream docs/decisions/ path",
+    );
+  });
+
   test("VAL-DEP-004: test-designer SKILL.md mentions validation-contract.md as input", () => {
     const text = read(
       "plugins/auriga-workflow/skills/test-designer/SKILL.md",
