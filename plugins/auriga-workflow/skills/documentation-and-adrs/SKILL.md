@@ -1,6 +1,6 @@
 ---
 name: documentation-and-adrs
-description: 当做出架构决策、变更公共 API、发布会改变用户可见行为的功能,或需要为后续工程师和 Agent 记录代码库背景上下文时使用。
+description: 当做出架构决策、变更公共 API、发布会改变用户可见行为的功能,需要把 arch-design 产出的 arch_design.md 沉淀为长期 ADR,或需要为后续工程师和 Agent 记录代码库背景上下文时使用。
 ---
 
 # 文档与架构决策记录
@@ -35,7 +35,9 @@ ADR 记录的是重要技术决策背后的推理过程。它是你能写下的�
 
 ### ADR 存放位置
 
-ADR 存放在 `docs/architecture/` 下,文件名用 `ADR-<序号>-<简短标题>.md`(例如 `ADR-001-use-postgresql.md`)。序号连续递增。`ADR-` 前缀让它在 `docs/architecture/` 里和模块布局、数据流等其他设计文档摆在一起时仍然能一眼认出。
+ADR 存放在 `docs/architecture/` 下,文件名用 `ADR-<序号>-<简短标题>.md`(例如 `ADR-001-use-postgresql.md`)。序号连续递增,`ADR-` 前缀让它在 `docs/architecture/` 里和模块布局、数据流等其他设计文档摆在一起时仍然能一眼认出。
+
+默认平铺即可。当 ADR 数量变多、按主题归类更清晰时,可以在 `docs/architecture/` 下按需创建子目录(例如 `data/`、`auth/`),把同一主题的 ADR 收拢进去;序号仍在全局范围保持连续。
 
 > 与 `arch-design` 的分工:`arch-design` 产出的 `arch_design.md` 是开发过程中的方案文档;ADR 是长期档案,用来在收尾时固化"昂贵到难以逆转"的决策。两者职责不重叠——一个服务当下实现,一个服务后续推理。
 
