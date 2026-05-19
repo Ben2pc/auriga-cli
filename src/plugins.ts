@@ -2,10 +2,9 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { checkbox, select } from "@inquirer/prompts";
-import { parse as parseToml, stringify as stringifyToml } from "smol-toml";
+import { parse as parseToml } from "smol-toml";
 import type { TomlTable } from "smol-toml";
 import {
-  codexLocalPluginPath,
   codexManifestPath,
   validateCodexMarketplace,
   type CodexMarketplace,
@@ -33,7 +32,6 @@ const MIGRATED_WORKFLOW_SKILLS = [
 const NOTIFY_PLUGIN_NAME = "auriga-notify";
 const WORKFLOW_SKILLS_PLUGIN_NAME = "auriga-workflow";
 const LEGACY_NOTIFY_MARKER = "auriga:notify";
-const CODEX_PLUGIN_VERSION_RE = /^[A-Za-z0-9][A-Za-z0-9._+-]{0,127}$/;
 export type PluginRuntime = "claude" | "codex";
 
 export interface ClaudeMarketplacePlugin {
@@ -379,21 +377,6 @@ function codexHome(): string {
   return process.env.CODEX_HOME || path.join(os.homedir(), ".codex");
 }
 
-function codexMarketplaceCacheRoot(marketplaceName: string): string {
-  return path.join(codexHome(), ".tmp", "marketplaces", marketplaceName);
-}
-
-function resolveCodexMarketplaceContentRoot(packageRoot: string, marketplaceName: string): string {
-  const cachedRoot = codexMarketplaceCacheRoot(marketplaceName);
-  if (fs.existsSync(path.join(cachedRoot, ".agents", "plugins", "marketplace.json"))) {
-    return cachedRoot;
-  }
-  throw new Error(
-    `Codex marketplace ${marketplaceName} cache missing at ${cachedRoot}. ` +
-      "Run `codex plugin marketplace add/upgrade` successfully before materializing local plugins.",
-  );
-}
-
 function shellQuote(value: string): string {
   return `'${value.replace(/'/g, "'\\''")}'`;
 }
@@ -608,6 +591,36 @@ function codexMarketplaceUpgradeCommand(marketplaceName: string): string {
   return `codex plugin marketplace upgrade ${shellQuote(marketplaceName)}`;
 }
 
+// Capability probe for the native `codex plugin add` command. Older Codex
+// versions expose `codex plugin marketplace` but not `add`; probing the
+// subcommand's `--help` is version-number-agnostic — it needs no knowledge
+// of which Codex release introduced `add`, so it can't rot the way a
+// hardcoded minimum-version compare would. `--help` prints and exits 0
+// when the subcommand exists, and exits non-zero (throwing here) when it
+// doesn't.
+function codexSupportsPluginAdd(): boolean {
+  try {
+    exec("codex plugin add --help");
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// `--enable plugins` turns on the global Codex plugins feature; `--enable
+// plugin_hooks` is appended only for plugins that ship hooks. We pass the
+// feature flags explicitly rather than relying on `codex plugin add` to
+// flip them — both flags are idempotent, so re-passing them across
+// multiple `add` calls is harmless. The plugin key (`<name>@<marketplace>`)
+// is validated upstream (PLUGIN_NAME_RE / MARKETPLACE_NAME_RE), so no
+// shell metacharacter can reach this interpolated command.
+function codexPluginAddCommand(pluginKey: string, hasHooks: boolean): string {
+  const enable = hasHooks
+    ? "--enable plugins --enable plugin_hooks"
+    : "--enable plugins";
+  return `codex plugin add ${pluginKey} ${enable}`;
+}
+
 function commandErrorText(error: unknown): string {
   if (!(error instanceof Error)) return String(error);
   const parts = [error.message];
@@ -689,174 +702,6 @@ function ensureCodexPluginManifests(
   }
 }
 
-function readCodexPluginVersion(packageRoot: string, plugin: CodexMarketplacePlugin): string {
-  const manifestPath = codexManifestPath(plugin);
-  if (!manifestPath) {
-    throw new Error(`Codex marketplace.json: plugin ${plugin.name} must use a local source.path`);
-  }
-  const manifest = JSON.parse(fs.readFileSync(path.join(packageRoot, manifestPath), "utf-8")) as {
-    version?: unknown;
-  };
-  if (typeof manifest.version !== "string" || !CODEX_PLUGIN_VERSION_RE.test(manifest.version)) {
-    throw new Error(`Codex plugin ${plugin.name} manifest must include a safe string version`);
-  }
-  return manifest.version;
-}
-
-function materializeLocalCodexPluginCache(
-  packageRoot: string,
-  marketplaceName: string,
-  plugins: CodexMarketplacePlugin[],
-): void {
-  const cacheRoot = path.join(codexHome(), "plugins", "cache");
-  for (const plugin of plugins) {
-    const sourcePath = codexLocalPluginPath(plugin);
-    if (!sourcePath) {
-      throw new Error(`Codex marketplace.json: plugin ${plugin.name} must use a local source.path`);
-    }
-    const version = readCodexPluginVersion(packageRoot, plugin);
-    const sourceDir = path.join(packageRoot, sourcePath);
-    const destDir = path.join(cacheRoot, marketplaceName, plugin.name, version);
-    const tmpDir = `${destDir}.tmp-${process.pid}-${Date.now()}`;
-    fs.rmSync(tmpDir, { recursive: true, force: true });
-    fs.mkdirSync(path.dirname(destDir), { recursive: true });
-    fs.cpSync(sourceDir, tmpDir, { recursive: true });
-    fs.rmSync(destDir, { recursive: true, force: true });
-    fs.renameSync(tmpDir, destDir);
-    if (!fs.existsSync(path.join(destDir, ".codex-plugin", "plugin.json"))) {
-      throw new Error(`Codex plugin ${plugin.name} cache materialization did not produce plugin.json`);
-    }
-  }
-}
-
-function ensureTomlBoolean(content: string, section: string, key: string, value: boolean): string {
-  const line = `${key} = ${value ? "true" : "false"}`;
-  const header = `[${section}]`;
-  const lines = content.length > 0 ? content.split(/\r?\n/) : [];
-  const start = lines.findIndex((l) => l.trim() === header);
-  if (start === -1) {
-    const prefix = content.trimEnd();
-    return `${prefix}${prefix ? "\n\n" : ""}${header}\n${line}\n`;
-  }
-  let end = lines.length;
-  for (let i = start + 1; i < lines.length; i += 1) {
-    if (/^\s*\[/.test(lines[i])) {
-      end = i;
-      break;
-    }
-  }
-  const keyRe = new RegExp(`^\\s*${key}\\s*=`);
-  for (let i = start + 1; i < end; i += 1) {
-    if (keyRe.test(lines[i])) {
-      lines[i] = line;
-      return lines.join("\n");
-    }
-  }
-  lines.splice(end, 0, line);
-  return lines.join("\n");
-}
-
-function parseCodexConfigToml(content: string, configPath: string): TomlTable {
-  if (content.trim().length === 0) return {};
-  try {
-    return parseToml(content) as TomlTable;
-  } catch (e) {
-    throw new Error(`Codex config.toml is invalid TOML at ${configPath}: ${(e as Error).message}`);
-  }
-}
-
-function isTomlTable(value: unknown): value is TomlTable {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function getOrCreateTomlTable(parent: TomlTable, key: string, pathLabel: string): TomlTable {
-  const existing = parent[key];
-  if (existing === undefined) {
-    const table: TomlTable = {};
-    parent[key] = table;
-    return table;
-  }
-  if (!isTomlTable(existing)) {
-    throw new Error(`Codex config.toml: ${pathLabel} must be a TOML table`);
-  }
-  return existing;
-}
-
-function buildCodexPluginConfigToml(
-  originalContent: string,
-  configPath: string,
-  pluginKeys: string[],
-  needsPluginHooks: boolean,
-): string {
-  const parsed = parseCodexConfigToml(originalContent, configPath);
-  const features = getOrCreateTomlTable(parsed, "features", "features");
-  features.plugins = true;
-  if (needsPluginHooks) {
-    features.plugin_hooks = true;
-  }
-
-  const plugins = getOrCreateTomlTable(parsed, "plugins", "plugins");
-  for (const pluginKey of pluginKeys) {
-    const plugin = getOrCreateTomlTable(
-      plugins,
-      pluginKey,
-      `plugins.${JSON.stringify(pluginKey)}`,
-    );
-    plugin.enabled = true;
-  }
-
-  return stringifyToml(parsed);
-}
-
-function tryMinimalCodexPluginConfigToml(
-  originalContent: string,
-  configPath: string,
-  pluginKeys: string[],
-  needsPluginHooks: boolean,
-): string | null {
-  let content = originalContent;
-  content = ensureTomlBoolean(content, "features", "plugins", true);
-  if (needsPluginHooks) {
-    content = ensureTomlBoolean(content, "features", "plugin_hooks", true);
-  }
-  for (const pluginKey of pluginKeys) {
-    content = ensureTomlBoolean(content, `plugins."${pluginKey}"`, "enabled", true);
-  }
-
-  try {
-    parseToml(content);
-    return content;
-  } catch {
-    // Existing configs may use legal TOML forms such as inline tables
-    // (`features = { plugins = false }`). In that case, a local section
-    // insertion would redefine the table, so fall back to structured output.
-    parseCodexConfigToml(originalContent, configPath);
-    return null;
-  }
-}
-
-function enableCodexPluginConfig(
-  configPath: string,
-  pluginKeys: string[],
-  needsPluginHooks: boolean,
-): void {
-  fs.mkdirSync(path.dirname(configPath), { recursive: true });
-  const originalContent = fs.existsSync(configPath) ? fs.readFileSync(configPath, "utf-8") : "";
-  const minimalContent = tryMinimalCodexPluginConfigToml(
-    originalContent,
-    configPath,
-    pluginKeys,
-    needsPluginHooks,
-  );
-  const content = minimalContent ?? buildCodexPluginConfigToml(
-    originalContent,
-    configPath,
-    pluginKeys,
-    needsPluginHooks,
-  );
-  atomicWriteFile(configPath, content.endsWith("\n") ? content : `${content}\n`);
-}
-
 async function addCodexMarketplaceWithRetry(
   marketplaceName: string,
   addCommand: string,
@@ -914,36 +759,46 @@ async function addCodexMarketplaceWithRetry(
 
 type ExternalSelection = CodexInstallPlugin & { marketplace: MarketplaceRef };
 
-// Builds the `<name>@<marketplace>` config keys + decides whether
-// features.plugin_hooks needs to flip on. Local plugins resolve through
-// this repo's marketplace.json and require a manifest check + hooks
-// inspection; external plugins emit a key directly from extra_plugin_configs.json
-// (Codex CLI fetches the upstream manifest itself). External plugins do
-// NOT flip plugin_hooks today — we don't have access to the upstream
-// manifest at install time. Acceptable while no external plugin ships
-// hooks; once one does, prefer fetching the manifest or adding an
-// explicit `requiresPluginHooks: true` field on the extra config entry.
-async function composeCodexPluginKeys(
+interface CodexPluginAdd {
+  // `<name>@<marketplace>` selector passed to `codex plugin add`.
+  key: string;
+  // Plugin name, for post-install migration bookkeeping.
+  name: string;
+  // Whether this plugin ships hooks (drives `--enable plugin_hooks`).
+  hasHooks: boolean;
+}
+
+// Builds the `codex plugin add` work list: one entry per selected plugin.
+// Local plugins resolve their hooks flag from this repo's manifest;
+// external plugins emit a key straight from extra_plugin_configs.json
+// (Codex CLI fetches the upstream manifest itself) and never set
+// `hasHooks` — we don't have their manifest at install time. Acceptable
+// while no external plugin ships hooks; once one does, prefer fetching the
+// manifest or adding an explicit flag to the extra config entry.
+function composeCodexPluginAdds(
   pluginContentRoot: string,
   localMarketplace: CodexMarketplace | null,
   selectedMarketplacePlugins: CodexMarketplacePlugin[],
   externalSelected: ExternalSelection[],
-): Promise<{ pluginKeys: string[]; needsPluginHooks: boolean }> {
-  const pluginKeys: string[] = [];
-  let needsPluginHooks = false;
-
+): CodexPluginAdd[] {
+  const adds: CodexPluginAdd[] = [];
   if (localMarketplace) {
     for (const plugin of selectedMarketplacePlugins) {
-      pluginKeys.push(`${plugin.name}@${localMarketplace.name}`);
-      if (pluginHasHooks(pluginContentRoot, plugin)) needsPluginHooks = true;
+      adds.push({
+        key: `${plugin.name}@${localMarketplace.name}`,
+        name: plugin.name,
+        hasHooks: pluginHasHooks(pluginContentRoot, plugin),
+      });
     }
   }
-
   for (const p of externalSelected) {
-    pluginKeys.push(`${p.name}@${p.marketplace.name}`);
+    adds.push({
+      key: `${p.name}@${p.marketplace.name}`,
+      name: p.name,
+      hasHooks: false,
+    });
   }
-
-  return { pluginKeys, needsPluginHooks };
+  return adds;
 }
 
 async function installCodexPlugins(
@@ -974,6 +829,20 @@ async function installCodexPlugins(
 
   if (selected.length === 0) {
     log.skip("No Codex plugins selected");
+    return;
+  }
+
+  // Version gate: native `codex plugin add` materializes the plugin cache
+  // and writes the enable config itself. Without it there is no supported
+  // install path — fail fast with an actionable upgrade hint rather than
+  // falling back to a hand-rolled cache/config mechanism. Under `--agent
+  // both` this throw is caught by installPlugins' aggregator, so the
+  // Claude-side install still completes (the Codex side is recorded as a
+  // failure).
+  if (!codexSupportsPluginAdd()) {
+    const msg = "Codex CLI does not support `codex plugin add` — upgrade the Codex CLI and retry";
+    if (!opts.interactive) throw new Error(msg);
+    log.error(msg);
     return;
   }
 
@@ -1040,38 +909,30 @@ async function installCodexPlugins(
   }
 
   if (failures.length === 0) {
-    const localMarketplaceContentRoot = localMarketplace
-      ? resolveCodexMarketplaceContentRoot(packageRoot, localMarketplace.name)
-      : packageRoot;
-    const effectiveLocalMarketplace = localMarketplace
-      ? loadCodexMarketplace(localMarketplaceContentRoot) ?? localMarketplace
-      : null;
-    const selectedMarketplacePlugins = effectiveLocalMarketplace
-      ? resolveSelectedCodexMarketplacePlugins(effectiveLocalMarketplace, localSelected)
+    // Hooks detection reads this repo's manifest directly: local plugins
+    // listed in .agents/plugins/marketplace.json are sourced from this
+    // repo, so packageRoot is the authoritative manifest location. The
+    // plugin payload itself is materialized by `codex plugin add` from the
+    // marketplace snapshot registered above — no manual cache copy.
+    const selectedMarketplacePlugins = localMarketplace
+      ? resolveSelectedCodexMarketplacePlugins(localMarketplace, localSelected)
       : [];
-    ensureCodexPluginManifests(localMarketplaceContentRoot, selectedMarketplacePlugins);
-    if (effectiveLocalMarketplace) {
-      materializeLocalCodexPluginCache(
-        localMarketplaceContentRoot,
-        effectiveLocalMarketplace.name,
-        selectedMarketplacePlugins,
-      );
-    }
-    const { pluginKeys, needsPluginHooks } = await composeCodexPluginKeys(
-      localMarketplaceContentRoot,
-      effectiveLocalMarketplace,
+    ensureCodexPluginManifests(packageRoot, selectedMarketplacePlugins);
+    const pluginAdds = composeCodexPluginAdds(
+      packageRoot,
+      localMarketplace,
       selectedMarketplacePlugins,
       externalSelected,
     );
-
-    enableCodexPluginConfig(
-      path.join(codexHome(), "config.toml"),
-      pluginKeys,
-      needsPluginHooks,
-    );
-    for (const plugin of [...localSelected, ...externalSelected]) {
-      log.ok(`${plugin.name} enabled for Codex`);
-      runPostInstallMigration(plugin.name, opts, ["codex"]);
+    for (const entry of pluginAdds) {
+      try {
+        exec(codexPluginAddCommand(entry.key, entry.hasHooks), marketplaceExecOpts);
+        log.ok(`Codex plugin ${entry.key} added`);
+        runPostInstallMigration(entry.name, opts, ["codex"]);
+      } catch (e) {
+        log.error(`Failed to add Codex plugin ${entry.key}\n${commandErrorText(e)}`);
+        failures.push(`codex plugin ${entry.key}`);
+      }
     }
   }
 
@@ -1314,25 +1175,6 @@ function parsePluginId(id: string): { plugin: string; marketplace: string } {
 }
 
 /**
- * Remove `[plugins."<id>"]` from a parsed Codex config TOML tree.
- * Returns true if anything was removed. Idempotent: missing key → false.
- *
- * Pure function operating on the parsed tree — no I/O. Lets the test
- * harness assert tree shape without touching disk + lets the I/O wrapper
- * skip the atomic write when nothing changed.
- */
-function removeCodexPluginFromConfig(
-  parsed: TomlTable,
-  pluginId: string,
-): boolean {
-  const plugins = parsed.plugins;
-  if (!isTomlTable(plugins)) return false;
-  if (!(pluginId in plugins)) return false;
-  delete plugins[pluginId];
-  return true;
-}
-
-/**
  * Uninstall a single plugin.
  *
  *   Claude side: shells out to `claude plugins uninstall <id>` (the
@@ -1340,29 +1182,25 @@ function removeCodexPluginFromConfig(
  *     surfaces nuanced failure modes (marketplace gone, network) that
  *     the caller needs to see verbatim.
  *
- *   Codex side: no `codex plugin uninstall` exists today (spec §10.4
- *     flagged this as v0.1 needs-confirm). We mimic the install path
- *     in reverse:
- *       1. Read + parse `~/.codex/config.toml`, delete `[plugins."<id>"]`,
- *          atomic write back. Throws on parse error (don't half-corrupt).
- *       2. rm `~/.codex/plugins/cache/<marketplace>/<plugin>/` directory.
- *     Both steps are idempotent — missing config / missing cache dir is
- *     a no-op (the user may have manually cleaned half of the install).
+ *   Codex side: shells out to `codex plugin remove <id>`, which deletes
+ *     the plugin from Codex's local config and cache. We deliberately do
+ *     NOT remove the marketplace itself — a single marketplace may host
+ *     multiple plugins, and tearing it down because one plugin left would
+ *     break the others. The user can `codex plugin marketplace remove`
+ *     separately when they want. Errors are propagated like the Claude
+ *     side; idempotency (removing an already-absent plugin) is the Codex
+ *     CLI's responsibility.
  *
- *     Caveat: we deliberately do NOT remove the marketplace itself. A
- *     single marketplace may host multiple plugins; tearing it down
- *     because one plugin left would break others. The user can
- *     `codex plugin marketplace remove` separately when they want.
- *
- * Validation happens before any I/O — a malformed id throws cleanly with
- * no side effects, so retries are safe.
+ * `parsePluginId` validates the id shape — and rejects shell
+ * metacharacters in either segment — before any command runs, so a
+ * malformed id throws cleanly with no side effects and retries are safe.
  */
 export async function uninstallPlugin(
   id: string,
   agent: "claude" | "codex",
   opts: { cwd: string; onLog?: (line: string) => void },
 ): Promise<void> {
-  const { plugin, marketplace } = parsePluginId(id);
+  parsePluginId(id);
   const emit = (line: string): void => { opts.onLog?.(line); };
 
   if (agent === "claude") {
@@ -1376,43 +1214,10 @@ export async function uninstallPlugin(
     return;
   }
 
-  // Codex path.
-  const home = codexHome();
-  const configPath = path.join(home, "config.toml");
-
-  if (fs.existsSync(configPath)) {
-    const content = fs.readFileSync(configPath, "utf-8");
-    // Parse-then-mutate: any parse failure aborts BEFORE we touch the
-    // filesystem (cache dir removal also gets skipped) so a damaged
-    // config doesn't end up half-uninstalled. The test "config.toml
-    // damaged → throw before mutation" locks this in.
-    const parsed = parseCodexConfigToml(content, configPath);
-    const removed = removeCodexPluginFromConfig(parsed, id);
-    if (removed) {
-      const next = stringifyToml(parsed);
-      atomicWriteFile(configPath, next.endsWith("\n") ? next : `${next}\n`);
-      log.ok(`${id} disabled in Codex config.toml`);
-      emit(`removed ${id} from Codex config.toml`);
-    } else {
-      log.skip(`${id} not present in Codex config.toml`);
-      emit(`${id} not present in Codex config.toml`);
-    }
-  } else {
-    log.skip(`Codex config.toml not present`);
-    emit(`Codex config.toml not present`);
-  }
-
-  // Cache dir: ~/.codex/plugins/cache/<marketplace>/<plugin>/
-  // PLUGIN_ID_RE constrains both segments to a safe charset, so the
-  // path can't escape via injection. rmSync with recursive+force is
-  // the standard rm-rf idiom; missing dir is a no-op.
-  const cacheDir = path.join(home, "plugins", "cache", marketplace, plugin);
-  if (fs.existsSync(cacheDir)) {
-    fs.rmSync(cacheDir, { recursive: true, force: true });
-    log.ok(`${id} cache directory removed`);
-    emit(`removed Codex cache directory for ${id}`);
-  } else {
-    log.skip(`${id} cache directory not present`);
-    emit(`Codex cache directory for ${id} not present`);
-  }
+  // Codex path: `codex plugin remove` deletes the plugin from Codex's
+  // local config and cache. `id` was validated above, so it carries no
+  // shell metacharacter.
+  exec(`codex plugin remove ${id}`, { cwd: opts.cwd, inherit: true });
+  log.ok(`${id} removed from Codex`);
+  emit(`removed ${id} from Codex`);
 }

@@ -121,7 +121,7 @@ npx auriga-cli
 
 ### Plugins
 
-可以把选中的插件安装到 Claude Code、Codex 或两者都装。Claude Code 路径使用 `claude plugins install`，并遵守 `--scope project|user`；Codex 路径根据 `~/.codex/config.toml` 中是否已注册同名 marketplace 自动选择 `codex plugin marketplace add` 或 `upgrade`，并在 `~/.codex/config.toml` 里启用选中的插件。
+可以把选中的插件安装到 Claude Code、Codex 或两者都装。Claude Code 路径使用 `claude plugins install`，并遵守 `--scope project|user`；Codex 路径根据 `~/.codex/config.toml` 中是否已注册同名 marketplace 自动选择 `codex plugin marketplace add` 或 `upgrade` 注册 marketplace，再用原生的 `codex plugin add <plugin>@<marketplace>` 命令安装每个选中的插件。Codex 路径要求 Codex CLI 版本新到支持 `codex plugin add`；旧版本会中止 Codex 侧安装并提示升级。
 
 示例：
 

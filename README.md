@@ -121,7 +121,7 @@ Supports both project and global installation scopes.
 
 ### Plugins
 
-Installs selected plugins for Claude Code, Codex, or both. Claude Code uses `claude plugins install` and honors `--scope project|user`; Codex uses `codex plugin marketplace add/upgrade` (the right one is picked by reading `~/.codex/config.toml`) and enables selected plugins in `~/.codex/config.toml`.
+Installs selected plugins for Claude Code, Codex, or both. Claude Code uses `claude plugins install` and honors `--scope project|user`; Codex registers the marketplace via `codex plugin marketplace add/upgrade` (the right one is picked by reading `~/.codex/config.toml`), then installs each selected plugin with the native `codex plugin add <plugin>@<marketplace>` command. The Codex path requires a Codex CLI new enough to expose `codex plugin add`; on older versions the Codex-side install aborts with an upgrade hint.
 
 Examples:
 

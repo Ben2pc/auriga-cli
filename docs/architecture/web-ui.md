@@ -150,7 +150,7 @@ server 启动时锁定 `process.cwd()`，整个会话只操作这一个项目。
 | `src/help.ts` | 加 `web-ui` 子命令说明；TTY 菜单收尾打印一行提示 | 极低 |
 | `src/workflow.ts` | 加 `uninstallWorkflow()`（删 `CLAUDE.md` + `AGENTS.md` symlink，要求二次确认 flag） | 低 |
 | `src/skills.ts` | 加 `uninstallSkill(name)`（调 `npx skills remove`，若不支持则手动删 + 改 lockfile） | 低-中（依赖外部 CLI） |
-| `src/plugins.ts` | 加 `uninstallPlugin(id, agent)`（调 `claude plugins uninstall` / `codex plugin marketplace ...`） | 中（Codex 没 uninstall 命令，待实现时确认） |
+| `src/plugins.ts` | 加 `uninstallPlugin(id, agent)`（调 `claude plugins uninstall` / `codex plugin remove`） | 低 |
 | `src/hooks.ts` | 加 `uninstallHook(name)`（删 hook 目录 + `removeHookFromSettings`） | 低（基础设施已就绪） |
 | `.github/workflows/release.yml` | publish 前加 UI build + tarball + upload | 中（CI 改动） |
 | `tsconfig.json` | `exclude` 加 `ui/` | 极低 |
@@ -483,7 +483,6 @@ UI bundle 路径键就是 `v<package.version>`，CLI 启动时根据自身版本
 
 ### 10.4 已知缺口
 
-- Codex plugin 没有 `uninstall` 直接命令——`src/plugins.ts` 的 `uninstallPlugin` 对 Codex 端需要在实现时确认替代路径（手动改 `config.toml` + 删 cache 目录？）
 - 多浏览器标签同时打开同一 UI URL：行为未定义。v0.1 假设单标签使用，多标签下心跳争抢不影响功能，但日志可能混
 
 ---
