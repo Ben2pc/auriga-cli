@@ -1,6 +1,6 @@
 ---
 name: documentation-and-adrs
-description: 当做出架构决策、变更公共 API、发布会改变用户可见行为的功能,需要把 arch-design 产出的 arch_design.md 沉淀为长期 ADR,或需要为后续工程师和 Agent 记录代码库背景上下文时使用。
+description: 当做出架构决策、变更公共 API、发布会改变用户可见行为的功能,需要把 arch-design 产出的 arch_design.md 沉淀为长期 ADR,给公共 API 或函数接口写文档,撰写或审查代码注释、记录代码里不明显的约束和坑,编写或更新 README 与 changelog,或需要为后续工程师和 Agent 记录代码库背景上下文时使用。
 ---
 
 # 文档与架构决策记录
