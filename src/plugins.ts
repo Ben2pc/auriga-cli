@@ -2,10 +2,9 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { checkbox, select } from "@inquirer/prompts";
-import { parse as parseToml, stringify as stringifyToml } from "smol-toml";
+import { parse as parseToml } from "smol-toml";
 import type { TomlTable } from "smol-toml";
 import {
-  codexLocalPluginPath,
   codexManifestPath,
   validateCodexMarketplace,
   type CodexMarketplace,
@@ -33,7 +32,6 @@ const MIGRATED_WORKFLOW_SKILLS = [
 const NOTIFY_PLUGIN_NAME = "auriga-notify";
 const WORKFLOW_SKILLS_PLUGIN_NAME = "auriga-workflow";
 const LEGACY_NOTIFY_MARKER = "auriga:notify";
-const CODEX_PLUGIN_VERSION_RE = /^[A-Za-z0-9][A-Za-z0-9._+-]{0,127}$/;
 export type PluginRuntime = "claude" | "codex";
 
 export interface ClaudeMarketplacePlugin {
@@ -379,21 +377,6 @@ function codexHome(): string {
   return process.env.CODEX_HOME || path.join(os.homedir(), ".codex");
 }
 
-function codexMarketplaceCacheRoot(marketplaceName: string): string {
-  return path.join(codexHome(), ".tmp", "marketplaces", marketplaceName);
-}
-
-function resolveCodexMarketplaceContentRoot(packageRoot: string, marketplaceName: string): string {
-  const cachedRoot = codexMarketplaceCacheRoot(marketplaceName);
-  if (fs.existsSync(path.join(cachedRoot, ".agents", "plugins", "marketplace.json"))) {
-    return cachedRoot;
-  }
-  throw new Error(
-    `Codex marketplace ${marketplaceName} cache missing at ${cachedRoot}. ` +
-      "Run `codex plugin marketplace add/upgrade` successfully before materializing local plugins.",
-  );
-}
-
 function shellQuote(value: string): string {
   return `'${value.replace(/'/g, "'\\''")}'`;
 }
@@ -719,174 +702,6 @@ function ensureCodexPluginManifests(
   }
 }
 
-function readCodexPluginVersion(packageRoot: string, plugin: CodexMarketplacePlugin): string {
-  const manifestPath = codexManifestPath(plugin);
-  if (!manifestPath) {
-    throw new Error(`Codex marketplace.json: plugin ${plugin.name} must use a local source.path`);
-  }
-  const manifest = JSON.parse(fs.readFileSync(path.join(packageRoot, manifestPath), "utf-8")) as {
-    version?: unknown;
-  };
-  if (typeof manifest.version !== "string" || !CODEX_PLUGIN_VERSION_RE.test(manifest.version)) {
-    throw new Error(`Codex plugin ${plugin.name} manifest must include a safe string version`);
-  }
-  return manifest.version;
-}
-
-function materializeLocalCodexPluginCache(
-  packageRoot: string,
-  marketplaceName: string,
-  plugins: CodexMarketplacePlugin[],
-): void {
-  const cacheRoot = path.join(codexHome(), "plugins", "cache");
-  for (const plugin of plugins) {
-    const sourcePath = codexLocalPluginPath(plugin);
-    if (!sourcePath) {
-      throw new Error(`Codex marketplace.json: plugin ${plugin.name} must use a local source.path`);
-    }
-    const version = readCodexPluginVersion(packageRoot, plugin);
-    const sourceDir = path.join(packageRoot, sourcePath);
-    const destDir = path.join(cacheRoot, marketplaceName, plugin.name, version);
-    const tmpDir = `${destDir}.tmp-${process.pid}-${Date.now()}`;
-    fs.rmSync(tmpDir, { recursive: true, force: true });
-    fs.mkdirSync(path.dirname(destDir), { recursive: true });
-    fs.cpSync(sourceDir, tmpDir, { recursive: true });
-    fs.rmSync(destDir, { recursive: true, force: true });
-    fs.renameSync(tmpDir, destDir);
-    if (!fs.existsSync(path.join(destDir, ".codex-plugin", "plugin.json"))) {
-      throw new Error(`Codex plugin ${plugin.name} cache materialization did not produce plugin.json`);
-    }
-  }
-}
-
-function ensureTomlBoolean(content: string, section: string, key: string, value: boolean): string {
-  const line = `${key} = ${value ? "true" : "false"}`;
-  const header = `[${section}]`;
-  const lines = content.length > 0 ? content.split(/\r?\n/) : [];
-  const start = lines.findIndex((l) => l.trim() === header);
-  if (start === -1) {
-    const prefix = content.trimEnd();
-    return `${prefix}${prefix ? "\n\n" : ""}${header}\n${line}\n`;
-  }
-  let end = lines.length;
-  for (let i = start + 1; i < lines.length; i += 1) {
-    if (/^\s*\[/.test(lines[i])) {
-      end = i;
-      break;
-    }
-  }
-  const keyRe = new RegExp(`^\\s*${key}\\s*=`);
-  for (let i = start + 1; i < end; i += 1) {
-    if (keyRe.test(lines[i])) {
-      lines[i] = line;
-      return lines.join("\n");
-    }
-  }
-  lines.splice(end, 0, line);
-  return lines.join("\n");
-}
-
-function parseCodexConfigToml(content: string, configPath: string): TomlTable {
-  if (content.trim().length === 0) return {};
-  try {
-    return parseToml(content) as TomlTable;
-  } catch (e) {
-    throw new Error(`Codex config.toml is invalid TOML at ${configPath}: ${(e as Error).message}`);
-  }
-}
-
-function isTomlTable(value: unknown): value is TomlTable {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function getOrCreateTomlTable(parent: TomlTable, key: string, pathLabel: string): TomlTable {
-  const existing = parent[key];
-  if (existing === undefined) {
-    const table: TomlTable = {};
-    parent[key] = table;
-    return table;
-  }
-  if (!isTomlTable(existing)) {
-    throw new Error(`Codex config.toml: ${pathLabel} must be a TOML table`);
-  }
-  return existing;
-}
-
-function buildCodexPluginConfigToml(
-  originalContent: string,
-  configPath: string,
-  pluginKeys: string[],
-  needsPluginHooks: boolean,
-): string {
-  const parsed = parseCodexConfigToml(originalContent, configPath);
-  const features = getOrCreateTomlTable(parsed, "features", "features");
-  features.plugins = true;
-  if (needsPluginHooks) {
-    features.plugin_hooks = true;
-  }
-
-  const plugins = getOrCreateTomlTable(parsed, "plugins", "plugins");
-  for (const pluginKey of pluginKeys) {
-    const plugin = getOrCreateTomlTable(
-      plugins,
-      pluginKey,
-      `plugins.${JSON.stringify(pluginKey)}`,
-    );
-    plugin.enabled = true;
-  }
-
-  return stringifyToml(parsed);
-}
-
-function tryMinimalCodexPluginConfigToml(
-  originalContent: string,
-  configPath: string,
-  pluginKeys: string[],
-  needsPluginHooks: boolean,
-): string | null {
-  let content = originalContent;
-  content = ensureTomlBoolean(content, "features", "plugins", true);
-  if (needsPluginHooks) {
-    content = ensureTomlBoolean(content, "features", "plugin_hooks", true);
-  }
-  for (const pluginKey of pluginKeys) {
-    content = ensureTomlBoolean(content, `plugins."${pluginKey}"`, "enabled", true);
-  }
-
-  try {
-    parseToml(content);
-    return content;
-  } catch {
-    // Existing configs may use legal TOML forms such as inline tables
-    // (`features = { plugins = false }`). In that case, a local section
-    // insertion would redefine the table, so fall back to structured output.
-    parseCodexConfigToml(originalContent, configPath);
-    return null;
-  }
-}
-
-function enableCodexPluginConfig(
-  configPath: string,
-  pluginKeys: string[],
-  needsPluginHooks: boolean,
-): void {
-  fs.mkdirSync(path.dirname(configPath), { recursive: true });
-  const originalContent = fs.existsSync(configPath) ? fs.readFileSync(configPath, "utf-8") : "";
-  const minimalContent = tryMinimalCodexPluginConfigToml(
-    originalContent,
-    configPath,
-    pluginKeys,
-    needsPluginHooks,
-  );
-  const content = minimalContent ?? buildCodexPluginConfigToml(
-    originalContent,
-    configPath,
-    pluginKeys,
-    needsPluginHooks,
-  );
-  atomicWriteFile(configPath, content.endsWith("\n") ? content : `${content}\n`);
-}
-
 async function addCodexMarketplaceWithRetry(
   marketplaceName: string,
   addCommand: string,
@@ -943,38 +758,6 @@ async function addCodexMarketplaceWithRetry(
 }
 
 type ExternalSelection = CodexInstallPlugin & { marketplace: MarketplaceRef };
-
-// Builds the `<name>@<marketplace>` config keys + decides whether
-// features.plugin_hooks needs to flip on. Local plugins resolve through
-// this repo's marketplace.json and require a manifest check + hooks
-// inspection; external plugins emit a key directly from extra_plugin_configs.json
-// (Codex CLI fetches the upstream manifest itself). External plugins do
-// NOT flip plugin_hooks today — we don't have access to the upstream
-// manifest at install time. Acceptable while no external plugin ships
-// hooks; once one does, prefer fetching the manifest or adding an
-// explicit `requiresPluginHooks: true` field on the extra config entry.
-async function composeCodexPluginKeys(
-  pluginContentRoot: string,
-  localMarketplace: CodexMarketplace | null,
-  selectedMarketplacePlugins: CodexMarketplacePlugin[],
-  externalSelected: ExternalSelection[],
-): Promise<{ pluginKeys: string[]; needsPluginHooks: boolean }> {
-  const pluginKeys: string[] = [];
-  let needsPluginHooks = false;
-
-  if (localMarketplace) {
-    for (const plugin of selectedMarketplacePlugins) {
-      pluginKeys.push(`${plugin.name}@${localMarketplace.name}`);
-      if (pluginHasHooks(pluginContentRoot, plugin)) needsPluginHooks = true;
-    }
-  }
-
-  for (const p of externalSelected) {
-    pluginKeys.push(`${p.name}@${p.marketplace.name}`);
-  }
-
-  return { pluginKeys, needsPluginHooks };
-}
 
 interface CodexPluginAdd {
   // `<name>@<marketplace>` selector passed to `codex plugin add`.
@@ -1389,25 +1172,6 @@ function parsePluginId(id: string): { plugin: string; marketplace: string } {
     );
   }
   return { plugin: m[1], marketplace: m[2] };
-}
-
-/**
- * Remove `[plugins."<id>"]` from a parsed Codex config TOML tree.
- * Returns true if anything was removed. Idempotent: missing key → false.
- *
- * Pure function operating on the parsed tree — no I/O. Lets the test
- * harness assert tree shape without touching disk + lets the I/O wrapper
- * skip the atomic write when nothing changed.
- */
-function removeCodexPluginFromConfig(
-  parsed: TomlTable,
-  pluginId: string,
-): boolean {
-  const plugins = parsed.plugins;
-  if (!isTomlTable(plugins)) return false;
-  if (!(pluginId in plugins)) return false;
-  delete plugins[pluginId];
-  return true;
 }
 
 /**
