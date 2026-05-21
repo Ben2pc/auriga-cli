@@ -234,6 +234,32 @@ const TEST_PLAN_THEN_TODOS = `## Test plan
 - [ ] follow-up deferred to CI
 `;
 
+// The `测试方案` alias of TEST_PLAN_HEADING is a live regex branch — a
+// regression narrowing the alternation must fail a test.
+const TEST_PLAN_ALIAS_UNCHECKED = `## 测试方案
+
+- [ ] 集成测试待补
+`;
+
+// A Test plan section with no Acceptance criteria heading anywhere —
+// pins the testPlan-only block path (acceptance list empty).
+const TEST_PLAN_ONLY_UNCHECKED = `## Summary
+
+Adds a thing.
+
+## Test plan
+
+- [ ] manual verification pending
+`;
+
+// A heading that merely mentions "test plan" must not be treated as the
+// Test plan section (anchored heading match — twin of
+// MENTIONS_PHRASE_NOT_SECTION for the Acceptance criteria heading).
+const MENTIONS_TEST_PLAN_NOT_SECTION = `## Why the test plan matters
+
+- [ ] this is not inside a real Test plan section
+`;
+
 // ---- Cases -----------------------------------------------------------
 
 const cases = [
@@ -357,6 +383,24 @@ const cases = [
         "Acceptance criteria",
         "Test plan",
       ],
+      // Structural: each item must render under its own section label
+      // with the per-group count — guards against a regression that
+      // emits both labels but pairs them with the wrong items.
+      stderrMatches: [
+        /Acceptance criteria \(1\):\n {2}- \[ \] Criterion not met/,
+        /Test plan \(1\):\n {2}- \[ \] manual verification pending/,
+      ],
+    },
+  },
+  {
+    name: "Test plan section with no Acceptance criteria section → blocks",
+    cmd: "gh pr merge --squash",
+    body: TEST_PLAN_ONLY_UNCHECKED,
+    expect: {
+      status: 2,
+      stderrIncludes: ["manual verification pending"],
+      // Singular wording when exactly one item blocks across both sections.
+      stderrMatches: [/has 1 unchecked pre-merge checklist item /],
     },
   },
   {
@@ -364,6 +408,18 @@ const cases = [
     cmd: "gh pr merge --squash",
     body: CHINESE_TEST_PLAN_UNCHECKED,
     expect: { status: 2, stderrIncludes: ["手工模拟器验证待补"] },
+  },
+  {
+    name: "Chinese 测试方案 alias heading is recognized → blocks",
+    cmd: "gh pr merge --squash",
+    body: TEST_PLAN_ALIAS_UNCHECKED,
+    expect: { status: 2, stderrIncludes: ["集成测试待补"] },
+  },
+  {
+    name: "heading that only mentions 'test plan' is not the Test plan section → passes",
+    cmd: "gh pr merge --squash",
+    body: MENTIONS_TEST_PLAN_NOT_SECTION,
+    expect: { status: 0, stdoutEq: "" },
   },
   {
     name: "unchecked item inside a fenced block under Test plan → passes",
@@ -407,6 +463,11 @@ for (const c of cases) {
   for (const needle of c.expect.stderrIncludes ?? []) {
     if (!r.stderr.includes(needle)) {
       errs.push(`expected stderr to include ${JSON.stringify(needle)}, got ${JSON.stringify(r.stderr)}`);
+    }
+  }
+  for (const re of c.expect.stderrMatches ?? []) {
+    if (!re.test(r.stderr)) {
+      errs.push(`expected stderr to match ${re}, got ${JSON.stringify(r.stderr)}`);
     }
   }
   check(c.name, errs);
