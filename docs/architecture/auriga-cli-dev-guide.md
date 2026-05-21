@@ -78,7 +78,8 @@ plugins/
                                                  非 draft 的 gh pr create)
                     scripts/pr-merge-guard.mjs  (PreToolUse: gh pr merge —
                                                  在 PR body 的 Acceptance
-                                                 criteria 里还有未勾选项时阻止)
+                                                 criteria 或 Test plan 里
+                                                 还有未勾选项时阻止)
                   由原先的 auriga-go（仅 goalify）、deep-review 和
                   auriga-git-guards plugin 合并而成。Codex 支持 hook
                   `additionalContext`；block path 完全一致。

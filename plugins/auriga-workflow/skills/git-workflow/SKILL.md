@@ -251,10 +251,10 @@ Comment stream 记录“我们做了什么”；PR body 保持为这个 PR 的�
 
 ## 阶段 7：合并 / Phase 7: Merge
 
-Merge 是最后一道闸门。`pr-merge-guard` hook 会在 `gh pr merge` 的 `PreToolUse` 触发；如果 PR body 的 `Acceptance Criteria` section 仍有未勾选的 `- [ ]` checklist item，它会**阻塞**合并。
+Merge 是最后一道闸门。`pr-merge-guard` hook 会在 `gh pr merge` 的 `PreToolUse` 触发；如果 PR body 的 `Acceptance Criteria` 或 `Test plan` section 仍有未勾选的 `- [ ]` checklist item，它会**阻塞**合并。
 
-- 只检查 `Acceptance Criteria` section；`Remaining TODOs`、`Test plan` 或其他 sections 里的未勾选项不阻塞，因为这些 sections 本来就可能记录延期工作。
+- 检查 `Acceptance Criteria` 和 `Test plan` 两个 section：前者是合并前必须成立的结果，后者是合并前应当跑完的验证步骤。`Remaining TODOs` 或其他 sections 里的未勾选项不阻塞，因为这些 sections 本来就可能记录延期工作。
 - 已勾选项（`- [x]`）和普通非任务 bullets（`- ...`）不会阻塞。
-- 如果某项确实不能在 merge 前验证（例如“下次 release 后确认”），它就不是这个 PR 的 acceptance criterion；merge 前把它移到 `Remaining TODOs`，并写成普通 bullet。
+- 如果某项确实不能在 merge 前验证或跑完（例如“下次 release 后确认”、“CI 接入后自动跑”），它就不是这个 PR 的合并前闸门项；merge 前把它移到 `Remaining TODOs`，并写成普通 bullet。
 
 Guard 会 fail open：如果 `gh` 读不到 PR body，合并会继续，不会因为 guard 自己无法检查而阻塞。
