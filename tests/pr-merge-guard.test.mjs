@@ -166,6 +166,74 @@ const MENTIONS_PHRASE_NOT_SECTION = `## Why acceptance criteria matter
 // ONE_UNCHECKED with CRLF line endings — must still block.
 const ONE_UNCHECKED_CRLF = ONE_UNCHECKED.replace(/\n/g, "\r\n");
 
+// --- Test plan section fixtures --------------------------------------
+// The guard also gates the "Test plan" section: an unchecked test step
+// at merge time is verification the author claimed but did not run.
+
+const TEST_PLAN_UNCHECKED = `## Acceptance criteria
+
+- [x] Criterion met
+
+## Test plan
+
+- [x] unit tests run
+- [ ] manual verification pending
+`;
+
+const TEST_PLAN_ALL_CHECKED = `## Acceptance criteria
+
+- [x] Criterion met
+
+## Test plan
+
+- [x] unit tests run
+- [x] manual verification done
+`;
+
+// Both sections have unchecked items — the block message must list both,
+// each under its own section label.
+const BOTH_SECTIONS_UNCHECKED = `## Acceptance criteria
+
+- [ ] Criterion not met
+
+## Test plan
+
+- [ ] manual verification pending
+`;
+
+const CHINESE_TEST_PLAN_UNCHECKED = `## 验收标准
+
+- [x] 第一条已满足
+
+## 测试计划
+
+- [ ] 手工模拟器验证待补
+`;
+
+// `- [ ]` inside a fenced code block under the Test plan heading is an
+// example, not a real test step — must not block.
+const TEST_PLAN_FENCED = `## Test plan
+
+- [x] real test step done
+
+\`\`\`markdown
+## Test plan
+- [ ] illustrative unchecked item
+\`\`\`
+`;
+
+// Test plan fully checked; Remaining TODOs after it has an unchecked
+// item — the Test plan scan must stop at the next heading and the
+// Remaining TODOs item must not block.
+const TEST_PLAN_THEN_TODOS = `## Test plan
+
+- [x] unit tests run
+
+## Remaining TODOs
+
+- [ ] follow-up deferred to CI
+`;
+
 // ---- Cases -----------------------------------------------------------
 
 const cases = [
@@ -264,6 +332,50 @@ const cases = [
     cmd: "gh pr merge --squash",
     body: ONE_UNCHECKED_CRLF,
     expect: { status: 2, stderrIncludes: ["Second criterion not yet met"] },
+  },
+  {
+    name: "unchecked Test plan item → blocks",
+    cmd: "gh pr merge --squash",
+    body: TEST_PLAN_UNCHECKED,
+    expect: { status: 2, stderrIncludes: ["manual verification pending"] },
+  },
+  {
+    name: "all Test plan items checked → passes",
+    cmd: "gh pr merge --squash",
+    body: TEST_PLAN_ALL_CHECKED,
+    expect: { status: 0, stdoutEq: "" },
+  },
+  {
+    name: "unchecked items in both sections → blocks, lists both under section labels",
+    cmd: "gh pr merge --squash",
+    body: BOTH_SECTIONS_UNCHECKED,
+    expect: {
+      status: 2,
+      stderrIncludes: [
+        "Criterion not met",
+        "manual verification pending",
+        "Acceptance criteria",
+        "Test plan",
+      ],
+    },
+  },
+  {
+    name: "Chinese 测试计划 heading is recognized → blocks",
+    cmd: "gh pr merge --squash",
+    body: CHINESE_TEST_PLAN_UNCHECKED,
+    expect: { status: 2, stderrIncludes: ["手工模拟器验证待补"] },
+  },
+  {
+    name: "unchecked item inside a fenced block under Test plan → passes",
+    cmd: "gh pr merge --squash",
+    body: TEST_PLAN_FENCED,
+    expect: { status: 0, stdoutEq: "" },
+  },
+  {
+    name: "unchecked Remaining TODOs after a Test plan section → passes",
+    cmd: "gh pr merge --squash",
+    body: TEST_PLAN_THEN_TODOS,
+    expect: { status: 0, stdoutEq: "" },
   },
 ];
 
