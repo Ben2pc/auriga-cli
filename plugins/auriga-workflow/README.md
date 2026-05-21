@@ -27,7 +27,7 @@ travel together so they share one distribution model and one install step.
 | `commit-reminder` | `PostToolUse` | `Edit` / `Write` / `MultiEdit` (Claude Code) · `apply_patch` (Codex's canonical file-edit tool) | When uncommitted diff vs `HEAD` exceeds 200 lines or 8 files **and** the last reminder was ≥ 5 minutes ago, injects `additionalContext` nudging the agent to commit at the next semantic boundary. Never blocks. Silent outside a git repo. |
 | `pr-create-guard` | `PostToolUse` | `gh pr create` | Fetches the new PR's body + title via `gh pr view`, injects a snapshot (headings + TODO counts) so the agent can self-verify against the five-element PR description contract (scope / acceptance criteria / design decisions / risks / TODOs). Also flags titles that don't match Conventional Commits format with a soft nudge. Never blocks. |
 | `pr-ready-guard` | `PreToolUse` | `gh pr ready` · `gh pr create` (when `--draft` / `-d` absent) | Hard-blocks (exit 2) on **structural** issues: stray `findings.md` / `progress.md` / `task_plan.md` at repo root, unfinalized active specs under `docs/specs/`, or unpushed commits (`gh pr ready` only). On `gh pr ready` otherwise injects a body snapshot. |
-| `pr-merge-guard` | `PreToolUse` | `gh pr merge` | Hard-blocks (exit 2) while the PR body's `Acceptance criteria` section still has unchecked `- [ ]` checklist items. Scoped to that section only — unchecked items elsewhere (Remaining TODOs, Test plan) never block; fenced code blocks are skipped. Fails open if `gh` can't read the body. |
+| `pr-merge-guard` | `PreToolUse` | `gh pr merge` | Hard-blocks (exit 2) while the PR body's `Acceptance criteria` or `Test plan` section still has unchecked `- [ ]` checklist items. Scoped to those two sections — unchecked items elsewhere (Remaining TODOs) never block; fenced code blocks are skipped. Fails open if `gh` can't read the body. |
 
 ## Structure
 
@@ -77,7 +77,7 @@ identical stdin payloads.
 | `gh pr ready` → block on structural issues (exit 2 + stderr) | ✅ | ✅ |
 | `gh pr create` without `--draft` → block on structural issues (exit 2 + stderr) | ✅ | ✅ |
 | `gh pr ready` → inject body snapshot when passing (PreToolUse `additionalContext`) | ✅ | ⚠️ Currently fail-open: Codex parses the field but does not surface it to the model yet. The block path is unaffected. |
-| `gh pr merge` → block on unchecked Acceptance-criteria items (exit 2 + stderr) | ✅ | ✅ Block-path only — no `additionalContext`, so no fail-open gap. |
+| `gh pr merge` → block on unchecked Acceptance-criteria / Test-plan items (exit 2 + stderr) | ✅ | ✅ Block-path only — no `additionalContext`, so no fail-open gap. |
 
 The remaining fail-open differs only in the **PreToolUse `additionalContext`
 informational path** for `pr-ready-guard`: structural blocks fire identically,
