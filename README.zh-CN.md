@@ -50,7 +50,7 @@ npx -y auriga-cli --help                     # 完整 catalog + flag 说明
 
 `--preset` 是原子标志 —— 不能与 `<type>` 或任何过滤标志同时使用,但可带 `--scope`、`--agent`、`--lang`(预设默认 `user` / `both` / `zh-CN`,与分类安装的默认不同)。
 
-退出码：`0` 成功；`1` 致命错误（前置检查 / 解析 / 拉取失败）；`2` 部分成功——`stderr` 会列出逐类 `[OK]/[FAIL]` 和 `Retry:` 提示。装完后请重启 Claude Code 或 Codex 会话，让新的 `AGENTS.md` / skills / plugins / hook 插件注册生效。
+退出码：`0` 成功；`1` 致命错误（前置检查 / 解析 / 拉取失败）；`2` 部分成功——`stderr` 会列出逐类 `[OK]/[FAIL]` 和 `Retry:` 提示。装完后请重启 Agent 会话，让新的 `AGENTS.md` / skills / plugins / hook 插件注册生效。
 
 ### Web UI（可选）
 

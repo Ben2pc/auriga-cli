@@ -14,7 +14,7 @@ function c(color: boolean, code: string, text: string): string {
 }
 
 /**
- * Renders the Agent-bootstrap SOP per spec §3.6. Plain-text when
+ * Renders the interactive Agent install guide. Plain-text when
  * `color: false`; adds ANSI escapes for headings / command examples
  * / warnings when `color: true`. Color detection happens at the call
  * site (`process.stdout.isTTY && !process.env.NO_COLOR`); this
@@ -110,8 +110,8 @@ ${h("## Step 4 — Reload session after install")}
 
 ${warn("⚠")} AGENTS.md, .agents/skills/, and plugin enablement /
 registrations are loaded at session startup. If you installed Auriga
-from an existing Agent session, the current session may NOT see the new
-harness.
+from an existing Agent session, the current session will NOT see the new
+harness until it is reloaded.
 
 Action:
   - Commit any in-flight work first

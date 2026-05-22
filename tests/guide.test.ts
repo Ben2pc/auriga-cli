@@ -45,6 +45,7 @@ describe("renderGuide", () => {
     assert.match(out, /npx -y auriga-cli --help/);
     assert.match(out, /npx -y auriga-cli install workflow --help/);
     assert.match(out, /npx -y auriga-cli install skills --help/);
+    assert.match(out, /npx -y auriga-cli install recommended --help/);
     assert.match(out, /npx -y auriga-cli install plugins --help/);
   });
 

@@ -20,7 +20,7 @@
 
 - [x] S0.1 — Spike #1：`claude plugins install` 非交互 OK（三场景干净，无 hang 无 prompt）
 - [x] S0.2 — Spike #2：三类均需 session 重启（**分支 (b) 命中**；子 session 自证 system prompt 已锁定）
-- [x] S0.3 — 回写 spec §9 Risk #2/#3 + §10 打勾；guide Step 4 "REQUIRED" 保持
+- [x] S0.3 — 回写 spec §9 Risk #2/#3 + §10 打勾；guide Step 4 保留重启提醒
 
 **出口条件已达**：findings.md 有两条 spike 的完整结论 + 对 spec 影响；spec §10 无未决项。
 

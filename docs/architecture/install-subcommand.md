@@ -67,11 +67,11 @@ npx auriga-cli install <type> [type-specific flags]  # 装单一类别（可带�
 - `--preset` 是原子标志:不能与 `<type>` / 子项过滤 / `--all` 同时出现,违反时 fail-fast
 - `--scope <project|user>` — 默认 `user`（分类安装默认 `project`）
 - `--agent <claude|codex|both>` — 默认 `both`（分类安装 plugins 默认 `claude`）
-- `--lang <code>` — 默认 `en`
+- `--lang <code>` — 默认 `zh-CN`
 
 **workflow 独有：**
 
-- `--lang <code>` — 语言；默认 `en`；当前支持 `en` / `zh-CN`
+- `--lang <code>` — 语言；默认 `zh-CN`；当前支持 `zh-CN` / `en`
 - `--cwd <dir>` — 安装目标目录；默认 `process.cwd()`
 
 **skills / recommended / plugins 共享：**
@@ -239,8 +239,8 @@ Action:
 ## Step 5 — Verify install
 
 Expected artifacts/checks:
-  - CLAUDE.md                 (workflow manifesto)
-  - AGENTS.md -> CLAUDE.md    (symlink)
+  - AGENTS.md                 (workflow manifesto)
+  - CLAUDE.md -> AGENTS.md    (Claude Code compatibility symlink)
   - .agents/skills/<name>/    (one per installed skill)
   - claude plugins list       (shows Claude plugins, if Claude plugins selected)
   - ~/.codex/config.toml      (Codex plugin enablement, if Codex plugins selected)
@@ -290,13 +290,13 @@ USAGE
     npx -y auriga-cli install --preset
 
 TYPES (exactly one with <type> form)
-  workflow       CLAUDE.md + AGENTS.md (workflow manifesto, ~100 lines)
+  workflow       AGENTS.md + CLAUDE.md symlink (workflow manifesto)
   skills         Default-on workflow skills (listed below)
   recommended    Opt-in utility skills (listed below)
-  plugins        Claude Code plugins (listed below)
+  plugins        Claude Code and Codex plugins (listed below)
 
 TYPE-SPECIFIC FLAGS
-  workflow:       --lang <code>    default en; available: en, zh-CN
+  workflow:       --lang <code>    default zh-CN; available: zh-CN, en
                   --cwd <dir>      default current working directory
   skills:         --skill <names...>             space-separated; '*' = all
                   --scope <project|user>         default project
@@ -594,7 +594,7 @@ README 更新：
 
 1. **catalog drift**：npm 发布版 vs GitHub `main` 漂移。缓解：走 `.github/workflows/release.yml`——推 tag 自动触发 CI publish，不再有"忘了发"风险。不需要额外机制。
 2. **`claude plugins install` 非 TTY 行为**（spike #1 已验证 2026-04-21）：三种场景（install、marketplace add 幂等、marketplace add 错误）均非交互 OK，exit 0/1 干净，无 hang 无 prompt。`stdio: "inherit"` 现路径安全。**已解除风险**，保留此条作为"版本升级时需回归测试"的注记。
-3. **Session reload 感知**（spike #2 已验证 2026-04-21）：实测确认 **CLAUDE.md / skills / plugins 三类均在 session 启动时加载，不支持热重载**。当前 spec 设计（install 成功后 stderr 打印 reload 提醒 + guide SOP Step 4 明说 REQUIRED）成立。**已知限制**，由 guide SOP 强制告知 Agent。若将来 Claude Code 支持热加载，重新评估降级措辞。
+3. **Session reload 感知**（spike #2 已验证 2026-04-21）：实测确认 **AGENTS.md / skills / plugins 三类均在 session 启动时加载，不支持热重载**。当前 spec 设计（install 成功后 stderr 打印 reload 提醒 + guide Step 4 提醒重启会话）成立。**已知限制**，由 guide 告知 Agent。若将来 Agent runtime 支持热加载，重新评估降级措辞。
 4. **`npx skills add --yes` 的幂等**：重复跑不应炸但可能有输出噪音；作为已知行为不处理。
 5. **`--skill foo`（不存在名）的校验依赖 catalog**：若 catalog 漏生成（发布失误），校验会误报"未知 skill"。§5.4 已约定 CI 发布前校验 `dist/catalog.json` 存在。
 6. **插件目录源漂移**：本仓库插件以 Claude/Codex 官方 marketplace manifest 为真源，外部插件与 `defaultOn` 覆盖放在 `extra_plugin_configs.json`。新增插件 PR 必须同步对应 manifest 或 extra config，避免 help/catalog 与实际安装入口漂移。
@@ -606,7 +606,7 @@ README 更新：
 **状态：两条 spike 均已于 2026-04-21 跑完（见 `findings.md` 全文与 §9 Risk #2/#3 更新）。**
 
 - ✅ Spike #1：`claude plugins install` 非交互 OK（exit 0/1 干净，无 hang 无 prompt）——`plugins.ts` 现路径无需改
-- ✅ Spike #2：三类均需 session 重启（**分支 (b) 命中**）——guide Step 4 "REQUIRED" 保持；§7 reload 提醒成立
+- ✅ Spike #2：三类均需 session 重启（**分支 (b) 命中**）——guide Step 4 保留重启提醒；§7 reload 提醒成立
 
 原 spike 设计段保留如下备查：
 
