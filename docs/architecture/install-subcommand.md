@@ -7,18 +7,18 @@
 
 ## 1. 背景与动机
 
-`npx auriga-cli` 目前入口是 `@inquirer/prompts` 的 checkbox 交互菜单，非 TTY 环境无法使用。最近一轮 auriga-go dogfooding 暴露摩擦：Agent 在 `claude -p` 或 `claude -p --worktree` 这类非 TTY session 里没法直接装 harness——"把一个空仓库带到 auriga 工作流可用状态"仍然只能人工触发。
+`npx auriga-cli` 目前入口是 `@inquirer/prompts` 的 checkbox 交互菜单，非 TTY 环境无法使用。最近一轮 auriga-go dogfooding 暴露摩擦：用户或交互式 Agent 需要一份可复制、可验证的安装指引，才能稳定把空仓库带到 auriga 工作流可用状态。
 
-项目层面的其它 bootstrap 动作（`git init`、`npm create vite`、`cargo init`、建 remote、首个 commit、拉 feat 分支、开 Draft PR）Agent 自己就能调现成命令完成；唯独 auriga harness 这一步 Agent 拿不到，因为 CLI 不吃非交互输入。
+项目层面的其它 bootstrap 动作（`git init`、`npm create vite`、`cargo init`、建 remote、首个 commit、拉 feat 分支、开 Draft PR）都有清晰的命令行路径；auriga harness 安装也需要同样清晰的命令行路径和 Agent 可读指引。
 
 ## 2. 目标
 
-新增非交互式命令路径，让 Agent 在 non-TTY session 里能一次调用装好 harness。
+新增可脚本化命令路径，让用户可以直接输入命令安装，也让交互式 Agent 读取 guide 后能按固定步骤装好 harness。
 
 **In scope**：
 
 - 新增 `install` 动词子命令；三种严格互斥的合法形式：交互菜单 / `--all` 原子装 / 单类别装（可带匹配的子项过滤）
-- 新增 `guide` 子命令：输出类似 skill SOP 的安装引导，作为 **Agent bootstrap 的单一入口**（解决 discoverability 问题）
+- 新增 `guide` 子命令：输出类似 skill SOP 的安装引导，作为 **交互式 Agent 安装指引入口**（解决 discoverability 问题）
 - 详细 `--help` 输出，内嵌完整 skill / plugin 目录（名字 + 描述），让 Agent 看完 help 就能判断"我的需求该装哪些"
 - `install --all` / `install --preset` 分级退出码（0 / 1 / 2）+ precheck 外部 CLI，让 Agent 可以识别"部分成功"并精准补装
 - 幂等：二次安装能识别已装项，不破坏用户本地修改
@@ -43,7 +43,7 @@
 | 命令 | 行为 |
 |---|---|
 | `npx auriga-cli` | **checkbox 交互菜单（沿用现状）**；非 TTY 下 exit 1 |
-| `npx auriga-cli guide` | 打印 **Agent bootstrap SOP**（见 3.6）——Agent 单一入口。非交互调用要用 `npx -y auriga-cli guide` 绕开 npx 自己的"是否安装包"提示 |
+| `npx auriga-cli guide` | 打印 **交互式 Agent 安装指引**（见 3.6）。通过 `npx -y auriga-cli guide` 运行时，`-y` 属于 npx，用来绕开 npx 自己的"是否安装包"提示 |
 | `npx auriga-cli --help` / `-h` | 打印详细 help（含完整 catalog） |
 | `npx auriga-cli --version` / `-v` | 打印版本号 |
 | `npx auriga-cli install ...` | 非交互安装入口（见 3.2） |
@@ -142,23 +142,26 @@ TTY / 非 TTY 判据：`process.stdin.isTTY`（`true` = TTY）。
 7. **非交互识别**：传了位置 `<type>` 或 `--all` → 非交互；否则走 3.4
 8. **顶层未知参数**：`npx auriga-cli --all` / `npx auriga-cli foo` 等在顶层（未经 `install`）均 fail-fast
 
-### 3.6 `guide` 子命令（Agent bootstrap SOP）
+### 3.6 `guide` 子命令（交互式 Agent 安装指引）
 
-**目的**：给一个没有任何先验上下文的 Agent 单一入口——用户只需告诉 Agent "跑 `npx -y auriga-cli guide`"，Agent 读输出就能按序自主完成 bootstrap，包含 precheck / install / reload 三段关键提示。
+**目的**：支持两条推荐安装路径：用户自己在命令行运行安装器，或在交互式 Agent 会话里输入提示词“阅读 `npx -y auriga-cli guide` 并安装”。`guide` 负责把 precheck / install / reload 三段关键提示按固定顺序打印出来，方便 Agent 读取并执行。
 
 **形式：**
 
 - `npx auriga-cli guide` — 唯一形态；我们 CLI 本身没有额外 flag
 - 颜色自动判定：TTY 且 `NO_COLOR` 未设 → 彩色；否则纯文本
-- Agent 非交互调用：`npx -y auriga-cli guide`（`-y` 是 **npx 的** flag，绕开它的"是否安装包"提示；不是我们 CLI 的参数）
+- Agent 读取指引时使用：`npx -y auriga-cli guide`（`-y` 是 **npx 的** flag，绕开它的"是否安装包"提示；不是我们 CLI 的参数）
 
 **输出契约**（SOP 模板）：
 
 ```
 # auriga-cli bootstrap SOP
 
-This guide walks an Agent through installing the auriga harness
-(CLAUDE.md + skills + plugins) into the current repository.
+This guide helps an interactive Agent install the auriga harness
+(AGENTS.md + skills + plugins) into the current repository.
+
+It is meant to be read by an Agent after the user asks it to install
+Auriga from an interactive session.
 
 Run each step in order. If any step fails with exit 1, stop and report.
 If exit 2, see stderr for per-category status and follow the "retry"
@@ -221,14 +224,12 @@ Exit codes:
   2  — partial success. stderr lists per-category status + a Retry:
        block naming only the failed category(ies).
 
-## Step 4 — Reload session (REQUIRED when installed non-interactively)
+## Step 4 — Reload session after install
 
-`CLAUDE.md`, `.agents/skills/`, Claude/Codex plugin enablement, and
+`AGENTS.md`, `.agents/skills/`, Claude/Codex plugin enablement, and
 plugin registrations (`.claude/settings.json`) are all loaded
-at agent session startup. If you ran
-`npx -y auriga-cli install` inside an existing Claude Code session
-(e.g., `claude -p` / `claude -p --worktree`), **the current session
-will NOT see the new harness.**
+at agent session startup. If Auriga was installed from an existing Agent
+session, **the current session may NOT see the new harness.**
 
 Action:
   - Commit any in-flight work first
@@ -274,7 +275,7 @@ Agent 读完 `npx auriga-cli --help` 就能回答"我该装哪些"，不用再�
 auriga-cli v<ver> — install Claude Code harness modules
 
 USAGE
-  npx auriga-cli guide                                   Agent bootstrap SOP (start here)
+  npx auriga-cli guide                                   interactive Agent install guide
   npx auriga-cli install                                 (TTY only) checkbox menu
   npx auriga-cli install --preset [--scope <s>] [--agent <a>] [--lang <code>]
                                                          curated default set: workflow doc
@@ -284,7 +285,7 @@ USAGE
   npx auriga-cli install <type> [type-specific flags]    single category
   npx auriga-cli --help
 
-  For non-interactive (Agent) use, prepend npx's own -y flag:
+  For copy-paste or Agent use, prepend npx's own -y flag:
     npx -y auriga-cli guide
     npx -y auriga-cli install --preset
 
@@ -527,7 +528,7 @@ exit 2
 
 README 更新：
 
-- 新增一段介绍非交互用法（Agent / CI 场景）
+- 新增一段介绍两条推荐安装路径：用户自己运行命令，或交互式 Agent 读取 guide 后安装
 - CLI 表面示例同步
 
 ## 7. 错误处理
@@ -558,7 +559,7 @@ README 更新：
 | 单一类别彻底失败，但其它类别成功（`install --all`） | **exit 2** + stderr 打印按类状态 + 具体重试命令 |
 | 单类别 install 失败（例：`install plugins` 整体失败） | **exit 1**（没有"部分"概念） |
 | workflow 已有 `CLAUDE.md` | `.bak + 覆盖`（沿用现状，非交互下不额外确认） |
-| 成功完成 `install --all` 或单类别（非交互路径） | **最后一行** stderr 打印 `⚠ Reload your Claude Code session to pick up the new harness (CLAUDE.md / skills / plugins are loaded at session startup).` |
+| 成功完成 `install --all` 或单类别（非交互路径） | **最后一行** stderr 打印 `⚠ Reload your Agent session to pick up the new harness (AGENTS.md / skills / plugins are loaded at session startup).` |
 
 **原则**：
 - 解析阶段错误一律 fail-fast + 友好提示
@@ -593,7 +594,7 @@ README 更新：
 
 1. **catalog drift**：npm 发布版 vs GitHub `main` 漂移。缓解：走 `.github/workflows/release.yml`——推 tag 自动触发 CI publish，不再有"忘了发"风险。不需要额外机制。
 2. **`claude plugins install` 非 TTY 行为**（spike #1 已验证 2026-04-21）：三种场景（install、marketplace add 幂等、marketplace add 错误）均非交互 OK，exit 0/1 干净，无 hang 无 prompt。`stdio: "inherit"` 现路径安全。**已解除风险**，保留此条作为"版本升级时需回归测试"的注记。
-3. **Session reload 感知**（spike #2 已验证 2026-04-21）：实测确认 **CLAUDE.md / skills / plugins 三类均在 session 启动时加载，不支持热重载**——子 `claude -p` 自省 system prompt 明确："启动时 cwd 里没有 CLAUDE.md，刚才的 cp 是会话开始后发生的，不会被追加到已锁定的 system prompt"。当前 spec 设计（install 成功后 stderr 打印 reload 提醒 + guide SOP Step 4 明说 REQUIRED）成立。**已知限制**，由 guide SOP 强制告知 Agent。若将来 Claude Code 支持热加载，重新评估降级措辞。
+3. **Session reload 感知**（spike #2 已验证 2026-04-21）：实测确认 **CLAUDE.md / skills / plugins 三类均在 session 启动时加载，不支持热重载**。当前 spec 设计（install 成功后 stderr 打印 reload 提醒 + guide SOP Step 4 明说 REQUIRED）成立。**已知限制**，由 guide SOP 强制告知 Agent。若将来 Claude Code 支持热加载，重新评估降级措辞。
 4. **`npx skills add --yes` 的幂等**：重复跑不应炸但可能有输出噪音；作为已知行为不处理。
 5. **`--skill foo`（不存在名）的校验依赖 catalog**：若 catalog 漏生成（发布失误），校验会误报"未知 skill"。§5.4 已约定 CI 发布前校验 `dist/catalog.json` 存在。
 6. **插件目录源漂移**：本仓库插件以 Claude/Codex 官方 marketplace manifest 为真源，外部插件与 `defaultOn` 覆盖放在 `extra_plugin_configs.json`。新增插件 PR 必须同步对应 manifest 或 extra config，避免 help/catalog 与实际安装入口漂移。
@@ -611,9 +612,9 @@ README 更新：
 
 ---
 
-### Spike #1 — `claude plugins install` 非 TTY 真实行为
+### Spike #1 — plugin install 非 TTY 真实行为
 
-在一个干净项目里、`claude -p --worktree` 非交互 session 内跑 `claude plugins install <pkg> --scope project`：
+在一个干净项目里，通过自动化会话运行 plugin install 命令：
 
 - 会 prompt 吗？hang 吗？
 - exit code 是 0/1，还是有更细分级？
@@ -627,7 +628,7 @@ README 更新：
 
 ### Spike #2 — 同 session reload 行为
 
-在一个干净项目里、`claude -p --worktree` session 跑 `npx auriga-cli install --all` 后，**不退出 session**，紧接着：
+在一个干净项目里，通过现有 Agent 会话安装 Auriga 后，**不退出 session**，紧接着：
 
 - 触发一个 skill（例：`/systematic-debugging` 或描述型触发），看能否识别
 - 读 `CLAUDE.md`（`cat CLAUDE.md`），看 Agent 是否能感知新内容影响工作流
@@ -635,7 +636,7 @@ README 更新：
 
 **三种可能分支：**
 
-- (a) 全部同 session 立即生效 → guide Step 4 从"REQUIRED"降级为"skip if you're in a fresh session"；§7 reload 提醒改为"hint"
+- (a) 全部同 session 立即生效 → guide Step 4 从"Reload session after install"降级为"skip if you're in a fresh session"；§7 reload 提醒改为"hint"
 - (b) 全部需要重启 session → 按当前 spec 保留 Step 4 硬提醒
 - (c) 部分生效（CLAUDE.md 动态扫描、plugin 需重启，或反之）→ Step 4 要按类区分，guide 要更新
 
@@ -682,7 +683,7 @@ README 更新：
 **其它：**
 
 - [ ] `npm test` 全绿（含新增的 parse / non-tty / guide / exit-code 测试）
-- [ ] README 加 Agent bootstrap recipe 一段（开头即示例 `npx -y auriga-cli guide`；同时说明 `-y` 是 npx 的 flag）
+- [ ] README 说明两条推荐安装路径：用户自己运行安装器，或在交互式 Agent 会话里让 Agent 阅读 `npx -y auriga-cli guide` 后安装；同时说明 `-y` 是 npx 的 flag
 - [x] ~~根 `CLAUDE.md` 加"如何重新安装 harness"的反向指针（指向 `auriga-cli guide`）~~ — 原 spec 实现时加了；PR #46 做 CLAUDE.md SSOT 瘦身时移除。现 bootstrap recipe 只在 `README.md` / `README.zh-CN.md` 留存。
 - [ ] `package.json` 版本号 bump minor
 - [ ] §10 的两条 spike 已跑完，结果回写到 §9 Risk 对应条目

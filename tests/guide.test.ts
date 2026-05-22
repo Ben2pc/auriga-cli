@@ -29,7 +29,7 @@ describe("renderGuide", () => {
       "## Step 1 — Prerequisite check",
       "## Step 2 — Read --help BEFORE installing",
       "## Step 3 — Install",
-      "## Step 4 — Reload session (REQUIRED when installed non-interactively)",
+      "## Step 4 — Reload session after install",
       "## Step 5 — Verify install",
       "## Troubleshooting",
     ]) {
@@ -51,6 +51,9 @@ describe("renderGuide", () => {
   // Covers spec §3.6 command examples and graded-exit text embedded in the SOP body.
   test("mentions install, retry, and reload guidance in the body", () => {
     const out = renderGuide({ color: false, version: "1.8.1" });
+    assert.match(out, /helps an interactive Agent install/);
+    assert.match(out, /after the user asks it to install/);
+    assert.match(out, /from an interactive session/);
     // VAL-GUIDE-001: the SOP recommends the curated preset install.
     assert.match(out, /npx -y auriga-cli install --preset/);
     assert.match(out, /npx -y auriga-cli install --all/);
@@ -60,8 +63,7 @@ describe("renderGuide", () => {
     assert.doesNotMatch(out, /install hooks/);
     assert.match(out, /0\s+— all requested categories installed/);
     assert.match(out, /2\s+— partial success/);
-    assert.match(out, /Claude Code or Codex session/);
-    assert.match(out, /codex exec/);
+    assert.match(out, /existing Agent session/);
     assert.match(out, /Exit this session and start a new one/i);
   });
 

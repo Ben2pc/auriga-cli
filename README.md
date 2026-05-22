@@ -17,23 +17,21 @@ This repo itself is a fully configured harness project. You can clone it to see 
 
 ## Quick Start
 
-### Ask your Agent to install
+### Install
 
-The easiest path is to let your current Agent read the install guide and follow it:
+There are two recommended ways to install:
+
+1. Run the installer yourself:
+
+```bash
+npx -y auriga-cli
+```
+
+2. In an interactive Agent session, ask the Agent:
 
 > Run `npx -y auriga-cli guide`, read the guide, then install the Auriga harness into this repository by following the steps it prints.
 
-The guide command is intentionally non-interactive. It gives the Agent the prerequisite checks, catalog inspection commands, install commands, reload step, and verification checklist in one place.
-
-### Agent Bootstrap (non-TTY)
-
-Running inside `claude -p`, `claude -p --worktree`, or any non-interactive Agent session? Start here:
-
-```bash
-npx -y auriga-cli guide
-```
-
-This prints a 5-step SOP (prerequisite check → `install --preset` → optional recommended skills → session reload → verify). Follow it top-to-bottom and the Agent can install the full harness without any human prompt.
+The guide command is intentionally non-interactive so an Agent can read the prerequisite checks, catalog inspection commands, install commands, reload step, and verification checklist in one place.
 
 The leading `-y` belongs to `npx` (it auto-confirms package installation), **not** to `auriga-cli`.
 
@@ -52,7 +50,7 @@ npx -y auriga-cli --help                     # full catalog + flags
 
 `--preset` is atomic — it cannot be combined with a `<type>` or any filter flag, but it accepts `--scope`, `--agent`, and `--lang` (preset defaults: `user` / `both` / `zh-CN`, which differ from the per-category defaults).
 
-Exit codes: `0` success, `1` fatal (precheck / parse / fetch), `2` partial success — `stderr` lists per-category `[OK]/[FAIL]` and a `Retry:` hint. After install, reload the Claude Code or Codex session so the new `AGENTS.md` / skills / plugins / hook-plugin registrations are picked up.
+Exit codes: `0` success, `1` fatal (precheck / parse / fetch), `2` partial success — `stderr` lists per-category `[OK]/[FAIL]` and a `Retry:` hint. After install, reload the Agent session so the new `AGENTS.md` / skills / plugins / hook-plugin registrations are picked up.
 
 ### Web UI (opt-in)
 
