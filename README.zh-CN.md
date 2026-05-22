@@ -6,6 +6,12 @@
 
 这个仓库本身就是一个完整配置好的 harness 项目。可以直接 clone 查看完整配置，也可以用 CLI 把各模块安装到你自己的项目中。
 
+Auriga 的 harness 设计受以下几个开源 skill 与 Agent 工作流项目启发：
+
+- [obra/superpowers skills](https://github.com/obra/superpowers/tree/main/skills)
+- [addyosmani/agent-skills](https://github.com/addyosmani/agent-skills)
+- [mattpocock/skills](https://github.com/mattpocock/skills/tree/main)
+
 ## 包含什么
 
 | 模块 | 说明 |
