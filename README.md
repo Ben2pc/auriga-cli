@@ -6,6 +6,12 @@ A modular Claude Code harness — install only the parts you need.
 
 This repo itself is a fully configured harness project. You can clone it to see the full setup, or use the CLI to install individual modules into your own project.
 
+Auriga's harness design is inspired by several open-source skill and agent-workflow projects:
+
+- [obra/superpowers skills](https://github.com/obra/superpowers/tree/main/skills)
+- [addyosmani/agent-skills](https://github.com/addyosmani/agent-skills)
+- [mattpocock/skills](https://github.com/mattpocock/skills/tree/main)
+
 ## What's Included
 
 | Module | Description |
