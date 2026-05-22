@@ -17,23 +17,21 @@
 
 ## 快速开始
 
-### 让你的 Agent 负责安装
+### 安装
 
-最简单的方式是让当前 Agent 先读取安装指南，再按指南执行：
+推荐安装方式有两种：
+
+1. 用户自己在命令行运行安装器：
+
+```bash
+npx -y auriga-cli
+```
+
+2. 在交互式 Agent 会话里输入提示词：
 
 > 运行 `npx -y auriga-cli guide`，阅读指南，然后按输出步骤把 Auriga harness 安装到当前仓库。
 
-`guide` 命令是非交互式的。它会把前置检查、catalog 查看命令、安装命令、重启会话步骤和验证清单一次性提供给 Agent。
-
-### Agent Bootstrap（非交互）
-
-在 `claude -p`、`claude -p --worktree` 或任何非交互 Agent 会话里想装整套 harness？从这里开始：
-
-```bash
-npx -y auriga-cli guide
-```
-
-会打印一份 5 步 SOP（前置检查 → `install --preset` → 可选 recommended skills → 重启 session → 验证）。Agent 照着顺序往下跑就能装完整套 harness，全程不需要人按键。
+`guide` 命令是非交互式的，方便 Agent 一次性读取前置检查、catalog 查看命令、安装命令、重启会话步骤和验证清单。
 
 开头的 `-y` 是 **npx 自己的 flag**（用来跳过"是否要装这个包"的确认），**不是** auriga-cli 的参数。
 
@@ -52,7 +50,7 @@ npx -y auriga-cli --help                     # 完整 catalog + flag 说明
 
 `--preset` 是原子标志 —— 不能与 `<type>` 或任何过滤标志同时使用,但可带 `--scope`、`--agent`、`--lang`(预设默认 `user` / `both` / `zh-CN`,与分类安装的默认不同)。
 
-退出码：`0` 成功；`1` 致命错误（前置检查 / 解析 / 拉取失败）；`2` 部分成功——`stderr` 会列出逐类 `[OK]/[FAIL]` 和 `Retry:` 提示。装完后请重启 Claude Code 或 Codex 会话，让新的 `AGENTS.md` / skills / plugins / hook 插件注册生效。
+退出码：`0` 成功；`1` 致命错误（前置检查 / 解析 / 拉取失败）；`2` 部分成功——`stderr` 会列出逐类 `[OK]/[FAIL]` 和 `Retry:` 提示。装完后请重启 Agent 会话，让新的 `AGENTS.md` / skills / plugins / hook 插件注册生效。
 
 ### Web UI（可选）
 

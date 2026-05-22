@@ -264,7 +264,7 @@ describe("main non-interactive install flow", () => {
     const { result, stderr } = await captureStderr(() => main(["install", "--all"]));
     const lastLine = stderr.trim().split(/\r?\n/).at(-1) ?? "";
     assert.equal(result, 0);
-    assert.match(lastLine, /Reload your Claude Code or Codex session .* loaded at session startup/i);
+    assert.match(lastLine, /Reload your Agent session .* loaded at session startup/i);
   });
   // Partial success (exit 2) must still print the reload reminder —
   // categories that succeeded installed assets that require a session
@@ -281,7 +281,7 @@ describe("main non-interactive install flow", () => {
     const { result, stderr } = await captureStderr(() => main(["install", "--all"]));
     assert.equal(result, 2);
     assert.match(stderr, /Retry:\s+npx -y auriga-cli install plugins/i);
-    assert.match(stderr, /Reload your Claude Code or Codex session/i);
+    assert.match(stderr, /Reload your Agent session/i);
   });
   // Conversely, a full failure (no category succeeded → nothing was
   // installed → nothing to reload) must NOT print the reload reminder.
@@ -296,6 +296,6 @@ describe("main non-interactive install flow", () => {
     });
     const { result, stderr } = await captureStderr(() => main(["install", "--all"]));
     assert.equal(result, 2);
-    assert.doesNotMatch(stderr, /Reload your Claude Code or Codex session/i);
+    assert.doesNotMatch(stderr, /Reload your Agent session/i);
   });
 });

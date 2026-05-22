@@ -2,7 +2,7 @@
 
 ## 目标
 
-实现 Issue [#28](https://github.com/Ben2pc/auriga-cli/issues/28) + [#29](https://github.com/Ben2pc/auriga-cli/issues/29)。一句话：让 Agent 在 `claude -p` 这类非 TTY 会话里，通过 `npx -y auriga-cli guide` 单一入口，自主装好整个 auriga harness（workflow / skills / plugins / hooks）。
+实现 Issue [#28](https://github.com/Ben2pc/auriga-cli/issues/28) + [#29](https://github.com/Ben2pc/auriga-cli/issues/29)。一句话：提供可复制的安装命令和 Agent 可读 guide，让用户或交互式 Agent 能按固定步骤装好整个 auriga harness（workflow / skills / plugins / hooks）。
 
 **权威依据**：`docs/specs/2026-04-21-install-subcommand-design.md` —— 已完成 brainstorming + 两轮 opus 独立评审 + 消化反馈。实施过程里所有"怎么做"的分歧都回去查 spec；spec 没说的再回来补。
 
@@ -20,7 +20,7 @@
 
 - [x] S0.1 — Spike #1：`claude plugins install` 非交互 OK（三场景干净，无 hang 无 prompt）
 - [x] S0.2 — Spike #2：三类均需 session 重启（**分支 (b) 命中**；子 session 自证 system prompt 已锁定）
-- [x] S0.3 — 回写 spec §9 Risk #2/#3 + §10 打勾；guide Step 4 "REQUIRED" 保持
+- [x] S0.3 — 回写 spec §9 Risk #2/#3 + §10 打勾；guide Step 4 保留重启提醒
 
 **出口条件已达**：findings.md 有两条 spike 的完整结论 + 对 spec 影响；spec §10 无未决项。
 
@@ -119,7 +119,7 @@
 状态：**pending**
 
 - [ ] 7.1 本地端到端 smoke：空目录跑 `npx -y auriga-cli guide`；按 SOP 跑 `install --all`
-- [ ] 7.2 在 `claude -p --worktree` 非交互 session 里实测 bootstrap 流程（验证 spike 结论仍成立）
+- [ ] 7.2 在现有 Agent session 里实测安装后的 reload 行为（验证 spike 结论仍成立）
 - [ ] 7.3 dispatch `deep-review` skill（PR Ready 前必须走一次）
 - [ ] 7.4 处理 blocking findings（现 PR 内修 or 延期到新 issue，按 CLAUDE.md step 12）
 - [ ] 7.5 `package.json` 版本号 bump minor

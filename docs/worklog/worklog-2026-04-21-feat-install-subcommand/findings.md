@@ -61,13 +61,13 @@ claude plugins marketplace add Ben2pc/does-not-exist-xyz
 
 ### Test 1 — skill 可见性（先 skill 后内省）
 
-空目录 + `claude -p` 子 session，想问"mid-session install 的 skill 会不会在当前 session 可见"。
+空目录 + 子 Agent session，想问"mid-session install 的 skill 会不会在当前 session 可见"。
 
 - Step A：子 session 确认 `.agents/skills/` 不存在 ✓
 - Step B：子 session 尝试 `npx -y skills add obra/superpowers --skill brainstorming ...` —— **被子 session 的权限策略拒绝**（未授权外部代码执行）
 - Step C：子 session 报告 `brainstorming` **在其 skill 列表里可见**——但这个可见性来自 **父 session / 用户全局 skills 的预加载**，不是来自空 spike dir 的 `.agents/skills/`
 
-**该 Test 被权限策略污染，但揭示一个关键事实**：子 `claude -p` 的 skill 列表在**启动时已固化**，与子 session 开始后磁盘上新增的 SKILL.md 无关。
+**该 Test 被权限策略污染，但揭示一个关键事实**：子 Agent session 的 skill 列表在**启动时已固化**，与子 session 开始后磁盘上新增的 SKILL.md 无关。
 
 ### Test 2 — CLAUDE.md 可见性（内省 system prompt）
 

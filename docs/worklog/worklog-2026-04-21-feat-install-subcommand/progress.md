@@ -24,7 +24,7 @@
   - Plan 补丁：Phase 4 增加 4.0 — 用 codex 跑 `/test-designer` 做 Independent Evaluation（TDD red 在实现前）
 - **Phase 0 完成**：
   - Spike #1：三场景（install / marketplace add idempotent / marketplace add error）均非交互 OK；exit 0/1 clean，无 hang 无 prompt
-  - Spike #2：子 `claude -p` 自证 system prompt 已锁定；CLAUDE.md/skills/plugins 三类均需 session 重启——guide Step 4 "REQUIRED" 保持
+  - Spike #2：子 Agent session 自证 system prompt 已锁定；AGENTS.md/skills/plugins 三类均需 session 重启——guide Step 4 保留重启提醒
   - spec §9 Risk #2/#3 状态回写；§10 未决项段打勾
   - findings.md 写完两条完整结论
 - **main pull（2026-04-21 10:27）**：FF 到 56f6812，#29（`npx skills add` 批量化 + `npx -y`）**已合并**

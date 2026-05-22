@@ -26,7 +26,7 @@ import { CATEGORY_NAMES, type CategoryName } from "./types.js";
 export type { CategoryName } from "./types.js";
 
 const RELOAD_REMINDER =
-  "\n⚠ Reload your Claude Code or Codex session to pick up the new harness (AGENTS.md / skills / plugins are loaded at session startup).\n";
+  "\n⚠ Reload your Agent session to pick up the new harness (AGENTS.md / skills / plugins are loaded at session startup).\n";
 
 // ---------------------------------------------------------------------------
 // parseArgs — pure argv parser (spec §3.5 / §5.2)

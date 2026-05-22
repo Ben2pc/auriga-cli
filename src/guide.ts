@@ -14,7 +14,7 @@ function c(color: boolean, code: string, text: string): string {
 }
 
 /**
- * Renders the Agent-bootstrap SOP per spec §3.6. Plain-text when
+ * Renders the interactive Agent install guide. Plain-text when
  * `color: false`; adds ANSI escapes for headings / command examples
  * / warnings when `color: true`. Color detection happens at the call
  * site (`process.stdout.isTTY && !process.env.NO_COLOR`); this
@@ -27,8 +27,11 @@ export function renderGuide(opts: GuideOpts): string {
 
   return `${h(`# auriga-cli bootstrap SOP (v${opts.version})`)}
 
-This guide walks an Agent through installing the auriga harness
+This guide helps an interactive Agent install the auriga harness
 (AGENTS.md + skills + plugins) into the current repository.
+
+It is meant to be read by an Agent after the user asks it to install
+Auriga from an interactive session.
 
 Run each step in order. If any step fails with exit 1, stop and report.
 If exit 2, see stderr for per-category status and follow the "Retry"
@@ -103,13 +106,12 @@ Exit codes:
   2  — partial success. stderr lists per-category status. Retry only the
        failed category (the retry line is printed verbatim on stderr).
 
-${h("## Step 4 — Reload session (REQUIRED when installed non-interactively)")}
+${h("## Step 4 — Reload session after install")}
 
 ${warn("⚠")} AGENTS.md, .agents/skills/, and plugin enablement /
-registrations are loaded at session startup. If you ran
-\`npx -y auriga-cli install\` inside an existing Claude Code or Codex session
-(e.g., \`claude -p\` / \`claude -p --worktree\` / \`codex exec\`), the current session
-will NOT see the new harness.
+registrations are loaded at session startup. If you installed Auriga
+from an existing Agent session, the current session will NOT see the new
+harness until it is reloaded.
 
 Action:
   - Commit any in-flight work first

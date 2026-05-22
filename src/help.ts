@@ -13,7 +13,7 @@ export function renderHelp(catalog: Catalog, version: string): string {
   return `auriga-cli v${version} — install Claude Code harness modules
 
 USAGE
-  npx auriga-cli guide                                   Agent bootstrap SOP (start here)
+  npx auriga-cli guide                                   interactive Agent install guide
   npx auriga-cli install                                 (TTY only) checkbox menu
   npx auriga-cli install --preset [--scope <s>] [--agent <a>] [--lang <code>]
                                                          curated default set: workflow doc
@@ -29,7 +29,7 @@ USAGE
                                                          open the local Web UI (spec §4)
   npx auriga-cli --help
 
-  For non-interactive (Agent) use, prepend npx's own -y flag:
+  For copy-paste or Agent use, prepend npx's own -y flag:
     npx -y auriga-cli guide
     npx -y auriga-cli install --preset
 
