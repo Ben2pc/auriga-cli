@@ -49,6 +49,14 @@ describe("goalify skill contract", () => {
       "goalify must document the common endpoint of completing deep-review and fixing blocking findings",
     );
     assert.ok(
+      text.includes("跑到 deep-review 收敛"),
+      "goalify must offer a converged deep-review terminus alongside the one-shot variant",
+    );
+    assert.ok(
+      text.includes("PR Check") && text.includes("unresolved"),
+      "the converged terminus must spell out CI-green and no-unresolved-blocking-comment criteria",
+    );
+    assert.ok(
       text.includes("handoff") &&
         text.includes("这次做了什么") &&
         text.includes("怎么验收") &&

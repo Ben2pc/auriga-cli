@@ -42,6 +42,7 @@ set goal 之前必须和用户确认这个 goal 的终点——它要把 auriga 
 - **跑到验证完成** — 实现 + 测试全绿，PR 仍保持 Draft
 - **跑到 PR Ready** — 验证完成 + 补全 PR 描述五要素 + 标记 Ready for Review
 - **跑到 deep-review 完成** — 标记 Ready 后运行正式 `deep-review`；修复 blocking findings；non-blocking findings 由 agent 按严重度、置信度和改动风险判断是否修；最后把处理结果同步到 PR
+- **跑到 deep-review 收敛** — 「跑到 deep-review 完成」的循环版本：deep-review → 修 blocking findings → 提交 → 再次 deep-review，直到三条同时满足：(1) 最近一轮 `deep-review` 报 0 blocking findings；(2) 所有 PR Check 通过；(3) PR 上没有未解决（unresolved）的 blocking review comment。non-blocking findings 仍按严重度、置信度和改动风险判断。不设循环上限，`/goal` 文本不要硬编轮数
 - **跑到合并** — 含评审与合并
 
 把用户选定的终点作为**显式终止条件**写进 `/goal` 文本：goal 跑到该阶段即停，不要越界继续推进。终点之后的阶段（评审、合并等）若不在范围内，goal 文本里要写明"到此为止，交回用户"。
