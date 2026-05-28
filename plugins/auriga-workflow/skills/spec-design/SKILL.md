@@ -1,6 +1,6 @@
 ---
 name: spec-design
-description: 当 feat/ 或 fix/ 会新增或改变外部可见行为时使用；也用于澄清需求、brainstorm a feature、写 spec、拆需求、定义行为契约，接收一句话、HTML mock、PRD、Figma link 或用户自带 spec，并产出 `spec.md` 和 `validation-contract.md`。涉及公共 API、CLI、schema 或用户可见流程变化时触发；已有复现步骤的 bug 走 `systematic-debugging`。
+description: 当 feat/ 或 fix/ 会新增或改变外部可见行为时使用；也用于澄清需求、brainstorm a feature、写 spec、拆需求、定义行为契约；用户带来一句话、HTML mock、PRD 或 Figma link 时触发；涉及公共 API、CLI、schema 或用户可见流程变化时触发。
 ---
 
 # Spec Design

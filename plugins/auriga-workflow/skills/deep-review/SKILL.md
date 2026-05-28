@@ -1,6 +1,6 @@
 ---
 name: deep-review
-description: "对拉取请求执行正式的多维度代码审查。分派并行审查者（spec-conformance、correctness、test-quality、docs-sync、robustness、security、ux、performance、architecture、code-quality、skill-plugin-quality），并将发现综合为问题清单。当用户要求审查拉取请求、执行 /deep-review、将拉取请求标记为待审、或请求正式/全面代码审查时触发。"
+description: "当用户要求审查拉取请求、执行 /deep-review、将拉取请求标记为待审（Ready for Review），或请求正式 / 全面代码审查时触发。"
 ---
 
 # Deep Review
