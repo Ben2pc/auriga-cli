@@ -260,34 +260,12 @@ Risk-first 是**执行顺序**，不是 slicing axis。它可以和 Vertical sli
 
 **为什么是这个形状：**
 
-- 下一个 slice 的 subagent 读取 block，而不是读取之前的对话；没有 agent 需要“记住”
-- `commands_executed` 带 exit codes，是审计轨迹；只说“tests pass”但没有记录命令不够
-- `procedure_compliance` 让偏差显式出现，而不是埋在上下文里；例如 `deviated: created tests/fixtures/foo.json without prior approval because the fixture didn't exist` 这种信息，下一个 slice owner 需要直接看到，而不是推断
-- `not_completed` 即使为空也必须存在；有事情被暂缓时把它留空，是纪律失败
-- 五个字段是在模型切换后仍能保住信息的最小集合；扩展这个 schema 应要求同步修改 dispatch prompt templates
+- `commands_executed` 带 exit codes：只说“tests pass”而不记录命令，不构成审计轨迹
+- `procedure_compliance` 让偏差显式化（如 `deviated: created tests/fixtures/foo.json without prior approval`），下一个 slice owner 要能直接看到而非推断
+- `not_completed` 即使为空也必须保留字段；有事被暂缓却留空，是纪律失败
+- 五个字段是模型切换后仍能保住信息的最小集合；扩展这个 schema 必须同步修改 dispatch prompt templates
 
-**角色**（writer / broker / reader）：
-
-```
-   slice N                       slice N+1
-   (Writer)       ╳ no direct    (Reader)
-      │                             ▲
-      │ handoff at                  │ handoff in
-      │ end of response             │ dispatch prompt
-      │                             │
-      └──────▶ Main Agent ──────────┘
-               (Broker — sees every
-                handoff, pastes into
-                next slice's prompt)
-```
-
-对于 inline slices，main Agent 同时扮演三个角色：写 block 到 transcript，然后在开始下一 slice 时读回它。
-
-**Slice 间流转：**
-
-当 main Agent 派发 slice N+1 时，它把 slice N 的 handoff block(s) 原样复制进 N+1 subagent 的 dispatch prompt，和 slice N+1 spec、verify command 放在一起。subagent 把 handoff 当数据接收；不改写，不摘要。
-
-对于 inline（main-Agent-writes）slices，main Agent 在进入下一 slice 前，把同样的 block 写入对话 transcript。同样纪律，只是不需要派发流程。
+**流转（writer → broker → reader）：** slice N（writer）在响应结尾写出 handoff block，main Agent（broker）原样复制进 slice N+1（reader）的 dispatch prompt，与 N+1 spec、verify command 放在一起；subagent 把它当数据接收，不改写、不摘要，slice 间无直接通道。inline slices 由 main Agent 同时扮演三个角色：把 block 写入 transcript，下一 slice 开始时读回，纪律相同，只是省去派发流程。
 
 **顺序纪律：**handoff 必须在 Verify 成功完成后填写。Handoff 记录的是已经通过的内容，不是尝试过的内容。如果 verify 失败，这个 slice 还没完成；先修复或回退，再写 handoff。
 
