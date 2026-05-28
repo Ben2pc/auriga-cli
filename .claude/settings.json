@@ -1,9 +1,4 @@
 {
-  "enabledPlugins": {
-    "skill-creator@claude-plugins-official": true,
-    "claude-md-management@claude-plugins-official": true,
-    "codex@openai-codex": true,
-    "auriga-workflow@auriga-cli": true
-  },
-  "hooks": {}
+  "hooks": {},
+  "enabledPlugins": {}
 }
