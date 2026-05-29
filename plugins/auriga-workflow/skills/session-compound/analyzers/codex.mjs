@@ -38,6 +38,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import readline from 'node:readline'
+import { buildSkillCatalog, parseWorkflowRules } from './skill-catalog.mjs'
 
 // ---------- CLI ----------
 const argv = process.argv.slice(2)
@@ -52,6 +53,46 @@ const explicitFile = flag('--file', null)
 const explicitId =
   flag('--thread-id', null) || flag('--session-id', null) || null
 const PRETTY = argv.includes('--pretty')
+
+// Repeatable --skill-root override (mirrors claude-code.mjs): scan these dirs
+// for the installed-skill catalog instead of the default ~/.codex locations.
+const explicitSkillRoots = []
+for (let i = 0; i < argv.length; i++) {
+  if (argv[i] === '--skill-root' && argv[i + 1]) explicitSkillRoots.push(argv[i + 1])
+}
+
+// Skill-catalog scan roots: explicit override wins, else default Codex
+// locations + in-repo skill sources.
+function codexSkillRoots(repoCwd) {
+  if (explicitSkillRoots.length) return explicitSkillRoots
+  const home = os.homedir()
+  return [
+    path.join(home, '.codex', 'skills'),
+    path.join(home, '.codex', 'plugins', 'cache'),
+    path.join(repoCwd, '.agents', 'skills'),
+    path.join(repoCwd, 'plugins'),
+  ]
+}
+
+// Extract NEUTRAL workflow facts from Codex stats — no verdicts (symmetric with
+// claude-code.mjs). Codex modifies code via patch_apply and exposes no pr-link
+// signal; first_edit_ts/prs_count are therefore null/0. The eval subagent turns
+// these facts into judgements.
+function codexWorkflowSignals(stats) {
+  const patch = stats.patchApplies || {}
+  const branch = (stats.git && stats.git.branch) || null
+  return {
+    git_branch: branch,
+    on_main: branch ? /^(main|master)$/.test(branch) : null,
+    had_code_edit: (patch.success || 0) + (patch.failure || 0) > 0,
+    first_edit_ts: null, // codex logs don't cheaply expose first patch ts
+    prs_count: 0, // codex logs carry no pr-link signal
+    skills_invoked_count: Object.values(stats.skillInvocations).reduce(
+      (a, b) => a + b,
+      0,
+    ),
+  }
+}
 
 // ---------- Locate rollout JSONL ----------
 function sessionsRoots() {
@@ -595,6 +636,12 @@ function emit(stats, filePath) {
     count,
   }))
 
+  // Evaluation substrate (symmetric with claude-code.mjs).
+  const repoCwd = stats.cwd || process.cwd()
+  const skillCatalog = buildSkillCatalog(codexSkillRoots(repoCwd), repoCwd)
+  const workflowRules = parseWorkflowRules(repoCwd)
+  const workflowSignals = codexWorkflowSignals(stats)
+
   return {
     cli: 'codex',
     schema_version: 1,
@@ -662,6 +709,10 @@ function emit(stats, filePath) {
       expensive_turns: expensiveTurns,
       cache_breaks: [],
       waste_signals: wasteSignals,
+      // Evaluation substrate — symmetric core fields with the claude analyzer.
+      skill_catalog: skillCatalog,
+      workflow_rules: workflowRules,
+      workflow_signals: workflowSignals,
       // Codex-specific extras (claude analyzer doesn't emit these)
       compaction_count: stats.compactionCount,
       turn_aborted_count: stats.turnAbortCount,

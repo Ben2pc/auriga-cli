@@ -32,6 +32,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import readline from 'node:readline'
+import { buildSkillCatalog, parseWorkflowRules } from './skill-catalog.mjs'
 
 // ---------- CLI ----------
 const argv = process.argv.slice(2)
@@ -46,6 +47,14 @@ const explicitFile = flag('--file', null)
 const explicitId = flag('--session-id', null)
 const explicitSlug = flag('--project-slug', null)
 const PRETTY = argv.includes('--pretty')
+
+// Repeatable --skill-root override: point the installed-skill catalog scan at
+// explicit dirs instead of the default ~/.claude locations (used by tests, and
+// by power users with non-standard skill roots).
+const explicitSkillRoots = []
+for (let i = 0; i < argv.length; i++) {
+  if (argv[i] === '--skill-root' && argv[i + 1]) explicitSkillRoots.push(argv[i + 1])
+}
 
 // ---------- Locate session JSONL ----------
 function projectsDir() {
@@ -394,6 +403,47 @@ function handleAssistant(e, stats, currentTurn) {
   }
 }
 
+// Extract NEUTRAL workflow facts from the session — no verdicts. The eval
+// subagent turns these facts into instruction-following judgements. Derived
+// only from structured data (git branch, edit tool calls, pr-link, skill
+// invocations) — no fragile Bash-command-text scanning.
+function claudeWorkflowSignals(stats) {
+  const editNames = new Set(['Edit', 'Write', 'MultiEdit', 'NotebookEdit'])
+  let firstEditTs = null
+  for (const ev of stats.toolUseEvents) {
+    if (editNames.has(ev.name) && ev.ts != null) {
+      if (firstEditTs == null || ev.ts < firstEditTs) firstEditTs = ev.ts
+    }
+  }
+  const branch = stats.gitBranch || null
+  return {
+    git_branch: branch,
+    on_main: branch ? /^(main|master)$/.test(branch) : null,
+    had_code_edit: firstEditTs != null,
+    first_edit_ts: firstEditTs,
+    prs_count: Object.keys(stats.prLinks).length,
+    skills_invoked_count: Object.values(stats.skillInvocations).reduce(
+      (a, b) => a + b,
+      0,
+    ),
+  }
+}
+
+// Resolve the skill-catalog scan roots: explicit --skill-root wins, else the
+// default Claude locations + in-repo skill sources (so the repo's own plugin
+// skills are flagged editable).
+function claudeSkillRoots(repoCwd) {
+  if (explicitSkillRoots.length) return explicitSkillRoots
+  const home = os.homedir()
+  return [
+    path.join(home, '.claude', 'skills'),
+    path.join(home, '.claude', 'plugins', 'cache'),
+    path.join(repoCwd, '.agents', 'skills'),
+    path.join(repoCwd, '.claude', 'skills'),
+    path.join(repoCwd, 'plugins'),
+  ]
+}
+
 // ---------- Emit ----------
 function emit(stats, filePath) {
   const totalIn = stats.inputUncached + stats.cacheCreate + stats.cacheRead
@@ -460,6 +510,12 @@ function emit(stats, filePath) {
     }, {}),
   ).map(([type, count]) => ({ type, count }))
 
+  // Evaluation substrate (deterministic inputs for the eval subagent).
+  const repoCwd = stats.cwd || process.cwd()
+  const skillCatalog = buildSkillCatalog(claudeSkillRoots(repoCwd), repoCwd)
+  const workflowRules = parseWorkflowRules(repoCwd)
+  const workflowSignals = claudeWorkflowSignals(stats)
+
   return {
     cli: 'claude-code',
     schema_version: 1,
@@ -514,6 +570,9 @@ function emit(stats, filePath) {
       expensive_turns: expensiveTurns,
       cache_breaks: stats.cacheBreaks,
       waste_signals: wasteSignals,
+      skill_catalog: skillCatalog,
+      workflow_rules: workflowRules,
+      workflow_signals: workflowSignals,
     },
     raw_for_compound: {
       feedback_moments: stats.feedbackMoments,

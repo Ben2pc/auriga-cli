@@ -242,6 +242,99 @@ function pickAwaySummaries(out) {
   return out.narrative?.away_summaries ?? null;
 }
 
+// ---------- eval-substrate helpers (new feature: skill_catalog / workflow_rules / workflow_signals) ----------
+//
+// These build tmpdir fixtures the analyzers can be pointed at, so the new
+// substrate fields are driven by controlled inputs rather than the real
+// ~/.claude / ~/.codex / repo AGENTS.md. The analyzers gain a repeatable
+// --skill-root <path> flag; the workflow-rules source is the session cwd's
+// AGENTS.md (fallback CLAUDE.md), with the managed block delimited by the
+// markers defined in src/workflow-markers.ts.
+
+// Real managed-block markers, mirrored from src/workflow-markers.ts
+// (START_LINE_RE / END_LINE_RE, MARKER_SCHEMA = "v1"). The parser keys on the
+// language-independent `AURIGA:WORKFLOW:v1 START|END` token, so these literal
+// lines satisfy the regexes the analyzer must reuse.
+const MANAGED_START =
+  "<!-- AURIGA:WORKFLOW:v1 START — Managed block, maintained by auriga-cli. Do not edit by hand; upgrades replace it wholesale. Put project-specific instructions after the END marker below. -->";
+const MANAGED_END = "<!-- AURIGA:WORKFLOW:v1 END sha256=0123456789abcdef -->";
+
+// Create a fresh tmp dir holding one SKILL.md per provided skill spec.
+// `skills` is an array of { name, description, dirName? }. Each SKILL.md is
+// written under <root>/<dirName||name>/SKILL.md with YAML frontmatter that
+// matches the skill-cleaner parseFrontmatter contract (name:/description:).
+// Returns the absolute root path. Self-cleaning at process exit.
+function writeSkillRoot(prefix, skills) {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), `sc-skills-${prefix}-`));
+  for (const s of skills) {
+    const sub = path.join(root, s.dirName || s.name);
+    fs.mkdirSync(sub, { recursive: true });
+    const fm = `---\nname: ${s.name}\ndescription: ${s.description}\n---\n\n# ${s.name}\n\nbody.\n`;
+    fs.writeFileSync(path.join(sub, "SKILL.md"), fm);
+  }
+  cleanupFiles.push(root);
+  return root;
+}
+
+// Create a tmp dir to use as a session cwd, optionally containing an AGENTS.md.
+// `agentsBody`:
+//   - string with a managed block -> written verbatim as AGENTS.md
+//   - null -> no AGENTS.md at all (tests the "no managed block" path)
+// Returns the absolute cwd dir. Self-cleaning at process exit.
+function writeCwdDir(prefix, agentsBody) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), `sc-cwd-${prefix}-`));
+  if (agentsBody != null) {
+    fs.writeFileSync(path.join(dir, "AGENTS.md"), agentsBody);
+  }
+  cleanupFiles.push(dir);
+  return dir;
+}
+
+// Build an AGENTS.md body wrapping the given rule lines inside a valid managed
+// block. `rules` is an array of strings; each becomes a numbered list item, the
+// shape the analyzer's workflow-rule parser is expected to read.
+function managedAgentsMd(rules) {
+  const block = rules.map((r, i) => `${i + 1}. ${r}`).join("\n");
+  return `# auriga 工作流 (v1.9.0)\n\n${MANAGED_START}\n${block}\n${MANAGED_END}\n\n# repo-specific\n\nlocal stuff.\n`;
+}
+
+// Run an analyzer with arbitrary extra args (e.g. repeated --skill-root). Same
+// failure contract as runAnalyzer (non-zero exit -> throw, so "red" never means
+// a crash). `opts.cwd` sets the spawned process cwd when provided.
+function runAnalyzerArgs(script, args, opts = {}) {
+  const r = spawnSync("node", [script, ...args], {
+    encoding: "utf8",
+    cwd: opts.cwd,
+  });
+  if (r.status !== 0) {
+    throw new Error(
+      `analyzer ${path.basename(script)} exited ${r.status}: ${r.stderr}`,
+    );
+  }
+  return JSON.parse(r.stdout);
+}
+
+// Write a Claude fixture JSONL whose human-turn entries carry a chosen cwd, so
+// the analyzer's "read session cwd's AGENTS.md" path resolves to a tmpdir we
+// control. Mirrors writeFixture but stamps `cwd` onto each entry that has one.
+function writeClaudeFixtureWithCwd(prefix, entries, cwd) {
+  const stamped = entries.map((e) =>
+    e.type === "user" && e.cwd ? { ...e, cwd } : e,
+  );
+  return writeFixture(prefix, stamped);
+}
+
+// Accessors for the new substrate fields (pinned to the agreed contract).
+function pickSkillCatalog(out) {
+  return out.health?.skill_catalog ?? null;
+}
+function pickWorkflowRules(out) {
+  return out.health?.workflow_rules ?? null;
+}
+function pickWorkflowSignals(out) {
+  return out.health?.workflow_signals ?? null;
+}
+
 // ---------- test harness ----------
 const results = [];
 function test(name, fn) {
@@ -719,6 +812,361 @@ test("SKILL.md documents the newly added analyzer fields [VAL-DOC-001]", () => {
   assert(missing.length === 0, `SKILL.md missing docs for new fields: ${missing.join(", ")}`);
   // Tool-failure documentation (allow either the field name or phrase).
   assert(/tool_failures|工具失败/.test(txt), "SKILL.md must document tool failures");
+});
+
+// =====================================================================
+// NEW FEATURE — evaluation substrate (skill_catalog / workflow_rules /
+// workflow_signals). Traces to docs/worklog/worklog-2026-05-29-feat-session-compound-skill-eval/
+// validation-contract.md. The substrate is the analyzer's deterministic
+// FACT extraction; all judgement is the eval subagent's job. Tests assert
+// health.skill_catalog / health.workflow_rules / health.workflow_signals.
+// "Red" here = the analyzer runs (exit 0) but the asserted field is
+// absent/empty/wrong — never a crash (runAnalyzer* throw on non-zero exit).
+// =====================================================================
+
+// ---------------------------------------------------------------------
+// VAL-SUB-001 — skill_catalog: one entry per installed SKILL.md, each with
+// a non-empty name and a present description, across ≥2 skill roots.
+// RED today: --skill-root is ignored, health.skill_catalog is undefined.
+// The assertions pin exact fixture-derived skill names that the real
+// ~/.claude roots cannot accidentally satisfy.
+// ---------------------------------------------------------------------
+test("claude analyzer builds skill_catalog from --skill-root SKILL.md files [VAL-SUB-001]", () => {
+  const rootA = writeSkillRoot("a", [
+    { name: "alpha-skill", description: "use when doing alpha things" },
+    { name: "beta-skill", description: "use when doing beta things" },
+  ]);
+  const rootB = writeSkillRoot("b", [
+    { name: "gamma-skill", description: "use when doing gamma things" },
+  ]);
+  const file = writeFixture("cat-claude", [claudeUser("hello", T0)]);
+  const out = runAnalyzerArgs(CLAUDE, [
+    "--file",
+    file,
+    "--skill-root",
+    rootA,
+    "--skill-root",
+    rootB,
+  ]);
+  const cat = pickSkillCatalog(out);
+  assert(Array.isArray(cat), "health.skill_catalog must be an array");
+  const names = cat.map((e) => e.name).sort();
+  // Exactly the three fixture skills — confirms it scanned the override roots,
+  // not the real ~/.claude root (which would add unrelated names).
+  assertEqual(
+    JSON.stringify(names),
+    JSON.stringify(["alpha-skill", "beta-skill", "gamma-skill"]),
+    "skill_catalog must contain exactly the three fixture skills (one per SKILL.md, both roots)",
+  );
+  for (const e of cat) {
+    assert(typeof e.name === "string" && e.name.length > 0, "each entry name non-empty string");
+    assert(typeof e.description === "string", "each entry has a description string");
+    assert(e.description.length > 0, "fixture descriptions are non-empty");
+    assert(typeof e.editable === "boolean", "each entry has a boolean editable flag");
+  }
+});
+
+// ---------------------------------------------------------------------
+// VAL-SUB-001 (editable branch) — editable resolves TRUE for a skill whose
+// source lives under the session cwd (in-repo, optimizable in place) and FALSE
+// for a root outside it. Exercises buildSkillCatalog's repoPrefix check in BOTH
+// directions — the field VAL-CAND-001 candidate routing depends on. The basic
+// SUB-001 test only asserts editable is a boolean, and since its fixtures live
+// in os.tmpdir() with the cwd elsewhere, the true branch had zero coverage.
+// ---------------------------------------------------------------------
+test("claude analyzer marks in-repo skills editable:true, external editable:false [VAL-SUB-001]", () => {
+  // A session cwd that physically contains an in-repo skill source.
+  const cwd = fs.mkdtempSync(path.join(os.tmpdir(), "sc-editcwd-"));
+  cleanupFiles.push(cwd);
+  const inRepoRoot = path.join(cwd, "plugins", "demo", "skills");
+  const inRepoSkillDir = path.join(inRepoRoot, "in-repo-skill");
+  fs.mkdirSync(inRepoSkillDir, { recursive: true });
+  fs.writeFileSync(
+    path.join(inRepoSkillDir, "SKILL.md"),
+    "---\nname: in-repo-skill\ndescription: use when editing in-repo\n---\n\n# in-repo-skill\n\nbody.\n",
+  );
+  // An external root outside the cwd -> editable must be false.
+  const externalRoot = writeSkillRoot("ext", [
+    { name: "external-skill", description: "use when external" },
+  ]);
+
+  const file = writeClaudeFixtureWithCwd("editflag", [{ ...claudeUser("work", T0), cwd }], cwd);
+  const out = runAnalyzerArgs(
+    CLAUDE,
+    ["--file", file, "--skill-root", inRepoRoot, "--skill-root", externalRoot],
+    { cwd },
+  );
+
+  const cat = pickSkillCatalog(out);
+  assert(Array.isArray(cat), "skill_catalog must be an array");
+  const inRepo = cat.find((e) => e.name === "in-repo-skill");
+  const external = cat.find((e) => e.name === "external-skill");
+  assert(inRepo, "in-repo-skill must be present in the catalog");
+  assert(external, "external-skill must be present in the catalog");
+  assertEqual(inRepo.editable, true, "skill whose source is under the session cwd -> editable:true");
+  assertEqual(external.editable, false, "skill from a root outside the session cwd -> editable:false");
+});
+
+// ---------------------------------------------------------------------
+// VAL-SUB-002 — workflow_rules parsed from the cwd AGENTS.md managed block;
+// empty array (not an error) when no managed block exists.
+// cwd is routed via the session JSONL (claudeUser entries carry cwd) AND the
+// spawned process cwd, covering both plausible resolution strategies.
+// RED today: health.workflow_rules is undefined regardless of AGENTS.md.
+// ---------------------------------------------------------------------
+test("claude analyzer parses workflow_rules from the cwd AGENTS.md managed block [VAL-SUB-002]", () => {
+  const rules = [
+    "需求澄清：新需求先澄清 requirement。",
+    "方案计划：先做规模判定再决定 plan 方式。",
+    "尽早提交：完成第一个 commit 后尽早开 Draft PR。",
+  ];
+  const cwd = writeCwdDir("withblock", managedAgentsMd(rules));
+  const file = writeClaudeFixtureWithCwd("wr-claude", [claudeUser("go", T0)], cwd);
+  const out = runAnalyzerArgs(CLAUDE, ["--file", file], { cwd });
+  const wr = pickWorkflowRules(out);
+  assert(Array.isArray(wr), "health.workflow_rules must be an array");
+  assert(wr.length >= 1, "managed block present -> non-empty workflow_rules");
+  for (const r of wr) {
+    assert(typeof r.n === "number", "each rule has a numeric n");
+    assert(typeof r.text === "string" && r.text.length > 0, "each rule has non-empty text");
+  }
+  // Rule text must be sourced from the fixture block, not somewhere else.
+  const joined = wr.map((r) => r.text).join(" ");
+  assert(joined.includes("需求澄清") || joined.includes("Draft PR"),
+    "workflow_rules text must come from the fixture managed block");
+});
+
+test("claude analyzer emits empty workflow_rules when cwd AGENTS.md has no managed block [VAL-SUB-002]", () => {
+  // AGENTS.md exists but carries NO managed markers -> [] (not an error).
+  const cwd = writeCwdDir("noblock", "# just a plain repo file\n\nno managed block here.\n");
+  const file = writeClaudeFixtureWithCwd("wr-none", [claudeUser("go", T0)], cwd);
+  const out = runAnalyzerArgs(CLAUDE, ["--file", file], { cwd });
+  const wr = pickWorkflowRules(out);
+  assert(Array.isArray(wr), "workflow_rules must exist as an empty array, not be missing");
+  assertEqual(wr.length, 0, "no managed block -> empty workflow_rules (not an error)");
+});
+
+// ---------------------------------------------------------------------
+// VAL-SUB-003 — workflow_signals is a NEUTRAL facts object (no verdicts):
+// git_branch / on_main / had_code_edit / first_edit_ts / prs_count /
+// skills_invoked_count. The mechanical layer only extracts facts; all
+// instruction-following judgement is the eval subagent's job.
+// RED before the facts rework: health.workflow_signals is undefined.
+// ---------------------------------------------------------------------
+test("claude analyzer emits neutral workflow_signals facts (no verdicts) [VAL-SUB-003]", () => {
+  // Scenario A: edits ON A FEATURE BRANCH + a PR + a skill call.
+  const fileA = writeFixture("wsig-a", [
+    { ...claudeUser("do feature work", T0), gitBranch: "feat/x" },
+    claudeAssistant({
+      ts: T0,
+      reqId: "r1",
+      content: [
+        { type: "tool_use", id: "s1", name: "Skill", input: { skill: "test-designer" } },
+        { type: "tool_use", id: "e1", name: "Edit", input: { file_path: "/a" } },
+      ],
+    }),
+    claudePrLink({ prNumber: 200, prUrl: "https://github.com/o/r/pull/200", prRepository: "o/r", ts: T1 }),
+  ]);
+  const a = pickWorkflowSignals(runAnalyzer(CLAUDE, fileA));
+  assert(a && typeof a === "object" && !Array.isArray(a), "workflow_signals must be a (non-array) object");
+  // No verdict fields — purely facts.
+  assert(!("status" in a) && !("pass" in a), "workflow_signals must not carry pass/fail verdicts");
+  assertEqual(a.git_branch, "feat/x", "git_branch reflects the session branch");
+  assertEqual(a.on_main, false, "on_main false on a feature branch");
+  assertEqual(a.had_code_edit, true, "had_code_edit true when an Edit tool was used");
+  assert(typeof a.first_edit_ts === "number", "first_edit_ts is a number when edits occurred");
+  assertEqual(a.prs_count, 1, "prs_count counts the pr-link");
+  assertEqual(a.skills_invoked_count, 1, "skills_invoked_count counts the Skill call");
+
+  // Scenario B: read-only session on main — facts reflect that honestly.
+  const fileB = writeFixture("wsig-b", [
+    { ...claudeUser("just read", T0), gitBranch: "main" },
+    claudeAssistant({ ts: T0, reqId: "r1", content: [{ type: "tool_use", id: "rd", name: "Read", input: { file_path: "/a" } }] }),
+  ]);
+  const b = pickWorkflowSignals(runAnalyzer(CLAUDE, fileB));
+  assertEqual(b.on_main, true, "on_main true on main branch");
+  assertEqual(b.had_code_edit, false, "had_code_edit false with no edit tools");
+  assertEqual(b.first_edit_ts, null, "first_edit_ts null when no edits");
+  assertEqual(b.prs_count, 0, "prs_count 0 with no PR");
+});
+
+// ---------------------------------------------------------------------
+// VAL-SUB-004 — skill_catalog dedups by realpath/name: two --skill-root
+// dirs where a symlink makes the SAME SKILL.md reachable twice -> one entry.
+// RED today: skill_catalog is undefined; once implemented, a naive scanner
+// that doesn't dedup by realpath would emit the skill twice.
+// ---------------------------------------------------------------------
+test("claude analyzer dedups skill_catalog when a symlink exposes the same skill twice [VAL-SUB-004]", () => {
+  // rootA holds the real skill dir; rootB symlinks to rootA's skill dir, so the
+  // same SKILL.md realpath is reachable from both roots.
+  const rootA = writeSkillRoot("dedupA", [
+    { name: "dup-skill", description: "use when deduping" },
+  ]);
+  const rootB = fs.mkdtempSync(path.join(os.tmpdir(), "sc-skills-dedupB-"));
+  cleanupFiles.push(rootB);
+  const realSkillDir = path.join(rootA, "dup-skill");
+  const linkPath = path.join(rootB, "dup-skill");
+  let symlinkOk = true;
+  try {
+    fs.symlinkSync(realSkillDir, linkPath, "dir");
+  } catch {
+    // Filesystem without symlink support: fall back to a hard duplicate so the
+    // name-based dedup half of the contract is still exercised.
+    symlinkOk = false;
+    fs.mkdirSync(linkPath, { recursive: true });
+    fs.copyFileSync(
+      path.join(realSkillDir, "SKILL.md"),
+      path.join(linkPath, "SKILL.md"),
+    );
+  }
+  const file = writeFixture("dedup-claude", [claudeUser("hi", T0)]);
+  const out = runAnalyzerArgs(CLAUDE, [
+    "--file",
+    file,
+    "--skill-root",
+    rootA,
+    "--skill-root",
+    rootB,
+  ]);
+  const cat = pickSkillCatalog(out);
+  assert(Array.isArray(cat), "health.skill_catalog must be an array");
+  const dups = cat.filter((e) => e.name === "dup-skill");
+  assertEqual(
+    dups.length,
+    1,
+    `the same skill reachable via two roots (${symlinkOk ? "symlink" : "duplicate"}) must appear once`,
+  );
+});
+
+// ---------------------------------------------------------------------
+// VAL-PAR-001 — both analyzers emit the three substrate keys under health with
+// matching types: skill_catalog (array), workflow_rules (array),
+// workflow_signals (object). With nothing found, the arrays are empty and the
+// signals object is still present. For codex, cwd is routed via
+// session_meta.payload.cwd; here we point both at empty skill roots + a cwd
+// with no managed block.
+// RED before the rework: the keys are undefined on both analyzers.
+// ---------------------------------------------------------------------
+test("both analyzers emit skill_catalog/workflow_rules/workflow_signals under health, same types [VAL-PAR-001]", () => {
+  // Empty skill root (dir with no SKILL.md) -> skill_catalog should be [].
+  const emptyRoot = fs.mkdtempSync(path.join(os.tmpdir(), "sc-skills-empty-"));
+  cleanupFiles.push(emptyRoot);
+  // cwd with no managed block -> workflow_rules should be [].
+  const cwd = writeCwdDir("sym", "# plain\n\nno block.\n");
+
+  const claudeFile = writeClaudeFixtureWithCwd("sym-sub-claude", [claudeUser("hi", T0)], cwd);
+  const cOut = runAnalyzerArgs(CLAUDE, ["--file", claudeFile, "--skill-root", emptyRoot], { cwd });
+
+  const codexFile = (() => {
+    const f = writeFixture("sym-sub-codex", [
+      // session_meta carries cwd; stamp the controlled cwd onto it.
+      { ...codexMeta(), payload: { ...codexMeta().payload, cwd } },
+      codexTurnContext(),
+      codexUserMsgEvent("hi", T0),
+    ]);
+    return f;
+  })();
+  const xOut = runAnalyzerArgs(CODEX, ["--file", codexFile, "--skill-root", emptyRoot], { cwd });
+
+  for (const [label, out] of [["claude", cOut], ["codex", xOut]]) {
+    const cat = pickSkillCatalog(out);
+    const wr = pickWorkflowRules(out);
+    const wsig = pickWorkflowSignals(out);
+    assert(Array.isArray(cat), `${label}: health.skill_catalog must be present as an array`);
+    assert(Array.isArray(wr), `${label}: health.workflow_rules must be present as an array`);
+    assert(wsig && typeof wsig === "object" && !Array.isArray(wsig),
+      `${label}: health.workflow_signals must be present as a (non-array) object`);
+    // Nothing found -> empty arrays (present, not missing); signals still object.
+    assertEqual(cat.length, 0, `${label}: empty skill root -> empty skill_catalog`);
+    assertEqual(wr.length, 0, `${label}: no managed block -> empty workflow_rules`);
+    // workflow_signals carries the same fact keys on both CLIs.
+    for (const f of ["git_branch", "on_main", "had_code_edit", "first_edit_ts", "prs_count", "skills_invoked_count"]) {
+      assert(f in wsig, `${label}: workflow_signals must carry the ${f} fact`);
+    }
+  }
+  // Type parity across analyzers.
+  assert(Array.isArray(cOut.health?.skill_catalog) && Array.isArray(xOut.health?.skill_catalog),
+    "skill_catalog must be an array on both analyzers");
+  assert(Array.isArray(cOut.health?.workflow_rules) && Array.isArray(xOut.health?.workflow_rules),
+    "workflow_rules must be an array on both analyzers");
+  assert(typeof cOut.health?.workflow_signals === "object" && typeof xOut.health?.workflow_signals === "object",
+    "workflow_signals must be an object on both analyzers");
+});
+
+// =====================================================================
+// EVAL / CAND / REL — doc + release contract (repo-check). These grep the
+// SKILL.md / plugin.json / package.json / CI that the feature must ship.
+// Trace to docs/worklog/worklog-2026-05-29-feat-session-compound-skill-eval/validation-contract.md.
+// =====================================================================
+const REPO_ROOT = path.resolve(HERE, "..");
+const PLUGIN_ROOT = path.resolve(ANALYZER_DIR, "..", "..", "..");
+function semverGt(a, b) {
+  const pa = String(a).split(".").map(Number);
+  const pb = String(b).split(".").map(Number);
+  for (let i = 0; i < 3; i++) {
+    if ((pa[i] || 0) > (pb[i] || 0)) return true;
+    if ((pa[i] || 0) < (pb[i] || 0)) return false;
+  }
+  return false;
+}
+
+test("SKILL.md mandates an independent, zero-context eval subagent [VAL-EVAL-001]", () => {
+  const txt = fs.readFileSync(SKILL_MD, "utf8");
+  assert(/独立/.test(txt), "SKILL.md eval step must require an 独立 subagent");
+  assert(/零上下文继承|fresh context/i.test(txt),
+    "SKILL.md must require fresh/zero-context dispatch for the eval subagent");
+});
+
+test("SKILL.md scopes recall to all installed skills, execution-eval to invoked-only [VAL-EVAL-002]", () => {
+  const txt = fs.readFileSync(SKILL_MD, "utf8");
+  assert(/全部已安装\s*skill/.test(txt), "recall must cover 全部已安装 skill");
+  assert(/(本会话.*(调用过|跑过))|(调用过|跑过).*skill/.test(txt),
+    "execution eval must be scoped to skills invoked this session");
+});
+
+test("SKILL.md requires severity+confidence findings with no pre-filtering [VAL-EVAL-003]", () => {
+  const txt = fs.readFileSync(SKILL_MD, "utf8");
+  assert(/severity/.test(txt) && /confidence/.test(txt),
+    "findings must carry severity + confidence");
+  assert(/不.{0,4}预过滤/.test(txt), "findings must not be pre-filtered by importance");
+});
+
+test("SKILL.md routes editable in-repo SKILL.md eval findings to skill-body candidates [VAL-CAND-001]", () => {
+  const txt = fs.readFileSync(SKILL_MD, "utf8");
+  assert(/editable/.test(txt), "candidate guidance must key on the editable flag");
+  assert(/in-repo\s*SKILL\.md|in-repo SKILL/.test(txt) && /就地优化/.test(txt),
+    "editable findings must target the in-repo SKILL.md for in-place optimization");
+});
+
+test("SKILL.md forbids edit candidates for external/cached skills [VAL-CAND-002]", () => {
+  const txt = fs.readFileSync(SKILL_MD, "utf8");
+  assert(/不.{0,6}产出编辑候选|不要产出编辑候选/.test(txt),
+    "external/cached skills must not yield edit candidates");
+  assert(/更新即被覆盖|下次更新.*覆盖/.test(txt),
+    "rationale (overwritten on update) must be stated");
+});
+
+test("auriga-workflow plugin version bumped above 3.7.0 + SKILL.md documents new fields [VAL-REL-001]", () => {
+  for (const rel of [".claude-plugin/plugin.json", ".codex-plugin/plugin.json"]) {
+    const p = path.join(PLUGIN_ROOT, rel);
+    const v = JSON.parse(fs.readFileSync(p, "utf8")).version;
+    assert(semverGt(v, "3.7.0"), `${rel} version ${v} must be > 3.7.0`);
+  }
+  const txt = fs.readFileSync(SKILL_MD, "utf8");
+  for (const f of ["skill_catalog", "workflow_rules", "workflow_signals"]) {
+    assert(txt.includes(f), `SKILL.md must document new substrate field ${f}`);
+  }
+});
+
+test("substrate tests are wired into test:session-compound + CI [VAL-REL-002]", () => {
+  const self = fs.readFileSync(fileURLToPath(import.meta.url), "utf8");
+  assert(/\[VAL-SUB-001\]/.test(self) && /\[VAL-PAR-001\]/.test(self),
+    "this file must carry the SUB/PAR substrate assertions");
+  const pkg = JSON.parse(fs.readFileSync(path.join(REPO_ROOT, "package.json"), "utf8"));
+  assert(/session-compound-analyzers\.test\.mjs/.test(pkg.scripts["test:session-compound"] || ""),
+    "package.json test:session-compound must point at this file");
+  const ci = fs.readFileSync(path.join(REPO_ROOT, ".github", "workflows", "test.yml"), "utf8");
+  assert(/test:session-compound/.test(ci), "CI must run test:session-compound");
 });
 
 // ---------- report + cleanup ----------

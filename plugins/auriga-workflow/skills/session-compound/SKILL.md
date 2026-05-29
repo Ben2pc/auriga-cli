@@ -5,10 +5,11 @@ description: 当用户要求复盘、总结、沉淀、整理这次会话、wrap
 
 # Session Compound
 
-把单次 CLI 会话压缩成一份可离线打开的 HTML 报告（写到 `/tmp`，不落进项目仓库）。报告分三个 tab：
+把单次 CLI 会话压缩成一份可离线打开的 HTML 报告（写到 `/tmp`，不落进项目仓库）。报告分四个 tab：
 
 - **Narrative** — 这次做了什么（时间线 + 关键反馈时刻 + Agent 撰写的叙事摘要）
 - **Health** — token / cache / 工具用量诊断
+- **评估** — 中性工作流事实面板 + 独立子代理的指令遵循 / skill 召回 / 逐 skill 执行评估 finding
 - **Compound** — playground：左侧候选条目列表（可勾选 + 行内编辑），右侧实时合成 markdown，底部一键复制「提示词」，粘回 Claude / Codex 让 agent 按规则落库
 
 ## 何时使用
@@ -72,9 +73,12 @@ node <skill-dir>/analyzers/codex.mjs > /tmp/session-compound.json
 - `health.tool_failures` — 失败的工具调用（`{call_id,name,preview}`，两端同形）
 - `health.expensive_turns` — token 消耗最高的 turn
 - `health.waste_signals` — 重复读同文件、低 cache 命中、API 错误 / 重试等浪费信号
+- `health.skill_catalog` — 本机可用的全部已安装 skill 目录（`{name, description, editable}`，按 name 去重折叠插件缓存多版本；`editable` 表示该 skill 源在当前仓库内、可就地优化）。**指令遵循 & skill 召回评估的输入**
+- `health.workflow_rules` — 从仓库 AGENTS.md / CLAUDE.md 受管区块解析出的工作流规则（`{n, text}`）；无受管区块为空数组
+- `health.workflow_signals` — **中性事实包，不含任何判决**（`{git_branch, on_main, had_code_edit, first_edit_ts, prs_count, skills_invoked_count}`）。机械层只提取事实；指令遵循 / 召回 / skill 执行的判断**全部交评估 subagent**
 - `raw_for_compound` — 用来写候选条目的原材料（含 `agent_invocations`、`tool_failures`）
 
-两套 analyzer 输出的**核心字段**（`session.{id,cwd,duration_ms,model,git,recorded_turn_ms}` / `narrative.{task_title,human_turns,feedback_moments,away_summaries}` / `health.{tokens,cache_hit_rate,tools,subagents,skills,skill_attribution,prs,tool_failures,expensive_turns,waste_signals}` / `raw_for_compound.{feedback_moments,repeated_reads,agent_invocations,tool_failures}`）一致，模板按这些字段渲染。除此之外两侧各有 CLI-specific 扩展字段，Codex 多 `health.{compaction_count, turn_aborted_count, patch_apply, mcp_tool_call_count, custom_tool_call_count, web_search_count, tool_search_count, image_generation_count, context_window, reasoning_output_ratio}` 与 `narrative.{task_conclusion, task_completed, task_duration_ms, time_to_first_token_ms}`；Claude 多 `health.{api_calls, cache_breaks}`。注意 `skill_attribution` / `prs` / `away_summaries` 目前仅 Claude 端有数据（Codex 日志无等价信号），缺失侧为空集合。模板已按 CLI 分支处理这些差异。
+两套 analyzer 输出的**核心字段**（`session.{id,cwd,duration_ms,model,git,recorded_turn_ms}` / `narrative.{task_title,human_turns,feedback_moments,away_summaries}` / `health.{tokens,cache_hit_rate,tools,subagents,skills,skill_attribution,prs,tool_failures,expensive_turns,waste_signals,skill_catalog,workflow_rules,workflow_signals}` / `raw_for_compound.{feedback_moments,repeated_reads,agent_invocations,tool_failures}`）一致，模板按这些字段渲染。除此之外两侧各有 CLI-specific 扩展字段，Codex 多 `health.{compaction_count, turn_aborted_count, patch_apply, mcp_tool_call_count, custom_tool_call_count, web_search_count, tool_search_count, image_generation_count, context_window, reasoning_output_ratio}` 与 `narrative.{task_conclusion, task_completed, task_duration_ms, time_to_first_token_ms}`；Claude 多 `health.{api_calls, cache_breaks}`。注意 `skill_attribution` / `prs` / `away_summaries` 目前仅 Claude 端有数据（Codex 日志无等价信号），缺失侧为空集合。`skill_catalog` / `workflow_rules` / `workflow_signals` 两端都有，各从本 CLI 的 skill 根目录与会话 cwd 的 AGENTS.md 构建（`workflow_signals` 是中性事实，不下判决）。模板已按 CLI 分支处理这些差异。
 
 ### 步骤 3：复制模板到输出文件
 
@@ -101,9 +105,17 @@ npx skills find "<query>" 2>&1 | head -30
 
 这一步的输出**直接进入下一步 5d 的 candidates 数组**，但需要一个特殊 type `existing-skill`——任何 `recommend-install` verdict 的结果都应该作为一个 `existing-skill` candidate 加进数组（用户在浏览器里勾选 → 复制 prompt 后下游 agent 会自动跑 `npx skills add` 安装）。
 
+### 步骤 4.5：派遣独立 subagent 做指令遵循 & skill 执行评估
+
+产出 `eval-findings`（指令遵循 / 召回 / 逐 skill 执行评估）→ 步骤 5e 注入报告、并可喂 5d 的 skill-body 候选。**完整派遣协议（输入清单、输出 schema、skill-body 落点规则）见 `references/eval-dispatch.md`——派遣前读它。** 这里只列不可省的硬约束：
+
+- **必须用独立、零上下文继承（fresh context）的 subagent**：被评估的会话正是主 Agent 自己跑的，自评有系统性偏差（纪律同 `deep-review` / `test-designer`：新会话、不 resume、不把当前对话历史复制进子代理）。
+- **范围**：召回 / 指令遵循覆盖 `skill_catalog` 里**全部已安装 skill** 与全部 `workflow_rules`；逐 skill 执行 eval **仅覆盖本会话真正调用过 / 跑过的 skill**（`health.skills` 里的）。机械层只给 `workflow_signals` 中性事实（分支 / 是否在 main / 有无编辑 / PR / skill 调用数），**所有判断由 subagent 做**——包括"在 main 上编辑了"这类原来机械层下的判决。
+- **输出**：finding 数组 `{kind, severity, confidence, text, skill?}`，每条带 `severity` + `confidence`，**不按重要性预过滤**（全部 in-scope finding 都报告，过滤交给人）。
+
 ### 步骤 5：注入数据 + 撰写 Agent 填空段（**用 Edit，不用 Write**——必须保留模板的 JS/CSS）
 
-需要做 4 处编辑：
+需要做 5 处编辑：
 
 #### 5a. 替换 `<script id="report-data">` 的内容
 
@@ -280,9 +292,26 @@ Schema：
 
 来自 JSON 的 `raw_for_compound`：feedback 瞬间、重复读文件、子 agent 调用、turn 时间线。**`narrative.feedback_moments` 里的用户反馈片段（≤200 字符摘要）** 通常是 `agent-md` 候选的起点——如果某条反馈反复出现，就是一条工作流级规则。`human_turns` 里反复出现的工具组合 + 失败模式则是 `skill-gap` 的线索。
 
+**步骤 4.5 的 `eval-findings` 也是候选原材料**——尤其 `kind: skill-eval` 的 finding（某 skill 执行欠佳）：
+
+- 当 finding 指向**本仓库可编辑的** SKILL.md（`skill_catalog` 里 `editable: true` 的那条），且问题是 skill body 写得不到位时，产出一个 `agent-md` 候选，**target 直接指向那份 in-repo SKILL.md** 做就地优化（与决策表「工程现有 skill 已覆盖、只是指引不到位」一致）。这正是"对抗一味叠加内容"的入口：先判断是不是 body 本身没写好，而不是默认加规则。
+- 对**外部 / cached、不可编辑**（`editable: false`）的 skill，**不要产出编辑候选**——它的源在插件缓存里，改了下次更新即被覆盖；只在报告「评估」tab 的「指令遵循与 skill 评估」区块里报告它的表现即可。
+
 ##### 质量标准
 
 宁少勿滥。**3–8 条高价值候选** 胜过 20 条平庸候选。明显的别写——只保留**未来某次会话**会真正用到的。`skill-gap` 的标准最高，一次产出 0–2 条就够了。
+
+#### 5e. 填 `<script id="eval-findings">` 数组
+
+把步骤 4.5 独立 subagent 返回的 finding 数组写进 `<script id="eval-findings">` 块（默认是 `[]`）：
+
+```html
+<script id="eval-findings" type="application/json">
+[{ "kind": "recall", "severity": "high", "confidence": "med", "text": "...", "skill": "..." }]
+</script>
+```
+
+模板会把它渲染进「评估」tab 的「指令遵循与 skill 评估」区块；数组为空则该区块自动隐藏（不显示空壳）。**原样注入 subagent 的输出，不要在这里二次过滤或改写措辞**——预过滤已在派遣纪律里禁止。
 
 ### 步骤 6：打开报告
 
@@ -293,7 +322,7 @@ Schema：
 ## 备注
 
 - 写 `skill-gap` / `agent-md` 类候选前，强烈建议先用 `find-skills` 跑一次 ecosystem 搜索（`npx skills find <query>`，候选 gate #5）；新建 skill 时按 skill-development 规范（第三人称 description、imperative body、progressive disclosure：SKILL.md ≤2k 词 + references/ + scripts/ + assets/、validation checklist）撰写，`skill-gap` body 模板的每个字段都对应该规范的某条要求
-- 模板 JS 只读两个 script block：`<script id="report-data">`（analyzer 输出）和 `<script id="candidates">`（你撰写的候选）。其余渲染都靠这两个 blob 驱动。**不要改 HTML 结构**。
+- 模板 JS 只读三个 script block：`<script id="report-data">`（analyzer 输出）、`<script id="candidates">`（你撰写的候选）、`<script id="eval-findings">`（步骤 4.5 独立 subagent 的评估 finding）。其余渲染都靠这三个 blob 驱动。**不要改 HTML 结构**。
 - Compound tab 是这个 skill 区别于普通 session report 的核心价值——把「AI 提取候选 → 人审核 → 落入 AGENTS.md / 装 skill / 新建 skill」做成了无摩擦闭环。
 - Codex 有原生 sub-agent（`spawn_agent` / `wait_agent` / `close_agent` 工具调用），analyzer 会把 `agent_type` 汇总到 `health.subagents`。Codex 也支持 skill（`$skill-name` 命令，日志里以 `<skill><name>` 块注入），analyzer 解析后填进 `health.skills`，与 Claude 端同形。
 - Codex 的 `health` 段额外含：`compaction_count`（自动压缩次数）、`patch_apply.{success, failure}`（代码修改成败比）、`mcp_tool_call_count` / `custom_tool_call_count` / `web_search_count` / `tool_search_count` / `image_generation_count` 等专项工具计数，以及 `context_window`（模型窗口大小）。
