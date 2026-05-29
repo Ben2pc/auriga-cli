@@ -619,11 +619,19 @@
        when empty for this session. -->
   <div id="sec-skills" hidden>
     <h2>触发的 skill</h2>
+    <p style="color: var(--text-dim); margin: 6px 0 10px; font-size: 13px;">
+      每个 skill 被<b>启动了几次</b>（命令入口触发次数）。
+    </p>
     <div class="card"><table class="bars" id="skills-table"></table></div>
   </div>
 
   <div id="sec-attribution" hidden>
     <h2>Skill 工作量（attribution）</h2>
+    <p style="color: var(--text-dim); margin: 6px 0 10px; font-size: 13px;">
+      每个 skill <b>实际驱动了多少次工具调用</b>——一次调用背后展开的真实操作量。
+      与上面的「触发次数」不同：一个 skill 可能只启动 1 次，却驱动几十步操作。
+      这才反映会话的工作量真正集中在哪。（数据来自日志的 <code>attributionSkill</code>，目前仅 Claude 端有。）
+    </p>
     <div class="card"><table class="bars" id="attribution-table"></table></div>
   </div>
 
@@ -1005,7 +1013,7 @@
       '**`## existing-skill`** — 步骤 4 预查 ecosystem 时找到的可复用 skill。请直接执行每条 body 里附的 `npx -y skills add <owner/repo@skill> -a codex claude-code -y` 命令安装（`npx -y` 在前给 npx 自动升级用；`-a codex claude-code` 同时装到 codex 和 claude-code 两个 agent；末尾 `-y` 跳过 skills CLI 自己的确认）。安装成功后简短确认，无需再 scaffold 新 skill。',
     ],
     'agent-md': [
-      '**`## agent-md`** — 沉淀到 AGENTS.md 体系。每条 body 第一行已经声明 target（根 `AGENTS.md` / `docs/rules/<topic>.md` + 根 AGENTS.md 索引 / `<subdir>/AGENTS.md`）。按 target 把 body 里"要写入的内容"段逐字落到对应文件；target 是 `docs/rules/<topic>.md` 时同时在根 `AGENTS.md` 加索引行。若两者是软链则只写一处。',
+      '**`## agent-md`** — 沉淀到 AGENTS.md 体系。每条 body 第一行已经给出**推荐 target** + 落点理由（就地优化某个 `<skill>/SKILL.md` / 扩写现有 `docs/rules/<topic>.md` / 根 `AGENTS.md` / 新建 `docs/rules/<topic>.md` + 索引 / `<subdir>/AGENTS.md`）。这是 session-compound 已按工程现有规范判定过的落点——优先沿用，不要从头再决策一轮。落地前快速核对一次仓库现状（目标文件 / skill 是否仍在、是否已有覆盖该领域的更合适位置）：若现状与推荐 target 一致就直接落；只有当仓库结构与候选判断明显不符时才调整，并说明原因。优先「就地优化已有 skill / 扩写已有 docs」而非新建或往根 AGENTS.md 堆内容（根文件是入口+索引，靠多级文件渐进式披露）。按 target 把"要写入的内容"段逐字落到对应文件；新建 `docs/rules/<topic>.md` 时同时在根 `AGENTS.md` 加索引行；若根 `AGENTS.md` 与 `CLAUDE.md` 是软链则只写一处。',
     ],
     'skill-gap': [
       '**`## skill-gap`** — 新 skill 候选。每条都已按 5 条 hard gate（多步骤 + 可重复 + 第三人称触发短语 + 可绑定资源 + ecosystem 没现成的）筛过，正文里附了触发短语 / find-skills 检查结果 / imperative 步骤 / bundled resources。请按以下顺序处理：',

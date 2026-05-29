@@ -187,20 +187,30 @@ Schema：
   - 末尾 `-y` — `skills add` 自身的"yes to confirmation prompts"
   勾选后会进入合成的 prompt，下游 agent 会自动执行 `npx skills add` 安装
 
-- **`agent-md`** — 沉淀到 AGENTS.md 体系。**根据经验的范围选 target**，正文第一行就声明 target，方便下游 agent 直接落地：
+- **`agent-md`** — 沉淀到 AGENTS.md 体系。**target 由本 skill 自己判断并在候选里给出推荐，不要把选择甩给用户或下游再决策一轮。**
+
+  选 target 前**先勘察当前工程已有的指令组织规范**——别套用通用默认：
+  1. 读根 `AGENTS.md` / `CLAUDE.md`：它通常是**入口 + 索引**，靠多级文件做渐进式披露（根文件保持精简、详细规范拆到 `docs/` 专题文件 / 子目录指令文件）。**不要往根 AGENTS.md 堆内容**——顺着它已有的分层结构走。
+  2. 看 `docs/rules/` 等是否已有覆盖该领域的专题文件；有就**在那份文件里扩写**，而不是新建一份平行的。
+  3. 看工程**现有 skill** 是否已经覆盖这个模式——若只是某个 skill 的指引不到位 / 缺一条规则，**首选在那个 skill 的 `SKILL.md` 里就地优化**（target 指向该 skill 文件），比新增 AGENTS.md 段落或新建 skill 都更轻、更聚合。
+
+  按下表选 target（优先复用 / 扩写既有文件，最后才考虑新建）：
 
   | 经验范围 | target | 何时选 |
   |---|---|---|
-  | 跨整个仓库 / 跨语言 / 工作流级 | 根 `AGENTS.md`（如果 `CLAUDE.md` 是软链则只写一处） | 短规则、所有未来会话都该看 |
-  | 跨整个仓库但**内容较长**（>10 行 / 有表格 / 有示例代码） | `docs/rules/<topic>.md` 新建一份，再在根 `AGENTS.md` 加一行索引 | 写在根 AGENTS.md 会让那份文件膨胀 |
-  | 仅针对某个独立子目录（一个 plugin、一个 package、一个 service） | 那个子目录的 `AGENTS.md`（不存在就新建） | 经验只在该子目录上下文里生效，写到根 AGENTS.md 会污染全局 |
+  | **某个现有 skill 的指引可改进** | 那个 skill 的 `SKILL.md`（就地优化） | 模式已被某 skill 覆盖，只是规则缺一条 / 触发不准——最聚合，优先选 |
+  | 现有 `docs/rules/<topic>.md` 已覆盖该领域 | 在那份文件里扩写（不新建平行文件） | 已有专题文件，顺着它加 |
+  | 跨整个仓库 / 跨语言 / 工作流级（短规则） | 根 `AGENTS.md`（`CLAUDE.md` 是软链则只写一处） | 短、所有未来会话都该看，且根文件没有更合适的下级归宿 |
+  | 跨整个仓库但**内容较长**（>10 行 / 表格 / 代码） | 新建 `docs/rules/<topic>.md` + 根 `AGENTS.md` 加一行索引 | 写进根 AGENTS.md 会让它膨胀，破坏渐进式披露 |
+  | 仅针对某个独立子目录（plugin / package / service） | 那个子目录的 `AGENTS.md`（不存在就新建） | 经验只在该子目录上下文生效，写到根会污染全局 |
 
-  正文模板：
+  正文模板（target 一行必须给出**具体推荐落点** + 是「就地优化既有文件」还是「新建」）：
   ```
-  **target**: <path>（如 `AGENTS.md` / `docs/rules/<topic>.md` + 索引到根 AGENTS.md / `<subdir>/AGENTS.md`）
+  **target**: <具体路径>（如 `<skill>/SKILL.md` 就地优化 / 现有 `docs/rules/<topic>.md` 扩写 / 根 `AGENTS.md` / 新建 `docs/rules/<topic>.md` + 索引 / `<subdir>/AGENTS.md`）
+  **落点理由**: <一句话：为什么是这个文件——已有 X 覆盖该领域 / 顺着现有分层 / 根文件无更合适下级>
   **要写入的内容**:
   > <逐字给出要追加 / 修改的段落，下游 agent 复制粘贴即可>
-  **索引行**（仅当 target 是 `docs/rules/<topic>.md` 时填）:
+  **索引行**（仅当新建 `docs/rules/<topic>.md` 时填）:
   > - [<title>](docs/rules/<topic>.md) — <一句 hook>
   ```
 
@@ -211,11 +221,15 @@ Schema：
 | 经验形态 | 沉淀路径 |
 |---|---|
 | ecosystem 已经有匹配 skill | `existing-skill`（最廉价） |
-| 跨会话的工作流约束 / 流程规则（短文本） | `agent-md` → 根 AGENTS.md |
-| 跨会话的长文约定（>10 行 / 表格 / 代码） | `agent-md` → `docs/rules/<topic>.md` + 根 AGENTS.md 索引 |
+| **工程现有 skill 已覆盖、只是指引不到位** | `agent-md` → 就地优化那个 skill 的 `SKILL.md`（最聚合，优先） |
+| 现有 `docs/rules/<topic>.md` 已覆盖该领域 | `agent-md` → 在那份文件里扩写 |
+| 跨会话的工作流约束 / 流程规则（短文本） | `agent-md` → 根 AGENTS.md（无更合适下级时） |
+| 跨会话的长文约定（>10 行 / 表格 / 代码） | `agent-md` → 新建 `docs/rules/<topic>.md` + 根 AGENTS.md 索引 |
 | 只影响某个子目录的约定 | `agent-md` → `<subdir>/AGENTS.md` |
 | **多步骤、可重复、有触发条件、需要脚本辅助** | `skill-gap`（新 skill） |
 | 一次性 / 上游工具 issue / 不在用户控制范围内 | **不要写候选** |
+
+落点优先级（从最聚合到最重）：**就地优化现有 skill / 扩写现有 docs** → 现有分层里的合适位置 → 根 AGENTS.md 短规则 → 新建专题文件 → 新建 skill。先复用既有结构，最后才新建。
 
 ##### `skill-gap` 候选必须自证「值得做成 skill」
 
