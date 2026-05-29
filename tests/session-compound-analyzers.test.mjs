@@ -816,7 +816,7 @@ test("SKILL.md documents the newly added analyzer fields [VAL-DOC-001]", () => {
 
 // =====================================================================
 // NEW FEATURE — evaluation substrate (skill_catalog / workflow_rules /
-// workflow_signals). Traces to docs/specs/session-compound-skill-eval/
+// workflow_signals). Traces to docs/worklog/worklog-2026-05-29-feat-session-compound-skill-eval/
 // validation-contract.md. The substrate is the analyzer's deterministic
 // FACT extraction; all judgement is the eval subagent's job. Tests assert
 // health.skill_catalog / health.workflow_rules / health.workflow_signals.
@@ -864,6 +864,47 @@ test("claude analyzer builds skill_catalog from --skill-root SKILL.md files [VAL
     assert(e.description.length > 0, "fixture descriptions are non-empty");
     assert(typeof e.editable === "boolean", "each entry has a boolean editable flag");
   }
+});
+
+// ---------------------------------------------------------------------
+// VAL-SUB-001 (editable branch) — editable resolves TRUE for a skill whose
+// source lives under the session cwd (in-repo, optimizable in place) and FALSE
+// for a root outside it. Exercises buildSkillCatalog's repoPrefix check in BOTH
+// directions — the field VAL-CAND-001 candidate routing depends on. The basic
+// SUB-001 test only asserts editable is a boolean, and since its fixtures live
+// in os.tmpdir() with the cwd elsewhere, the true branch had zero coverage.
+// ---------------------------------------------------------------------
+test("claude analyzer marks in-repo skills editable:true, external editable:false [VAL-SUB-001]", () => {
+  // A session cwd that physically contains an in-repo skill source.
+  const cwd = fs.mkdtempSync(path.join(os.tmpdir(), "sc-editcwd-"));
+  cleanupFiles.push(cwd);
+  const inRepoRoot = path.join(cwd, "plugins", "demo", "skills");
+  const inRepoSkillDir = path.join(inRepoRoot, "in-repo-skill");
+  fs.mkdirSync(inRepoSkillDir, { recursive: true });
+  fs.writeFileSync(
+    path.join(inRepoSkillDir, "SKILL.md"),
+    "---\nname: in-repo-skill\ndescription: use when editing in-repo\n---\n\n# in-repo-skill\n\nbody.\n",
+  );
+  // An external root outside the cwd -> editable must be false.
+  const externalRoot = writeSkillRoot("ext", [
+    { name: "external-skill", description: "use when external" },
+  ]);
+
+  const file = writeClaudeFixtureWithCwd("editflag", [{ ...claudeUser("work", T0), cwd }], cwd);
+  const out = runAnalyzerArgs(
+    CLAUDE,
+    ["--file", file, "--skill-root", inRepoRoot, "--skill-root", externalRoot],
+    { cwd },
+  );
+
+  const cat = pickSkillCatalog(out);
+  assert(Array.isArray(cat), "skill_catalog must be an array");
+  const inRepo = cat.find((e) => e.name === "in-repo-skill");
+  const external = cat.find((e) => e.name === "external-skill");
+  assert(inRepo, "in-repo-skill must be present in the catalog");
+  assert(external, "external-skill must be present in the catalog");
+  assertEqual(inRepo.editable, true, "skill whose source is under the session cwd -> editable:true");
+  assertEqual(external.editable, false, "skill from a root outside the session cwd -> editable:false");
 });
 
 // ---------------------------------------------------------------------
@@ -1055,7 +1096,7 @@ test("both analyzers emit skill_catalog/workflow_rules/workflow_signals under he
 // =====================================================================
 // EVAL / CAND / REL — doc + release contract (repo-check). These grep the
 // SKILL.md / plugin.json / package.json / CI that the feature must ship.
-// Trace to docs/specs/session-compound-skill-eval/validation-contract.md.
+// Trace to docs/worklog/worklog-2026-05-29-feat-session-compound-skill-eval/validation-contract.md.
 // =====================================================================
 const REPO_ROOT = path.resolve(HERE, "..");
 const PLUGIN_ROOT = path.resolve(ANALYZER_DIR, "..", "..", "..");

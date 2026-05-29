@@ -9,9 +9,9 @@
  * zero-dependency (node: stdlib only) — no gray-matter, no TS imports.
  *
  * Provides the "evaluation substrate" the analyzers emit under health.*:
- *   - skill_catalog  — installed skills available to the session
- *   - workflow_rules — auriga managed-block rules from the repo AGENTS.md
- *   - compliance     — mechanically-decidable workflow predicates
+ *   - skill_catalog   — installed skills available to the session
+ *   - workflow_rules  — auriga managed-block rules from the repo AGENTS.md
+ *   - workflow_signals — neutral workflow facts (no verdicts; see NOTE below)
  *
  * The semantic judgement (recall gaps, per-skill eval) is NOT here — that is
  * dispatched to an independent subagent by SKILL.md. This file only assembles
@@ -204,7 +204,11 @@ export function parseWorkflowRules(cwd) {
   if (!start) return []
   const afterStart = start.index + start[0].length
   const endRel = END_LINE_RE.exec(content.slice(afterStart))
-  const block = endRel ? content.slice(afterStart, afterStart + endRel.index) : content.slice(afterStart)
+  // The managed-block protocol always writes paired START/END markers. A
+  // missing END means the file is truncated / hand-corrupted — don't read to
+  // EOF, or repo-specific numbered content below the block leaks in as rules.
+  if (!endRel) return []
+  const block = content.slice(afterStart, afterStart + endRel.index)
   const rules = []
   let current = null
   for (const rawLine of block.split(/\r?\n/)) {

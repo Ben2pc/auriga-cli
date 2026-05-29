@@ -280,9 +280,10 @@
   table.findings td.f-text { width: 100%; }
   table.findings td.f-skill { color: var(--muted); font-family: var(--mono); font-size: 12px; white-space: nowrap; }
   .badge { display: inline-block; padding: 1px 9px; border-radius: 20px; font-size: 11px; font-weight: 600; white-space: nowrap; }
-  .badge.sev-high { background: rgba(198, 69, 69, 0.12); color: var(--error); }
-  .badge.sev-med  { background: rgba(212, 160, 23, 0.16); color: #8b6a0e; }
-  .badge.sev-low  { background: var(--surface-cream-strong); color: var(--muted); }
+  /* Badge text darkened to clear WCAG AA (4.5:1) on the tinted pill backgrounds. */
+  .badge.sev-high { background: rgba(198, 69, 69, 0.14); color: #9a1f1f; }
+  .badge.sev-med  { background: rgba(212, 160, 23, 0.18); color: #6b4e08; }
+  .badge.sev-low  { background: var(--surface-cream-strong); color: var(--body); }
   .badge.kind { background: var(--surface-card); color: var(--body); font-weight: 500; }
   .conf { font-size: 12.5px; color: var(--muted); white-space: nowrap; }
 
@@ -684,7 +685,7 @@
 
   <!-- Independent eval subagent findings (recall / instruction-following / per-skill eval). -->
   <div id="sec-skill-eval" hidden>
-    <h2>指令遵循 & Skill Eval</h2>
+    <h2>指令遵循与 skill 评估</h2>
     <p style="color: var(--text-dim); margin: 6px 0 10px; font-size: 13px;">
       由<b>独立子代理</b>评估：本会话里 skill / 规则是否在该触发时被召回，以及跑过的
       skill 是否兑现设计目标。每条带 severity + confidence，未按重要性预过滤。
@@ -729,8 +730,11 @@
 <script>
 (function () {
   const data = JSON.parse(document.getElementById('report-data').textContent);
-  const candidates = JSON.parse(document.getElementById('candidates').textContent);
-  const evalFindings = JSON.parse(document.getElementById('eval-findings').textContent);
+  // Coerce the agent-filled blocks to arrays: a malformed fill (null, a bare
+  // string, an object) must not throw and blank out the whole report.
+  const asArray = (id) => { try { const v = JSON.parse(document.getElementById(id).textContent); return Array.isArray(v) ? v : []; } catch { return []; } };
+  const candidates = asArray('candidates');
+  const evalFindings = asArray('eval-findings');
 
   // ---------- Helpers ----------
   const $ = (sel) => document.querySelector(sel);
@@ -938,7 +942,7 @@
   if (evalFindings.length) {
     const SEV = { high: '高', med: '中', low: '低' };
     const CONF = { high: '高', med: '中', low: '低' };
-    const KIND = { recall: '召回', compliance: '指令遵循', 'skill-eval': 'Skill 执行' };
+    const KIND = { recall: '召回', compliance: '指令遵循', 'skill-eval': 'skill 执行' };
     const sevClass = (s) => 'sev-' + (['high', 'med', 'low'].includes(s) ? s : 'low');
     const rows = evalFindings.map(f => `<tr>
         <td><span class="badge ${sevClass(f.severity)}">${escapeHtml(SEV[f.severity] || f.severity || '—')}</span></td>

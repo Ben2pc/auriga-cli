@@ -5,10 +5,11 @@ description: 当用户要求复盘、总结、沉淀、整理这次会话、wrap
 
 # Session Compound
 
-把单次 CLI 会话压缩成一份可离线打开的 HTML 报告（写到 `/tmp`，不落进项目仓库）。报告分三个 tab：
+把单次 CLI 会话压缩成一份可离线打开的 HTML 报告（写到 `/tmp`，不落进项目仓库）。报告分四个 tab：
 
 - **Narrative** — 这次做了什么（时间线 + 关键反馈时刻 + Agent 撰写的叙事摘要）
 - **Health** — token / cache / 工具用量诊断
+- **评估** — 中性工作流事实面板 + 独立子代理的指令遵循 / skill 召回 / 逐 skill 执行评估 finding
 - **Compound** — playground：左侧候选条目列表（可勾选 + 行内编辑），右侧实时合成 markdown，底部一键复制「提示词」，粘回 Claude / Codex 让 agent 按规则落库
 
 ## 何时使用
@@ -294,7 +295,7 @@ Schema：
 **步骤 4.5 的 `eval-findings` 也是候选原材料**——尤其 `kind: skill-eval` 的 finding（某 skill 执行欠佳）：
 
 - 当 finding 指向**本仓库可编辑的** SKILL.md（`skill_catalog` 里 `editable: true` 的那条），且问题是 skill body 写得不到位时，产出一个 `agent-md` 候选，**target 直接指向那份 in-repo SKILL.md** 做就地优化（与决策表「工程现有 skill 已覆盖、只是指引不到位」一致）。这正是"对抗一味叠加内容"的入口：先判断是不是 body 本身没写好，而不是默认加规则。
-- 对**外部 / cached、不可编辑**（`editable: false`）的 skill，**不要产出编辑候选**——它的源在插件缓存里，改了下次更新即被覆盖；只在报告的「指令遵循 & Skill Eval」区块里报告它的表现即可。
+- 对**外部 / cached、不可编辑**（`editable: false`）的 skill，**不要产出编辑候选**——它的源在插件缓存里，改了下次更新即被覆盖；只在报告「评估」tab 的「指令遵循与 skill 评估」区块里报告它的表现即可。
 
 ##### 质量标准
 
@@ -310,7 +311,7 @@ Schema：
 </script>
 ```
 
-模板会把它渲染进 Health tab 的「指令遵循 & Skill Eval」区块；数组为空则该区块自动隐藏（不显示空壳）。**原样注入 subagent 的输出，不要在这里二次过滤或改写措辞**——预过滤已在派遣纪律里禁止。
+模板会把它渲染进「评估」tab 的「指令遵循与 skill 评估」区块；数组为空则该区块自动隐藏（不显示空壳）。**原样注入 subagent 的输出，不要在这里二次过滤或改写措辞**——预过滤已在派遣纪律里禁止。
 
 ### 步骤 6：打开报告
 
