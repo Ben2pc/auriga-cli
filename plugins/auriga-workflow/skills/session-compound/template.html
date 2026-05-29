@@ -577,6 +577,17 @@
 
   <h2>反馈瞬间</h2>
   <div class="card" id="feedback-list"></div>
+
+  <!-- Optional sections: JS unhides only when the analyzer produced data. -->
+  <div id="sec-prs" hidden>
+    <h2>本次会话的 PR</h2>
+    <div class="card" id="pr-list"></div>
+  </div>
+
+  <div id="sec-away" hidden>
+    <h2>离开摘要</h2>
+    <div class="card" id="away-list"></div>
+  </div>
 </section>
 
 <!-- ============ TAB 2: HEALTH / 健康度 ============ -->
@@ -604,8 +615,22 @@
   <h2>子 agent</h2>
   <div class="card"><table class="bars" id="subagents-table"></table></div>
 
-  <h2 class="only-claude">触发的 skill</h2>
-  <div class="card only-claude"><table class="bars" id="skills-table"></table></div>
+  <!-- skills exist on both CLIs now (codex parses <skill> blocks); hide only
+       when empty for this session. -->
+  <div id="sec-skills" hidden>
+    <h2>触发的 skill</h2>
+    <div class="card"><table class="bars" id="skills-table"></table></div>
+  </div>
+
+  <div id="sec-attribution" hidden>
+    <h2>Skill 工作量（attribution）</h2>
+    <div class="card"><table class="bars" id="attribution-table"></table></div>
+  </div>
+
+  <div id="sec-failures" hidden>
+    <h2>工具失败</h2>
+    <div class="card" id="tool-failures"></div>
+  </div>
 
   <h2>最贵的 turn</h2>
   <div class="card" id="expensive-turns"></div>
@@ -674,7 +699,7 @@
   // ---------- Hero ----------
   const s = data.session || {};
   const h = data.health || {};
-  const title = (data.narrative?.human_turns?.[0]?.summary) || '会话';
+  const title = (data.narrative?.task_title) || (data.narrative?.human_turns?.[0]?.summary) || '会话';
   document.title = `Session Compound — ${title.slice(0, 60)}`;
   $('#report-title').textContent = title.length > 80 ? title.slice(0, 79) + '…' : title;
 
@@ -683,7 +708,8 @@
   if (s.model) pills.push(`<span class="pill">${s.model}</span>`);
   if (s.git?.branch) pills.push(`<span class="pill">${s.git.branch}</span>`);
   if (s.cwd) pills.push(`<span class="pill">${s.cwd.replace(/^.*\//, '')}</span>`);
-  const dur = `<span class="pill">总耗时 ${fmtDur(s.duration_ms)} · 活跃 ${fmtDur(s.active_ms)}</span>`;
+  const recordedDur = s.recorded_turn_ms ? ` · 实测 ${fmtDur(s.recorded_turn_ms)}` : '';
+  const dur = `<span class="pill">总耗时 ${fmtDur(s.duration_ms)} · 活跃 ${fmtDur(s.active_ms)}${recordedDur}</span>`;
   const turns = `<span class="pill">${data.narrative?.human_turn_count ?? '?'} turn</span>`;
   $('#hero-meta').innerHTML = pills.join(' ') + ' ' + dur + ' ' + turns + ` <span class="pill">${fmtTime(s.started_at)}</span>`;
   $('#total-tokens').textContent = fmtN(h.tokens?.total);
@@ -782,6 +808,60 @@
   renderBars('#tools-table', h.tools);
   renderBars('#subagents-table', h.subagents);
   renderBars('#skills-table', h.skills);
+
+  // ---------- Optional sections: render + unhide only when data present ----------
+  // Graceful absence: a signal missing for this session leaves its section
+  // hidden rather than showing broken/empty scaffolding (VAL-RENDER-005).
+  const showIf = (secId, hasData) => {
+    const el = $(secId);
+    if (el && hasData) el.removeAttribute('hidden');
+  };
+
+  // Skills (both CLIs now) — show only when this session triggered any.
+  showIf('#sec-skills', (h.skills || []).length);
+
+  // Skill attribution workload (currently Claude-only data).
+  renderBars('#attribution-table', h.skill_attribution);
+  showIf('#sec-attribution', (h.skill_attribution || []).length);
+
+  // PRs referenced this session (currently Claude-only data).
+  const prs = h.prs || [];
+  if (prs.length) {
+    $('#pr-list').innerHTML = prs.map(p => `<div class="turn">
+      <div class="idx">PR</div>
+      <div class="summary">
+        <div>${p.url ? `<a href="${escapeHtml(p.url)}" target="_blank" rel="noopener">#${escapeHtml(String(p.number))}</a>` : '#' + escapeHtml(String(p.number))}</div>
+        ${p.repository ? `<div class="toolset">${escapeHtml(p.repository)}</div>` : ''}
+      </div>
+      <div class="tokens"></div>
+    </div>`).join('');
+  }
+  showIf('#sec-prs', prs.length);
+
+  // Away summaries (Claude writes these when the user steps away).
+  const away = data.narrative?.away_summaries || [];
+  if (away.length) {
+    $('#away-list').innerHTML = away.map(a => `<div class="turn">
+      <div class="idx">⏸</div>
+      <div class="summary">${escapeHtml(typeof a === 'string' ? a : (a.text || ''))}</div>
+      <div class="tokens"></div>
+    </div>`).join('');
+  }
+  showIf('#sec-away', away.length);
+
+  // Tool failures (both CLIs; same {call_id,name,preview} shape).
+  const failures = h.tool_failures || data.raw_for_compound?.tool_failures || [];
+  if (failures.length) {
+    $('#tool-failures').innerHTML = failures.map(f => `<div class="turn">
+      <div class="idx">✗</div>
+      <div class="summary">
+        <div>${escapeHtml(f.name || 'unknown')}</div>
+        ${f.preview ? `<div class="toolset">${escapeHtml(f.preview)}</div>` : ''}
+      </div>
+      <div class="tokens"></div>
+    </div>`).join('');
+  }
+  showIf('#sec-failures', failures.length);
 
   // ---------- Health: expensive turns ----------
   const expensive = h.expensive_turns || [];
