@@ -242,6 +242,99 @@ function pickAwaySummaries(out) {
   return out.narrative?.away_summaries ?? null;
 }
 
+// ---------- eval-substrate helpers (new feature: skill_catalog / workflow_rules / compliance) ----------
+//
+// These build tmpdir fixtures the analyzers can be pointed at, so the new
+// substrate fields are driven by controlled inputs rather than the real
+// ~/.claude / ~/.codex / repo AGENTS.md. The analyzers gain a repeatable
+// --skill-root <path> flag; the workflow-rules source is the session cwd's
+// AGENTS.md (fallback CLAUDE.md), with the managed block delimited by the
+// markers defined in src/workflow-markers.ts.
+
+// Real managed-block markers, mirrored from src/workflow-markers.ts
+// (START_LINE_RE / END_LINE_RE, MARKER_SCHEMA = "v1"). The parser keys on the
+// language-independent `AURIGA:WORKFLOW:v1 START|END` token, so these literal
+// lines satisfy the regexes the analyzer must reuse.
+const MANAGED_START =
+  "<!-- AURIGA:WORKFLOW:v1 START — Managed block, maintained by auriga-cli. Do not edit by hand; upgrades replace it wholesale. Put project-specific instructions after the END marker below. -->";
+const MANAGED_END = "<!-- AURIGA:WORKFLOW:v1 END sha256=0123456789abcdef -->";
+
+// Create a fresh tmp dir holding one SKILL.md per provided skill spec.
+// `skills` is an array of { name, description, dirName? }. Each SKILL.md is
+// written under <root>/<dirName||name>/SKILL.md with YAML frontmatter that
+// matches the skill-cleaner parseFrontmatter contract (name:/description:).
+// Returns the absolute root path. Self-cleaning at process exit.
+function writeSkillRoot(prefix, skills) {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), `sc-skills-${prefix}-`));
+  for (const s of skills) {
+    const sub = path.join(root, s.dirName || s.name);
+    fs.mkdirSync(sub, { recursive: true });
+    const fm = `---\nname: ${s.name}\ndescription: ${s.description}\n---\n\n# ${s.name}\n\nbody.\n`;
+    fs.writeFileSync(path.join(sub, "SKILL.md"), fm);
+  }
+  cleanupFiles.push(root);
+  return root;
+}
+
+// Create a tmp dir to use as a session cwd, optionally containing an AGENTS.md.
+// `agentsBody`:
+//   - string with a managed block -> written verbatim as AGENTS.md
+//   - null -> no AGENTS.md at all (tests the "no managed block" path)
+// Returns the absolute cwd dir. Self-cleaning at process exit.
+function writeCwdDir(prefix, agentsBody) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), `sc-cwd-${prefix}-`));
+  if (agentsBody != null) {
+    fs.writeFileSync(path.join(dir, "AGENTS.md"), agentsBody);
+  }
+  cleanupFiles.push(dir);
+  return dir;
+}
+
+// Build an AGENTS.md body wrapping the given rule lines inside a valid managed
+// block. `rules` is an array of strings; each becomes a numbered list item, the
+// shape the analyzer's workflow-rule parser is expected to read.
+function managedAgentsMd(rules) {
+  const block = rules.map((r, i) => `${i + 1}. ${r}`).join("\n");
+  return `# auriga 工作流 (v1.9.0)\n\n${MANAGED_START}\n${block}\n${MANAGED_END}\n\n# repo-specific\n\nlocal stuff.\n`;
+}
+
+// Run an analyzer with arbitrary extra args (e.g. repeated --skill-root). Same
+// failure contract as runAnalyzer (non-zero exit -> throw, so "red" never means
+// a crash). `opts.cwd` sets the spawned process cwd when provided.
+function runAnalyzerArgs(script, args, opts = {}) {
+  const r = spawnSync("node", [script, ...args], {
+    encoding: "utf8",
+    cwd: opts.cwd,
+  });
+  if (r.status !== 0) {
+    throw new Error(
+      `analyzer ${path.basename(script)} exited ${r.status}: ${r.stderr}`,
+    );
+  }
+  return JSON.parse(r.stdout);
+}
+
+// Write a Claude fixture JSONL whose human-turn entries carry a chosen cwd, so
+// the analyzer's "read session cwd's AGENTS.md" path resolves to a tmpdir we
+// control. Mirrors writeFixture but stamps `cwd` onto each entry that has one.
+function writeClaudeFixtureWithCwd(prefix, entries, cwd) {
+  const stamped = entries.map((e) =>
+    e.type === "user" && e.cwd ? { ...e, cwd } : e,
+  );
+  return writeFixture(prefix, stamped);
+}
+
+// Accessors for the new substrate fields (pinned to the agreed contract).
+function pickSkillCatalog(out) {
+  return out.health?.skill_catalog ?? null;
+}
+function pickWorkflowRules(out) {
+  return out.health?.workflow_rules ?? null;
+}
+function pickCompliance(out) {
+  return out.health?.compliance ?? null;
+}
+
 // ---------- test harness ----------
 const results = [];
 function test(name, fn) {
@@ -719,6 +812,233 @@ test("SKILL.md documents the newly added analyzer fields [VAL-DOC-001]", () => {
   assert(missing.length === 0, `SKILL.md missing docs for new fields: ${missing.join(", ")}`);
   // Tool-failure documentation (allow either the field name or phrase).
   assert(/tool_failures|工具失败/.test(txt), "SKILL.md must document tool failures");
+});
+
+// =====================================================================
+// NEW FEATURE — evaluation substrate (skill_catalog / workflow_rules /
+// compliance). Traces to docs/specs/session-compound-skill-eval/
+// validation-contract.md. ALL tests below are RED against current code:
+// neither analyzer parses a --skill-root flag, reads the cwd AGENTS.md, nor
+// emits health.skill_catalog / health.workflow_rules / health.compliance.
+// "Red" here = the analyzer runs (exit 0) but the asserted field is
+// absent/empty/wrong — never a crash (runAnalyzer* throw on non-zero exit).
+// =====================================================================
+
+// ---------------------------------------------------------------------
+// VAL-SUB-001 — skill_catalog: one entry per installed SKILL.md, each with
+// a non-empty name and a present description, across ≥2 skill roots.
+// RED today: --skill-root is ignored, health.skill_catalog is undefined.
+// The assertions pin exact fixture-derived skill names that the real
+// ~/.claude roots cannot accidentally satisfy.
+// ---------------------------------------------------------------------
+test("claude analyzer builds skill_catalog from --skill-root SKILL.md files [VAL-SUB-001]", () => {
+  const rootA = writeSkillRoot("a", [
+    { name: "alpha-skill", description: "use when doing alpha things" },
+    { name: "beta-skill", description: "use when doing beta things" },
+  ]);
+  const rootB = writeSkillRoot("b", [
+    { name: "gamma-skill", description: "use when doing gamma things" },
+  ]);
+  const file = writeFixture("cat-claude", [claudeUser("hello", T0)]);
+  const out = runAnalyzerArgs(CLAUDE, [
+    "--file",
+    file,
+    "--skill-root",
+    rootA,
+    "--skill-root",
+    rootB,
+  ]);
+  const cat = pickSkillCatalog(out);
+  assert(Array.isArray(cat), "health.skill_catalog must be an array");
+  const names = cat.map((e) => e.name).sort();
+  // Exactly the three fixture skills — confirms it scanned the override roots,
+  // not the real ~/.claude root (which would add unrelated names).
+  assertEqual(
+    JSON.stringify(names),
+    JSON.stringify(["alpha-skill", "beta-skill", "gamma-skill"]),
+    "skill_catalog must contain exactly the three fixture skills (one per SKILL.md, both roots)",
+  );
+  for (const e of cat) {
+    assert(typeof e.name === "string" && e.name.length > 0, "each entry name non-empty string");
+    assert(typeof e.description === "string", "each entry has a description string");
+    assert(e.description.length > 0, "fixture descriptions are non-empty");
+    assert(typeof e.editable === "boolean", "each entry has a boolean editable flag");
+  }
+});
+
+// ---------------------------------------------------------------------
+// VAL-SUB-002 — workflow_rules parsed from the cwd AGENTS.md managed block;
+// empty array (not an error) when no managed block exists.
+// cwd is routed via the session JSONL (claudeUser entries carry cwd) AND the
+// spawned process cwd, covering both plausible resolution strategies.
+// RED today: health.workflow_rules is undefined regardless of AGENTS.md.
+// ---------------------------------------------------------------------
+test("claude analyzer parses workflow_rules from the cwd AGENTS.md managed block [VAL-SUB-002]", () => {
+  const rules = [
+    "需求澄清：新需求先澄清 requirement。",
+    "方案计划：先做规模判定再决定 plan 方式。",
+    "尽早提交：完成第一个 commit 后尽早开 Draft PR。",
+  ];
+  const cwd = writeCwdDir("withblock", managedAgentsMd(rules));
+  const file = writeClaudeFixtureWithCwd("wr-claude", [claudeUser("go", T0)], cwd);
+  const out = runAnalyzerArgs(CLAUDE, ["--file", file], { cwd });
+  const wr = pickWorkflowRules(out);
+  assert(Array.isArray(wr), "health.workflow_rules must be an array");
+  assert(wr.length >= 1, "managed block present -> non-empty workflow_rules");
+  for (const r of wr) {
+    assert(typeof r.n === "number", "each rule has a numeric n");
+    assert(typeof r.text === "string" && r.text.length > 0, "each rule has non-empty text");
+  }
+  // Rule text must be sourced from the fixture block, not somewhere else.
+  const joined = wr.map((r) => r.text).join(" ");
+  assert(joined.includes("需求澄清") || joined.includes("Draft PR"),
+    "workflow_rules text must come from the fixture managed block");
+});
+
+test("claude analyzer emits empty workflow_rules when cwd AGENTS.md has no managed block [VAL-SUB-002]", () => {
+  // AGENTS.md exists but carries NO managed markers -> [] (not an error).
+  const cwd = writeCwdDir("noblock", "# just a plain repo file\n\nno managed block here.\n");
+  const file = writeClaudeFixtureWithCwd("wr-none", [claudeUser("go", T0)], cwd);
+  const out = runAnalyzerArgs(CLAUDE, ["--file", file], { cwd });
+  const wr = pickWorkflowRules(out);
+  assert(Array.isArray(wr), "workflow_rules must exist as an empty array, not be missing");
+  assertEqual(wr.length, 0, "no managed block -> empty workflow_rules (not an error)");
+});
+
+// ---------------------------------------------------------------------
+// VAL-SUB-003 — compliance entries each carry a status ∈ {pass,fail,na}.
+// Fixtures drive at least one non-na (pass/fail) and one na:
+//   - a read-only session (no code edits) -> branch-before-code predicate = na
+//   - a session that opened a PR -> a PR-related predicate evaluates pass/fail
+// RED today: health.compliance is undefined.
+// ---------------------------------------------------------------------
+test("claude analyzer emits compliance entries with status in {pass,fail,na} [VAL-SUB-003]", () => {
+  // Read-only session that DID open a PR: gives a PR predicate something to
+  // evaluate (non-na) while the "branch before code edit" predicate is na
+  // (no Edit/Write tool calls at all).
+  const file = writeFixture("comp", [
+    claudeUser("just open a PR, no edits", T0),
+    claudeAssistant({
+      ts: T0,
+      reqId: "r1",
+      content: [{ type: "tool_use", id: "tu1", name: "Read", input: { file_path: "/a" } }],
+    }),
+    claudeToolResult({ ts: T0, toolUseId: "tu1", isError: false, content: "ok" }),
+    claudePrLink({ prNumber: 200, prUrl: "https://github.com/o/r/pull/200", prRepository: "o/r", ts: T1 }),
+  ]);
+  const out = runAnalyzer(CLAUDE, file);
+  const comp = pickCompliance(out);
+  assert(Array.isArray(comp), "health.compliance must be an array");
+  assert(comp.length >= 1, "compliance must contain at least one predicate");
+  const allowed = new Set(["pass", "fail", "na"]);
+  for (const c of comp) {
+    assert(typeof c.id === "string" && c.id.length > 0, "compliance entry has a non-empty id");
+    assert(typeof c.label === "string", "compliance entry has a label string");
+    assert(typeof c.detail === "string", "compliance entry has a detail string");
+    assert(allowed.has(c.status), `compliance status must be one of pass/fail/na, got ${JSON.stringify(c.status)}`);
+  }
+  // The contract requires the na status to be reachable: a session with zero
+  // code edits must yield at least one na (e.g. branch-before-code N/A).
+  assert(comp.some((c) => c.status === "na"),
+    "a read-only session (no code edits) must produce at least one 'na' compliance entry");
+  // And at least one predicate must be actually decided (pass or fail), proving
+  // the status field isn't hard-wired to a single value.
+  assert(comp.some((c) => c.status === "pass" || c.status === "fail"),
+    "at least one compliance predicate must resolve to pass or fail");
+});
+
+// ---------------------------------------------------------------------
+// VAL-SUB-004 — skill_catalog dedups by realpath/name: two --skill-root
+// dirs where a symlink makes the SAME SKILL.md reachable twice -> one entry.
+// RED today: skill_catalog is undefined; once implemented, a naive scanner
+// that doesn't dedup by realpath would emit the skill twice.
+// ---------------------------------------------------------------------
+test("claude analyzer dedups skill_catalog when a symlink exposes the same skill twice [VAL-SUB-004]", () => {
+  // rootA holds the real skill dir; rootB symlinks to rootA's skill dir, so the
+  // same SKILL.md realpath is reachable from both roots.
+  const rootA = writeSkillRoot("dedupA", [
+    { name: "dup-skill", description: "use when deduping" },
+  ]);
+  const rootB = fs.mkdtempSync(path.join(os.tmpdir(), "sc-skills-dedupB-"));
+  cleanupFiles.push(rootB);
+  const realSkillDir = path.join(rootA, "dup-skill");
+  const linkPath = path.join(rootB, "dup-skill");
+  let symlinkOk = true;
+  try {
+    fs.symlinkSync(realSkillDir, linkPath, "dir");
+  } catch {
+    // Filesystem without symlink support: fall back to a hard duplicate so the
+    // name-based dedup half of the contract is still exercised.
+    symlinkOk = false;
+    fs.mkdirSync(linkPath, { recursive: true });
+    fs.copyFileSync(
+      path.join(realSkillDir, "SKILL.md"),
+      path.join(linkPath, "SKILL.md"),
+    );
+  }
+  const file = writeFixture("dedup-claude", [claudeUser("hi", T0)]);
+  const out = runAnalyzerArgs(CLAUDE, [
+    "--file",
+    file,
+    "--skill-root",
+    rootA,
+    "--skill-root",
+    rootB,
+  ]);
+  const cat = pickSkillCatalog(out);
+  assert(Array.isArray(cat), "health.skill_catalog must be an array");
+  const dups = cat.filter((e) => e.name === "dup-skill");
+  assertEqual(
+    dups.length,
+    1,
+    `the same skill reachable via two roots (${symlinkOk ? "symlink" : "duplicate"}) must appear once`,
+  );
+});
+
+// ---------------------------------------------------------------------
+// VAL-PAR-001 — both analyzers emit all three substrate keys under health with
+// matching types; with nothing found, each is an empty array (present, not
+// missing). For codex, cwd is routed via session_meta.payload.cwd; here we
+// point both at empty skill roots and a cwd with no managed block.
+// RED today: all three keys are undefined on both analyzers.
+// ---------------------------------------------------------------------
+test("both analyzers emit skill_catalog/workflow_rules/compliance under health, same types [VAL-PAR-001]", () => {
+  // Empty skill root (dir with no SKILL.md) -> skill_catalog should be [].
+  const emptyRoot = fs.mkdtempSync(path.join(os.tmpdir(), "sc-skills-empty-"));
+  cleanupFiles.push(emptyRoot);
+  // cwd with no managed block -> workflow_rules should be [].
+  const cwd = writeCwdDir("sym", "# plain\n\nno block.\n");
+
+  const claudeFile = writeClaudeFixtureWithCwd("sym-sub-claude", [claudeUser("hi", T0)], cwd);
+  const cOut = runAnalyzerArgs(CLAUDE, ["--file", claudeFile, "--skill-root", emptyRoot], { cwd });
+
+  const codexFile = (() => {
+    const f = writeFixture("sym-sub-codex", [
+      // session_meta carries cwd; stamp the controlled cwd onto it.
+      { ...codexMeta(), payload: { ...codexMeta().payload, cwd } },
+      codexTurnContext(),
+      codexUserMsgEvent("hi", T0),
+    ]);
+    return f;
+  })();
+  const xOut = runAnalyzerArgs(CODEX, ["--file", codexFile, "--skill-root", emptyRoot], { cwd });
+
+  for (const [label, out] of [["claude", cOut], ["codex", xOut]]) {
+    const cat = pickSkillCatalog(out);
+    const wr = pickWorkflowRules(out);
+    const comp = pickCompliance(out);
+    assert(Array.isArray(cat), `${label}: health.skill_catalog must be present as an array`);
+    assert(Array.isArray(wr), `${label}: health.workflow_rules must be present as an array`);
+    assert(Array.isArray(comp), `${label}: health.compliance must be present as an array`);
+    // Nothing found -> empty (present, not missing).
+    assertEqual(cat.length, 0, `${label}: empty skill root -> empty skill_catalog`);
+    assertEqual(wr.length, 0, `${label}: no managed block -> empty workflow_rules`);
+  }
+  // Type parity across analyzers: same three keys present on both sides.
+  for (const key of ["skill_catalog", "workflow_rules", "compliance"]) {
+    assert(Array.isArray(cOut.health?.[key]) && Array.isArray(xOut.health?.[key]),
+      `health.${key} must be the same (array) type on both analyzers`);
+  }
 });
 
 // ---------- report + cleanup ----------
