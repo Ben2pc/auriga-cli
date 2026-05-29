@@ -174,14 +174,18 @@ function summarize(text, max = 120) {
 // unbalanced ``` code fence, trim back to before the dangling opener so the
 // conclusion never carries a half-open fence into the report.
 function summarizeMarkdown(text, max = 120) {
-  let out = summarize(text, max)
-  const fences = (out.match(/```/g) || []).length
-  if (fences % 2 === 1) {
-    const lastFence = out.lastIndexOf('```')
-    out = out.slice(0, lastFence).trimEnd()
-    if (!out.endsWith('…')) out += '…'
+  const out = summarize(text, max)
+  const truncated = out.endsWith('…')
+  let core = truncated ? out.slice(0, -1) : out
+  // Drop a dangling, unclosed ``` fence (odd count → cut back to its opener).
+  if ((core.match(/```/g) || []).length % 2 === 1) {
+    core = core.slice(0, core.lastIndexOf('```'))
   }
-  return out
+  // Also drop a 1–2 backtick remnant left when the cut landed mid-fence-marker.
+  // Only when it's a lone trailing run (start- or whitespace-preceded), so a
+  // real closing inline-code backtick attached to a word ("`npm test`") survives.
+  core = core.replace(/(^|\s)`{1,2}$/, '$1').trimEnd()
+  return truncated ? core + '…' : core
 }
 
 // Detect simple file-read commands inside exec_command args (`cat foo`,
@@ -358,7 +362,7 @@ function handleEventMsg(p, ts, stats, setTurn) {
         // The failed-file list lives on patchApplies.failedFiles + the
         // patch_apply_failure waste signal, not on each failure record.
         stats.toolFailures.push({
-          call_id: p.call_id,
+          call_id: p.call_id ?? null, // always present (null when missing) to match claude shape
           name: 'patch_apply',
           preview: (p.stderr || p.stdout || '').slice(0, 200),
         })
@@ -442,7 +446,7 @@ function handleResponseItem(p, ts, stats, currentTurn) {
       const FAILURE_RE = /^(?:Process exited with code [1-9]|.*: command not found|bash: line \d+:)/m
       if (!isPatch && FAILURE_RE.test(outStr)) {
         stats.toolFailures.push({
-          call_id: p.call_id,
+          call_id: p.call_id ?? null, // always present (null when missing) to match claude shape
           name: prev?.name || 'unknown',
           preview: outStr.slice(0, 200),
         })

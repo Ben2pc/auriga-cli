@@ -524,10 +524,6 @@
   .copy-btn.copied { background: var(--accent-teal); }
 
   .empty-hint { color: var(--muted-soft); font-style: italic; padding: 16px 0; font-family: var(--ui); }
-
-  /* CLI-conditional sections */
-  body[data-cli="codex"] .only-claude { display: none; }
-  body[data-cli="claude-code"] .only-codex { display: none; }
 </style>
 </head>
 <body>
@@ -713,9 +709,9 @@
 
   const pills = [];
   pills.push(`<span class="pill cli-${data.cli}">${data.cli}</span>`);
-  if (s.model) pills.push(`<span class="pill">${s.model}</span>`);
-  if (s.git?.branch) pills.push(`<span class="pill">${s.git.branch}</span>`);
-  if (s.cwd) pills.push(`<span class="pill">${s.cwd.replace(/^.*\//, '')}</span>`);
+  if (s.model) pills.push(`<span class="pill">${escapeHtml(String(s.model))}</span>`);
+  if (s.git?.branch) pills.push(`<span class="pill">${escapeHtml(String(s.git.branch))}</span>`);
+  if (s.cwd) pills.push(`<span class="pill">${escapeHtml(s.cwd.replace(/^.*\//, ''))}</span>`);
   const recordedDur = s.recorded_turn_ms ? ` · 实测 ${fmtDur(s.recorded_turn_ms)}` : '';
   const dur = `<span class="pill">总耗时 ${fmtDur(s.duration_ms)} · 活跃 ${fmtDur(s.active_ms)}${recordedDur}</span>`;
   const turns = `<span class="pill">${data.narrative?.human_turn_count ?? '?'} turn</span>`;

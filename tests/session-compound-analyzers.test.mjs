@@ -1,7 +1,7 @@
 #!/usr/bin/env node
-// TDD red-phase tests for the session-compound analyzers' signal-coverage
-// expansion. Each test traces to a VAL-XXX-NNN id in
-// docs/specs/session-compound-signals/validation-contract.md.
+// Tests for the session-compound analyzers' signal-coverage expansion.
+// Each test traces to a VAL-XXX-NNN id in
+// docs/worklog/worklog-2026-05-29-feat-session-compound-signals/validation-contract.md.
 //
 //     node tests/session-compound-analyzers.test.mjs
 //
@@ -221,29 +221,25 @@ const T0 = "2026-05-28T10:00:00.000Z";
 const T1 = "2026-05-28T10:01:00.000Z";
 const T2 = "2026-05-28T10:02:00.000Z";
 
-// Accessors that tolerate either of the assumed field locations (see header).
+// Accessors pinned to the shipped field locations (the implementation has
+// landed; tolerant multi-location lookups would mask an accidental relocation
+// that SKILL.md and the template depend on).
 function pickPrs(out) {
-  return out.health?.prs ?? out.narrative?.prs ?? null;
+  return out.health?.prs ?? null;
 }
 function pickSkillAttribution(out, skillName) {
-  if (Array.isArray(out.health?.skill_attribution)) {
-    const hit = out.health.skill_attribution.find((s) => s.name === skillName);
-    return hit ? hit.count : null;
-  }
-  const sk = out.health?.skills?.find?.((s) => s.name === skillName);
-  if (sk && (sk.attribution != null || sk.attributed_calls != null)) {
-    return sk.attribution ?? sk.attributed_calls;
-  }
-  return null;
+  if (!Array.isArray(out.health?.skill_attribution)) return null;
+  const hit = out.health.skill_attribution.find((s) => s.name === skillName);
+  return hit ? hit.count : null;
 }
 function pickToolFailures(out) {
-  return out.health?.tool_failures ?? out.raw_for_compound?.tool_failures ?? null;
+  return out.health?.tool_failures ?? null;
 }
 function pickRecordedTurnMs(out) {
-  return out.session?.recorded_turn_ms ?? out.session?.turn_duration_ms ?? null;
+  return out.session?.recorded_turn_ms ?? null;
 }
 function pickAwaySummaries(out) {
-  return out.narrative?.away_summaries ?? out.raw_for_compound?.away_summaries ?? null;
+  return out.narrative?.away_summaries ?? null;
 }
 
 // ---------- test harness ----------
@@ -382,6 +378,10 @@ test("claude analyzer extracts tool failures from is_error tool_result with code
   const failures = pickToolFailures(out);
   assert(Array.isArray(failures), "tool_failures must be an array");
   assertEqual(failures.length, 2, "two is_error tool_results -> two failure records");
+  // The tool name must be resolved from the originating tool_use (id->name map),
+  // not the 'unknown' fallback — confirms the labeling path, not just the count.
+  const names = failures.map((f) => f.name).sort();
+  assertEqual(JSON.stringify(names), JSON.stringify(["Bash", "Edit"]), "failure names resolved from tool_use_id");
 
   // Codex reference entry (patch failure) for key-set parity.
   const codexFile = writeFixture("tf-codex", [
@@ -459,9 +459,11 @@ test("claude analyzer surfaces recorded turn_duration distinct from gap estimate
   const out = runAnalyzer(CLAUDE, file);
   const recorded = pickRecordedTurnMs(out);
   assert(recorded != null, "recorded turn duration field must exist");
-  // Aggregate of the two recorded values; not equal to the single-turn
-  // active_ms gap estimate (which is <= IDLE_GAP_MS and gap-derived).
+  // Aggregate of the two recorded values.
   assertEqual(recorded, 51281 + 12000, "recorded duration should aggregate turn_duration records");
+  // Must be distinguishable from the active_ms gap estimate (the contract's
+  // "distinct from gap estimate" clause) — guards against accidentally aliasing them.
+  assert(recorded !== out.session?.active_ms, "recorded_turn_ms must differ from the active_ms gap estimate");
 });
 
 // =====================================================================
@@ -541,14 +543,17 @@ test("claude analyzer leaves away summaries empty when no away_summary present [
 // =====================================================================
 // VAL-HEUR-001 — feedback captures scope-narrowing / redirect phrases
 // =====================================================================
-test("claude analyzer classifies scope-narrowing phrase as feedback [VAL-HEUR-001]", () => {
-  // "先不动吧 / 不着急 / 微优化吧" — direction-shrinking, currently missed.
-  const file = writeFixture("heur-shrink", [
-    claudeUser("这个先不动吧，不着急，先做个微优化吧", T0),
-  ]);
-  const out = runAnalyzer(CLAUDE, file);
-  const fm = out.narrative?.feedback_moments ?? [];
-  assert(fm.length >= 1, "scope-narrowing turn should enter feedback_moments");
+test("claude analyzer classifies each scope-narrowing phrase as feedback [VAL-HEUR-001]", () => {
+  // Each direction-shrink phrase must independently land in feedback_moments —
+  // one turn per phrase so a regression dropping any single alternation is caught
+  // (a combined turn would hide it: any one match satisfies the turn).
+  const phrases = ["这个先不动吧", "不着急，慢慢来", "先做个微优化"];
+  for (const phrase of phrases) {
+    const file = writeFixture("heur-shrink", [claudeUser(phrase, T0)]);
+    const out = runAnalyzer(CLAUDE, file);
+    const fm = out.narrative?.feedback_moments ?? [];
+    assert(fm.length === 1, `scope-narrowing phrase "${phrase}" should enter feedback_moments`);
+  }
 });
 
 // =====================================================================
@@ -616,6 +621,11 @@ test("codex analyzer truncates task_conclusion without leaving an unclosed code 
   // Count of ``` fences must be even (every opener closed) — no half fence.
   const fenceCount = (concl.match(/```/g) || []).length;
   assert(fenceCount % 2 === 0, `task_conclusion has an unclosed code fence: ${JSON.stringify(concl)}`);
+  // Guard against a degenerate "" passing the even-count check: the preamble
+  // (which sits before the fence) must survive the truncation.
+  assert(concl.includes("结论说明"), "task_conclusion must keep the pre-fence preamble, not collapse to empty");
+  // And no dangling 1-2 backtick remnant either.
+  assert(!/(^|\s)`{1,2}$/.test(concl.replace(/…$/, "")), "task_conclusion must not end in a stray backtick remnant");
 });
 
 // =====================================================================
@@ -660,6 +670,16 @@ test("both analyzers produce identical key sets for shared health fields incl. s
   const cFailKeys = JSON.stringify(Object.keys(cFail).sort());
   const xFailKeys = JSON.stringify(Object.keys(xFail).sort());
   assertEqual(cFailKeys, xFailKeys, "tool_failures entry key sets must match across analyzers");
+
+  // The shared core fields must be PRESENT on both sides (empty on codex where
+  // it has no equivalent signal) — guards a rename/removal of the symmetry
+  // placeholders that SKILL.md documents as core fields.
+  for (const out of [cOut, xOut]) {
+    assert(Array.isArray(out.health?.skill_attribution), "health.skill_attribution present on both");
+    assert(Array.isArray(out.health?.prs), "health.prs present on both");
+    assert(Array.isArray(out.narrative?.away_summaries), "narrative.away_summaries present on both");
+    assert(typeof out.session?.recorded_turn_ms === "number", "session.recorded_turn_ms present on both");
+  }
 });
 
 // =====================================================================

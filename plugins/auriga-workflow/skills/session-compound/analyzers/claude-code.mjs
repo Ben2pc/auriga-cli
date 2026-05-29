@@ -273,8 +273,11 @@ async function scan(filePath) {
       if (e.subtype === 'turn_duration' && typeof e.durationMs === 'number') {
         stats.recordedTurnMs += e.durationMs
       } else if (e.subtype === 'api_error') {
+        // Real logs carry the HTTP code on error.status (numeric); error.formatted
+        // is a string fallback. apiErrorStatus is rarely present. Prefer the
+        // structured code, then the formatted string.
         stats.apiErrors.push({
-          status: e.apiErrorStatus ?? e.error?.formatted ?? null,
+          status: e.error?.status ?? e.apiErrorStatus ?? e.error?.formatted ?? null,
           retryAttempt: e.retryAttempt ?? null,
         })
       } else if (e.subtype === 'away_summary' && e.content) {
