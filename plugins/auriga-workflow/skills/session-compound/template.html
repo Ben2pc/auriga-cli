@@ -266,6 +266,26 @@
   .take.info { border-left-color: var(--accent-teal); }   .take.info .fig { color: #2e7a6c; }
   .take.warn { border-left-color: var(--warning); }   .take.warn .fig { color: #8b6a0e; }
 
+  /* Eval tab — neutral workflow facts as compact chips */
+  .facts { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 8px; }
+  .facts .fact { display: inline-flex; align-items: baseline; gap: 8px; background: var(--surface-soft); border: 1px solid var(--hairline); border-radius: 8px; padding: 6px 12px; }
+  .facts .fact .k { color: var(--muted); font-size: 12px; }
+  .facts .fact .v { color: var(--ink); font-size: 13.5px; font-weight: 600; font-family: var(--mono); }
+
+  /* Eval tab — findings table with headers */
+  table.findings { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+  table.findings th { text-align: left; color: var(--muted); font-weight: 600; font-size: 11.5px; padding: 0 12px 9px; border-bottom: 1px solid var(--hairline); white-space: nowrap; }
+  table.findings td { padding: 11px 12px; border-bottom: 1px solid var(--hairline-soft); vertical-align: top; color: var(--body-strong); line-height: 1.5; }
+  table.findings tr:last-child td { border-bottom: none; }
+  table.findings td.f-text { width: 100%; }
+  table.findings td.f-skill { color: var(--muted); font-family: var(--mono); font-size: 12px; white-space: nowrap; }
+  .badge { display: inline-block; padding: 1px 9px; border-radius: 20px; font-size: 11px; font-weight: 600; white-space: nowrap; }
+  .badge.sev-high { background: rgba(198, 69, 69, 0.12); color: var(--error); }
+  .badge.sev-med  { background: rgba(212, 160, 23, 0.16); color: #8b6a0e; }
+  .badge.sev-low  { background: var(--surface-cream-strong); color: var(--muted); }
+  .badge.kind { background: var(--surface-card); color: var(--body); font-weight: 500; }
+  .conf { font-size: 12.5px; color: var(--muted); white-space: nowrap; }
+
   /* Tables */
   table.kv { width: 100%; border-collapse: collapse; }
   table.kv td { padding: 10px 12px; border-bottom: 1px solid var(--hairline); font-size: 13.5px; color: var(--body); }
@@ -659,7 +679,7 @@
       机械层只<b>提取事实、不下判决</b>：分支 / 是否在 main / 有无代码改动 / PR / skill 调用数。
       下方的指令遵循 & skill 召回判断全部由<b>独立子代理</b>基于这些事实做出。
     </p>
-    <table class="kv" id="workflow-facts"></table>
+    <div class="facts" id="workflow-facts"></div>
   </div>
 
   <!-- Independent eval subagent findings (recall / instruction-following / per-skill eval). -->
@@ -903,27 +923,34 @@
   const wsig = h.workflow_signals || {};
   const yn = (v) => (v == null ? '—' : v ? '是' : '否');
   const factRows = [
-    ['当前分支', wsig.git_branch ?? '—'],
-    ['在 main / master 上', yn(wsig.on_main)],
+    ['结束时分支', wsig.git_branch ?? '—'],
+    ['分支在 main / master', yn(wsig.on_main)],
     ['有代码改动', yn(wsig.had_code_edit)],
     ['引用的 PR 数', wsig.prs_count ?? '—'],
     ['skill 调用次数', wsig.skills_invoked_count ?? '—'],
   ];
   $('#workflow-facts').innerHTML = factRows
-    .map(([k, v]) => `<tr><th>${escapeHtml(k)}</th><td>${escapeHtml(String(v))}</td></tr>`)
+    .map(([k, v]) => `<span class="fact"><span class="k">${escapeHtml(k)}</span><span class="v">${escapeHtml(String(v))}</span></span>`)
     .join('');
 
   // Independent eval subagent findings (recall / instruction-following / per-skill eval).
   // Graceful absence: with no findings the section hides and the empty hint shows.
   if (evalFindings.length) {
-    $('#skill-eval-list').innerHTML = evalFindings.map(f => `<div class="turn">
-      <div class="idx">${escapeHtml((f.severity || '').slice(0, 3) || '·')}</div>
-      <div class="summary">
-        <div>${escapeHtml(f.text || '')}</div>
-        <div class="toolset">${escapeHtml([f.kind, f.skill, f.confidence ? 'confidence: ' + f.confidence : ''].filter(Boolean).join(' · '))}</div>
-      </div>
-      <div class="tokens"></div>
-    </div>`).join('');
+    const SEV = { high: '高', med: '中', low: '低' };
+    const CONF = { high: '高', med: '中', low: '低' };
+    const KIND = { recall: '召回', compliance: '指令遵循', 'skill-eval': 'Skill 执行' };
+    const sevClass = (s) => 'sev-' + (['high', 'med', 'low'].includes(s) ? s : 'low');
+    const rows = evalFindings.map(f => `<tr>
+        <td><span class="badge ${sevClass(f.severity)}">${escapeHtml(SEV[f.severity] || f.severity || '—')}</span></td>
+        <td><span class="conf">${escapeHtml(CONF[f.confidence] || f.confidence || '—')}</span></td>
+        <td><span class="badge kind">${escapeHtml(KIND[f.kind] || f.kind || '—')}</span></td>
+        <td class="f-text">${escapeHtml(f.text || '')}</td>
+        <td class="f-skill">${f.skill ? escapeHtml(f.skill) : '—'}</td>
+      </tr>`).join('');
+    $('#skill-eval-list').innerHTML = `<table class="findings">
+      <thead><tr><th>严重度</th><th>置信度</th><th>类型</th><th>发现</th><th>相关 skill</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
   }
   showIf('#sec-skill-eval', evalFindings.length);
   showIf('#eval-empty', !evalFindings.length);
