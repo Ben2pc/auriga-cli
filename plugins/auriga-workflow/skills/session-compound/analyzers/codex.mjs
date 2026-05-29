@@ -604,6 +604,7 @@ function emit(stats, filePath) {
       duration_ms:
         stats.firstTs && stats.lastTs ? stats.lastTs - stats.firstTs : 0,
       active_ms: stats.activeMs,
+      recorded_turn_ms: 0, // shared core field; codex logs have no turn_duration
       model: stats.model,
       model_provider: stats.modelProvider,
       cli_version: stats.cliVersion,
@@ -626,6 +627,7 @@ function emit(stats, filePath) {
         tool_counts: t.toolCounts,
       })),
       feedback_moments: stats.feedbackMoments,
+      away_summaries: [], // shared core field; codex logs have no away_summary
       todos_final: [],
     },
     health: {
@@ -648,6 +650,11 @@ function emit(stats, filePath) {
         name,
         count,
       })),
+      // Shared core fields, kept present (empty here) for schema symmetry with
+      // the claude analyzer. Codex logs carry no attribution / pr-link signal.
+      skill_attribution: [],
+      prs: [],
+      tool_failures: stats.toolFailures,
       expensive_turns: expensiveTurns,
       cache_breaks: [],
       waste_signals: wasteSignals,
