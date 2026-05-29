@@ -38,7 +38,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import readline from 'node:readline'
-import { buildSkillCatalog, parseWorkflowRules, buildCompliance } from './skill-catalog.mjs'
+import { buildSkillCatalog, parseWorkflowRules } from './skill-catalog.mjs'
 
 // ---------- CLI ----------
 const argv = process.argv.slice(2)
@@ -74,22 +74,23 @@ function codexSkillRoots(repoCwd) {
   ]
 }
 
-// Mechanically-decidable compliance signals from Codex stats. Codex modifies
-// code via patch_apply; it exposes no pr-link signal and no easily-ordered
-// branch-creation command, so those predicates resolve to na (honest unknown
-// over a false fail). The nuanced judgement is the eval subagent's job.
-function codexComplianceSignals(stats) {
+// Extract NEUTRAL workflow facts from Codex stats — no verdicts (symmetric with
+// claude-code.mjs). Codex modifies code via patch_apply and exposes no pr-link
+// signal; first_edit_ts/prs_count are therefore null/0. The eval subagent turns
+// these facts into judgements.
+function codexWorkflowSignals(stats) {
   const patch = stats.patchApplies || {}
-  const hasCodeEdit = (patch.success || 0) + (patch.failure || 0) > 0
-  const skillInvokedCount = Object.values(stats.skillInvocations).reduce(
-    (a, b) => a + b,
-    0,
-  )
+  const branch = (stats.git && stats.git.branch) || null
   return {
-    hasCodeEdit,
-    branchCreatedBeforeEdit: undefined, // codex logs don't expose ordered branch creation
-    hasPr: false, // codex logs carry no pr-link signal
-    skillInvokedCount,
+    git_branch: branch,
+    on_main: branch ? /^(main|master)$/.test(branch) : null,
+    had_code_edit: (patch.success || 0) + (patch.failure || 0) > 0,
+    first_edit_ts: null, // codex logs don't cheaply expose first patch ts
+    prs_count: 0, // codex logs carry no pr-link signal
+    skills_invoked_count: Object.values(stats.skillInvocations).reduce(
+      (a, b) => a + b,
+      0,
+    ),
   }
 }
 
@@ -639,7 +640,7 @@ function emit(stats, filePath) {
   const repoCwd = stats.cwd || process.cwd()
   const skillCatalog = buildSkillCatalog(codexSkillRoots(repoCwd), repoCwd)
   const workflowRules = parseWorkflowRules(repoCwd)
-  const compliance = buildCompliance(codexComplianceSignals(stats))
+  const workflowSignals = codexWorkflowSignals(stats)
 
   return {
     cli: 'codex',
@@ -711,7 +712,7 @@ function emit(stats, filePath) {
       // Evaluation substrate — symmetric core fields with the claude analyzer.
       skill_catalog: skillCatalog,
       workflow_rules: workflowRules,
-      compliance,
+      workflow_signals: workflowSignals,
       // Codex-specific extras (claude analyzer doesn't emit these)
       compaction_count: stats.compactionCount,
       turn_aborted_count: stats.turnAbortCount,

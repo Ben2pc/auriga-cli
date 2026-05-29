@@ -142,7 +142,20 @@ export function parseFrontmatter(file) {
 // "available skill" — name dedup is intentionally lossy on version; see
 // SKILL.md note). realpath dedup in walkSkillRoots handles symlink duplicates.
 export function buildSkillCatalog(roots, repoCwd) {
-  const repoPrefix = repoCwd ? path.resolve(repoCwd) + path.sep : null
+  // Canonicalize repoCwd so the editable check compares realpath-to-realpath
+  // (walkSkillRoots returns realPath). Without this, a session cwd reached via
+  // a symlinked path segment (e.g. macOS /tmp -> /private/tmp) would falsely
+  // mark in-repo skills as non-editable.
+  let repoPrefix = null
+  if (repoCwd) {
+    let canon
+    try {
+      canon = fs.realpathSync(repoCwd)
+    } catch {
+      canon = path.resolve(repoCwd)
+    }
+    repoPrefix = canon + path.sep
+  }
   const byName = new Map()
   for (const { realPath } of walkSkillRoots(roots)) {
     const { name, description } = parseFrontmatter(realPath)
@@ -214,74 +227,10 @@ export function parseWorkflowRules(cwd) {
   return rules.map((r) => ({ n: r.n, text: sanitizeLine(r.text) })).filter((r) => r.text.length > 0)
 }
 
-// ---------- compliance predicates ----------
-
-// Mechanically-decidable workflow predicates. Each is {id, label, status, detail}
-// with status ∈ {pass, fail, na}. `na` (signal absent / predicate inapplicable)
-// is preferred over a false `fail`. The nuanced judgement lives in the
-// independent eval subagent — this is only the deterministic floor.
-//
-// signals (each field may be undefined → na):
-//   hasCodeEdit            — did the session modify code?
-//   branchCreatedBeforeEdit— bool: a feature branch was created before first edit
-//   hasPr                  — a PR was referenced / opened
-//   skillInvokedCount      — number of workflow-skill invocations
-export function buildCompliance(signals = {}) {
-  const { hasCodeEdit, branchCreatedBeforeEdit, hasPr, skillInvokedCount } = signals
-  const out = []
-
-  // 1. branch before code (AGENTS.md: 开始写代码前先建分支)
-  if (!hasCodeEdit) {
-    out.push({
-      id: 'branch-before-code',
-      label: '编码前先建分支',
-      status: 'na',
-      detail: '本会话没有代码修改，分支纪律不适用',
-    })
-  } else if (branchCreatedBeforeEdit === true) {
-    out.push({
-      id: 'branch-before-code',
-      label: '编码前先建分支',
-      status: 'pass',
-      detail: '首次代码修改前观察到分支创建',
-    })
-  } else {
-    out.push({
-      id: 'branch-before-code',
-      label: '编码前先建分支',
-      status: branchCreatedBeforeEdit === false ? 'fail' : 'na',
-      detail:
-        branchCreatedBeforeEdit === false
-          ? '有代码修改但未观察到先建分支'
-          : '有代码修改但无法从日志判定分支创建时机',
-    })
-  }
-
-  // 2. PR opened (AGENTS.md: 尽早提交 → Draft PR)
-  out.push({
-    id: 'pr-opened',
-    label: '本会话开启了 PR',
-    status: hasPr ? 'pass' : 'na',
-    detail: hasPr ? '会话引用 / 开启了 PR' : '本会话未引用 PR，早提交纪律不适用',
-  })
-
-  // 3. skill engaged on code work (AGENTS.md: 非平凡实现走 skill 流程)
-  if (!hasCodeEdit) {
-    out.push({
-      id: 'skill-on-code',
-      label: '代码工作调用了 skill 流程',
-      status: 'na',
-      detail: '本会话没有代码修改',
-    })
-  } else {
-    const n = skillInvokedCount || 0
-    out.push({
-      id: 'skill-on-code',
-      label: '代码工作调用了 skill 流程',
-      status: n > 0 ? 'pass' : 'fail',
-      detail: n > 0 ? `会话调用了 ${n} 次 skill` : '有代码修改但全程零 skill 调用',
-    })
-  }
-
-  return out
-}
+// NOTE: this module no longer makes any workflow JUDGEMENTS. The mechanical
+// layer only EXTRACTS structured session info (skill_catalog, workflow_rules)
+// for the eval subagent. The neutral workflow facts (git_branch / on_main /
+// had_code_edit / prs_count / skills_invoked_count) are assembled per-CLI in
+// each analyzer as health.workflow_signals — plain facts, no pass/fail. All
+// instruction-following / recall / skill-execution judgement is the
+// independent eval subagent's job (see SKILL.md step 4.5 + references/).

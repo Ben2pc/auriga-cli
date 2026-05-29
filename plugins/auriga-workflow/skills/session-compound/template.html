@@ -561,6 +561,7 @@
 <div class="tabs">
   <div class="tab active" data-tab="narrative">叙事</div>
   <div class="tab" data-tab="health">健康度</div>
+  <div class="tab" data-tab="eval">评估</div>
   <div class="tab" data-tab="compound">沉淀</div>
 </div>
 
@@ -643,17 +644,25 @@
     <div class="card" id="tool-failures"></div>
   </div>
 
-  <!-- Workflow compliance (deterministic, from analyzer). -->
-  <div id="sec-compliance" hidden>
-    <h2>工作流合规</h2>
+  <h2>最贵的 turn</h2>
+  <div class="card" id="expensive-turns"></div>
+
+  <h2>浪费信号</h2>
+  <div class="card" id="waste-signals"></div>
+</section>
+
+<!-- ============ TAB 3: EVAL / 评估 ============ -->
+<section class="panel" id="panel-eval">
+  <div class="card">
+    <h3>本会话工作流事实</h3>
     <p style="color: var(--text-dim); margin: 6px 0 10px; font-size: 13px;">
-      机械可判的工作流谓词（确定性）：✓ 通过 / ✗ 未通过 / — 不适用。
-      细粒度的指令遵循与 skill 召回判断见下方「指令遵循 & Skill Eval」。
+      机械层只<b>提取事实、不下判决</b>：分支 / 是否在 main / 有无代码改动 / PR / skill 调用数。
+      下方的指令遵循 & skill 召回判断全部由<b>独立子代理</b>基于这些事实做出。
     </p>
-    <div class="card" id="compliance-list"></div>
+    <table class="kv" id="workflow-facts"></table>
   </div>
 
-  <!-- Independent eval subagent findings (recall gaps + per-skill eval). -->
+  <!-- Independent eval subagent findings (recall / instruction-following / per-skill eval). -->
   <div id="sec-skill-eval" hidden>
     <h2>指令遵循 & Skill Eval</h2>
     <p style="color: var(--text-dim); margin: 6px 0 10px; font-size: 13px;">
@@ -662,15 +671,10 @@
     </p>
     <div class="card" id="skill-eval-list"></div>
   </div>
-
-  <h2>最贵的 turn</h2>
-  <div class="card" id="expensive-turns"></div>
-
-  <h2>浪费信号</h2>
-  <div class="card" id="waste-signals"></div>
+  <div id="eval-empty" class="empty-hint" hidden>评估 finding 由独立子代理在运行时产出；本报告尚未注入。</div>
 </section>
 
-<!-- ============ TAB 3: COMPOUND / 沉淀（playground） ============ -->
+<!-- ============ TAB 4: COMPOUND / 沉淀（playground） ============ -->
 <section class="panel" id="panel-compound">
   <div class="card">
     <h3>把这次会话沉淀进 memory / docs</h3>
@@ -895,23 +899,22 @@
   }
   showIf('#sec-failures', failures.length);
 
-  // Workflow compliance checklist (deterministic, from analyzer).
-  const compliance = h.compliance || [];
-  const STATUS_MARK = { pass: '✓', fail: '✗', na: '—' };
-  if (compliance.length) {
-    $('#compliance-list').innerHTML = compliance.map(c => `<div class="turn">
-      <div class="idx">${STATUS_MARK[c.status] || '?'}</div>
-      <div class="summary">
-        <div>${escapeHtml(c.label || c.id || '')}</div>
-        ${c.detail ? `<div class="toolset">${escapeHtml(c.detail)}</div>` : ''}
-      </div>
-      <div class="tokens">${escapeHtml(String(c.status || ''))}</div>
-    </div>`).join('');
-  }
-  showIf('#sec-compliance', compliance.length);
+  // ---------- Eval tab: workflow facts (neutral, from analyzer — no verdicts) ----------
+  const wsig = h.workflow_signals || {};
+  const yn = (v) => (v == null ? '—' : v ? '是' : '否');
+  const factRows = [
+    ['当前分支', wsig.git_branch ?? '—'],
+    ['在 main / master 上', yn(wsig.on_main)],
+    ['有代码改动', yn(wsig.had_code_edit)],
+    ['引用的 PR 数', wsig.prs_count ?? '—'],
+    ['skill 调用次数', wsig.skills_invoked_count ?? '—'],
+  ];
+  $('#workflow-facts').innerHTML = factRows
+    .map(([k, v]) => `<tr><th>${escapeHtml(k)}</th><td>${escapeHtml(String(v))}</td></tr>`)
+    .join('');
 
-  // Independent eval subagent findings (recall / compliance / per-skill eval).
-  // Graceful absence: with no findings the whole section stays hidden.
+  // Independent eval subagent findings (recall / instruction-following / per-skill eval).
+  // Graceful absence: with no findings the section hides and the empty hint shows.
   if (evalFindings.length) {
     $('#skill-eval-list').innerHTML = evalFindings.map(f => `<div class="turn">
       <div class="idx">${escapeHtml((f.severity || '').slice(0, 3) || '·')}</div>
@@ -923,6 +926,7 @@
     </div>`).join('');
   }
   showIf('#sec-skill-eval', evalFindings.length);
+  showIf('#eval-empty', !evalFindings.length);
 
   // ---------- Health: expensive turns ----------
   const expensive = h.expensive_turns || [];

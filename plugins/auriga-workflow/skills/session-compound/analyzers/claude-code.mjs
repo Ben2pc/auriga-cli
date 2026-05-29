@@ -32,7 +32,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import readline from 'node:readline'
-import { buildSkillCatalog, parseWorkflowRules, buildCompliance } from './skill-catalog.mjs'
+import { buildSkillCatalog, parseWorkflowRules } from './skill-catalog.mjs'
 
 // ---------- CLI ----------
 const argv = process.argv.slice(2)
@@ -403,33 +403,30 @@ function handleAssistant(e, stats, currentTurn) {
   }
 }
 
-// Derive the mechanically-decidable compliance signals from the session's tool
-// events (Bash command text lives in toolUseEvents[].inputPreview).
-function claudeComplianceSignals(stats) {
+// Extract NEUTRAL workflow facts from the session — no verdicts. The eval
+// subagent turns these facts into instruction-following judgements. Derived
+// only from structured data (git branch, edit tool calls, pr-link, skill
+// invocations) — no fragile Bash-command-text scanning.
+function claudeWorkflowSignals(stats) {
   const editNames = new Set(['Edit', 'Write', 'MultiEdit', 'NotebookEdit'])
   let firstEditTs = null
-  let branchTs = null
-  let hasPr = Object.keys(stats.prLinks).length > 0
   for (const ev of stats.toolUseEvents) {
     if (editNames.has(ev.name) && ev.ts != null) {
       if (firstEditTs == null || ev.ts < firstEditTs) firstEditTs = ev.ts
     }
-    if (ev.name === 'Bash') {
-      if (/git\s+(switch\s+-c|checkout\s+-b)/.test(ev.inputPreview) && ev.ts != null) {
-        if (branchTs == null || ev.ts < branchTs) branchTs = ev.ts
-      }
-      if (/gh\s+pr\s+create/.test(ev.inputPreview)) hasPr = true
-    }
   }
-  const hasCodeEdit = firstEditTs != null
-  const branchCreatedBeforeEdit = hasCodeEdit
-    ? branchTs != null && branchTs <= firstEditTs
-    : undefined
-  const skillInvokedCount = Object.values(stats.skillInvocations).reduce(
-    (a, b) => a + b,
-    0,
-  )
-  return { hasCodeEdit, branchCreatedBeforeEdit, hasPr, skillInvokedCount }
+  const branch = stats.gitBranch || null
+  return {
+    git_branch: branch,
+    on_main: branch ? /^(main|master)$/.test(branch) : null,
+    had_code_edit: firstEditTs != null,
+    first_edit_ts: firstEditTs,
+    prs_count: Object.keys(stats.prLinks).length,
+    skills_invoked_count: Object.values(stats.skillInvocations).reduce(
+      (a, b) => a + b,
+      0,
+    ),
+  }
 }
 
 // Resolve the skill-catalog scan roots: explicit --skill-root wins, else the
@@ -517,7 +514,7 @@ function emit(stats, filePath) {
   const repoCwd = stats.cwd || process.cwd()
   const skillCatalog = buildSkillCatalog(claudeSkillRoots(repoCwd), repoCwd)
   const workflowRules = parseWorkflowRules(repoCwd)
-  const compliance = buildCompliance(claudeComplianceSignals(stats))
+  const workflowSignals = claudeWorkflowSignals(stats)
 
   return {
     cli: 'claude-code',
@@ -575,7 +572,7 @@ function emit(stats, filePath) {
       waste_signals: wasteSignals,
       skill_catalog: skillCatalog,
       workflow_rules: workflowRules,
-      compliance,
+      workflow_signals: workflowSignals,
     },
     raw_for_compound: {
       feedback_moments: stats.feedbackMoments,

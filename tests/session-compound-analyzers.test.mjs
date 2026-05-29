@@ -242,7 +242,7 @@ function pickAwaySummaries(out) {
   return out.narrative?.away_summaries ?? null;
 }
 
-// ---------- eval-substrate helpers (new feature: skill_catalog / workflow_rules / compliance) ----------
+// ---------- eval-substrate helpers (new feature: skill_catalog / workflow_rules / workflow_signals) ----------
 //
 // These build tmpdir fixtures the analyzers can be pointed at, so the new
 // substrate fields are driven by controlled inputs rather than the real
@@ -331,8 +331,8 @@ function pickSkillCatalog(out) {
 function pickWorkflowRules(out) {
   return out.health?.workflow_rules ?? null;
 }
-function pickCompliance(out) {
-  return out.health?.compliance ?? null;
+function pickWorkflowSignals(out) {
+  return out.health?.workflow_signals ?? null;
 }
 
 // ---------- test harness ----------
@@ -816,10 +816,10 @@ test("SKILL.md documents the newly added analyzer fields [VAL-DOC-001]", () => {
 
 // =====================================================================
 // NEW FEATURE — evaluation substrate (skill_catalog / workflow_rules /
-// compliance). Traces to docs/specs/session-compound-skill-eval/
-// validation-contract.md. ALL tests below are RED against current code:
-// neither analyzer parses a --skill-root flag, reads the cwd AGENTS.md, nor
-// emits health.skill_catalog / health.workflow_rules / health.compliance.
+// workflow_signals). Traces to docs/specs/session-compound-skill-eval/
+// validation-contract.md. The substrate is the analyzer's deterministic
+// FACT extraction; all judgement is the eval subagent's job. Tests assert
+// health.skill_catalog / health.workflow_rules / health.workflow_signals.
 // "Red" here = the analyzer runs (exit 0) but the asserted field is
 // absent/empty/wrong — never a crash (runAnalyzer* throw on non-zero exit).
 // =====================================================================
@@ -906,45 +906,47 @@ test("claude analyzer emits empty workflow_rules when cwd AGENTS.md has no manag
 });
 
 // ---------------------------------------------------------------------
-// VAL-SUB-003 — compliance entries each carry a status ∈ {pass,fail,na}.
-// Fixtures drive at least one non-na (pass/fail) and one na:
-//   - a read-only session (no code edits) -> branch-before-code predicate = na
-//   - a session that opened a PR -> a PR-related predicate evaluates pass/fail
-// RED today: health.compliance is undefined.
+// VAL-SUB-003 — workflow_signals is a NEUTRAL facts object (no verdicts):
+// git_branch / on_main / had_code_edit / first_edit_ts / prs_count /
+// skills_invoked_count. The mechanical layer only extracts facts; all
+// instruction-following judgement is the eval subagent's job.
+// RED before the facts rework: health.workflow_signals is undefined.
 // ---------------------------------------------------------------------
-test("claude analyzer emits compliance entries with status in {pass,fail,na} [VAL-SUB-003]", () => {
-  // Read-only session that DID open a PR: gives a PR predicate something to
-  // evaluate (non-na) while the "branch before code edit" predicate is na
-  // (no Edit/Write tool calls at all).
-  const file = writeFixture("comp", [
-    claudeUser("just open a PR, no edits", T0),
+test("claude analyzer emits neutral workflow_signals facts (no verdicts) [VAL-SUB-003]", () => {
+  // Scenario A: edits ON A FEATURE BRANCH + a PR + a skill call.
+  const fileA = writeFixture("wsig-a", [
+    { ...claudeUser("do feature work", T0), gitBranch: "feat/x" },
     claudeAssistant({
       ts: T0,
       reqId: "r1",
-      content: [{ type: "tool_use", id: "tu1", name: "Read", input: { file_path: "/a" } }],
+      content: [
+        { type: "tool_use", id: "s1", name: "Skill", input: { skill: "test-designer" } },
+        { type: "tool_use", id: "e1", name: "Edit", input: { file_path: "/a" } },
+      ],
     }),
-    claudeToolResult({ ts: T0, toolUseId: "tu1", isError: false, content: "ok" }),
     claudePrLink({ prNumber: 200, prUrl: "https://github.com/o/r/pull/200", prRepository: "o/r", ts: T1 }),
   ]);
-  const out = runAnalyzer(CLAUDE, file);
-  const comp = pickCompliance(out);
-  assert(Array.isArray(comp), "health.compliance must be an array");
-  assert(comp.length >= 1, "compliance must contain at least one predicate");
-  const allowed = new Set(["pass", "fail", "na"]);
-  for (const c of comp) {
-    assert(typeof c.id === "string" && c.id.length > 0, "compliance entry has a non-empty id");
-    assert(typeof c.label === "string", "compliance entry has a label string");
-    assert(typeof c.detail === "string", "compliance entry has a detail string");
-    assert(allowed.has(c.status), `compliance status must be one of pass/fail/na, got ${JSON.stringify(c.status)}`);
-  }
-  // The contract requires the na status to be reachable: a session with zero
-  // code edits must yield at least one na (e.g. branch-before-code N/A).
-  assert(comp.some((c) => c.status === "na"),
-    "a read-only session (no code edits) must produce at least one 'na' compliance entry");
-  // And at least one predicate must be actually decided (pass or fail), proving
-  // the status field isn't hard-wired to a single value.
-  assert(comp.some((c) => c.status === "pass" || c.status === "fail"),
-    "at least one compliance predicate must resolve to pass or fail");
+  const a = pickWorkflowSignals(runAnalyzer(CLAUDE, fileA));
+  assert(a && typeof a === "object" && !Array.isArray(a), "workflow_signals must be a (non-array) object");
+  // No verdict fields — purely facts.
+  assert(!("status" in a) && !("pass" in a), "workflow_signals must not carry pass/fail verdicts");
+  assertEqual(a.git_branch, "feat/x", "git_branch reflects the session branch");
+  assertEqual(a.on_main, false, "on_main false on a feature branch");
+  assertEqual(a.had_code_edit, true, "had_code_edit true when an Edit tool was used");
+  assert(typeof a.first_edit_ts === "number", "first_edit_ts is a number when edits occurred");
+  assertEqual(a.prs_count, 1, "prs_count counts the pr-link");
+  assertEqual(a.skills_invoked_count, 1, "skills_invoked_count counts the Skill call");
+
+  // Scenario B: read-only session on main — facts reflect that honestly.
+  const fileB = writeFixture("wsig-b", [
+    { ...claudeUser("just read", T0), gitBranch: "main" },
+    claudeAssistant({ ts: T0, reqId: "r1", content: [{ type: "tool_use", id: "rd", name: "Read", input: { file_path: "/a" } }] }),
+  ]);
+  const b = pickWorkflowSignals(runAnalyzer(CLAUDE, fileB));
+  assertEqual(b.on_main, true, "on_main true on main branch");
+  assertEqual(b.had_code_edit, false, "had_code_edit false with no edit tools");
+  assertEqual(b.first_edit_ts, null, "first_edit_ts null when no edits");
+  assertEqual(b.prs_count, 0, "prs_count 0 with no PR");
 });
 
 // ---------------------------------------------------------------------
@@ -996,13 +998,15 @@ test("claude analyzer dedups skill_catalog when a symlink exposes the same skill
 });
 
 // ---------------------------------------------------------------------
-// VAL-PAR-001 — both analyzers emit all three substrate keys under health with
-// matching types; with nothing found, each is an empty array (present, not
-// missing). For codex, cwd is routed via session_meta.payload.cwd; here we
-// point both at empty skill roots and a cwd with no managed block.
-// RED today: all three keys are undefined on both analyzers.
+// VAL-PAR-001 — both analyzers emit the three substrate keys under health with
+// matching types: skill_catalog (array), workflow_rules (array),
+// workflow_signals (object). With nothing found, the arrays are empty and the
+// signals object is still present. For codex, cwd is routed via
+// session_meta.payload.cwd; here we point both at empty skill roots + a cwd
+// with no managed block.
+// RED before the rework: the keys are undefined on both analyzers.
 // ---------------------------------------------------------------------
-test("both analyzers emit skill_catalog/workflow_rules/compliance under health, same types [VAL-PAR-001]", () => {
+test("both analyzers emit skill_catalog/workflow_rules/workflow_signals under health, same types [VAL-PAR-001]", () => {
   // Empty skill root (dir with no SKILL.md) -> skill_catalog should be [].
   const emptyRoot = fs.mkdtempSync(path.join(os.tmpdir(), "sc-skills-empty-"));
   cleanupFiles.push(emptyRoot);
@@ -1026,19 +1030,26 @@ test("both analyzers emit skill_catalog/workflow_rules/compliance under health, 
   for (const [label, out] of [["claude", cOut], ["codex", xOut]]) {
     const cat = pickSkillCatalog(out);
     const wr = pickWorkflowRules(out);
-    const comp = pickCompliance(out);
+    const wsig = pickWorkflowSignals(out);
     assert(Array.isArray(cat), `${label}: health.skill_catalog must be present as an array`);
     assert(Array.isArray(wr), `${label}: health.workflow_rules must be present as an array`);
-    assert(Array.isArray(comp), `${label}: health.compliance must be present as an array`);
-    // Nothing found -> empty (present, not missing).
+    assert(wsig && typeof wsig === "object" && !Array.isArray(wsig),
+      `${label}: health.workflow_signals must be present as a (non-array) object`);
+    // Nothing found -> empty arrays (present, not missing); signals still object.
     assertEqual(cat.length, 0, `${label}: empty skill root -> empty skill_catalog`);
     assertEqual(wr.length, 0, `${label}: no managed block -> empty workflow_rules`);
+    // workflow_signals carries the same fact keys on both CLIs.
+    for (const f of ["git_branch", "on_main", "had_code_edit", "first_edit_ts", "prs_count", "skills_invoked_count"]) {
+      assert(f in wsig, `${label}: workflow_signals must carry the ${f} fact`);
+    }
   }
-  // Type parity across analyzers: same three keys present on both sides.
-  for (const key of ["skill_catalog", "workflow_rules", "compliance"]) {
-    assert(Array.isArray(cOut.health?.[key]) && Array.isArray(xOut.health?.[key]),
-      `health.${key} must be the same (array) type on both analyzers`);
-  }
+  // Type parity across analyzers.
+  assert(Array.isArray(cOut.health?.skill_catalog) && Array.isArray(xOut.health?.skill_catalog),
+    "skill_catalog must be an array on both analyzers");
+  assert(Array.isArray(cOut.health?.workflow_rules) && Array.isArray(xOut.health?.workflow_rules),
+    "workflow_rules must be an array on both analyzers");
+  assert(typeof cOut.health?.workflow_signals === "object" && typeof xOut.health?.workflow_signals === "object",
+    "workflow_signals must be an object on both analyzers");
 });
 
 // =====================================================================
@@ -1101,7 +1112,7 @@ test("auriga-workflow plugin version bumped above 3.7.0 + SKILL.md documents new
     assert(semverGt(v, "3.7.0"), `${rel} version ${v} must be > 3.7.0`);
   }
   const txt = fs.readFileSync(SKILL_MD, "utf8");
-  for (const f of ["skill_catalog", "workflow_rules", "compliance"]) {
+  for (const f of ["skill_catalog", "workflow_rules", "workflow_signals"]) {
     assert(txt.includes(f), `SKILL.md must document new substrate field ${f}`);
   }
 });

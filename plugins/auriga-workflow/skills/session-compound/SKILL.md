@@ -74,10 +74,10 @@ node <skill-dir>/analyzers/codex.mjs > /tmp/session-compound.json
 - `health.waste_signals` — 重复读同文件、低 cache 命中、API 错误 / 重试等浪费信号
 - `health.skill_catalog` — 本机可用的全部已安装 skill 目录（`{name, description, editable}`，按 name 去重折叠插件缓存多版本；`editable` 表示该 skill 源在当前仓库内、可就地优化）。**指令遵循 & skill 召回评估的输入**
 - `health.workflow_rules` — 从仓库 AGENTS.md / CLAUDE.md 受管区块解析出的工作流规则（`{n, text}`）；无受管区块为空数组
-- `health.compliance` — 机械可判的工作流合规项（`{id, label, status, detail}`，`status` ∈ `pass`/`fail`/`na`）。确定性floor，细粒度判断交评估 subagent
+- `health.workflow_signals` — **中性事实包，不含任何判决**（`{git_branch, on_main, had_code_edit, first_edit_ts, prs_count, skills_invoked_count}`）。机械层只提取事实；指令遵循 / 召回 / skill 执行的判断**全部交评估 subagent**
 - `raw_for_compound` — 用来写候选条目的原材料（含 `agent_invocations`、`tool_failures`）
 
-两套 analyzer 输出的**核心字段**（`session.{id,cwd,duration_ms,model,git,recorded_turn_ms}` / `narrative.{task_title,human_turns,feedback_moments,away_summaries}` / `health.{tokens,cache_hit_rate,tools,subagents,skills,skill_attribution,prs,tool_failures,expensive_turns,waste_signals,skill_catalog,workflow_rules,compliance}` / `raw_for_compound.{feedback_moments,repeated_reads,agent_invocations,tool_failures}`）一致，模板按这些字段渲染。除此之外两侧各有 CLI-specific 扩展字段，Codex 多 `health.{compaction_count, turn_aborted_count, patch_apply, mcp_tool_call_count, custom_tool_call_count, web_search_count, tool_search_count, image_generation_count, context_window, reasoning_output_ratio}` 与 `narrative.{task_conclusion, task_completed, task_duration_ms, time_to_first_token_ms}`；Claude 多 `health.{api_calls, cache_breaks}`。注意 `skill_attribution` / `prs` / `away_summaries` 目前仅 Claude 端有数据（Codex 日志无等价信号），缺失侧为空集合。`skill_catalog` / `workflow_rules` / `compliance` 两端都有，各从本 CLI 的 skill 根目录与会话 cwd 的 AGENTS.md 构建。模板已按 CLI 分支处理这些差异。
+两套 analyzer 输出的**核心字段**（`session.{id,cwd,duration_ms,model,git,recorded_turn_ms}` / `narrative.{task_title,human_turns,feedback_moments,away_summaries}` / `health.{tokens,cache_hit_rate,tools,subagents,skills,skill_attribution,prs,tool_failures,expensive_turns,waste_signals,skill_catalog,workflow_rules,workflow_signals}` / `raw_for_compound.{feedback_moments,repeated_reads,agent_invocations,tool_failures}`）一致，模板按这些字段渲染。除此之外两侧各有 CLI-specific 扩展字段，Codex 多 `health.{compaction_count, turn_aborted_count, patch_apply, mcp_tool_call_count, custom_tool_call_count, web_search_count, tool_search_count, image_generation_count, context_window, reasoning_output_ratio}` 与 `narrative.{task_conclusion, task_completed, task_duration_ms, time_to_first_token_ms}`；Claude 多 `health.{api_calls, cache_breaks}`。注意 `skill_attribution` / `prs` / `away_summaries` 目前仅 Claude 端有数据（Codex 日志无等价信号），缺失侧为空集合。`skill_catalog` / `workflow_rules` / `workflow_signals` 两端都有，各从本 CLI 的 skill 根目录与会话 cwd 的 AGENTS.md 构建（`workflow_signals` 是中性事实，不下判决）。模板已按 CLI 分支处理这些差异。
 
 ### 步骤 3：复制模板到输出文件
 
@@ -106,25 +106,11 @@ npx skills find "<query>" 2>&1 | head -30
 
 ### 步骤 4.5：派遣独立 subagent 做指令遵循 & skill 执行评估
 
-这一步产出 `eval-findings`（指令遵循 / 召回 / 逐 skill 执行评估），步骤 5e 注入报告、并可喂步骤 5d 的 skill-body 候选。
+产出 `eval-findings`（指令遵循 / 召回 / 逐 skill 执行评估）→ 步骤 5e 注入报告、并可喂 5d 的 skill-body 候选。**完整派遣协议（输入清单、输出 schema、skill-body 落点规则）见 `references/eval-dispatch.md`——派遣前读它。** 这里只列不可省的硬约束：
 
-**必须用独立、零上下文继承（fresh context）的 subagent。** 被评估的会话正是主 Agent 自己跑的——主 Agent 评自己的指令遵循度与 skill 召回有系统性偏差。派遣纪律与 `deep-review` / `test-designer` 一致：新会话 / 不 resume、不把当前对话历史复制进子代理。
-
-**派遣输入（只给这些）：**
-- `health.skill_catalog`（全部已安装 skill 的 name + 触发条件 description）
-- `health.workflow_rules`（仓库工作流规则集）
-- `health.compliance`（确定性合规 floor）
-- `health.skills`（本会话实际调用过的 skill）+ `narrative.human_turns`（逐 turn 摘要 + 工具序列）+ transcript 文件路径（子代理可按需读取片段）
-
-**评估范围（两条界定必须都写进派遣提示词）：**
-- **召回 / 指令遵循分析覆盖 `skill_catalog` 里的全部已安装 skill 与全部 `workflow_rules`**——找"本该召回某 skill / 本该触发某规则却没有"的缺口，以及被正确遵循的项。
-- **逐 skill 执行 eval 仅覆盖本会话真正调用过 / 跑过的 skill**（`health.skills` 里的）——没跑过的 skill 无法评其执行表现，只进召回分析、不进执行 eval。
-
-**输出契约：** 一个 finding 数组，每条 `{kind, severity, confidence, text, skill?}`：
-- `kind` ∈ `recall`（召回缺口）/ `compliance`（指令遵循）/ `skill-eval`（逐 skill 执行）
-- `severity` ∈ `high` / `med` / `low`；`confidence` ∈ `high` / `med` / `low`
-- `text` 一句话事实性描述；`skill` 可选（指向相关 skill 名）
-- **不按重要性预过滤**——全部 in-scope finding 都报告（含 low severity / low confidence），过滤交给人（与 deep-review 同纪律）。
+- **必须用独立、零上下文继承（fresh context）的 subagent**：被评估的会话正是主 Agent 自己跑的，自评有系统性偏差（纪律同 `deep-review` / `test-designer`：新会话、不 resume、不把当前对话历史复制进子代理）。
+- **范围**：召回 / 指令遵循覆盖 `skill_catalog` 里**全部已安装 skill** 与全部 `workflow_rules`；逐 skill 执行 eval **仅覆盖本会话真正调用过 / 跑过的 skill**（`health.skills` 里的）。机械层只给 `workflow_signals` 中性事实（分支 / 是否在 main / 有无编辑 / PR / skill 调用数），**所有判断由 subagent 做**——包括"在 main 上编辑了"这类原来机械层下的判决。
+- **输出**：finding 数组 `{kind, severity, confidence, text, skill?}`，每条带 `severity` + `confidence`，**不按重要性预过滤**（全部 in-scope finding 都报告，过滤交给人）。
 
 ### 步骤 5：注入数据 + 撰写 Agent 填空段（**用 Edit，不用 Write**——必须保留模板的 JS/CSS）
 
