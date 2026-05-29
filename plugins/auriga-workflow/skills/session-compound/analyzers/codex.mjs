@@ -136,6 +136,7 @@ function newStats() {
     toolSearchCount: 0,
     imageGenerationCount: 0,
     agentInvocations: [], // {ts, subagent_type, message_preview, fork_context}
+    skillInvocations: {}, // skill name -> count (parsed from <skill><name> blocks)
   }
 }
 
@@ -167,6 +168,20 @@ function summarize(text, max = 120) {
   if (!text) return ''
   const cleaned = String(text).replace(/\s+/g, ' ').trim()
   return cleaned.length <= max ? cleaned : cleaned.slice(0, max - 1) + '…'
+}
+
+// Like summarize, but boundary-aware for markdown: if the cut leaves an
+// unbalanced ``` code fence, trim back to before the dangling opener so the
+// conclusion never carries a half-open fence into the report.
+function summarizeMarkdown(text, max = 120) {
+  let out = summarize(text, max)
+  const fences = (out.match(/```/g) || []).length
+  if (fences % 2 === 1) {
+    const lastFence = out.lastIndexOf('```')
+    out = out.slice(0, lastFence).trimEnd()
+    if (!out.endsWith('…')) out += '…'
+  }
+  return out
 }
 
 // Detect simple file-read commands inside exec_command args (`cat foo`,
@@ -338,11 +353,14 @@ function handleEventMsg(p, ts, stats, setTurn) {
       if (p.success === false) {
         const files = p.changes ? Object.keys(p.changes) : []
         stats.patchApplies.failedFiles.push(...files)
+        // tool_failures entries stay uniformly {call_id, name, preview} so the
+        // list is internally consistent and symmetric with the claude analyzer.
+        // The failed-file list lives on patchApplies.failedFiles + the
+        // patch_apply_failure waste signal, not on each failure record.
         stats.toolFailures.push({
           call_id: p.call_id,
           name: 'patch_apply',
           preview: (p.stderr || p.stdout || '').slice(0, 200),
-          files,
         })
       }
       break
@@ -364,6 +382,23 @@ function handleEventMsg(p, ts, stats, setTurn) {
 
 function handleResponseItem(p, ts, stats, currentTurn) {
   switch (p.type) {
+    case 'message': {
+      // A `$skill-name` invocation is injected as a role:user message whose
+      // first text block opens with `<skill><name>X</name>...`. One block is
+      // emitted per real invocation (no re-injection), so a direct count is
+      // accurate — no dedup needed.
+      if (p.role !== 'user') break
+      const c = Array.isArray(p.content) ? p.content : []
+      const text = c.map((b) => b.text || '').join('')
+      if (text.startsWith('<skill>')) {
+        const m = text.match(/<name>(.*?)<\/name>/)
+        const name = m ? m[1].trim() : null
+        if (name) {
+          stats.skillInvocations[name] = (stats.skillInvocations[name] || 0) + 1
+        }
+      }
+      break
+    }
     case 'function_call': {
       const name = p.name || 'unknown'
       stats.toolUses[name] = (stats.toolUses[name] || 0) + 1
@@ -487,7 +522,13 @@ function emit(stats, filePath) {
       note: `Cache 命中率仅 ${(cacheHitRate * 100).toFixed(1)}% — prompt 可能在频繁失效`,
     })
   }
-  if (reasoningOutputRatio > 0.5 && output > 10_000) {
+  // A read-only investigative session naturally spends most output on
+  // reasoning; that is not waste. Only flag a high reasoning ratio when the
+  // session actually modified code (patch activity) — there the high ratio
+  // signals the task was hard or the prompt unclear.
+  const hadCodeModification =
+    stats.patchApplies.success + stats.patchApplies.failure > 0
+  if (reasoningOutputRatio > 0.5 && output > 10_000 && hadCodeModification) {
     wasteSignals.push({
       type: 'high_reasoning_ratio',
       rate: reasoningOutputRatio,
@@ -572,7 +613,7 @@ function emit(stats, filePath) {
     },
     narrative: {
       task_title: summarize(stats.firstUserText || '', 100),
-      task_conclusion: summarize(stats.lastAgentFinalMessage || '', 240),
+      task_conclusion: summarizeMarkdown(stats.lastAgentFinalMessage || '', 240),
       task_completed: stats.taskCompleted === true,
       task_duration_ms: stats.taskDurationMs,
       time_to_first_token_ms: stats.timeToFirstTokenMs,
@@ -603,7 +644,10 @@ function emit(stats, filePath) {
       reasoning_output_ratio: reasoningOutputRatio,
       tools: stats.toolUses,
       subagents: subagentList,
-      skills: [], // codex has no skill concept (uses plugins instead)
+      skills: Object.entries(stats.skillInvocations).map(([name, count]) => ({
+        name,
+        count,
+      })),
       expensive_turns: expensiveTurns,
       cache_breaks: [],
       waste_signals: wasteSignals,
