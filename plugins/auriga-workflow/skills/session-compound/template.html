@@ -540,6 +540,13 @@
 []
 </script>
 
+<!-- Independent eval subagent findings (SKILL.md fills this in step 5e). Schema:
+     [{ "kind": "recall|compliance|skill-eval", "severity": "high|med|low",
+        "confidence": "high|med|low", "text": "finding", "skill": "name?" }] -->
+<script id="eval-findings" type="application/json">
+[]
+</script>
+
 <div class="hero">
   <div>
     <h1 id="report-title">Session Compound</h1>
@@ -636,6 +643,26 @@
     <div class="card" id="tool-failures"></div>
   </div>
 
+  <!-- Workflow compliance (deterministic, from analyzer). -->
+  <div id="sec-compliance" hidden>
+    <h2>工作流合规</h2>
+    <p style="color: var(--text-dim); margin: 6px 0 10px; font-size: 13px;">
+      机械可判的工作流谓词（确定性）：✓ 通过 / ✗ 未通过 / — 不适用。
+      细粒度的指令遵循与 skill 召回判断见下方「指令遵循 & Skill Eval」。
+    </p>
+    <div class="card" id="compliance-list"></div>
+  </div>
+
+  <!-- Independent eval subagent findings (recall gaps + per-skill eval). -->
+  <div id="sec-skill-eval" hidden>
+    <h2>指令遵循 & Skill Eval</h2>
+    <p style="color: var(--text-dim); margin: 6px 0 10px; font-size: 13px;">
+      由<b>独立子代理</b>评估：本会话里 skill / 规则是否在该触发时被召回，以及跑过的
+      skill 是否兑现设计目标。每条带 severity + confidence，未按重要性预过滤。
+    </p>
+    <div class="card" id="skill-eval-list"></div>
+  </div>
+
   <h2>最贵的 turn</h2>
   <div class="card" id="expensive-turns"></div>
 
@@ -679,6 +706,7 @@
 (function () {
   const data = JSON.parse(document.getElementById('report-data').textContent);
   const candidates = JSON.parse(document.getElementById('candidates').textContent);
+  const evalFindings = JSON.parse(document.getElementById('eval-findings').textContent);
 
   // ---------- Helpers ----------
   const $ = (sel) => document.querySelector(sel);
@@ -866,6 +894,35 @@
     </div>`).join('');
   }
   showIf('#sec-failures', failures.length);
+
+  // Workflow compliance checklist (deterministic, from analyzer).
+  const compliance = h.compliance || [];
+  const STATUS_MARK = { pass: '✓', fail: '✗', na: '—' };
+  if (compliance.length) {
+    $('#compliance-list').innerHTML = compliance.map(c => `<div class="turn">
+      <div class="idx">${STATUS_MARK[c.status] || '?'}</div>
+      <div class="summary">
+        <div>${escapeHtml(c.label || c.id || '')}</div>
+        ${c.detail ? `<div class="toolset">${escapeHtml(c.detail)}</div>` : ''}
+      </div>
+      <div class="tokens">${escapeHtml(String(c.status || ''))}</div>
+    </div>`).join('');
+  }
+  showIf('#sec-compliance', compliance.length);
+
+  // Independent eval subagent findings (recall / compliance / per-skill eval).
+  // Graceful absence: with no findings the whole section stays hidden.
+  if (evalFindings.length) {
+    $('#skill-eval-list').innerHTML = evalFindings.map(f => `<div class="turn">
+      <div class="idx">${escapeHtml((f.severity || '').slice(0, 3) || '·')}</div>
+      <div class="summary">
+        <div>${escapeHtml(f.text || '')}</div>
+        <div class="toolset">${escapeHtml([f.kind, f.skill, f.confidence ? 'confidence: ' + f.confidence : ''].filter(Boolean).join(' · '))}</div>
+      </div>
+      <div class="tokens"></div>
+    </div>`).join('');
+  }
+  showIf('#sec-skill-eval', evalFindings.length);
 
   // ---------- Health: expensive turns ----------
   const expensive = h.expensive_turns || [];
