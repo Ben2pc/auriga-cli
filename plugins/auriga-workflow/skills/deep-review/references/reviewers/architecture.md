@@ -1,3 +1,12 @@
+---
+name: architecture
+best_for: "模块边界、依赖图健康状况、分层、类型设计、对架构设计文档的合规性"
+trigger: "tag:arch"
+reasoning: flagship
+tools: [Read, Grep, Glob]
+value: "架构腐化会悄无声息地积累，事后修复代价高昂；在拉取请求阶段发现则成本低廉"
+---
+
 # Architecture Reviewer
 
 ## Scope
@@ -7,14 +16,6 @@
 这位审查者是 **`arch-design` 技能在审查阶段的对应角色**：`arch-design` 在编写代码之前塑造模块边界；本审查者在之后检查差异是否悄悄破坏了这些边界。它涵盖三个相关关切：(i) **代码库组织**——模块边界、依赖方向、分层；(ii) **类型设计**，当差异引入或修改类型时；(iii) **设计合规性**——当拉取请求基于 `arch-design` 设计文档构建时，实现是否真正与之匹配。
 
 本审查者刻意使用 `arch-design` 的术语：用 `arch-design` 所用的同一词汇命名缺陷，以便修复能直接回流到该技能。
-
-## Metadata
-
-- **Best for**: 模块边界、依赖图健康状况、分层、类型设计、对架构设计文档的合规性
-- **Trigger**: tag:arch
-- **Reasoning**: flagship
-- **Tools**: Read, Grep, Glob（只读）
-- **Value**: 架构腐化会悄无声息地积累，事后修复代价高昂；在拉取请求阶段发现则成本低廉
 
 ## Checklist
 

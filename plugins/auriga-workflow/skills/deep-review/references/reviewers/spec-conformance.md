@@ -1,16 +1,17 @@
+---
+name: spec-conformance
+best_for: "验证差异是否实现了验证契约中的每个 `VAL-XXX-NNN` 断言，且仅此而已"
+trigger: "always"
+reasoning: flagship
+tools: [Read, Grep, Glob]
+value: "捕捉遗漏的实现、范围蔓延和静默解决的规范歧义"
+---
+
 # Spec Conformance Reviewer
 
 ## Scope
 
 以下检查清单是**起点，而非边界**。它涵盖验证规范合规性的最常见模式——但请报告你在这一维度上会向同事指出的任何问题，包括未在此列举的类别。这些模式是帮助你不遗漏的入门脚手架；目标是判断力。
-
-## Metadata
-
-- **Best for**: 验证差异是否实现了验证契约中的每个 `VAL-XXX-NNN` 断言，且仅此而已
-- **Trigger**: always
-- **Reasoning**: flagship
-- **Tools**: Read, Grep, Glob（只读）
-- **Value**: 捕捉遗漏的实现、范围蔓延和静默解决的规范歧义
 
 ## Inputs
 

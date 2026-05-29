@@ -1,16 +1,19 @@
+---
+name: <NAME>
+best_for: "<BEST_FOR>"
+extends: <EXTENDS>  # 内置审查者名（如 performance / ux / security / architecture）= 作为该维度补充被 deep-review 吸收；standalone = 内置维度都不覆盖的全新维度，强制独立分派
+trigger: <TRIGGER>
+reasoning: <REASONING>
+tools: [Read, Grep, Glob]  # 只读
+value: ""  # TODO: 一句话价值陈述——这位审查者能防住什么内置审查者会漏掉的问题？
+# effort: xhigh  # 可选；仅在向下覆盖为简单检查、或向上覆盖为 max 时填
+---
+
 # <TITLE>
 
 ## Scope
 
 以下检查清单是**起点，而非边界**。它涵盖常见的 <DOMAIN> 模式——但请报告你在这一维度上会向同事指出的任何问题，包括未在此列举的类别。这些模式是帮助你不遗漏的入门脚手架；目标是判断力。
-
-## Metadata
-
-- **Best for**: <BEST_FOR>
-- **Trigger**: <TRIGGER>
-- **Reasoning**: <REASONING>
-- **Tools**: Read, Grep, Glob（只读）
-- **Value**: <TODO: 一句话价值陈述——这位审查者能防住什么内置审查者会漏掉的问题？>
 
 ## Checklist
 
@@ -29,7 +32,7 @@
 
 ## When to invoke
 
-按上方的 **Trigger** 字段触发。下方的 Detection 表指出分派后应聚焦哪些信号。
+按 frontmatter 的 `trigger` 字段触发。下方的 Detection 表指出分派后应聚焦哪些信号。
 
 | Recommend focus on | Detection |
 |---|---|

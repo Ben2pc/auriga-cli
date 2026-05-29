@@ -3,11 +3,16 @@ import fs from "node:fs";
 import path from "node:path";
 import { describe, test } from "node:test";
 
+import matter from "gray-matter";
+
 const repoRoot = path.resolve(new URL(".", import.meta.url).pathname, "..", "..");
 
 function read(rel: string): string {
   return fs.readFileSync(path.join(repoRoot, rel), "utf-8");
 }
+
+const deepReview = (): string =>
+  read("plugins/auriga-workflow/skills/deep-review/SKILL.md");
 
 describe("auriga-workflow skill contracts", () => {
   test("test-designer consumes project test rules", () => {
@@ -39,7 +44,7 @@ describe("auriga-workflow skill contracts", () => {
       "plugins/auriga-workflow/skills/deep-review/references/reviewers/test-quality.md",
     );
     assert.ok(
-      /\*\*Tools\*\*.*Bash/.test(text),
+      /tools:.*Bash/.test(text),
       "test-quality reviewer must be granted Bash to run tests",
     );
     assert.ok(
@@ -50,9 +55,6 @@ describe("auriga-workflow skill contracts", () => {
 });
 
 describe("deep-review custom-reviewer scope overlap", () => {
-  const deepReview = (): string =>
-    read("plugins/auriga-workflow/skills/deep-review/SKILL.md");
-
   // VAL-OVL-001 — overlapping custom reviewer is not dispatched separately
   test("overlapping custom reviewer is not dispatched as a separate subagent", () => {
     const text = deepReview();
@@ -100,8 +102,8 @@ describe("deep-review custom-reviewer scope overlap", () => {
       "overlap detection must be primarily a semantic judgment",
     );
     assert.ok(
-      text.includes("Extends"),
-      "an explicit Extends field, when present, must take precedence",
+      text.includes("extends"),
+      "an explicit extends field, when present, must take precedence",
     );
   });
 
@@ -135,4 +137,220 @@ describe("deep-review custom-reviewer scope overlap", () => {
       "findings from absorbed content must be attributed to the host built-in name",
     );
   });
+
+  // VAL-OVL-008 — Extends: standalone is a sentinel that forces independent dispatch
+  test("Extends: standalone forces independent dispatch", () => {
+    const text = deepReview();
+    assert.ok(
+      text.includes("extends: standalone") || text.includes("`standalone`"),
+      "SKILL.md must recognize the standalone sentinel value of extends",
+    );
+    assert.ok(
+      /standalone[^]*?独立[^]*?分派/.test(text),
+      "Extends: standalone must force the custom reviewer to dispatch independently",
+    );
+  });
+
+  // VAL-OVL-009 — when Extends is omitted, the default biases toward absorption
+  test("default with no Extends biases toward absorption", () => {
+    const text = deepReview();
+    assert.ok(
+      text.includes("偏向吸收"),
+      "the default when Extends is omitted must bias toward absorbing into a host",
+    );
+    assert.ok(
+      /套不上|没有.*host|都不.*覆盖/.test(text),
+      "independent dispatch must be the fallback only when no host built-in fits",
+    );
+  });
+});
+
+describe("deep-review dispatch delivery", () => {
+  // VAL-DISP-001 — reviewer content is self-read by the subagent via absolute path
+  test("reviewer content is delivered by absolute-path self-read, not inlined through the main agent", () => {
+    const text = deepReview();
+    assert.ok(
+      text.includes("绝对路径"),
+      "the subagent must receive an absolute path to the reviewer file",
+    );
+    assert.ok(
+      text.includes("自读"),
+      "the subagent must self-read the reviewer file in its own context",
+    );
+  });
+
+  // VAL-DISP-002 — main agent reads only the YAML frontmatter to orchestrate
+  test("main agent reads only the frontmatter to orchestrate dispatch", () => {
+    const text = deepReview();
+    assert.ok(
+      text.includes("frontmatter"),
+      "orchestration must rely on the YAML frontmatter",
+    );
+    assert.ok(
+      /只读[^]*?frontmatter/.test(text),
+      "the main agent must read only the frontmatter for orchestration, not the full body",
+    );
+  });
+
+  // VAL-DISP-003 — inline fallback documented for sandboxes that cannot resolve the path
+  test("an inline fallback is documented for delegates that cannot resolve the path", () => {
+    const text = deepReview();
+    assert.ok(
+      /路径[^]*?内联|内联[^]*?路径|无法解析[^]*?内联/.test(text),
+      "a path-unresolvable delegate must fall back to inlining the reviewer body",
+    );
+  });
+
+  // VAL-DEG-001 — graceful degradation for older reviewers without frontmatter
+  test("reviewers without frontmatter fall back to the prose Metadata section", () => {
+    const text = deepReview();
+    assert.ok(
+      /没有 frontmatter|无 frontmatter|缺少 frontmatter|没有 YAML frontmatter/.test(
+        text,
+      ),
+      "SKILL.md must address reviewers that lack YAML frontmatter",
+    );
+    assert.ok(
+      /(降级|回退)[^]*?## Metadata|## Metadata[^]*?(降级|回退)/.test(text),
+      "the fallback must read the prose ## Metadata section",
+    );
+  });
+});
+
+describe("reviewer-creator extends support", () => {
+  // VAL-CRT-001 — the scaffold template ships an extends frontmatter key
+  test("template.md ships an extends key in YAML frontmatter", () => {
+    const text = read(
+      "plugins/auriga-workflow/skills/reviewer-creator/references/template.md",
+    );
+    assert.ok(
+      text.startsWith("---\n"),
+      "template must lead with YAML frontmatter",
+    );
+    assert.ok(
+      /^name:/m.test(text),
+      "template frontmatter must include a name key",
+    );
+    assert.ok(
+      /^extends:/m.test(text),
+      "template frontmatter must include an extends key",
+    );
+    assert.ok(
+      text.includes("standalone"),
+      "template must document the standalone sentinel for forced independence",
+    );
+  });
+
+  // VAL-CRT-002 — the question flow asks supplement-vs-new-dimension and writes extends
+  test("SKILL.md asks supplement-vs-new-dimension and writes extends", () => {
+    const text = read(
+      "plugins/auriga-workflow/skills/reviewer-creator/SKILL.md",
+    );
+    assert.ok(
+      text.includes("extends"),
+      "reviewer-creator must populate the extends field from the answer",
+    );
+    assert.ok(
+      /补充[^]*?独立维度|独立维度[^]*?补充/.test(text),
+      "the flow must ask whether the reviewer supplements a built-in or is a new dimension",
+    );
+    assert.ok(
+      !text.includes("不会自动产出"),
+      "the stale claim that reviewer-creator never emits extends must be removed",
+    );
+  });
+
+  // VAL-CRT-003 — the field schema (required vs optional) is documented explicitly
+  test("SKILL.md documents the frontmatter field schema with required vs optional", () => {
+    const text = read(
+      "plugins/auriga-workflow/skills/reviewer-creator/SKILL.md",
+    );
+    assert.ok(
+      /Frontmatter schema|字段 schema|frontmatter 字段/.test(text),
+      "must include an explicit frontmatter schema section",
+    );
+    assert.ok(
+      text.includes("必填") && text.includes("可选"),
+      "the schema must distinguish required from optional fields",
+    );
+    assert.ok(
+      /可选[^]*?(extends|effort)/.test(text),
+      "extends and effort must be documented as optional",
+    );
+  });
+});
+
+describe("built-in reviewer metadata is machine-readable frontmatter", () => {
+  const reviewerDir =
+    "plugins/auriga-workflow/skills/deep-review/references/reviewers";
+  const builtins = [
+    "architecture",
+    "code-quality",
+    "correctness",
+    "docs-sync",
+    "performance",
+    "robustness",
+    "security",
+    "skill-plugin-quality",
+    "spec-conformance",
+    "test-quality",
+    "ux",
+  ];
+
+  for (const name of builtins) {
+    // VAL-FM-001 — each built-in carries valid, parseable YAML frontmatter
+    test(`${name}.md frontmatter parses and carries valid orchestration keys`, () => {
+      const text = read(`${reviewerDir}/${name}.md`);
+      assert.ok(
+        text.startsWith("---\n"),
+        `${name}.md must start with YAML frontmatter`,
+      );
+      let fm: Record<string, unknown>;
+      try {
+        fm = matter(text).data as Record<string, unknown>;
+      } catch (e) {
+        assert.fail(
+          `${name}.md frontmatter is not valid YAML: ${(e as Error).message}`,
+        );
+        return;
+      }
+      for (const key of [
+        "name",
+        "best_for",
+        "trigger",
+        "reasoning",
+        "tools",
+        "value",
+      ]) {
+        assert.ok(key in fm, `${name}.md frontmatter must define ${key}`);
+      }
+      assert.equal(
+        fm.name,
+        name,
+        `${name}.md frontmatter name must match its filename stem`,
+      );
+      assert.ok(
+        fm.reasoning === "flagship" || fm.reasoning === "workhorse",
+        `${name}.md reasoning must be flagship|workhorse, got ${String(fm.reasoning)}`,
+      );
+      assert.ok(
+        /^(always|non-trivial|detection-driven|tag:(logic|auth-sensitive|ui|perf|arch))$/.test(
+          String(fm.trigger),
+        ),
+        `${name}.md trigger must be a legal value, got ${String(fm.trigger)}`,
+      );
+      assert.ok(
+        Array.isArray(fm.tools) && (fm.tools as unknown[]).includes("Read"),
+        `${name}.md tools must be a list including Read`,
+      );
+      assert.ok(
+        !("extends" in fm),
+        `${name}.md is a host built-in and must not declare extends`,
+      );
+      assert.ok(
+        !/^## Metadata/m.test(text),
+        `${name}.md must not keep the old prose ## Metadata section`,
+      );
+    });
+  }
 });

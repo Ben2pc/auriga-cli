@@ -1,3 +1,12 @@
+---
+name: skill-plugin-quality
+best_for: "捕捉在常规代码审查中漏掉的插件 / 技能 / 代理格式错误和质量问题"
+trigger: "detection-driven"
+reasoning: workhorse
+tools: [Read, Grep, Glob, WebFetch, Bash]
+value: "本仓库是市场；格式错误的插件会让每个尝试安装它的用户安装失败。在拉取请求阶段捕捉模式 / 版本 / 命名缺陷比合并后便宜得多"
+---
+
 # Skill / Plugin Quality Reviewer (detection-driven)
 
 ## Scope
@@ -32,14 +41,6 @@
 | `CLAUDE.md` / `AGENTS.md` | [4], [6] |
 
 若获取的文档与本文件中的内联摘要相矛盾，**将内联规则报告为过期**（`<this file>:<line> — inline rule disagrees with [N] — [severity: non-blocking] — [confidence: high] — [file-class: universal]`），以便人工审查者更新审查者文件。对实际差异应用官方文档，而非过期摘要。仅在 WebFetch 不可用时跳过获取；在这种情况下，在摘要前加 `[unverified — falling back to cached rule]` 以告知读者新鲜度不确定。
-
-## Metadata
-
-- **Best for**: 捕捉在常规代码审查中漏掉的插件 / 技能 / 代理格式错误和质量问题
-- **Trigger**: detection-driven
-- **Reasoning**: workhorse
-- **Tools**: Read, Grep, Glob, WebFetch, Bash（只读——Bash 用于 `jq` / 行数统计，以及运行 `skill-creator` 的 `quick_validate.py` 做可执行校验，不写入；WebFetch 用于获取下方参考文献中的 Claude Code / Codex 官方文档）
-- **Value**: 本仓库是市场；格式错误的插件会让每个尝试安装它的用户安装失败。在拉取请求阶段捕捉模式 / 版本 / 命名缺陷比合并后便宜得多
 
 ## Checklist — Universal core
 

@@ -1,3 +1,12 @@
+---
+name: security
+best_for: "认证、授权、加密、密钥处理、支付路径、用户可控输入、安全配置，以及第三方集成——任何缺陷可能让错误的人做错误的事或暴露敏感数据的地方"
+trigger: "tag:auth-sensitive"
+reasoning: flagship
+tools: [Read, Grep, Glob]
+value: "认证缺陷影响半径大；即使是没有发现的情况，更大的推理预算也值回票价"
+---
+
 # Security Reviewer (split-out)
 
 ## Scope
@@ -7,14 +16,6 @@
 本审查者仅当 `auth-sensitive` 子标签叠加 `logic` 时触发。它的存在是因为细微的认证 / 加密 / 密钥处理缺陷值得比通用鲁棒性审查能给予的更深入分析。当本审查者激活时，**鲁棒性仅保留边缘用例视角**——不会重复报告。
 
 不要将本审查者扩展至插件 / 代理权限验证。插件清单、钩子、MCP 配置、市场条目和技能文件结构属于 `skill-plugin-quality`，除非差异同时创造了此处涵盖的具体 Web 应用安全缺陷。
-
-## Metadata
-
-- **Best for**: 认证、授权、加密、密钥处理、支付路径、用户可控输入、安全配置，以及第三方集成——任何缺陷可能让错误的人做错误的事或暴露敏感数据的地方
-- **Trigger**: tag:auth-sensitive
-- **Reasoning**: flagship
-- **Tools**: Read, Grep, Glob（只读）
-- **Value**: 认证缺陷影响半径大；即使是没有发现的情况，更大的推理预算也值回票价
 
 ## Review discipline
 

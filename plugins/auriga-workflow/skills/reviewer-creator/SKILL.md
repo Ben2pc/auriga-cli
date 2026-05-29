@@ -13,7 +13,9 @@ description: "当用户要求创建自定义审查者、添加项目专属审查
 - 用户调用 `/reviewer-creator`
 - 团队正在引入一项新约定，希望在拉取请求阶段强制执行
 
-**Skip for:** 内置审查者已覆盖的通用关切。自定义审查者新增的是**新维度**，而非对既有维度做项目专属的收窄。
+**两种定位（由 `extends` 字段声明）：** 自定义审查者要么是 (a) **某个内置维度的项目专属补充 / 收窄**（`extends: <内置名>`，由 `deep-review` 吸收进同一 host 一并审查），要么是 (b) **一个全新独立维度**（`extends: standalone`）。多数项目专属关切属于 (a)，优先用吸收以控制子代理数量。
+
+**Skip for:** 内置审查者已覆盖、且无需任何项目专属补充的通用关切。
 
 ## Prerequisites
 
@@ -21,11 +23,31 @@ description: "当用户要求创建自定义审查者、添加项目专属审查
 - `docs/rules/review/` 目录不存在时会按需创建
 - `references/template.md`（位于本技能目录下）是规范模板
 
+## Frontmatter schema
+
+生成文件以文件头部 YAML frontmatter 承载机器可读的编排元数据。字段契约：
+
+**必填（所有 reviewer）：**
+
+- `name` — kebab-case，等于文件名 stem
+- `best_for` — 一句话职责；缺 `extends` 时还用于语义重叠判定
+- `trigger` — `always` | `tag:<logic|auth-sensitive|ui|perf|arch>` | `non-trivial` | `detection-driven`
+- `reasoning` — `flagship` | `workhorse`
+- `tools` — 流式列表；只读默认 `[Read, Grep, Glob]`，需要跑测试再加 `Bash`
+- `value` — 价值陈述：这个维度能防住什么内置审查者会漏掉的问题
+
+**可选：**
+
+- `extends` — `<内置审查者名>`（吸收进该 host）| `standalone`（强制独立分派）。**仅自定义 reviewer 使用**；缺省时 `deep-review` 按语义判断并偏向吸收。built-in 是 host，绝不设 `extends`。
+- `effort` — `xhigh`（缺省）| `high` | `medium` | `max`；仅在需要覆盖默认时才填。
+
+旧版没有 frontmatter 的 reviewer 仍能被 `deep-review` 降级读取（回退到正文 `## Metadata` 段），但新建文件一律用 frontmatter。
+
 ## Steps
 
 ### 1. Gather metadata via `AskUserQuestion` / `request_user_input`
 
-按顺序收集：
+依次收集（顺序可调整——第 8 项 dispatch 模式决定整份文件的定位，建议最先确认）：
 
 1. **Name** — kebab-case（例如 `migration-safety`、`i18n-keys`）。校验：
    - 全小写 / 连字符分隔 / 无空格或特殊字符
@@ -40,6 +62,10 @@ description: "当用户要求创建自定义审查者、添加项目专属审查
 5. **Detection signals** — 至少 3 行可 grep 的规则（路径通配 / 导入模式 / API 调用模式）。`detection-driven` 必需；对其他类别可作为关注提示
 6. **Reasoning tier** — `flagship`（需要深层多跳推理——例如缺陷排查、架构判断）或 `workhorse`（模式匹配 / 清单核对）。各平台将其映射到各自的模型类别：Claude flagship → Opus，workhorse → Sonnet；Codex flagship → GPT-5.5，workhorse → GPT-5.5-mini。默认 `workhorse`，除非该审查者需要对差异做横切推理
 7. **One worked scenario** — 该审查者会捕捉的问题的具体 file:line 式示例（用于填充 Worked scenarios 章节；另外 ≥2 个留作 TODO）
+8. **Dispatch 模式（`extends`）** —（建议最先确认，它决定整份文件的定位）询问：这个审查者是 (a) **某个内置维度的项目专属补充**，还是 (b) **一个全新独立维度**？
+   - (a) 选定一个内置审查者名（`spec-conformance` / `correctness` / `test-quality` / `docs-sync` / `robustness` / `security` / `ux` / `performance` / `architecture` / `code-quality` / `skill-plugin-quality`）→ 写 `extends: <内置名>`。`deep-review` 会把它的 Checklist 与 worked scenarios 吸收进该 host 一并审查，不额外占用子代理。
+   - (b) 内置 11 位都不覆盖、需要独立分派 → 写 `extends: standalone`。
+   - 多数项目专属审查者属于 (a)；优先吸收以控制子代理数量。拿不准时，对照 `deep-review/SKILL.md` 第 2 步的吸收示例选最接近的 host。
 
 ### 2. Generate the file
 
@@ -51,6 +77,7 @@ mkdir -p docs/rules/review/
 
 | Placeholder | 来源 |
 |---|---|
+| `<NAME>` | 第 1 步的 Name（kebab-case，= 文件名 stem，写入 frontmatter `name`） |
 | `<TITLE>` | 名称 → 人类可读形式（例如 `migration-safety` → "Migration Safety"） |
 | `<DOMAIN>` | 第 1 步的领域短语 |
 | `<BEST_FOR>` | 第 1 步的"Best for"一句话 |
@@ -58,10 +85,11 @@ mkdir -p docs/rules/review/
 | `<REASONING>` | 第 1 步的 Reasoning tier |
 | `<DETECTION_ROWS>` | 由 Detection signals 拼装成的 Markdown 表格行 |
 | `<WORKED_SCENARIO_1>` | 第 1 步提供的那个场景 |
+| `<EXTENDS>` | 第 8 步的 Dispatch 模式（`extends: <内置名>` 或 `extends: standalone`） |
 
 将替换后的内容写入 `docs/rules/review/<name>.md`。
 
-其余的 `<TODO: ...>` 占位符（Value 一句话、Checklist 正文、场景 2 和 3、Output contract 细节）留给用户填写——它们需要本技能无法合成的领域专业知识。
+frontmatter 的 `value` 字段，以及正文中其余的 `<TODO: ...>` 占位符（Checklist 正文、场景 2 和 3、Output contract 细节），留给用户填写——它们需要本技能无法合成的领域专业知识。
 
 ### 3. Tell the user what to do next
 
@@ -69,7 +97,7 @@ mkdir -p docs/rules/review/
 
 1. 文件已创建于 `docs/rules/review/<name>.md`
 2. **使用前必须完成的编辑：**
-   - 填写 Metadata 中的 `**Value**：` 一行
+   - 填写 frontmatter 中的 `value` 字段
    - 将 Checklist 中的 `<TODO: ...>` 占位符替换为 5–10 条具体、可操作的审查问题
    - 再补 2 个 Worked scenarios（具体的 file:line 式示例）
    - 如该审查者需要特殊的 lens/category 标签，可选地调整 Output contract
@@ -77,7 +105,7 @@ mkdir -p docs/rules/review/
    - 在一个本应触发新审查者的拉取请求上运行 `/deep-review`
    - 检查分派的审查者列表中包含 `<name>`
    - 确认综合输出中包含该自定义审查者的发现
-4. **若 Trigger 设置错了：** 编辑文件中的 `**Trigger**：` 字段并重新运行；无需其他改动
+4. **若 trigger 设置错了：** 编辑 frontmatter 的 `trigger` 字段并重新运行；无需其他改动
 
 ## Anti-patterns
 
@@ -85,17 +113,18 @@ mkdir -p docs/rules/review/
 - ❌ 为窄关切设置 `always` 触发——每个拉取请求都要付出分派成本；优先用带具体信号的 `detection-driven`
 - ❌ 省略 Detection signals——`detection-driven` 必需，在其他场景也可作为关注提示
 - ❌ 删除"起点，而非边界"的范围前言——缺少它的审查者往往会漏掉清单之外的发现（较新的推理模型倾向于把枚举列表当成封闭集合）
-- ❌ 用项目专属的收窄去重新实现某个内置维度（例如一个"我们支付模块专用的 correctness"审查者）——正确做法是把项目专属规则记录在 `docs/rules/`（不带 `review/`）中，让 `correctness` 审查者通过代码库自行采纳。自定义审查者是为*新维度*服务的
+- ❌ 把某内置维度的项目专属收窄声明成 `extends: standalone`（或不写 `extends` 又把 `Scope` 写得像全新维度）——它会被独立分派，和 host 对同一 file:line 重复报告、空耗子代理。若它本质是某内置维度的收窄，用 `extends: <内置名>` 声明吸收；只有内置 11 位都不覆盖的关切才用 `standalone`
 
 ## Example session
 
 ```
 User: /reviewer-creator
-Assistant: [走完 7 个问题；用户提供：
+Assistant: [走完 8 个问题；用户提供：
             name=migration-safety, best_for="捕捉不安全的数据库迁移",
             domain="迁移安全", trigger=detection-driven, signals=
             (*.sql 文件、ALTER TABLE 模式、drop_column 调用、
-            migrations/ 目录), reasoning=workhorse, 1 个场景]
+            migrations/ 目录), reasoning=workhorse, 1 个场景,
+            extends=standalone（迁移安全是内置维度未覆盖的全新维度）]
 Assistant: [生成 docs/rules/review/migration-safety.md]
 Assistant: "文件已创建。接下来：填写 Checklist（5–10 条具体的安全检查，
             如'添加 NOT NULL 却没有回填？'、'并发索引创建？'），

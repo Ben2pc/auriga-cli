@@ -1,3 +1,12 @@
+---
+name: code-quality
+best_for: "能编译运行但会让下一个读代码的人苦恼的代码"
+trigger: "non-trivial"
+reasoning: workhorse
+tools: [Read, Grep, Glob]
+value: "可维护性缺陷会复利积累；本审查者防止它们一次一个拉取请求地堆积"
+---
+
 # Code Quality Reviewer
 
 ## Scope
@@ -10,14 +19,6 @@
 
 - **Consistency** — 命名、风格、项目模式、遗留的重构债务
 - **Maintainability** — 清晰度、注释质量、过早/不足抽象、死代码、YAGNI
-
-## Metadata
-
-- **Best for**: 能编译运行但会让下一个读代码的人苦恼的代码
-- **Trigger**: non-trivial
-- **Reasoning**: workhorse
-- **Tools**: Read, Grep, Glob（只读）
-- **Value**: 可维护性缺陷会复利积累；本审查者防止它们一次一个拉取请求地堆积
 
 ## Checklist
 

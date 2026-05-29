@@ -1,3 +1,12 @@
+---
+name: docs-sync
+best_for: "捕捉与所描述代码产生漂移的文档——注释、README、CLAUDE.md / AGENTS.md、API 文档"
+trigger: "always"
+reasoning: workhorse
+tools: [Read, Grep, Glob]
+value: "过期文档是会复利积累的技术债；本审查者防止它在单个拉取请求周期中积累"
+---
+
 # Documentation Sync Reviewer
 
 ## Scope
@@ -5,14 +14,6 @@
 以下检查清单是**起点，而非边界**。它涵盖最常见的文档漂移模式——但请报告你在这一维度上会向同事指出的任何问题，包括未在此列举的类别。这些模式是帮助你不遗漏的入门脚手架；目标是判断力。
 
 指导原则：**没有文档胜过错误的文档。** 代码本身就是文档；只是重述代码的冗余文字会腐化并产生误导。倾向于删除过期/冗余内容，而非重写它。
-
-## Metadata
-
-- **Best for**: 捕捉与所描述代码产生漂移的文档——注释、README、CLAUDE.md / AGENTS.md、API 文档
-- **Trigger**: always
-- **Reasoning**: workhorse
-- **Tools**: Read, Grep, Glob（只读）
-- **Value**: 过期文档是会复利积累的技术债；本审查者防止它在单个拉取请求周期中积累
 
 ## Checklist
 
