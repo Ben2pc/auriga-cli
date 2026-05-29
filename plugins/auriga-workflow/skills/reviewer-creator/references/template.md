@@ -7,10 +7,13 @@
 ## Metadata
 
 - **Best for**: <BEST_FOR>
+- **Extends**: <EXTENDS>
 - **Trigger**: <TRIGGER>
 - **Reasoning**: <REASONING>
 - **Tools**: Read, Grep, Glob（只读）
 - **Value**: <TODO: 一句话价值陈述——这位审查者能防住什么内置审查者会漏掉的问题？>
+
+> `Extends` 取值：填某个内置审查者名（如 `performance`、`ux`、`security`、`architecture`）= 作为该维度的项目专属补充，由 `deep-review` 吸收进同一 host 一并审查、不额外占用子代理；填 `standalone` = 这是一个内置维度都不覆盖的全新维度，强制作为独立审查者分派。
 
 ## Checklist
 

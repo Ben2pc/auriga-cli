@@ -135,4 +135,66 @@ describe("deep-review custom-reviewer scope overlap", () => {
       "findings from absorbed content must be attributed to the host built-in name",
     );
   });
+
+  // VAL-OVL-008 — Extends: standalone is a sentinel that forces independent dispatch
+  test("Extends: standalone forces independent dispatch", () => {
+    const text = deepReview();
+    assert.ok(
+      text.includes("Extends: standalone") || text.includes("`standalone`"),
+      "SKILL.md must recognize the standalone sentinel value of Extends",
+    );
+    assert.ok(
+      /standalone[^]*?独立[^]*?分派/.test(text),
+      "Extends: standalone must force the custom reviewer to dispatch independently",
+    );
+  });
+
+  // VAL-OVL-009 — when Extends is omitted, the default biases toward absorption
+  test("default with no Extends biases toward absorption", () => {
+    const text = deepReview();
+    assert.ok(
+      text.includes("偏向吸收"),
+      "the default when Extends is omitted must bias toward absorbing into a host",
+    );
+    assert.ok(
+      /套不上|没有.*host|都不.*覆盖/.test(text),
+      "independent dispatch must be the fallback only when no host built-in fits",
+    );
+  });
+});
+
+describe("reviewer-creator Extends support", () => {
+  // VAL-CRT-001 — the scaffold template ships an Extends metadata row
+  test("template.md ships an Extends row in Metadata", () => {
+    const text = read(
+      "plugins/auriga-workflow/skills/reviewer-creator/references/template.md",
+    );
+    assert.ok(
+      /\*\*Extends\*\*/.test(text),
+      "template must include an Extends metadata field",
+    );
+    assert.ok(
+      text.includes("standalone"),
+      "template must document the standalone sentinel for forced independence",
+    );
+  });
+
+  // VAL-CRT-002 — the 7-question flow asks supplement-vs-new-dimension and writes Extends
+  test("SKILL.md asks supplement-vs-new-dimension and writes Extends", () => {
+    const text = read(
+      "plugins/auriga-workflow/skills/reviewer-creator/SKILL.md",
+    );
+    assert.ok(
+      text.includes("Extends"),
+      "reviewer-creator must populate the Extends field from the answer",
+    );
+    assert.ok(
+      /补充[^]*?独立维度|独立维度[^]*?补充/.test(text),
+      "the flow must ask whether the reviewer supplements a built-in or is a new dimension",
+    );
+    assert.ok(
+      !text.includes("不会自动产出"),
+      "the stale claim that reviewer-creator never emits Extends must be removed",
+    );
+  });
 });
