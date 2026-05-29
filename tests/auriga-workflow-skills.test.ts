@@ -163,6 +163,46 @@ describe("deep-review custom-reviewer scope overlap", () => {
   });
 });
 
+describe("deep-review dispatch delivery", () => {
+  const deepReview = (): string =>
+    read("plugins/auriga-workflow/skills/deep-review/SKILL.md");
+
+  // VAL-DISP-001 — reviewer content is self-read by the subagent via absolute path
+  test("reviewer content is delivered by absolute-path self-read, not inlined through the main agent", () => {
+    const text = deepReview();
+    assert.ok(
+      text.includes("绝对路径"),
+      "the subagent must receive an absolute path to the reviewer file",
+    );
+    assert.ok(
+      text.includes("自读"),
+      "the subagent must self-read the reviewer file in its own context",
+    );
+  });
+
+  // VAL-DISP-002 — main agent reads only the Metadata block to orchestrate
+  test("main agent reads only the Metadata block to orchestrate dispatch", () => {
+    const text = deepReview();
+    assert.ok(
+      text.includes("Metadata 块"),
+      "orchestration must rely on the Metadata block",
+    );
+    assert.ok(
+      /只读[^]*?Metadata 块/.test(text),
+      "the main agent must read only the Metadata block for orchestration, not the full body",
+    );
+  });
+
+  // VAL-DISP-003 — inline fallback documented for sandboxes that cannot resolve the path
+  test("an inline fallback is documented for delegates that cannot resolve the path", () => {
+    const text = deepReview();
+    assert.ok(
+      /路径[^]*?内联|内联[^]*?路径|无法解析[^]*?内联/.test(text),
+      "a path-unresolvable delegate must fall back to inlining the reviewer body",
+    );
+  });
+});
+
 describe("reviewer-creator Extends support", () => {
   // VAL-CRT-001 — the scaffold template ships an Extends metadata row
   test("template.md ships an Extends row in Metadata", () => {
