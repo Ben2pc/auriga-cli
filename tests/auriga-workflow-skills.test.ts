@@ -260,6 +260,25 @@ describe("reviewer-creator extends support", () => {
       "the stale claim that reviewer-creator never emits extends must be removed",
     );
   });
+
+  // VAL-CRT-003 — the field schema (required vs optional) is documented explicitly
+  test("SKILL.md documents the frontmatter field schema with required vs optional", () => {
+    const text = read(
+      "plugins/auriga-workflow/skills/reviewer-creator/SKILL.md",
+    );
+    assert.ok(
+      /Frontmatter schema|字段 schema|frontmatter 字段/.test(text),
+      "must include an explicit frontmatter schema section",
+    );
+    assert.ok(
+      text.includes("必填") && text.includes("可选"),
+      "the schema must distinguish required from optional fields",
+    );
+    assert.ok(
+      /可选[^]*?(extends|effort)/.test(text),
+      "extends and effort must be documented as optional",
+    );
+  });
 });
 
 describe("built-in reviewer metadata is machine-readable frontmatter", () => {
@@ -306,6 +325,14 @@ describe("built-in reviewer metadata is machine-readable frontmatter", () => {
       assert.ok(
         new RegExp(`^name:\\s*${name}\\s*$`, "m").test(fm),
         `${name}.md frontmatter name must match its filename stem`,
+      );
+      assert.ok(
+        /^reasoning:\s*(flagship|workhorse)\s*$/m.test(fm),
+        `${name}.md reasoning must be flagship or workhorse`,
+      );
+      assert.ok(
+        !/^extends:/m.test(fm),
+        `${name}.md is a host built-in and must not declare extends`,
       );
       assert.ok(
         !/^## Metadata/m.test(text),

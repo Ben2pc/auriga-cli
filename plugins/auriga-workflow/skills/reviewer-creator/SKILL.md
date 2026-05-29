@@ -23,6 +23,26 @@ description: "当用户要求创建自定义审查者、添加项目专属审查
 - `docs/rules/review/` 目录不存在时会按需创建
 - `references/template.md`（位于本技能目录下）是规范模板
 
+## Frontmatter schema
+
+生成文件以文件头部 YAML frontmatter 承载机器可读的编排元数据。字段契约：
+
+**必填（所有 reviewer）：**
+
+- `name` — kebab-case，等于文件名 stem
+- `best_for` — 一句话职责；缺 `extends` 时还用于语义重叠判定
+- `trigger` — `always` | `tag:<logic|auth-sensitive|ui|perf|arch>` | `non-trivial` | `detection-driven`
+- `reasoning` — `flagship` | `workhorse`
+- `tools` — 流式列表；只读默认 `[Read, Grep, Glob]`，需要跑测试再加 `Bash`
+- `value` — 价值陈述：这个维度能防住什么内置审查者会漏掉的问题
+
+**可选：**
+
+- `extends` — `<内置审查者名>`（吸收进该 host）| `standalone`（强制独立分派）。**仅自定义 reviewer 使用**；缺省时 `deep-review` 按语义判断并偏向吸收。built-in 是 host，绝不设 `extends`。
+- `effort` — `xhigh`（缺省）| `high` | `medium` | `max`；仅在需要覆盖默认时才填。
+
+旧版没有 frontmatter 的 reviewer 仍能被 `deep-review` 降级读取（回退到正文 `## Metadata` 段），但新建文件一律用 frontmatter。
+
 ## Steps
 
 ### 1. Gather metadata via `AskUserQuestion` / `request_user_input`
