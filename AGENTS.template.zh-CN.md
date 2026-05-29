@@ -7,7 +7,7 @@
 
 3. 计划完成，先创建分支：**开始写代码前，先从 main 创建开发分支**，所有 commit 在分支上完成，禁止直接提交到 main。分支命名规范：`feat/`（新功能）、`fix/`（修复）、`docs/`（文档）、`refactor/`（重构）、`chore/`（杂项）。所有 git/gh 操作（建分支、commit、PR create/ready、review 后处理）都使用 `git-workflow` skill。
 
-4. 尽早提交：创建开发分支并完成第一个有意义的 commit 后，尽早创建 Draft Pull Request，让 CI、范围对齐和增量反馈在实现完成前就可以开始。
+4. 尽早提交：创建开发分支并完成第一个有意义的 commit 后，尽早创建 Draft Pull Request，让范围对齐和增量反馈在实现完成前就可以开始。
 
 5. bugfix前，先查原因：遇到 bug、测试失败或异常行为时，先按 `systematic-debugging` 找根因，再决定修复。
 

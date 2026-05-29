@@ -7,7 +7,7 @@
 
 3. After planning, create a branch: **Create a development branch from main before writing code.** All commits go on the branch — never commit directly to main. Branch naming: `feat/` (feature), `fix/` (bugfix), `docs/` (documentation), `refactor/` (refactoring), `chore/` (chores). Use the `git-workflow` skill for all git/gh operations (branch, commit, PR create/ready, post-review).
 
-4. Commit early: After creating the development branch and making the first meaningful commit, create a Draft Pull Request early so CI, scope discussion, and incremental feedback can start before implementation is complete.
+4. Commit early: After creating the development branch and making the first meaningful commit, create a Draft Pull Request early so scope discussion and incremental feedback can start before implementation is complete.
 
 5. Before bugfixes, find the cause: When encountering bugs, test failures, or unexpected behavior, follow `systematic-debugging` to find root cause before fixing.
 
