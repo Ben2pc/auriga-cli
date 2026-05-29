@@ -39,7 +39,7 @@ describe("auriga-workflow skill contracts", () => {
       "plugins/auriga-workflow/skills/deep-review/references/reviewers/test-quality.md",
     );
     assert.ok(
-      /\*\*Tools\*\*.*Bash/.test(text),
+      /tools:.*Bash/.test(text),
       "test-quality reviewer must be granted Bash to run tests",
     );
     assert.ok(
@@ -100,8 +100,8 @@ describe("deep-review custom-reviewer scope overlap", () => {
       "overlap detection must be primarily a semantic judgment",
     );
     assert.ok(
-      text.includes("Extends"),
-      "an explicit Extends field, when present, must take precedence",
+      text.includes("extends"),
+      "an explicit extends field, when present, must take precedence",
     );
   });
 
@@ -140,8 +140,8 @@ describe("deep-review custom-reviewer scope overlap", () => {
   test("Extends: standalone forces independent dispatch", () => {
     const text = deepReview();
     assert.ok(
-      text.includes("Extends: standalone") || text.includes("`standalone`"),
-      "SKILL.md must recognize the standalone sentinel value of Extends",
+      text.includes("extends: standalone") || text.includes("`standalone`"),
+      "SKILL.md must recognize the standalone sentinel value of extends",
     );
     assert.ok(
       /standalone[^]*?独立[^]*?分派/.test(text),
@@ -180,16 +180,16 @@ describe("deep-review dispatch delivery", () => {
     );
   });
 
-  // VAL-DISP-002 — main agent reads only the Metadata block to orchestrate
-  test("main agent reads only the Metadata block to orchestrate dispatch", () => {
+  // VAL-DISP-002 — main agent reads only the YAML frontmatter to orchestrate
+  test("main agent reads only the frontmatter to orchestrate dispatch", () => {
     const text = deepReview();
     assert.ok(
-      text.includes("Metadata 块"),
-      "orchestration must rely on the Metadata block",
+      text.includes("frontmatter"),
+      "orchestration must rely on the YAML frontmatter",
     );
     assert.ok(
-      /只读[^]*?Metadata 块/.test(text),
-      "the main agent must read only the Metadata block for orchestration, not the full body",
+      /只读[^]*?frontmatter/.test(text),
+      "the main agent must read only the frontmatter for orchestration, not the full body",
     );
   });
 
@@ -203,15 +203,19 @@ describe("deep-review dispatch delivery", () => {
   });
 });
 
-describe("reviewer-creator Extends support", () => {
-  // VAL-CRT-001 — the scaffold template ships an Extends metadata row
-  test("template.md ships an Extends row in Metadata", () => {
+describe("reviewer-creator extends support", () => {
+  // VAL-CRT-001 — the scaffold template ships an extends frontmatter key
+  test("template.md ships an extends key in YAML frontmatter", () => {
     const text = read(
       "plugins/auriga-workflow/skills/reviewer-creator/references/template.md",
     );
     assert.ok(
-      /\*\*Extends\*\*/.test(text),
-      "template must include an Extends metadata field",
+      text.startsWith("---\n"),
+      "template must lead with YAML frontmatter",
+    );
+    assert.ok(
+      /^extends:/m.test(text),
+      "template frontmatter must include an extends key",
     );
     assert.ok(
       text.includes("standalone"),
@@ -219,14 +223,14 @@ describe("reviewer-creator Extends support", () => {
     );
   });
 
-  // VAL-CRT-002 — the 7-question flow asks supplement-vs-new-dimension and writes Extends
-  test("SKILL.md asks supplement-vs-new-dimension and writes Extends", () => {
+  // VAL-CRT-002 — the question flow asks supplement-vs-new-dimension and writes extends
+  test("SKILL.md asks supplement-vs-new-dimension and writes extends", () => {
     const text = read(
       "plugins/auriga-workflow/skills/reviewer-creator/SKILL.md",
     );
     assert.ok(
-      text.includes("Extends"),
-      "reviewer-creator must populate the Extends field from the answer",
+      text.includes("extends"),
+      "reviewer-creator must populate the extends field from the answer",
     );
     assert.ok(
       /补充[^]*?独立维度|独立维度[^]*?补充/.test(text),
@@ -234,7 +238,49 @@ describe("reviewer-creator Extends support", () => {
     );
     assert.ok(
       !text.includes("不会自动产出"),
-      "the stale claim that reviewer-creator never emits Extends must be removed",
+      "the stale claim that reviewer-creator never emits extends must be removed",
     );
   });
+});
+
+describe("built-in reviewer metadata is machine-readable frontmatter", () => {
+  const reviewerDir =
+    "plugins/auriga-workflow/skills/deep-review/references/reviewers";
+  const builtins = [
+    "architecture",
+    "code-quality",
+    "correctness",
+    "docs-sync",
+    "performance",
+    "robustness",
+    "security",
+    "skill-plugin-quality",
+    "spec-conformance",
+    "test-quality",
+    "ux",
+  ];
+
+  for (const name of builtins) {
+    // VAL-FM-001 — each built-in leads with YAML frontmatter carrying orchestration keys
+    test(`${name}.md leads with YAML frontmatter and drops the prose Metadata section`, () => {
+      const text = read(`${reviewerDir}/${name}.md`);
+      assert.ok(
+        text.startsWith("---\n"),
+        `${name}.md must start with YAML frontmatter`,
+      );
+      const end = text.indexOf("\n---", 4);
+      assert.ok(end > 0, `${name}.md frontmatter must be closed with ---`);
+      const fm = text.slice(4, end);
+      for (const key of ["best_for", "trigger", "reasoning", "tools", "value"]) {
+        assert.ok(
+          new RegExp(`^${key}:`, "m").test(fm),
+          `${name}.md frontmatter must define ${key}`,
+        );
+      }
+      assert.ok(
+        !/^## Metadata/m.test(text),
+        `${name}.md must not keep the old prose ## Metadata section`,
+      );
+    });
+  }
 });

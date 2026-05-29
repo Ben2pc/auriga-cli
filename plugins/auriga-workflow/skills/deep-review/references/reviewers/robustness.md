@@ -1,3 +1,11 @@
+---
+best_for: "捕捉代码在外部世界不配合时如何失败"
+trigger: "tag:logic"
+reasoning: flagship
+tools: [Read, Grep, Glob]
+value: "边缘用例缺陷是生产事故的长尾；本审查者在用户发现之前浮出它们"
+---
+
 # Robustness Reviewer
 
 ## Scope
@@ -10,14 +18,6 @@
 - **Edge cases** — 意外输入、并发、资源清理、错误路径
 
 当 `auth-sensitive` 子标签触发时，**安全性**视角会被分离为专门的 `security` 审查者，并配有更大的推理预算。在这种情况下，**在此处放弃安全性视角**，只报告边缘用例——不要重复报告。
-
-## Metadata
-
-- **Best for**: 捕捉代码在外部世界不配合时如何失败
-- **Trigger**: tag:logic
-- **Reasoning**: flagship
-- **Tools**: Read, Grep, Glob（只读）
-- **Value**: 边缘用例缺陷是生产事故的长尾；本审查者在用户发现之前浮出它们
 
 ## Checklist
 

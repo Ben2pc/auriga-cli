@@ -1,3 +1,11 @@
+---
+best_for: "用户可见界面——用户能做什么 / 不能做什么，能感知什么 / 不能感知什么"
+trigger: "tag:ui"
+reasoning: workhorse
+tools: [Read, Grep, Glob]  # 只读；可选使用 playwright-cli 做实时 Web 验证
+value: "在死路、Accessibility 阻断和响应式布局问题影响用户之前发现它们"
+---
+
 # UX Reviewer
 
 ## Scope
@@ -5,14 +13,6 @@
 以下检查清单是**起点，而非边界**。它涵盖最常见的用户体验模式——但请报告你在这一维度上会向同事指出的任何问题，包括未在此列举的类别。这些模式是帮助你不遗漏的入门脚手架；目标是判断力。
 
 本审查者涵盖三个关切：(i) 经典用户体验问题（死路、反馈缺失、误操作风险），(ii) **Accessibility**（按界面逐项检查——Web / 移动端 / 命令行），(iii) **Responsive design**（Web 和移动端）。Accessibility 在此不是可选项——它被视为一等视角，原因有二：(a) 在许多地区它是合规要求，(b) 上线后补救的成本远高于在拉取请求阶段发现。
-
-## Metadata
-
-- **Best for**：用户可见界面——用户能做什么 / 不能做什么，能感知什么 / 不能感知什么
-- **Trigger**: tag:ui
-- **Reasoning**: workhorse
-- **Tools**: Read, Grep, Glob（只读）；可选使用 `playwright-cli` 进行实时 Web 验证
-- **Value**：在死路、Accessibility 阻断和响应式布局问题影响用户之前发现它们
 
 ## Checklist
 

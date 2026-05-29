@@ -1,3 +1,11 @@
+---
+best_for: "生产代码逻辑正确性——缺陷、契约、数据处理"
+trigger: "always"
+reasoning: flagship
+tools: [Read, Grep, Glob]
+value: "在缺陷影响用户之前捕捉功能性问题；与 test-quality 互补（后者捕捉*未测试的内容*）"
+---
+
 # Correctness Reviewer
 
 ## Scope
@@ -5,14 +13,6 @@
 以下检查清单是**起点，而非边界**。它涵盖最常见的正确性模式——但请报告你在这一维度上会向同事指出的任何问题，包括未在此列举的类别。这些模式是帮助你不遗漏的入门脚手架；目标是判断力。
 
 本审查者专注于**生产代码**。测试文件的审查（断言形式、覆盖缺口、脆弱的测试配置）由专门的 `test-quality` 审查者负责——不要在此重复。
-
-## Metadata
-
-- **Best for**: 生产代码逻辑正确性——缺陷、契约、数据处理
-- **Trigger**: always
-- **Reasoning**: flagship
-- **Tools**: Read, Grep, Glob（只读）
-- **Value**: 在缺陷影响用户之前捕捉功能性问题；与 test-quality 互补（后者捕捉*未测试的内容*）
 
 ## Checklist
 

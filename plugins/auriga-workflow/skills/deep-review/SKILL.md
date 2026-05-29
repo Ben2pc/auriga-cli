@@ -5,7 +5,7 @@ description: "当用户要求审查拉取请求、执行 /deep-review、将拉�
 
 # Deep Review
 
-多维度拉取请求审查调度器。每位审查者的检查清单、检测表、示例场景和输出契约保存在 `references/reviewers/<name>.md` 中。**主 agent 只读其 Metadata 块做编排**，并把该文件的**绝对路径**交给子代理，由子代理在自身全新上下文中**自读**正文——避免正文经主 agent 上下文转发、空耗 token。
+多维度拉取请求审查调度器。每位审查者的检查清单、检测表、示例场景和输出契约保存在 `references/reviewers/<name>.md` 中。**主 agent 只读其 YAML frontmatter（文件头部 `---` 之间的元数据）做编排**，并把该文件的**绝对路径**交给子代理，由子代理在自身全新上下文中**自读**正文——避免正文经主 agent 上下文转发、空耗 token。
 
 ## When to use
 
@@ -31,17 +31,17 @@ description: "当用户要求审查拉取请求、执行 /deep-review、将拉�
 
 ### 2. Dispatch reviewers (4 categories, all in parallel)
 
-对每位分派的审查者，**只读 `references/reviewers/<name>.md` 的 Metadata 块**决定编排：`Reasoning` 档位（`flagship` → 平台顶级模型；`workhorse` → 次于顶级，如 Sonnet / GPT-5.5-mini）、`Tools`，以及可选的 `Effort`（未指定时默认为 `xhigh`——当前 Claude / Codex 推荐值；仅在向下覆盖为简单检查或向上覆盖为 `max` 时才指定）。**正文（检查清单、检测表、输出契约）不读进主 agent 上下文**——把该文件的绝对路径交给子代理，指示其自读并遵循。
+对每位分派的审查者，**只读 `references/reviewers/<name>.md` 的 YAML frontmatter** 决定编排：`reasoning` 档位（`flagship` → 平台顶级模型；`workhorse` → 次于顶级，如 Sonnet / GPT-5.5-mini）、`tools`，以及可选的 `effort`（未指定时默认为 `xhigh`——当前 Claude / Codex 推荐值；仅在向下覆盖为简单检查或向上覆盖为 `max` 时才指定）。**正文（检查清单、检测表、输出契约）不读进主 agent 上下文**——把该文件的绝对路径交给子代理，指示其自读并遵循。
 
 **项目级自定义审查者**：同时检索 `docs/rules/review/*.md`（目录不存在则静默跳过）。对每个自定义文件，先做**范围重叠判定**，再决定分派方式。
 
 - **重叠判定**：对照上述 11 位内置审查者，判断该自定义审查者的关切是否落在某位内置审查者的维度范围之内。判定优先级如下：
-  - **显式 `Extends` 字段优先**：若元数据手写了 `Extends: <内置审查者名>`，直接吸收进该 host，不再做语义猜测；若手写了 `Extends: standalone`，则**强制独立分派**——跳过重叠判定，即使语义上与某内置维度重叠也保持独立。`Extends` 值既不是 11 位内置审查者之一、也不是 `standalone` 时忽略它，回退到下面的语义判断。
-  - **缺省偏向吸收**：未写 `Extends`（或值非法）时以**语义判断**为主——比较自定义文件的 `Best for`、`Scope` 段与 `Checklist` 跟各内置维度的覆盖面，并**默认偏向吸收**：只要能找到一个语义最接近的内置 host，就吸收进它；只有当它确实是任何内置维度都不覆盖的全新维度（哪个 host 都套不上）时，才独立分派。这样可以最小化子代理数量。
+  - **显式 `extends` 字段优先**：若 frontmatter 写了 `extends: <内置审查者名>`，直接吸收进该 host，不再做语义猜测；若写了 `extends: standalone`，则**强制独立分派**——跳过重叠判定，即使语义上与某内置维度重叠也保持独立。`extends` 值既不是 11 位内置审查者之一、也不是 `standalone` 时忽略它，回退到下面的语义判断。
+  - **缺省偏向吸收**：未写 `extends`（或值非法）时以**语义判断**为主——比较自定义文件的 `Best for`、`Scope` 段与 `Checklist` 跟各内置维度的覆盖面，并**默认偏向吸收**：只要能找到一个语义最接近的内置 host，就吸收进它；只有当它确实是任何内置维度都不覆盖的全新维度（哪个 host 都套不上）时，才独立分派。这样可以最小化子代理数量。
   - **重名即吸收**：与内置审查者**重名**视为必然重叠，host 即同名内置审查者。
 - **重叠 → 吸收**：判定为与某位内置审查者（host）重叠时，不再为该自定义审查者分派独立子代理；改为把该自定义文件的绝对路径连同 host 内置文件的路径一起交给 host 子代理，指示其自读、把该文件的 `Checklist` 与 worked scenarios（示例场景）作为「项目专属补充」一并审查。若 host 内置审查者本次未被触发（例如自定义审查者重叠 `performance`，但本次 PR 无 `perf` 标签），被吸收的内容随 host 一并不运行——重叠自定义审查者自身的 `Trigger` 不再独立生效。
   - 吸收示例（自定义审查者 → host 内置维度）：可访问性类 `accessibility` / `a11y` → `ux`；`swiftui-performance` / `compose-performance` → `performance`；`security-privacy` → `security`；模块 / 分层 / 依赖方向类 `android-boundaries` → `architecture`；构建配置、SDK 接入边界等没有同名内置维度但落在既有维度内的，也并入语义最接近的 host。这些都是某个内置维度的项目专属收窄，吸收后由 host 一并审查，不额外占用子代理。
-- **不重叠 → 独立分派**：判定为引入一个**全新维度**（不落在任何内置维度范围内）时，或显式声明了 `Extends: standalone` 时，解析其元数据中的 `Trigger` 字段，路由到对应的分派类别（A/B/C/D），作为独立审查者分派；其正文同样由该独立子代理按绝对路径自读。
+- **不重叠 → 独立分派**：判定为引入一个**全新维度**（不落在任何内置维度范围内）时，或显式声明了 `extends: standalone` 时，解析其 frontmatter 中的 `trigger` 字段，路由到对应的分派类别（A/B/C/D），作为独立审查者分派；其正文同样由该独立子代理按绝对路径自读。
 
 使用 `reviewer-creator` 技能来创建新的审查者。
 
@@ -107,7 +107,7 @@ description: "当用户要求审查拉取请求、执行 /deep-review、将拉�
 ## Anti-patterns
 
 - ❌ 分派子代理时未告知去哪取输出格式 → 上下文泛滥（参考文件中已含格式；交绝对路径让子代理自读，仅在路径不可解析时才内联）
-- ❌ 主 agent 把参考文件正文整段读进自己上下文再原样转发 → 纯 pass-through 空耗 token；编排只需 Metadata 块，正文交子代理自读
+- ❌ 主 agent 把参考文件正文整段读进自己上下文再原样转发 → 纯 pass-through 空耗 token；编排只需 frontmatter，正文交子代理自读
 - ❌ 将上下文复制（继承）进审查者子代理、复用之前的审查者会话，或将会话历史作为审查输入——污染的上下文会削弱对抗式审查
 - ❌ 串行化彼此独立的审查者 → 浪费时间
 - ❌ 正式审查 Draft 拉取请求——Draft 用于非正式早期反馈；等到 Ready 后再审

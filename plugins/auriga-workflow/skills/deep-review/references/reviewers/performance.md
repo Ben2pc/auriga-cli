@@ -1,3 +1,11 @@
+---
+best_for: "在延迟 / 内存 / 耗电量回归达到用户可感知阈值之前发现它们"
+trigger: "tag:perf"
+reasoning: workhorse
+tools: [Read, Grep, Glob]
+value: "性能回归是无声的——它们不会让测试失败，只有在用户投诉时才会被注意到"
+---
+
 # Performance Reviewer
 
 ## Scope
@@ -5,14 +13,6 @@
 以下检查清单是**起点，而非边界**。它涵盖最常见的性能回归模式——但请报告你在这一维度上会向同事指出的任何问题，包括未在此列举的类别。这些模式是帮助你不遗漏的入门脚手架；目标是判断力。
 
 本审查者涵盖三个子方向——根据变更的界面选择适用的一个或多个：**Web/前端**、**移动端**、**后端/命令行/数据**。
-
-## Metadata
-
-- **Best for**: 在延迟 / 内存 / 耗电量回归达到用户可感知阈值之前发现它们
-- **Trigger**: tag:perf
-- **Reasoning**: workhorse
-- **Tools**: Read, Grep, Glob（只读）
-- **Value**: 性能回归是无声的——它们不会让测试失败，只有在用户投诉时才会被注意到
 
 ## Checklist
 
