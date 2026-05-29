@@ -95,10 +95,18 @@ function newStats() {
     seenUuids: new Set(),
     humanTurns: [], // {ts, text, tokens, toolCounts}
     feedbackMoments: [], // {ts, text}
-    skillInvocations: {}, // skill name -> count
+    skillInvocations: {}, // skill name -> count (Skill-tool invocations)
+    skillAttribution: {}, // skill name -> attributed tool-call count (workload)
     agentInvocations: [], // {ts, description, subagent_type}
     cacheBreaks: [], // {ts, uncached, totalInput}
     todosFinal: [], // last TodoWrite payload
+    prLinks: {}, // prNumber -> {number, url, repository}
+    toolFailures: [], // {call_id, name, preview} — mirrors codex shape
+    toolUseNameById: {}, // tool_use id -> name (to label failures)
+    recordedTurnMs: 0, // sum of system/turn_duration durationMs
+    apiErrors: [], // {status, retryAttempt}
+    aiTitle: null, // last ai-title entry
+    awaySummaries: [], // system/away_summary content strings
   }
 }
 
@@ -116,6 +124,8 @@ const FEEDBACK_RE = new RegExp(
     '不对|不要|别用|别改|别加|别再|停下|停一下|停止|其实|应该|错了|不是|改成|改下|换成|重新|重写|重做|修改',
     // Chinese — scope constraints (only-do, don't-need)
     '不用|只要|只需|只能|只用|只做|只看|只关注|只改|只管',
+    // Chinese — direction-shrink / defer (course-correction without a question)
+    '先不动|先不改|先别|先放|不着急|不用急|缓一缓|暂时不|微优化|小改',
     // Chinese — appended asks / reminders
     '记得|别忘|忘了',
     // Chinese — suggestion-shaped
@@ -226,8 +236,53 @@ async function scan(filePath) {
         if (FEEDBACK_RE.test(text)) {
           stats.feedbackMoments.push({ ts, text: summarize(text, 200) })
         }
+      } else {
+        // Non-human user entries carry tool_result blocks. A failure is flagged
+        // with is_error; record it with the same {call_id, name, preview} shape
+        // the codex analyzer emits so the two stay schema-symmetric.
+        const c = e.message?.content
+        if (Array.isArray(c)) {
+          for (const block of c) {
+            if (block.type === 'tool_result' && block.is_error) {
+              const tc =
+                typeof block.content === 'string'
+                  ? block.content
+                  : Array.isArray(block.content)
+                    ? block.content.map((x) => x.text || '').join('')
+                    : ''
+              stats.toolFailures.push({
+                call_id: block.tool_use_id || null,
+                name: stats.toolUseNameById[block.tool_use_id] || 'unknown',
+                preview: summarize(tc, 200),
+              })
+            }
+          }
+        }
       }
-      // else: tool_result, sidechain — ignored for narrative
+    } else if (e.type === 'pr-link') {
+      if (e.prNumber != null && !(e.prNumber in stats.prLinks)) {
+        stats.prLinks[e.prNumber] = {
+          number: e.prNumber,
+          url: e.prUrl || null,
+          repository: e.prRepository || null,
+        }
+      }
+    } else if (e.type === 'ai-title') {
+      if (e.aiTitle) stats.aiTitle = e.aiTitle
+    } else if (e.type === 'system') {
+      if (e.subtype === 'turn_duration' && typeof e.durationMs === 'number') {
+        stats.recordedTurnMs += e.durationMs
+      } else if (e.subtype === 'api_error') {
+        // Real logs carry the HTTP code on error.status (numeric); error.formatted
+        // is a string fallback. apiErrorStatus is rarely present. Prefer the
+        // structured code, then the formatted string.
+        stats.apiErrors.push({
+          status: e.error?.status ?? e.apiErrorStatus ?? e.error?.formatted ?? null,
+          retryAttempt: e.retryAttempt ?? null,
+        })
+      } else if (e.subtype === 'away_summary' && e.content) {
+        stats.awaySummaries.push(e.content)
+      }
     }
     // other types ignored
   }
@@ -261,8 +316,15 @@ function handleAssistant(e, stats, currentTurn) {
       if (block.type === 'tool_use') {
         const name = block.name || 'unknown'
         stats.toolUses[name] = (stats.toolUses[name] || 0) + 1
+        if (block.id) stats.toolUseNameById[block.id] = name
         if (currentTurn) {
           currentTurn.toolCounts[name] = (currentTurn.toolCounts[name] || 0) + 1
+        }
+        // Skill attribution: this fragment's tool call is driven by a skill.
+        // Counts how much *work* the skill did (distinct from invocation count).
+        if (e.attributionSkill) {
+          stats.skillAttribution[e.attributionSkill] =
+            (stats.skillAttribution[e.attributionSkill] || 0) + 1
         }
         stats.toolUseEvents.push({
           ts: tsToMs(e.timestamp),
@@ -373,12 +435,24 @@ function emit(stats, filePath) {
       note: `Cache 命中率仅 ${(cacheHitRate * 100).toFixed(1)}% — system prompt 或 CLAUDE.md 可能在频繁失效`,
     })
   }
+  if (stats.apiErrors.length > 0) {
+    const withStatus = stats.apiErrors.find((e) => e.status)
+    wasteSignals.push({
+      type: 'api_error',
+      count: stats.apiErrors.length,
+      note: `${stats.apiErrors.length} 次 API 错误 / 重试${withStatus ? `（含 ${withStatus.status}）` : ''}`,
+    })
+  }
 
   // Skills / agents lists
   const skills = Object.entries(stats.skillInvocations).map(([name, count]) => ({
     name,
     count,
   }))
+  const skillAttribution = Object.entries(stats.skillAttribution).map(
+    ([name, count]) => ({ name, count }),
+  )
+  const prs = Object.values(stats.prLinks)
   const subagents = Object.entries(
     stats.agentInvocations.reduce((acc, a) => {
       acc[a.subagent_type] = (acc[a.subagent_type] || 0) + 1
@@ -399,11 +473,14 @@ function emit(stats, filePath) {
       duration_ms:
         stats.firstTs && stats.lastTs ? stats.lastTs - stats.firstTs : 0,
       active_ms: stats.activeMs,
+      recorded_turn_ms: stats.recordedTurnMs,
       model: stats.model,
       cli_version: null,
       git: stats.gitBranch ? { branch: stats.gitBranch } : null,
     },
     narrative: {
+      task_title: stats.aiTitle || '',
+      away_summaries: stats.awaySummaries,
       human_turn_count: stats.humanTurns.length,
       human_turns: stats.humanTurns.map((t, i) => ({
         idx: i,
@@ -431,6 +508,9 @@ function emit(stats, filePath) {
       tools: stats.toolUses,
       subagents,
       skills,
+      skill_attribution: skillAttribution,
+      prs,
+      tool_failures: stats.toolFailures,
       expensive_turns: expensiveTurns,
       cache_breaks: stats.cacheBreaks,
       waste_signals: wasteSignals,
@@ -441,6 +521,7 @@ function emit(stats, filePath) {
         .filter(([, c]) => c >= 2)
         .map(([file, count]) => ({ file, count })),
       agent_invocations: stats.agentInvocations,
+      tool_failures: stats.toolFailures,
     },
   }
 }

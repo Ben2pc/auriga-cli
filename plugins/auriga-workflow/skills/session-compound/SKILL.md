@@ -60,16 +60,21 @@ node <skill-dir>/analyzers/codex.mjs > /tmp/session-compound.json
 
 读 `/tmp/session-compound.json`。重点扫这些字段：
 
-- `session` — id / cwd / 时长 / 模型 / git
+- `session` — id / cwd / 时长 / 模型 / git；`recorded_turn_ms` 是日志里 `turn_duration` 条目记录的真实 turn 墙钟时长之和（存在时比 `active_ms` 间隙估算更准）
+- `narrative.task_title` — 会话标题（Claude 端取自 `aiTitle`，缺失为空串；Codex 端取自首条用户消息），报告 hero 标题用它
 - `narrative.human_turns` — 用户每个 turn 的摘要 + token + 触发的工具
-- `narrative.feedback_moments` — 检测到的用户纠正/反馈瞬间
+- `narrative.feedback_moments` — 检测到的用户纠正 / 方向收缩瞬间（含「先不动 / 不着急 / 微优化」这类改向信号；纯疑问句不计入）
+- `narrative.away_summaries` — Claude 在用户离开时写的自然语言摘要（来自 `away_summary` 条目，叙事原料）
 - `health.tokens` / `health.cache_hit_rate` / `health.context_window_used_pct`
-- `health.tools` / `health.subagents` / `health.skills`（Claude 端通常 subagents + skills 都会有，Codex 端 skills 永远为空、subagents 含 `spawn_agent` 调用）
+- `health.tools` / `health.subagents` / `health.skills`（两端都有 skills：Claude 端来自 `Skill` 工具调用，Codex 端来自 `<skill><name>` 块解析；subagents 含 Claude `Agent` / Codex `spawn_agent` 调用）
+- `health.skill_attribution` — 每个 skill 驱动了多少次工具调用（工作量，与 `skills` 的调用次数语义不同；目前 Claude 端有，来自 `attributionSkill`）
+- `health.prs` — 本次会话引用的 PR 列表（去重，`{number,url,repository}`；目前 Claude 端有，来自 `pr-link`）
+- `health.tool_failures` — 失败的工具调用（`{call_id,name,preview}`，两端同形）
 - `health.expensive_turns` — token 消耗最高的 turn
-- `health.waste_signals` — 重复读同文件、低 cache 命中等浪费信号
-- `raw_for_compound` — 用来写候选条目的原材料（含 `agent_invocations`）
+- `health.waste_signals` — 重复读同文件、低 cache 命中、API 错误 / 重试等浪费信号
+- `raw_for_compound` — 用来写候选条目的原材料（含 `agent_invocations`、`tool_failures`）
 
-两套 analyzer 输出的**核心字段**（`session.{id,cwd,duration_ms,model,git}` / `narrative.{human_turns,feedback_moments}` / `health.{tokens,cache_hit_rate,tools,subagents,skills,expensive_turns,waste_signals}` / `raw_for_compound.{feedback_moments,repeated_reads,agent_invocations}`）一致，模板按这些字段渲染。除此之外两侧各有 CLI-specific 扩展字段，Codex 多 `health.{compaction_count, turn_aborted_count, patch_apply, mcp_tool_call_count, custom_tool_call_count, web_search_count, tool_search_count, image_generation_count, context_window, reasoning_output_ratio}` 与 `narrative.{task_title, task_conclusion, task_completed, task_duration_ms, time_to_first_token_ms}`；Claude 多 `health.{api_calls, cache_breaks}`。模板已按 CLI 分支处理这些差异。
+两套 analyzer 输出的**核心字段**（`session.{id,cwd,duration_ms,model,git,recorded_turn_ms}` / `narrative.{task_title,human_turns,feedback_moments,away_summaries}` / `health.{tokens,cache_hit_rate,tools,subagents,skills,skill_attribution,prs,tool_failures,expensive_turns,waste_signals}` / `raw_for_compound.{feedback_moments,repeated_reads,agent_invocations,tool_failures}`）一致，模板按这些字段渲染。除此之外两侧各有 CLI-specific 扩展字段，Codex 多 `health.{compaction_count, turn_aborted_count, patch_apply, mcp_tool_call_count, custom_tool_call_count, web_search_count, tool_search_count, image_generation_count, context_window, reasoning_output_ratio}` 与 `narrative.{task_conclusion, task_completed, task_duration_ms, time_to_first_token_ms}`；Claude 多 `health.{api_calls, cache_breaks}`。注意 `skill_attribution` / `prs` / `away_summaries` 目前仅 Claude 端有数据（Codex 日志无等价信号），缺失侧为空集合。模板已按 CLI 分支处理这些差异。
 
 ### 步骤 3：复制模板到输出文件
 
@@ -182,20 +187,30 @@ Schema：
   - 末尾 `-y` — `skills add` 自身的"yes to confirmation prompts"
   勾选后会进入合成的 prompt，下游 agent 会自动执行 `npx skills add` 安装
 
-- **`agent-md`** — 沉淀到 AGENTS.md 体系。**根据经验的范围选 target**，正文第一行就声明 target，方便下游 agent 直接落地：
+- **`agent-md`** — 沉淀到 AGENTS.md 体系。**target 由本 skill 自己判断并在候选里给出推荐，不要把选择甩给用户或下游再决策一轮。**
+
+  选 target 前**先勘察当前工程已有的指令组织规范**——别套用通用默认：
+  1. 读根 `AGENTS.md` / `CLAUDE.md`：它通常是**入口 + 索引**，靠多级文件做渐进式披露（根文件保持精简、详细规范拆到 `docs/` 专题文件 / 子目录指令文件）。**不要往根 AGENTS.md 堆内容**——顺着它已有的分层结构走。
+  2. 看 `docs/rules/` 等是否已有覆盖该领域的专题文件；有就**在那份文件里扩写**，而不是新建一份平行的。
+  3. 看工程**现有 skill** 是否已经覆盖这个模式——若只是某个 skill 的指引不到位 / 缺一条规则，**首选在那个 skill 的 `SKILL.md` 里就地优化**（target 指向该 skill 文件），比新增 AGENTS.md 段落或新建 skill 都更轻、更聚合。
+
+  按下表选 target（优先复用 / 扩写既有文件，最后才考虑新建）：
 
   | 经验范围 | target | 何时选 |
   |---|---|---|
-  | 跨整个仓库 / 跨语言 / 工作流级 | 根 `AGENTS.md`（如果 `CLAUDE.md` 是软链则只写一处） | 短规则、所有未来会话都该看 |
-  | 跨整个仓库但**内容较长**（>10 行 / 有表格 / 有示例代码） | `docs/rules/<topic>.md` 新建一份，再在根 `AGENTS.md` 加一行索引 | 写在根 AGENTS.md 会让那份文件膨胀 |
-  | 仅针对某个独立子目录（一个 plugin、一个 package、一个 service） | 那个子目录的 `AGENTS.md`（不存在就新建） | 经验只在该子目录上下文里生效，写到根 AGENTS.md 会污染全局 |
+  | **某个现有 skill 的指引可改进** | 那个 skill 的 `SKILL.md`（就地优化） | 模式已被某 skill 覆盖，只是规则缺一条 / 触发不准——最聚合，优先选 |
+  | 现有 `docs/rules/<topic>.md` 已覆盖该领域 | 在那份文件里扩写（不新建平行文件） | 已有专题文件，顺着它加 |
+  | 跨整个仓库 / 跨语言 / 工作流级（短规则） | 根 `AGENTS.md`（`CLAUDE.md` 是软链则只写一处） | 短、所有未来会话都该看，且根文件没有更合适的下级归宿 |
+  | 跨整个仓库但**内容较长**（>10 行 / 表格 / 代码） | 新建 `docs/rules/<topic>.md` + 根 `AGENTS.md` 加一行索引 | 写进根 AGENTS.md 会让它膨胀，破坏渐进式披露 |
+  | 仅针对某个独立子目录（plugin / package / service） | 那个子目录的 `AGENTS.md`（不存在就新建） | 经验只在该子目录上下文生效，写到根会污染全局 |
 
-  正文模板：
+  正文模板（target 一行必须给出**具体推荐落点** + 是「就地优化既有文件」还是「新建」）：
   ```
-  **target**: <path>（如 `AGENTS.md` / `docs/rules/<topic>.md` + 索引到根 AGENTS.md / `<subdir>/AGENTS.md`）
+  **target**: <具体路径>（如 `<skill>/SKILL.md` 就地优化 / 现有 `docs/rules/<topic>.md` 扩写 / 根 `AGENTS.md` / 新建 `docs/rules/<topic>.md` + 索引 / `<subdir>/AGENTS.md`）
+  **落点理由**: <一句话：为什么是这个文件——已有 X 覆盖该领域 / 顺着现有分层 / 根文件无更合适下级>
   **要写入的内容**:
   > <逐字给出要追加 / 修改的段落，下游 agent 复制粘贴即可>
-  **索引行**（仅当 target 是 `docs/rules/<topic>.md` 时填）:
+  **索引行**（仅当新建 `docs/rules/<topic>.md` 时填）:
   > - [<title>](docs/rules/<topic>.md) — <一句 hook>
   ```
 
@@ -206,11 +221,15 @@ Schema：
 | 经验形态 | 沉淀路径 |
 |---|---|
 | ecosystem 已经有匹配 skill | `existing-skill`（最廉价） |
-| 跨会话的工作流约束 / 流程规则（短文本） | `agent-md` → 根 AGENTS.md |
-| 跨会话的长文约定（>10 行 / 表格 / 代码） | `agent-md` → `docs/rules/<topic>.md` + 根 AGENTS.md 索引 |
+| **工程现有 skill 已覆盖、只是指引不到位** | `agent-md` → 就地优化那个 skill 的 `SKILL.md`（最聚合，优先） |
+| 现有 `docs/rules/<topic>.md` 已覆盖该领域 | `agent-md` → 在那份文件里扩写 |
+| 跨会话的工作流约束 / 流程规则（短文本） | `agent-md` → 根 AGENTS.md（无更合适下级时） |
+| 跨会话的长文约定（>10 行 / 表格 / 代码） | `agent-md` → 新建 `docs/rules/<topic>.md` + 根 AGENTS.md 索引 |
 | 只影响某个子目录的约定 | `agent-md` → `<subdir>/AGENTS.md` |
 | **多步骤、可重复、有触发条件、需要脚本辅助** | `skill-gap`（新 skill） |
 | 一次性 / 上游工具 issue / 不在用户控制范围内 | **不要写候选** |
+
+落点优先级（从最聚合到最重）：**就地优化现有 skill / 扩写现有 docs** → 现有分层里的合适位置 → 根 AGENTS.md 短规则 → 新建专题文件 → 新建 skill。先复用既有结构，最后才新建。
 
 ##### `skill-gap` 候选必须自证「值得做成 skill」
 
@@ -276,7 +295,7 @@ Schema：
 - 写 `skill-gap` / `agent-md` 类候选前，强烈建议先用 `find-skills` 跑一次 ecosystem 搜索（`npx skills find <query>`，候选 gate #5）；新建 skill 时按 skill-development 规范（第三人称 description、imperative body、progressive disclosure：SKILL.md ≤2k 词 + references/ + scripts/ + assets/、validation checklist）撰写，`skill-gap` body 模板的每个字段都对应该规范的某条要求
 - 模板 JS 只读两个 script block：`<script id="report-data">`（analyzer 输出）和 `<script id="candidates">`（你撰写的候选）。其余渲染都靠这两个 blob 驱动。**不要改 HTML 结构**。
 - Compound tab 是这个 skill 区别于普通 session report 的核心价值——把「AI 提取候选 → 人审核 → 落入 AGENTS.md / 装 skill / 新建 skill」做成了无摩擦闭环。
-- Codex 有原生 sub-agent（`spawn_agent` / `wait_agent` / `close_agent` 工具调用），analyzer 会把 `agent_type` 汇总到 `health.subagents`。Codex 没有 skill 概念，模板会隐藏对应表格。
+- Codex 有原生 sub-agent（`spawn_agent` / `wait_agent` / `close_agent` 工具调用），analyzer 会把 `agent_type` 汇总到 `health.subagents`。Codex 也支持 skill（`$skill-name` 命令，日志里以 `<skill><name>` 块注入），analyzer 解析后填进 `health.skills`，与 Claude 端同形。
 - Codex 的 `health` 段额外含：`compaction_count`（自动压缩次数）、`patch_apply.{success, failure}`（代码修改成败比）、`mcp_tool_call_count` / `custom_tool_call_count` / `web_search_count` / `tool_search_count` / `image_generation_count` 等专项工具计数，以及 `context_window`（模型窗口大小）。
 - 如果 `raw_for_compound` 很稀（会话短、没反馈瞬间），宁可产出 1–3 条高质量 `skill-gap`，也不要硬凑 5 条。
 - 如果 JSON 超过 2MB，截断 `narrative.human_turns` 和 `health.expensive_turns` 到前 50 条再嵌入（analyzer 通常已经控制了，但要检查）。

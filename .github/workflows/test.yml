@@ -57,3 +57,9 @@ jobs:
         # not part of `npm test` (hand-rolled assertion loops, not
         # node:test). Mirrors release.yml's dedicated step.
         run: npm run test:git-guards
+
+      - name: Session-compound analyzer tests
+        # Hand-rolled assertion harness for
+        # plugins/auriga-workflow/skills/session-compound/analyzers/*.mjs
+        # (same style as the git-guard tests, not node:test).
+        run: npm run test:session-compound
