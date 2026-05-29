@@ -47,7 +47,7 @@ description: "当用户要求创建自定义审查者、添加项目专属审查
 
 ### 1. Gather metadata via `AskUserQuestion` / `request_user_input`
 
-按顺序收集：
+依次收集（顺序可调整——第 8 项 dispatch 模式决定整份文件的定位，建议最先确认）：
 
 1. **Name** — kebab-case（例如 `migration-safety`、`i18n-keys`）。校验：
    - 全小写 / 连字符分隔 / 无空格或特殊字符

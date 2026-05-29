@@ -3,11 +3,16 @@ import fs from "node:fs";
 import path from "node:path";
 import { describe, test } from "node:test";
 
+import matter from "gray-matter";
+
 const repoRoot = path.resolve(new URL(".", import.meta.url).pathname, "..", "..");
 
 function read(rel: string): string {
   return fs.readFileSync(path.join(repoRoot, rel), "utf-8");
 }
+
+const deepReview = (): string =>
+  read("plugins/auriga-workflow/skills/deep-review/SKILL.md");
 
 describe("auriga-workflow skill contracts", () => {
   test("test-designer consumes project test rules", () => {
@@ -50,9 +55,6 @@ describe("auriga-workflow skill contracts", () => {
 });
 
 describe("deep-review custom-reviewer scope overlap", () => {
-  const deepReview = (): string =>
-    read("plugins/auriga-workflow/skills/deep-review/SKILL.md");
-
   // VAL-OVL-001 — overlapping custom reviewer is not dispatched separately
   test("overlapping custom reviewer is not dispatched as a separate subagent", () => {
     const text = deepReview();
@@ -164,9 +166,6 @@ describe("deep-review custom-reviewer scope overlap", () => {
 });
 
 describe("deep-review dispatch delivery", () => {
-  const deepReview = (): string =>
-    read("plugins/auriga-workflow/skills/deep-review/SKILL.md");
-
   // VAL-DISP-001 — reviewer content is self-read by the subagent via absolute path
   test("reviewer content is delivered by absolute-path self-read, not inlined through the main agent", () => {
     const text = deepReview();
@@ -299,16 +298,22 @@ describe("built-in reviewer metadata is machine-readable frontmatter", () => {
   ];
 
   for (const name of builtins) {
-    // VAL-FM-001 — each built-in leads with YAML frontmatter carrying orchestration keys
-    test(`${name}.md leads with YAML frontmatter and drops the prose Metadata section`, () => {
+    // VAL-FM-001 — each built-in carries valid, parseable YAML frontmatter
+    test(`${name}.md frontmatter parses and carries valid orchestration keys`, () => {
       const text = read(`${reviewerDir}/${name}.md`);
       assert.ok(
         text.startsWith("---\n"),
         `${name}.md must start with YAML frontmatter`,
       );
-      const end = text.indexOf("\n---", 4);
-      assert.ok(end > 0, `${name}.md frontmatter must be closed with ---`);
-      const fm = text.slice(4, end);
+      let fm: Record<string, unknown>;
+      try {
+        fm = matter(text).data as Record<string, unknown>;
+      } catch (e) {
+        assert.fail(
+          `${name}.md frontmatter is not valid YAML: ${(e as Error).message}`,
+        );
+        return;
+      }
       for (const key of [
         "name",
         "best_for",
@@ -317,21 +322,29 @@ describe("built-in reviewer metadata is machine-readable frontmatter", () => {
         "tools",
         "value",
       ]) {
-        assert.ok(
-          new RegExp(`^${key}:`, "m").test(fm),
-          `${name}.md frontmatter must define ${key}`,
-        );
+        assert.ok(key in fm, `${name}.md frontmatter must define ${key}`);
       }
-      assert.ok(
-        new RegExp(`^name:\\s*${name}\\s*$`, "m").test(fm),
+      assert.equal(
+        fm.name,
+        name,
         `${name}.md frontmatter name must match its filename stem`,
       );
       assert.ok(
-        /^reasoning:\s*(flagship|workhorse)\s*$/m.test(fm),
-        `${name}.md reasoning must be flagship or workhorse`,
+        fm.reasoning === "flagship" || fm.reasoning === "workhorse",
+        `${name}.md reasoning must be flagship|workhorse, got ${String(fm.reasoning)}`,
       );
       assert.ok(
-        !/^extends:/m.test(fm),
+        /^(always|non-trivial|detection-driven|tag:(logic|auth-sensitive|ui|perf|arch))$/.test(
+          String(fm.trigger),
+        ),
+        `${name}.md trigger must be a legal value, got ${String(fm.trigger)}`,
+      );
+      assert.ok(
+        Array.isArray(fm.tools) && (fm.tools as unknown[]).includes("Read"),
+        `${name}.md tools must be a list including Read`,
+      );
+      assert.ok(
+        !("extends" in fm),
         `${name}.md is a host built-in and must not declare extends`,
       );
       assert.ok(
