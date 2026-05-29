@@ -32,6 +32,7 @@
     "pretest:web-ui-e2e": "npm run build && npm --prefix ui ci && npm --prefix ui run build",
     "test:web-ui-e2e": "tsc -p tsconfig.test.json && node --test dist-test/tests/web-ui-e2e.test.js",
     "test:session-instructions-loader": "node tests/session-instructions-loader.test.mjs",
+    "test:session-compound": "node tests/session-compound-analyzers.test.mjs",
     "test:git-guards": "node tests/commit-reminder.test.mjs && node tests/pr-create-guard.test.mjs && node tests/pr-ready-guard.test.mjs && node tests/pr-merge-guard.test.mjs"
   },
   "engines": {
