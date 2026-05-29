@@ -178,7 +178,7 @@ PR 描述必须覆盖全部五个元素：
 
 ### 以 Draft 打开 / Open as Draft
 
-尽早以 Draft 打开 PR，让 CI 开始运行，也让增量反馈成为可能。只有在 verification 完成、body 覆盖五个元素之后，才标记 Ready。
+尽早以 Draft 打开 PR，让范围对齐和增量反馈成为可能。只有在 verification 完成、body 覆盖五个元素之后，才标记 Ready。
 
 ```bash
 gh pr create --draft --title "<type>: <subject>" --body-file <body.md>
