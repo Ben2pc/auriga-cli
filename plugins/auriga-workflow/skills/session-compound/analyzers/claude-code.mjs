@@ -32,6 +32,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import readline from 'node:readline'
+import { buildSkillCatalog, parseWorkflowRules, buildCompliance } from './skill-catalog.mjs'
 
 // ---------- CLI ----------
 const argv = process.argv.slice(2)
@@ -46,6 +47,14 @@ const explicitFile = flag('--file', null)
 const explicitId = flag('--session-id', null)
 const explicitSlug = flag('--project-slug', null)
 const PRETTY = argv.includes('--pretty')
+
+// Repeatable --skill-root override: point the installed-skill catalog scan at
+// explicit dirs instead of the default ~/.claude locations (used by tests, and
+// by power users with non-standard skill roots).
+const explicitSkillRoots = []
+for (let i = 0; i < argv.length; i++) {
+  if (argv[i] === '--skill-root' && argv[i + 1]) explicitSkillRoots.push(argv[i + 1])
+}
 
 // ---------- Locate session JSONL ----------
 function projectsDir() {
@@ -394,6 +403,50 @@ function handleAssistant(e, stats, currentTurn) {
   }
 }
 
+// Derive the mechanically-decidable compliance signals from the session's tool
+// events (Bash command text lives in toolUseEvents[].inputPreview).
+function claudeComplianceSignals(stats) {
+  const editNames = new Set(['Edit', 'Write', 'MultiEdit', 'NotebookEdit'])
+  let firstEditTs = null
+  let branchTs = null
+  let hasPr = Object.keys(stats.prLinks).length > 0
+  for (const ev of stats.toolUseEvents) {
+    if (editNames.has(ev.name) && ev.ts != null) {
+      if (firstEditTs == null || ev.ts < firstEditTs) firstEditTs = ev.ts
+    }
+    if (ev.name === 'Bash') {
+      if (/git\s+(switch\s+-c|checkout\s+-b)/.test(ev.inputPreview) && ev.ts != null) {
+        if (branchTs == null || ev.ts < branchTs) branchTs = ev.ts
+      }
+      if (/gh\s+pr\s+create/.test(ev.inputPreview)) hasPr = true
+    }
+  }
+  const hasCodeEdit = firstEditTs != null
+  const branchCreatedBeforeEdit = hasCodeEdit
+    ? branchTs != null && branchTs <= firstEditTs
+    : undefined
+  const skillInvokedCount = Object.values(stats.skillInvocations).reduce(
+    (a, b) => a + b,
+    0,
+  )
+  return { hasCodeEdit, branchCreatedBeforeEdit, hasPr, skillInvokedCount }
+}
+
+// Resolve the skill-catalog scan roots: explicit --skill-root wins, else the
+// default Claude locations + in-repo skill sources (so the repo's own plugin
+// skills are flagged editable).
+function claudeSkillRoots(repoCwd) {
+  if (explicitSkillRoots.length) return explicitSkillRoots
+  const home = os.homedir()
+  return [
+    path.join(home, '.claude', 'skills'),
+    path.join(home, '.claude', 'plugins', 'cache'),
+    path.join(repoCwd, '.agents', 'skills'),
+    path.join(repoCwd, '.claude', 'skills'),
+    path.join(repoCwd, 'plugins'),
+  ]
+}
+
 // ---------- Emit ----------
 function emit(stats, filePath) {
   const totalIn = stats.inputUncached + stats.cacheCreate + stats.cacheRead
@@ -460,6 +513,12 @@ function emit(stats, filePath) {
     }, {}),
   ).map(([type, count]) => ({ type, count }))
 
+  // Evaluation substrate (deterministic inputs for the eval subagent).
+  const repoCwd = stats.cwd || process.cwd()
+  const skillCatalog = buildSkillCatalog(claudeSkillRoots(repoCwd), repoCwd)
+  const workflowRules = parseWorkflowRules(repoCwd)
+  const compliance = buildCompliance(claudeComplianceSignals(stats))
+
   return {
     cli: 'claude-code',
     schema_version: 1,
@@ -514,6 +573,9 @@ function emit(stats, filePath) {
       expensive_turns: expensiveTurns,
       cache_breaks: stats.cacheBreaks,
       waste_signals: wasteSignals,
+      skill_catalog: skillCatalog,
+      workflow_rules: workflowRules,
+      compliance,
     },
     raw_for_compound: {
       feedback_moments: stats.feedbackMoments,
