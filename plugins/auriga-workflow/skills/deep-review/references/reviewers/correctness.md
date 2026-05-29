@@ -1,4 +1,5 @@
 ---
+name: correctness
 best_for: "生产代码逻辑正确性——缺陷、契约、数据处理"
 trigger: "always"
 reasoning: flagship

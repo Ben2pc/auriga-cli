@@ -1,4 +1,5 @@
 ---
+name: ux
 best_for: "用户可见界面——用户能做什么 / 不能做什么，能感知什么 / 不能感知什么"
 trigger: "tag:ui"
 reasoning: workhorse

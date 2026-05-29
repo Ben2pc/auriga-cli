@@ -1,4 +1,5 @@
 ---
+name: code-quality
 best_for: "能编译运行但会让下一个读代码的人苦恼的代码"
 trigger: "non-trivial"
 reasoning: workhorse

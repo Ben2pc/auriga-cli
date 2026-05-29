@@ -1,4 +1,5 @@
 ---
+name: <NAME>
 best_for: <BEST_FOR>
 extends: <EXTENDS>  # 内置审查者名（如 performance / ux / security / architecture）= 作为该维度补充被 deep-review 吸收；standalone = 内置维度都不覆盖的全新维度，强制独立分派
 trigger: <TRIGGER>

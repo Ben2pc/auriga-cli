@@ -1,4 +1,5 @@
 ---
+name: test-quality
 best_for: "既审查测试质量，又发现新生产行为上缺失的覆盖"
 trigger: "non-trivial"
 reasoning: flagship

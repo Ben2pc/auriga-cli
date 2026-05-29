@@ -1,4 +1,5 @@
 ---
+name: skill-plugin-quality
 best_for: "捕捉在常规代码审查中漏掉的插件 / 技能 / 代理格式错误和质量问题"
 trigger: "detection-driven"
 reasoning: workhorse

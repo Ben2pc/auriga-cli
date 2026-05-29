@@ -1,4 +1,5 @@
 ---
+name: performance
 best_for: "在延迟 / 内存 / 耗电量回归达到用户可感知阈值之前发现它们"
 trigger: "tag:perf"
 reasoning: workhorse

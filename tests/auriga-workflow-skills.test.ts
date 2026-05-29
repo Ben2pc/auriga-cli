@@ -201,6 +201,21 @@ describe("deep-review dispatch delivery", () => {
       "a path-unresolvable delegate must fall back to inlining the reviewer body",
     );
   });
+
+  // VAL-DEG-001 — graceful degradation for older reviewers without frontmatter
+  test("reviewers without frontmatter fall back to the prose Metadata section", () => {
+    const text = deepReview();
+    assert.ok(
+      /没有 frontmatter|无 frontmatter|缺少 frontmatter|没有 YAML frontmatter/.test(
+        text,
+      ),
+      "SKILL.md must address reviewers that lack YAML frontmatter",
+    );
+    assert.ok(
+      /(降级|回退)[^]*?## Metadata|## Metadata[^]*?(降级|回退)/.test(text),
+      "the fallback must read the prose ## Metadata section",
+    );
+  });
 });
 
 describe("reviewer-creator extends support", () => {
@@ -212,6 +227,10 @@ describe("reviewer-creator extends support", () => {
     assert.ok(
       text.startsWith("---\n"),
       "template must lead with YAML frontmatter",
+    );
+    assert.ok(
+      /^name:/m.test(text),
+      "template frontmatter must include a name key",
     );
     assert.ok(
       /^extends:/m.test(text),
@@ -271,12 +290,23 @@ describe("built-in reviewer metadata is machine-readable frontmatter", () => {
       const end = text.indexOf("\n---", 4);
       assert.ok(end > 0, `${name}.md frontmatter must be closed with ---`);
       const fm = text.slice(4, end);
-      for (const key of ["best_for", "trigger", "reasoning", "tools", "value"]) {
+      for (const key of [
+        "name",
+        "best_for",
+        "trigger",
+        "reasoning",
+        "tools",
+        "value",
+      ]) {
         assert.ok(
           new RegExp(`^${key}:`, "m").test(fm),
           `${name}.md frontmatter must define ${key}`,
         );
       }
+      assert.ok(
+        new RegExp(`^name:\\s*${name}\\s*$`, "m").test(fm),
+        `${name}.md frontmatter name must match its filename stem`,
+      );
       assert.ok(
         !/^## Metadata/m.test(text),
         `${name}.md must not keep the old prose ## Metadata section`,

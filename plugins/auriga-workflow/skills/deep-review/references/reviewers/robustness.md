@@ -1,4 +1,5 @@
 ---
+name: robustness
 best_for: "捕捉代码在外部世界不配合时如何失败"
 trigger: "tag:logic"
 reasoning: flagship

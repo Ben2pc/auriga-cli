@@ -1,4 +1,5 @@
 ---
+name: architecture
 best_for: "模块边界、依赖图健康状况、分层、类型设计、对架构设计文档的合规性"
 trigger: "tag:arch"
 reasoning: flagship

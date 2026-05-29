@@ -1,4 +1,5 @@
 ---
+name: docs-sync
 best_for: "捕捉与所描述代码产生漂移的文档——注释、README、CLAUDE.md / AGENTS.md、API 文档"
 trigger: "always"
 reasoning: workhorse

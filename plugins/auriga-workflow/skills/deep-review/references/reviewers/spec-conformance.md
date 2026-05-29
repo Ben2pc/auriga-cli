@@ -1,4 +1,5 @@
 ---
+name: spec-conformance
 best_for: "验证差异是否实现了验证契约中的每个 `VAL-XXX-NNN` 断言，且仅此而已"
 trigger: "always"
 reasoning: flagship

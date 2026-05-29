@@ -1,4 +1,5 @@
 ---
+name: security
 best_for: "认证、授权、加密、密钥处理、支付路径、用户可控输入、安全配置，以及第三方集成——任何缺陷可能让错误的人做错误的事或暴露敏感数据的地方"
 trigger: "tag:auth-sensitive"
 reasoning: flagship

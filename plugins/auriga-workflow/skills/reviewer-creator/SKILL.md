@@ -57,6 +57,7 @@ mkdir -p docs/rules/review/
 
 | Placeholder | 来源 |
 |---|---|
+| `<NAME>` | 第 1 步的 Name（kebab-case，= 文件名 stem，写入 frontmatter `name`） |
 | `<TITLE>` | 名称 → 人类可读形式（例如 `migration-safety` → "Migration Safety"） |
 | `<DOMAIN>` | 第 1 步的领域短语 |
 | `<BEST_FOR>` | 第 1 步的"Best for"一句话 |

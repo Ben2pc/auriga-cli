@@ -35,6 +35,8 @@ description: "当用户要求审查拉取请求、执行 /deep-review、将拉�
 
 **项目级自定义审查者**：同时检索 `docs/rules/review/*.md`（目录不存在则静默跳过）。对每个自定义文件，先做**范围重叠判定**，再决定分派方式。
 
+**降级（旧版兼容）**：built-in reviewer 一律带 YAML frontmatter；但旧版项目自定义 reviewer 可能没有 YAML frontmatter（仍是正文的 `## Metadata` 项目列表）。读取编排字段（`name` / `best_for` / `trigger` / `reasoning` / `tools` / `extends`）时：优先读 frontmatter；文件没有 frontmatter 时回退读取正文的 `## Metadata` 段；两者都缺时按语义判断（见下方重叠判定），并把缺失记为「无项目专属元数据」。
+
 - **重叠判定**：对照上述 11 位内置审查者，判断该自定义审查者的关切是否落在某位内置审查者的维度范围之内。判定优先级如下：
   - **显式 `extends` 字段优先**：若 frontmatter 写了 `extends: <内置审查者名>`，直接吸收进该 host，不再做语义猜测；若写了 `extends: standalone`，则**强制独立分派**——跳过重叠判定，即使语义上与某内置维度重叠也保持独立。`extends` 值既不是 11 位内置审查者之一、也不是 `standalone` 时忽略它，回退到下面的语义判断。
   - **缺省偏向吸收**：未写 `extends`（或值非法）时以**语义判断**为主——比较自定义文件的 `Best for`、`Scope` 段与 `Checklist` 跟各内置维度的覆盖面，并**默认偏向吸收**：只要能找到一个语义最接近的内置 host，就吸收进它；只有当它确实是任何内置维度都不覆盖的全新维度（哪个 host 都套不上）时，才独立分派。这样可以最小化子代理数量。
