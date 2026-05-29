@@ -1041,6 +1041,82 @@ test("both analyzers emit skill_catalog/workflow_rules/compliance under health, 
   }
 });
 
+// =====================================================================
+// EVAL / CAND / REL — doc + release contract (repo-check). These grep the
+// SKILL.md / plugin.json / package.json / CI that the feature must ship.
+// Trace to docs/specs/session-compound-skill-eval/validation-contract.md.
+// =====================================================================
+const REPO_ROOT = path.resolve(HERE, "..");
+const PLUGIN_ROOT = path.resolve(ANALYZER_DIR, "..", "..", "..");
+function semverGt(a, b) {
+  const pa = String(a).split(".").map(Number);
+  const pb = String(b).split(".").map(Number);
+  for (let i = 0; i < 3; i++) {
+    if ((pa[i] || 0) > (pb[i] || 0)) return true;
+    if ((pa[i] || 0) < (pb[i] || 0)) return false;
+  }
+  return false;
+}
+
+test("SKILL.md mandates an independent, zero-context eval subagent [VAL-EVAL-001]", () => {
+  const txt = fs.readFileSync(SKILL_MD, "utf8");
+  assert(/独立/.test(txt), "SKILL.md eval step must require an 独立 subagent");
+  assert(/零上下文继承|fresh context/i.test(txt),
+    "SKILL.md must require fresh/zero-context dispatch for the eval subagent");
+});
+
+test("SKILL.md scopes recall to all installed skills, execution-eval to invoked-only [VAL-EVAL-002]", () => {
+  const txt = fs.readFileSync(SKILL_MD, "utf8");
+  assert(/全部已安装\s*skill/.test(txt), "recall must cover 全部已安装 skill");
+  assert(/(本会话.*(调用过|跑过))|(调用过|跑过).*skill/.test(txt),
+    "execution eval must be scoped to skills invoked this session");
+});
+
+test("SKILL.md requires severity+confidence findings with no pre-filtering [VAL-EVAL-003]", () => {
+  const txt = fs.readFileSync(SKILL_MD, "utf8");
+  assert(/severity/.test(txt) && /confidence/.test(txt),
+    "findings must carry severity + confidence");
+  assert(/不.{0,4}预过滤/.test(txt), "findings must not be pre-filtered by importance");
+});
+
+test("SKILL.md routes editable in-repo SKILL.md eval findings to skill-body candidates [VAL-CAND-001]", () => {
+  const txt = fs.readFileSync(SKILL_MD, "utf8");
+  assert(/editable/.test(txt), "candidate guidance must key on the editable flag");
+  assert(/in-repo\s*SKILL\.md|in-repo SKILL/.test(txt) && /就地优化/.test(txt),
+    "editable findings must target the in-repo SKILL.md for in-place optimization");
+});
+
+test("SKILL.md forbids edit candidates for external/cached skills [VAL-CAND-002]", () => {
+  const txt = fs.readFileSync(SKILL_MD, "utf8");
+  assert(/不.{0,6}产出编辑候选|不要产出编辑候选/.test(txt),
+    "external/cached skills must not yield edit candidates");
+  assert(/更新即被覆盖|下次更新.*覆盖/.test(txt),
+    "rationale (overwritten on update) must be stated");
+});
+
+test("auriga-workflow plugin version bumped above 3.7.0 + SKILL.md documents new fields [VAL-REL-001]", () => {
+  for (const rel of [".claude-plugin/plugin.json", ".codex-plugin/plugin.json"]) {
+    const p = path.join(PLUGIN_ROOT, rel);
+    const v = JSON.parse(fs.readFileSync(p, "utf8")).version;
+    assert(semverGt(v, "3.7.0"), `${rel} version ${v} must be > 3.7.0`);
+  }
+  const txt = fs.readFileSync(SKILL_MD, "utf8");
+  for (const f of ["skill_catalog", "workflow_rules", "compliance"]) {
+    assert(txt.includes(f), `SKILL.md must document new substrate field ${f}`);
+  }
+});
+
+test("substrate tests are wired into test:session-compound + CI [VAL-REL-002]", () => {
+  const self = fs.readFileSync(fileURLToPath(import.meta.url), "utf8");
+  assert(/\[VAL-SUB-001\]/.test(self) && /\[VAL-PAR-001\]/.test(self),
+    "this file must carry the SUB/PAR substrate assertions");
+  const pkg = JSON.parse(fs.readFileSync(path.join(REPO_ROOT, "package.json"), "utf8"));
+  assert(/session-compound-analyzers\.test\.mjs/.test(pkg.scripts["test:session-compound"] || ""),
+    "package.json test:session-compound must point at this file");
+  const ci = fs.readFileSync(path.join(REPO_ROOT, ".github", "workflows", "test.yml"), "utf8");
+  assert(/test:session-compound/.test(ci), "CI must run test:session-compound");
+});
+
 // ---------- report + cleanup ----------
 for (const dir of cleanupFiles) {
   try {
