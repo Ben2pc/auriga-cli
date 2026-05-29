@@ -36,9 +36,9 @@
 - **Evidence (判据)**: 含受管区块的 fixture → 非空规则数组；区块缺失的 fixture → 空数组而非报错。
 
 ### VAL-SUB-003
-- **Behavior (行为)**: analyzer 输出含机械可判的合规项，每项判定结果为 pass / fail / not-applicable 之一。
+- **Behavior (行为)**: analyzer 输出含中性工作流事实包 `workflow_signals`（`{git_branch, on_main, had_code_edit, first_edit_ts, prs_count, skills_invoked_count}`），**只摆事实、不含任何判决字段**（无 status / pass / fail）。判断全部交评估 subagent。
 - **Tool (工具)**: `unit-test`
-- **Evidence (判据)**: 含"未建分支即编码"的会话 → 对应合规项判 fail；含"先建分支"的会话 → 判 pass；某谓词在本会话不适用 → 判 not-applicable。每个合规项对象含一个取值限定为该三值的状态字段。
+- **Evidence (判据)**: feature-branch + 编辑 + PR + skill 调用的会话 → `git_branch` 为该分支、`on_main:false`、`had_code_edit:true`、`first_edit_ts` 为数、`prs_count`/`skills_invoked_count` 计数正确；read-only on main 会话 → `on_main:true`、`had_code_edit:false`、`first_edit_ts:null`。对象不含 `status`/`pass` 键。
 
 ### VAL-SUB-004
 - **Behavior (行为)**: 可用 skill 目录条目去重，同一真实路径不重复计入（符号链接 / 多根指向同一 skill 只算一条）。
@@ -46,9 +46,9 @@
 - **Evidence (判据)**: fixture 用符号链接让两个根指向同一 SKILL.md，跑 analyzer，目录里该 skill 仅出现一次。
 
 ### VAL-PAR-001
-- **Behavior (行为)**: `claude-code.mjs` 与 `codex.mjs` 输出相同的 substrate 核心字段名（skill 目录 / 规则集 / 合规项），各自从本 CLI 的 skill 根构建；某 CLI 无对应来源时该字段为空集合而非缺键。
+- **Behavior (行为)**: `claude-code.mjs` 与 `codex.mjs` 输出相同的 substrate 核心字段（`skill_catalog` 数组 / `workflow_rules` 数组 / `workflow_signals` 对象），各自从本 CLI 的 skill 根与 cwd 构建；某 CLI 无对应来源时数组为空、`workflow_signals` 仍为含全部事实键的对象。
 - **Tool (工具)**: `unit-test`
-- **Evidence (判据)**: 分别对两套 analyzer 的 fixture 跑出 JSON，断言三个核心字段键在两侧都存在且类型同形（数组/对象一致）。
+- **Evidence (判据)**: 分别对两套 analyzer 的 fixture 跑出 JSON，断言三个核心字段键两侧都存在且类型同形（catalog/rules 为数组、workflow_signals 为对象且含相同事实键）。
 
 ### VAL-EVAL-001
 - **Behavior (行为)**: `SKILL.md` 新增一个评估派遣步骤，明确要求以**独立、零上下文继承**的 subagent 执行该评估。

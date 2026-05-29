@@ -31,7 +31,9 @@ session-compound 现在只回答两件事：这次**做了什么**（Narrative�
 
 - **可用 skill 目录**：本机已安装的全部 skill 的 `{name, description}`（description 即触发条件）。claude 端从 Claude 的 skill 根目录构建，codex 端从 Codex 的 skill 根目录构建。
 - **工作流规则集**：从仓库 AGENTS.md / CLAUDE.md 受管工作流区块解析出的规则条目列表。
-- **机械可判的合规项**：能由确定性数据直接判定的工作流谓词（例如「编码前是否先建分支」「是否尽早开 Draft PR」「某 skill 本会话是否跑过」），每项给出 pass / fail / not-applicable。
+- **中性工作流事实 `workflow_signals`**：从结构化数据提取的事实（分支名、是否在 main、有无代码改动、首次编辑时间、PR 数、skill 调用数）——**只摆事实、不下判决**。是否"违反"由评估 subagent 判（机械层不做判断）。
+
+> 设计修订（开发期）：原计划机械层直接给 pass/fail/na 合规判决，后按用户定向改为"机械层只提取事实、所有判断交独立 subagent"——避免机械误报（如分支跨会话创建被误判 fail），判决统一归 subagent。评估内容独立成第 4 个「评估」tab，派遣协议见 `references/eval-dispatch.md`。
 
 两套 analyzer 的 substrate 核心字段**同形**；某 CLI 拿不到的来源，对应字段为空集合（沿用现有缺失侧空集合约定）。
 
