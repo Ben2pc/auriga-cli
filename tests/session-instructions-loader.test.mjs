@@ -20,10 +20,6 @@ const HOOKS_CONFIG = JSON.parse(fs.readFileSync(path.join(PLUGIN_ROOT, "hooks", 
 const SESSION_START_HOOK = HOOKS_CONFIG.hooks?.SessionStart?.[0];
 const SESSION_START_COMMAND = SESSION_START_HOOK?.hooks?.[0]?.command;
 
-function run(cwd) {
-  return runWithSource(cwd, "startup");
-}
-
 function runWithSource(cwd, source) {
   const payload = {
     session_id: "test",
@@ -60,7 +56,7 @@ const cleanupDirs = [];
 
 const configChecks = [
   {
-    ok: SESSION_START_HOOK?.matcher === "startup|resume|compact",
+    ok: SESSION_START_HOOK?.matcher === "startup|resume|clear|compact",
     msg: `SessionStart matcher is ${JSON.stringify(SESSION_START_HOOK?.matcher)}`,
   },
   {
@@ -280,6 +276,7 @@ const cases = [
 
       const repo = path.join(root, "repo");
       fs.mkdirSync(path.join(repo, ".git"), { recursive: true });
+      fs.writeFileSync(path.join(repo, "AGENTS.md"), "repo compact instructions already loaded");
 
       const cwd = path.join(repo, "pkg");
       fs.mkdirSync(cwd, { recursive: true });
@@ -287,6 +284,43 @@ const cases = [
     },
     expect: {
       includes: ["workspace parent instructions after compact"],
+      excludes: ["repo compact instructions already loaded"],
+    },
+  },
+  {
+    name: "supports resume SessionStart source",
+    setup: () => {
+      const root = makeTempDir();
+      cleanupDirs.push(root);
+      fs.writeFileSync(path.join(root, "AGENTS.md"), "workspace parent instructions after resume");
+
+      const repo = path.join(root, "repo");
+      fs.mkdirSync(path.join(repo, ".git"), { recursive: true });
+
+      const cwd = path.join(repo, "pkg");
+      fs.mkdirSync(cwd, { recursive: true });
+      return { cwd, source: "resume" };
+    },
+    expect: {
+      includes: ["workspace parent instructions after resume"],
+    },
+  },
+  {
+    name: "supports clear SessionStart source",
+    setup: () => {
+      const root = makeTempDir();
+      cleanupDirs.push(root);
+      fs.writeFileSync(path.join(root, "AGENTS.md"), "workspace parent instructions after clear");
+
+      const repo = path.join(root, "repo");
+      fs.mkdirSync(path.join(repo, ".git"), { recursive: true });
+
+      const cwd = path.join(repo, "pkg");
+      fs.mkdirSync(cwd, { recursive: true });
+      return { cwd, source: "clear" };
+    },
+    expect: {
+      includes: ["workspace parent instructions after clear"],
     },
   },
   {
