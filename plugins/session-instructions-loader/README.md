@@ -7,6 +7,8 @@ instructions above a Git repository can be skipped.
 This plugin adds a `SessionStart` hook that injects additional instruction files
 as context:
 
+- it runs on session startup, resume, and the post-compaction `SessionStart`
+  event so compacted threads regain the same supplemental instructions;
 - inside a Git repository, it reads `AGENTS.md` files above the Git root;
 - inside a Git worktree, it also reads `AGENTS.md` files above the original
   repository root referenced by the worktree `.git` file;
