@@ -290,9 +290,9 @@ describe("spec-design skill — repo-check VALs", () => {
       ".claude/CLAUDE.md compatibility entry should be removed",
     );
     assert.deepEqual(
-      JSON.parse(read(".agents/plugins/session-instructions-loader.json")),
-      {},
-      "session-instructions-loader repo config should be retained but empty",
+      JSON.parse(read(".codex/session-instructions-loader.json")),
+      { ancestorLevel: 1 },
+      "session-instructions-loader repo config should limit ancestor discovery",
     );
   });
 

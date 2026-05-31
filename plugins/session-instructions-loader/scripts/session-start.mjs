@@ -1,11 +1,12 @@
 #!/usr/bin/env node
 
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 
 const MAX_TOTAL_BYTES = 64 * 1024;
 const AGENTS_FILENAME = "AGENTS.md";
-const CONFIG_PATH = path.join(".agents", "plugins", "session-instructions-loader.json");
+const CONFIG_PATH = path.join(".codex", "session-instructions-loader.json");
 const TOOL_STATE_BOUNDARY_DIRS = new Set([".codex"]);
 
 function readStdin() {
@@ -70,15 +71,30 @@ function worktreeRepositoryRootFromGitDir(gitDir) {
   if (path.basename(worktreesDir) !== "worktrees") return null;
 
   const commonGitDir = path.dirname(worktreesDir);
-  if (path.basename(commonGitDir) === ".git") return parentOf(commonGitDir);
+  if (path.basename(commonGitDir) === ".git") {
+    const repositoryRoot = parentOf(commonGitDir);
+    return existingDirectory(repositoryRoot);
+  }
 
   return null;
 }
 
-function ancestorDirsFrom(startDir) {
+function homeBoundaryFor(startDir) {
+  const home = existingDirectory(process.env.HOME || os.homedir());
+  if (!home) return null;
+  return startDir === home || startDir.startsWith(`${home}${path.sep}`) ? home : null;
+}
+
+function ancestorDirsFrom(startDir, ancestorLevel = 0) {
+  if (ancestorLevel === 0) return [];
+
   const dirs = [];
+  const stopDir = ancestorLevel === -1 ? homeBoundaryFor(startDir) : null;
   for (let dir = startDir; dir; dir = parentOf(dir)) {
     dirs.push(dir);
+    if (ancestorLevel > 0 && dirs.length >= ancestorLevel) break;
+    if (ancestorLevel === -1 && !stopDir) break;
+    if (stopDir && dir === stopDir) break;
   }
   const rootToLeaf = dirs.reverse();
   const boundaryIndex = rootToLeaf.findLastIndex((dir) =>
@@ -87,48 +103,38 @@ function ancestorDirsFrom(startDir) {
   return boundaryIndex === -1 ? rootToLeaf : rootToLeaf.slice(boundaryIndex + 1);
 }
 
-function readableAgentsFiles(cwd) {
+function repositoryContextFor(cwd) {
   const gitRoot = findGitRoot(cwd);
-  const firstAncestors = [];
+  if (!gitRoot) return { projectRoot: cwd, ancestorStart: parentOf(cwd) };
 
-  if (gitRoot) {
-    const gitDir = gitDirFromFile(gitRoot);
-    if (gitDir) {
-      const originalRepoRoot = worktreeRepositoryRootFromGitDir(gitDir);
-      if (originalRepoRoot && originalRepoRoot !== gitRoot) {
-        const originalRepoAncestor = parentOf(originalRepoRoot);
-        if (originalRepoAncestor) firstAncestors.push(originalRepoAncestor);
-      }
-    }
+  const gitDir = gitDirFromFile(gitRoot);
+  const originalRepoRoot = gitDir ? worktreeRepositoryRootFromGitDir(gitDir) : null;
+  const projectRoot = originalRepoRoot && originalRepoRoot !== gitRoot ? originalRepoRoot : gitRoot;
+  return { projectRoot, ancestorStart: parentOf(projectRoot) };
+}
 
-    const worktreeAncestor = parentOf(gitRoot);
-    if (worktreeAncestor) firstAncestors.push(worktreeAncestor);
-  } else {
-    const cwdAncestor = parentOf(cwd);
-    if (cwdAncestor) firstAncestors.push(cwdAncestor);
-  }
+function configuredAncestorLevel(config) {
+  const value = config?.ancestorLevel;
+  if (value === -1) return -1;
+  return Number.isInteger(value) && value > 0 ? value : 0;
+}
+
+function readableAgentsFiles(context, config) {
+  const ancestorLevel = configuredAncestorLevel(config);
+  if (!context.ancestorStart) return [];
 
   const files = [];
-  const seen = new Set();
-  for (const firstAncestor of firstAncestors) {
-    for (const dir of ancestorDirsFrom(firstAncestor)) {
-      const candidate = path.join(dir, AGENTS_FILENAME);
-      if (seen.has(candidate)) continue;
-      seen.add(candidate);
+  for (const dir of ancestorDirsFrom(context.ancestorStart, ancestorLevel)) {
+    const candidate = path.join(dir, AGENTS_FILENAME);
 
-      try {
-        const stat = fs.statSync(candidate);
-        if (stat.isFile()) files.push(candidate);
-      } catch {
-        // Missing or unreadable files are not fatal for a context hook.
-      }
+    try {
+      const stat = fs.statSync(candidate);
+      if (stat.isFile()) files.push(candidate);
+    } catch {
+      // Missing or unreadable files are not fatal for a context hook.
     }
   }
   return files;
-}
-
-function projectRootFor(cwd) {
-  return findGitRoot(cwd) ?? cwd;
 }
 
 function readConfig(projectRoot) {
@@ -148,16 +154,20 @@ function resolveProjectFile(projectRoot, relativePath) {
   if (!withinProject) return null;
 
   try {
-    const stat = fs.statSync(resolved);
-    return stat.isFile() ? resolved : null;
+    const realProjectRoot = fs.realpathSync(projectRoot);
+    const realFile = fs.realpathSync(resolved);
+    const realWithinProject =
+      realFile === realProjectRoot || realFile.startsWith(`${realProjectRoot}${path.sep}`);
+    if (!realWithinProject) return null;
+
+    const stat = fs.statSync(realFile);
+    return stat.isFile() ? realFile : null;
   } catch {
     return null;
   }
 }
 
-function configuredExtraFiles(cwd) {
-  const projectRoot = projectRootFor(cwd);
-  const config = readConfig(projectRoot);
+function configuredExtraFiles(projectRoot, config) {
   if (!Array.isArray(config?.extraFiles)) return [];
 
   const files = [];
@@ -237,8 +247,10 @@ function outputAdditionalContext(additionalContext) {
 const payload = parsePayload(readStdin());
 const cwd = existingDirectory(payload?.cwd);
 if (cwd) {
-  const ancestorFiles = readableAgentsFiles(cwd);
-  const extraFiles = configuredExtraFiles(cwd);
+  const context = repositoryContextFor(cwd);
+  const config = readConfig(context.projectRoot);
+  const ancestorFiles = readableAgentsFiles(context, config);
+  const extraFiles = configuredExtraFiles(context.projectRoot, config);
   const outputOrder = [...ancestorFiles, ...extraFiles];
   const readPriority = [...ancestorFiles].reverse().concat(extraFiles);
   outputAdditionalContext(buildAdditionalContext(readFilesWithinBudget(readPriority, outputOrder)));

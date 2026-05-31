@@ -95,7 +95,7 @@
 - `src/workflow-markers.ts` 负责受管区块 marker 协议。
 - `plugins/auriga-workflow/` 负责 workflow skills 和 git 生命周期钩子。
 - `plugins/session-instructions-loader/` 负责 Codex SessionStart 的祖先指令注入。
-- `.agents/plugins/session-instructions-loader.json` 在这个仓库里有意保持为 `{}`；不要重新加回 `.claude/CLAUDE.md` 的额外注入。
+- `.codex/session-instructions-loader.json` 在这个仓库里有意设置为 `{ "ancestorLevel": 1 }`；不要重新加回 `.claude/CLAUDE.md` 的额外注入。
 - `.claude/` 只保留本地设置和外部 skill 的符号链接。不要重新引入 `.claude/AGENTS.md` 或 `.claude/CLAUDE.md` 兼容项。
 
 这个区域的关键测试：

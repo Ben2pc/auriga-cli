@@ -20,7 +20,7 @@ const HOOKS_CONFIG = JSON.parse(fs.readFileSync(path.join(PLUGIN_ROOT, "hooks", 
 const SESSION_START_HOOK = HOOKS_CONFIG.hooks?.SessionStart?.[0];
 const SESSION_START_COMMAND = SESSION_START_HOOK?.hooks?.[0]?.command;
 
-function runWithSource(cwd, source) {
+function runWithSource(cwd, source, envOverrides = {}) {
   const payload = {
     session_id: "test",
     transcript_path: null,
@@ -35,6 +35,7 @@ function runWithSource(cwd, source) {
     encoding: "utf8",
     env: {
       ...process.env,
+      ...envOverrides,
       CLAUDE_PLUGIN_ROOT: PLUGIN_ROOT,
     },
     shell: true,
@@ -53,6 +54,14 @@ function makeTempDir() {
 }
 
 const cleanupDirs = [];
+
+function writeLoaderConfig(repo, config) {
+  fs.mkdirSync(path.join(repo, ".codex"), { recursive: true });
+  fs.writeFileSync(
+    path.join(repo, ".codex", "session-instructions-loader.json"),
+    JSON.stringify(config),
+  );
+}
 
 const configChecks = [
   {
@@ -75,6 +84,7 @@ const cases = [
 
       const repo = path.join(root, "repo");
       fs.mkdirSync(path.join(repo, ".git"), { recursive: true });
+      writeLoaderConfig(repo, { ancestorLevel: 1 });
       fs.writeFileSync(path.join(repo, "AGENTS.md"), "repo instructions already loaded");
 
       const cwd = path.join(repo, "pkg", "feature");
@@ -99,11 +109,12 @@ const cases = [
 
       const repo = path.join(workspace, "repo");
       fs.mkdirSync(path.join(repo, ".git"), { recursive: true });
+      writeLoaderConfig(repo, { ancestorLevel: -1 });
       fs.writeFileSync(path.join(repo, "AGENTS.md"), "repo instructions already loaded");
 
       const cwd = path.join(repo, "pkg");
       fs.mkdirSync(cwd, { recursive: true });
-      return cwd;
+      return { cwd, env: { HOME: root } };
     },
     expect: {
       includes: ["outer ancestor instructions", "inner ancestor instructions"],
@@ -112,7 +123,7 @@ const cases = [
     },
   },
   {
-    name: "inside a Codex managed worktree, injects original repo ancestors but not Codex home AGENTS.md",
+    name: "inside a Codex managed worktree, injects original repo ancestors but not worktree ancestors",
     setup: () => {
       const home = makeTempDir();
       cleanupDirs.push(home);
@@ -132,6 +143,7 @@ const cases = [
       const originalRepo = path.join(workspace, "repo");
       const gitWorktrees = path.join(originalRepo, ".git", "worktrees");
       fs.mkdirSync(gitWorktrees, { recursive: true });
+      writeLoaderConfig(originalRepo, { ancestorLevel: -1 });
 
       const repo = path.join(worktreeParent, "repo");
       fs.mkdirSync(repo, { recursive: true });
@@ -142,8 +154,8 @@ const cases = [
       return cwd;
     },
     expect: {
-      includes: ["workspace instructions", "worktree local instructions"],
-      excludes: ["codex home instructions"],
+      includes: ["workspace instructions"],
+      excludes: ["codex home instructions", "worktree local instructions"],
     },
   },
   {
@@ -163,6 +175,7 @@ const cases = [
 
       const repo = path.join(currentWorkspace, "repo");
       fs.mkdirSync(repo, { recursive: true });
+      writeLoaderConfig(repo, { ancestorLevel: 1 });
       fs.writeFileSync(path.join(repo, ".git"), `gitdir: ${path.join(foreignWorkspace, "repo", ".git")}\n`);
 
       const cwd = path.join(repo, "pkg");
@@ -186,6 +199,7 @@ const cases = [
 
       const cwd = path.join(root, "repo", "pkg");
       fs.mkdirSync(path.join(root, "repo", ".git"), { recursive: true });
+      writeLoaderConfig(path.join(root, "repo"), { ancestorLevel: 1 });
       fs.mkdirSync(cwd, { recursive: true });
       return cwd;
     },
@@ -210,6 +224,7 @@ const cases = [
 
       const cwd = path.join(workspace, "repo", "pkg");
       fs.mkdirSync(path.join(workspace, "repo", ".git"), { recursive: true });
+      writeLoaderConfig(path.join(workspace, "repo"), { ancestorLevel: -1 });
       fs.mkdirSync(cwd, { recursive: true });
       return cwd;
     },
@@ -227,11 +242,11 @@ const cases = [
 
       const repo = path.join(root, "repo");
       fs.mkdirSync(path.join(repo, ".git"), { recursive: true });
-      fs.mkdirSync(path.join(repo, ".agents", "plugins"), { recursive: true });
+      fs.mkdirSync(path.join(repo, ".codex"), { recursive: true });
       fs.mkdirSync(path.join(repo, ".claude"), { recursive: true });
       fs.writeFileSync(path.join(repo, ".claude", "CLAUDE.md"), "repo claude instructions");
       fs.writeFileSync(
-        path.join(repo, ".agents", "plugins", "session-instructions-loader.json"),
+        path.join(repo, ".codex", "session-instructions-loader.json"),
         JSON.stringify({ extraFiles: [".claude/CLAUDE.md"] }),
       );
 
@@ -240,8 +255,51 @@ const cases = [
       return cwd;
     },
     expect: {
-      includes: ["workspace parent instructions", "repo claude instructions"],
-      ordered: ["workspace parent instructions", "repo claude instructions"],
+      includes: ["repo claude instructions"],
+      excludes: ["workspace parent instructions"],
+    },
+  },
+  {
+    name: "git worktree reads plugin config from original repo root",
+    setup: () => {
+      const root = makeTempDir();
+      cleanupDirs.push(root);
+
+      const workspace = path.join(root, "Workspace");
+      fs.mkdirSync(workspace, { recursive: true });
+      fs.writeFileSync(path.join(workspace, "AGENTS.md"), "workspace instructions");
+
+      const originalRepo = path.join(workspace, "repo");
+      fs.mkdirSync(path.join(originalRepo, ".git", "worktrees"), { recursive: true });
+      fs.mkdirSync(path.join(originalRepo, ".codex"), { recursive: true });
+      fs.mkdirSync(path.join(originalRepo, ".claude"), { recursive: true });
+      fs.writeFileSync(path.join(originalRepo, ".claude", "CLAUDE.md"), "original repo claude instructions");
+      fs.writeFileSync(
+        path.join(originalRepo, ".codex", "session-instructions-loader.json"),
+        JSON.stringify({ ancestorLevel: 1, extraFiles: [".claude/CLAUDE.md"] }),
+      );
+
+      const worktreeParent = path.join(root, "worktrees", "1234");
+      const worktreeRepo = path.join(worktreeParent, "repo");
+      fs.mkdirSync(path.join(worktreeRepo, ".codex"), { recursive: true });
+      fs.mkdirSync(path.join(worktreeRepo, ".local"), { recursive: true });
+      fs.writeFileSync(path.join(worktreeRepo, ".local", "LOCAL.md"), "worktree local config instructions");
+      fs.writeFileSync(
+        path.join(worktreeRepo, ".codex", "session-instructions-loader.json"),
+        JSON.stringify({ extraFiles: [".local/LOCAL.md"] }),
+      );
+      fs.writeFileSync(
+        path.join(worktreeRepo, ".git"),
+        `gitdir: ${path.join(originalRepo, ".git", "worktrees", "1234")}\n`,
+      );
+
+      const cwd = path.join(worktreeRepo, "pkg");
+      fs.mkdirSync(cwd, { recursive: true });
+      return cwd;
+    },
+    expect: {
+      includes: ["workspace instructions", "original repo claude instructions"],
+      excludes: ["worktree local config instructions"],
     },
   },
   {
@@ -253,9 +311,9 @@ const cases = [
 
       const repo = path.join(root, "repo");
       fs.mkdirSync(path.join(repo, ".git"), { recursive: true });
-      fs.mkdirSync(path.join(repo, ".agents", "plugins"), { recursive: true });
+      fs.mkdirSync(path.join(repo, ".codex"), { recursive: true });
       fs.writeFileSync(
-        path.join(repo, ".agents", "plugins", "session-instructions-loader.json"),
+        path.join(repo, ".codex", "session-instructions-loader.json"),
         JSON.stringify({ extraFiles: ["../SECRET.md", path.join(root, "SECRET.md")] }),
       );
 
@@ -268,6 +326,114 @@ const cases = [
     },
   },
   {
+    name: "skips extra file symlinks that resolve outside the project root",
+    setup: () => {
+      const root = makeTempDir();
+      cleanupDirs.push(root);
+      fs.writeFileSync(path.join(root, "SECRET.md"), "outside symlink secret");
+
+      const repo = path.join(root, "repo");
+      fs.mkdirSync(path.join(repo, ".git"), { recursive: true });
+      fs.mkdirSync(path.join(repo, ".codex"), { recursive: true });
+      fs.symlinkSync(path.join(root, "SECRET.md"), path.join(repo, "SECRET_LINK.md"));
+      fs.writeFileSync(
+        path.join(repo, ".codex", "session-instructions-loader.json"),
+        JSON.stringify({ extraFiles: ["SECRET_LINK.md"] }),
+      );
+
+      const cwd = path.join(repo, "pkg");
+      fs.mkdirSync(cwd, { recursive: true });
+      return cwd;
+    },
+    expect: {
+      excludes: ["outside symlink secret"],
+    },
+  },
+  {
+    name: "ancestorLevel limits upward AGENTS.md discovery from repo parent",
+    setup: () => {
+      const root = makeTempDir();
+      cleanupDirs.push(root);
+      fs.writeFileSync(path.join(root, "AGENTS.md"), "outer ancestor instructions");
+
+      const workspace = path.join(root, "workspace");
+      fs.mkdirSync(workspace, { recursive: true });
+      fs.writeFileSync(path.join(workspace, "AGENTS.md"), "repo parent instructions");
+
+      const repo = path.join(workspace, "repo");
+      fs.mkdirSync(path.join(repo, ".git"), { recursive: true });
+      fs.mkdirSync(path.join(repo, ".codex"), { recursive: true });
+      fs.writeFileSync(
+        path.join(repo, ".codex", "session-instructions-loader.json"),
+        JSON.stringify({ ancestorLevel: 1 }),
+      );
+
+      const cwd = path.join(repo, "pkg");
+      fs.mkdirSync(cwd, { recursive: true });
+      return cwd;
+    },
+    expect: {
+      includes: ["repo parent instructions"],
+      excludes: ["outer ancestor instructions"],
+    },
+  },
+  {
+    name: "ancestorLevel -1 reads ancestors only up to the user home directory",
+    setup: () => {
+      const root = makeTempDir();
+      cleanupDirs.push(root);
+      fs.writeFileSync(path.join(root, "AGENTS.md"), "above home instructions");
+
+      const home = path.join(root, "home");
+      fs.mkdirSync(home, { recursive: true });
+      fs.writeFileSync(path.join(home, "AGENTS.md"), "home instructions");
+
+      const workspace = path.join(home, "workspace");
+      fs.mkdirSync(workspace, { recursive: true });
+      fs.writeFileSync(path.join(workspace, "AGENTS.md"), "workspace instructions");
+
+      const repo = path.join(workspace, "repo");
+      fs.mkdirSync(path.join(repo, ".git"), { recursive: true });
+      writeLoaderConfig(repo, { ancestorLevel: -1 });
+
+      const cwd = path.join(repo, "pkg");
+      fs.mkdirSync(cwd, { recursive: true });
+      return { cwd, env: { HOME: home } };
+    },
+    expect: {
+      includes: ["home instructions", "workspace instructions"],
+      excludes: ["above home instructions"],
+      ordered: ["home instructions", "workspace instructions"],
+    },
+  },
+  {
+    name: "ancestorLevel -1 outside the user home does not traverse to filesystem root",
+    setup: () => {
+      const root = makeTempDir();
+      cleanupDirs.push(root);
+      fs.writeFileSync(path.join(root, "AGENTS.md"), "above external workspace instructions");
+
+      const home = path.join(root, "home");
+      fs.mkdirSync(home, { recursive: true });
+
+      const externalWorkspace = path.join(root, "external", "workspace");
+      fs.mkdirSync(externalWorkspace, { recursive: true });
+      fs.writeFileSync(path.join(externalWorkspace, "AGENTS.md"), "external workspace instructions");
+
+      const repo = path.join(externalWorkspace, "repo");
+      fs.mkdirSync(path.join(repo, ".git"), { recursive: true });
+      writeLoaderConfig(repo, { ancestorLevel: -1 });
+
+      const cwd = path.join(repo, "pkg");
+      fs.mkdirSync(cwd, { recursive: true });
+      return { cwd, env: { HOME: home } };
+    },
+    expect: {
+      includes: ["external workspace instructions"],
+      excludes: ["above external workspace instructions"],
+    },
+  },
+  {
     name: "supports compact SessionStart source after Codex compaction",
     setup: () => {
       const root = makeTempDir();
@@ -276,6 +442,7 @@ const cases = [
 
       const repo = path.join(root, "repo");
       fs.mkdirSync(path.join(repo, ".git"), { recursive: true });
+      writeLoaderConfig(repo, { ancestorLevel: 1 });
       fs.writeFileSync(path.join(repo, "AGENTS.md"), "repo compact instructions already loaded");
 
       const cwd = path.join(repo, "pkg");
@@ -296,6 +463,7 @@ const cases = [
 
       const repo = path.join(root, "repo");
       fs.mkdirSync(path.join(repo, ".git"), { recursive: true });
+      writeLoaderConfig(repo, { ancestorLevel: 1 });
 
       const cwd = path.join(repo, "pkg");
       fs.mkdirSync(cwd, { recursive: true });
@@ -314,6 +482,7 @@ const cases = [
 
       const repo = path.join(root, "repo");
       fs.mkdirSync(path.join(repo, ".git"), { recursive: true });
+      writeLoaderConfig(repo, { ancestorLevel: 1 });
 
       const cwd = path.join(repo, "pkg");
       fs.mkdirSync(cwd, { recursive: true });
@@ -332,6 +501,7 @@ const cases = [
 
       const cwd = path.join(root, "child");
       fs.mkdirSync(cwd, { recursive: true });
+      writeLoaderConfig(cwd, { ancestorLevel: 1 });
       fs.writeFileSync(path.join(cwd, "AGENTS.md"), "cwd instructions");
       return cwd;
     },
@@ -372,7 +542,8 @@ try {
     const setupResult = c.setup();
     const cwd = typeof setupResult === "string" ? setupResult : setupResult.cwd;
     const source = typeof setupResult === "string" ? "startup" : (setupResult.source ?? "startup");
-    const r = runWithSource(cwd, source);
+    const env = typeof setupResult === "string" ? {} : (setupResult.env ?? {});
+    const r = runWithSource(cwd, source, env);
     const checks = [];
     checks.push({ ok: r.status === 0, msg: `status=${r.status} stderr=${r.stderr}` });
 
