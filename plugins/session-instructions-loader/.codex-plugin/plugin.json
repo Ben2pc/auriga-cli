@@ -1,6 +1,6 @@
 {
   "name": "session-instructions-loader",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "SessionStart hook that injects ancestor AGENTS.md files and repo-configured instruction files.",
   "author": {
     "name": "Ben2pc",
@@ -19,8 +19,8 @@
   "hooks": "./hooks/hooks.json",
   "interface": {
     "displayName": "Session Instructions Loader",
-    "shortDescription": "Injects extra instruction files on session start",
-    "longDescription": "Adds a Codex SessionStart hook that reads AGENTS.md files from parent directories above Codex's detected project root plus repo-configured extra instruction files, then injects them as additional context.",
+    "shortDescription": "Injects extra instructions on startup, resume, clear, and compact",
+    "longDescription": "Adds a Codex SessionStart hook that runs on startup, resume, clear, and post-compaction sources. It reads AGENTS.md files from parent directories above Codex's detected project root plus repo-configured extra instruction files, then injects them as additional context.",
     "developerName": "Ben2pc",
     "category": "Productivity",
     "capabilities": [
