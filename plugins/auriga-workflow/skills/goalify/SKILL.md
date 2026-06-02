@@ -3,7 +3,7 @@ name: goalify
 description: 当用户要求 set goal、run autonomously、autopilot、跑到 Ready、自动跑完、自驱执行、goalify it，或明确想把当前 spec / work-in-progress 规划成 `/goal` 任务并派发时使用。
 ---
 
-根据 spec 或者当前的工作进展，先 plan 出 goal，再与用户确认 goal 要跑到哪个阶段为止，然后按当前 Agent 的能力启动 `/goal`，或输出可粘贴的 `/goal` 文本交用户启动。如果有疑问或者目标难以明确，在 set goal 前询问用户。
+根据 spec 或者当前的工作进展，先 plan 出 goal，再与用户确认 goal 要跑到哪个阶段为止，然后按当前 Agent 的能力启动 `/goal`，或输出可粘贴的 `/goal` 文本交用户启动。如果有疑问、目标难以明确，或用户选择自定义终点但没有说清停止条件，在 set goal 前询问用户。
 
 ## 定位
 
@@ -34,16 +34,25 @@ goalify 是**需求已经明确之后**用来驱动长程任务的工具——�
 
 没有 spec 包时，从用户对话里的目标描述 + 当前分支 / commit 历史 / PR 描述提炼。
 
+## 输出结构
+
+生成或启动 `/goal` 前，先按下面的固定结构组织内容。结构要稳定，措辞可以按任务自然调整：
+
+- **目标一句话**：用一句话说明这次 goal 要完成的可观察结果。
+- **事实来源**：列出要读取的 spec、validation contract、issue、PR、当前分支或其他仓库事实来源；引用路径或编号，不大段复制正文。
+- **执行约束**：要求按 auriga workflow 推进；从 main 建分支，测试先行，必要时在实现阶段调用 `incremental-impl`；若运行环境不能直接启动 goal，则输出可粘贴文本。
+- **终点条件**：写明用户选择的终点，以及到达该终点必须满足的具体条件。
+- **越界停止规则**：明确终点之后的阶段不在本 goal 范围内，到点即停止并交回用户。
+- **handoff 要求**：最后说明这次做了什么、用户怎么验收、用户下一步可以做什么；若范围包含 review，还要说明 review 发现、处理结果和未处理项的保留原因。
+
 ## 确定终点阶段
 
 set goal 之前必须和用户确认这个 goal 的终点——它要把 auriga workflow 推进到哪个阶段就停下。用 `AskUserQuestion` / `request_user_input` 给出选项，常见终点：
 
-- **跑到 Draft PR** — 建分支、首个有意义的 commit、开好 Draft PR 就停，留给用户审范围
-- **跑到验证完成** — 实现 + 测试全绿，PR 仍保持 Draft
 - **跑到 PR Ready** — 验证完成 + 补全 PR 描述五要素 + 标记 Ready for Review
-- **跑到 deep-review 完成** — 标记 Ready 后运行正式 `deep-review`；修复 blocking findings；non-blocking findings 由 agent 按严重度、置信度和改动风险判断是否修；最后把处理结果同步到 PR
-- **跑到 deep-review 收敛** — 「跑到 deep-review 完成」的循环版本：deep-review → 修 blocking findings → 提交 → 再次 deep-review，直到三条同时满足：(1) 最近一轮 `deep-review` 报 0 blocking findings；(2) 所有 PR Check 通过；(3) PR 上没有未解决（unresolved）的 blocking review comment。non-blocking findings 仍按严重度、置信度和改动风险判断。不设循环上限，`/goal` 文本不要硬编轮数
+- **跑到 deep-review 收敛** — 循环运行 review 与修复：deep-review → 修 blocking findings → 提交 → 再次 deep-review，直到三条同时满足：(1) 最近一轮 `deep-review` 报 0 blocking findings；(2) 所有 PR Check 通过；(3) PR 上没有未解决（unresolved）的 blocking review comment。non-blocking findings 仍按严重度、置信度和改动风险判断。不设循环上限，`/goal` 文本不要硬编轮数
 - **跑到合并** — 含评审与合并
+- **用户自定义** — 用户自己定义停止条件；如果停止条件不够具体，先问清楚再 set goal
 
 把用户选定的终点作为**显式终止条件**写进 `/goal` 文本：goal 跑到该阶段即停，不要越界继续推进。终点之后的阶段（评审、合并等）若不在范围内，goal 文本里要写明"到此为止，交回用户"。
 
@@ -69,9 +78,17 @@ set goal 之前必须和用户确认这个 goal 的终点——它要把 auriga 
 Good `/goal` 文本示例：
 
 ```text
-修复 GitHub issue #139。上下文以 docs/specs/<topic>/spec.md、docs/specs/<topic>/validation-contract.md 和 issue 正文为准；不要重复抄写这些文件。
+目标一句话：修复 GitHub issue #139 并把相关 PR 推进到 deep-review 收敛。
 
-按 auriga workflow 推进：从 main 建分支，测试先行，必要时在实现阶段调用 incremental-impl 决定切片。终点是 deep-review 完成：PR Ready 后运行 deep-review，修复 blocking findings；non-blocking findings 按严重度、置信度和改动风险判断是否修；把处理结果同步到 PR。最后给用户 handoff，说明做了什么、验收方式、下一步建议；因为本 goal 包含 review，也要说明 review 发现、处理结果和未处理项的保留原因，然后停止。
+事实来源：上下文以 docs/specs/<topic>/spec.md、docs/specs/<topic>/validation-contract.md 和 issue 正文为准；不要重复抄写这些文件。
+
+执行约束：按 auriga workflow 推进：从 main 建分支，测试先行，必要时在实现阶段调用 incremental-impl 决定切片。
+
+终点条件：终点是 deep-review 收敛：deep-review 报 0 blocking findings，所有 PR Check 通过，PR 上没有未解决的 blocking review comment。
+
+越界停止规则：到达 deep-review 收敛后停止，不要继续合并。
+
+handoff 要求：最后给用户 handoff，说明做了什么、验收方式、下一步建议；因为本 goal 包含 review，也要说明 review 发现、处理结果和未处理项的保留原因。
 ```
 
 Bad `/goal` 文本示例：

@@ -50,7 +50,7 @@ describe("goalify skill contract", () => {
     );
     assert.ok(
       text.includes("跑到 deep-review 收敛"),
-      "goalify must offer a converged deep-review terminus alongside the one-shot variant",
+      "goalify must offer a converged deep-review terminus",
     );
     assert.ok(
       text.includes("PR Check") && text.includes("unresolved"),
@@ -76,6 +76,50 @@ describe("goalify skill contract", () => {
       /每条\s+VAL[\s\S]{0,40}翻译成\s+goal/.test(text),
       false,
       "goalify must not instruct Agents to translate each VAL into /goal text",
+    );
+  });
+
+  test("requires a stable /goal output shape", () => {
+    const text = read("plugins/auriga-workflow/skills/goalify/SKILL.md");
+    let previousIndex = -1;
+    for (const section of [
+      "目标一句话",
+      "事实来源",
+      "执行约束",
+      "终点条件",
+      "越界停止规则",
+      "handoff 要求",
+    ]) {
+      const sectionIndex = text.indexOf(section);
+      assert.notEqual(sectionIndex, -1, `goalify output shape must include ${section}`);
+      assert.ok(
+        sectionIndex > previousIndex,
+        `goalify output shape must keep ${section} in order`,
+      );
+      previousIndex = sectionIndex;
+    }
+  });
+
+  test("keeps built-in endpoint choices focused", () => {
+    const text = read("plugins/auriga-workflow/skills/goalify/SKILL.md");
+    const endpointSection = text.match(/## 确定终点阶段[\s\S]*?## 启动方式/);
+    assert.ok(endpointSection, "goalify must document endpoint selection");
+    const endpoints = endpointSection[0];
+
+    assert.ok(endpoints.includes("跑到 PR Ready"), "PR Ready remains a built-in endpoint");
+    assert.ok(
+      endpoints.includes("跑到 deep-review 收敛"),
+      "deep-review convergence remains a built-in endpoint",
+    );
+    assert.ok(endpoints.includes("跑到合并"), "merge remains a built-in endpoint");
+    assert.ok(endpoints.includes("用户自定义"), "custom endpoint remains available");
+
+    assert.equal(endpoints.includes("跑到 Draft PR"), false, "Draft PR is no longer built-in");
+    assert.equal(endpoints.includes("跑到验证完成"), false, "verification-only is no longer built-in");
+    assert.equal(
+      endpoints.includes("跑到 deep-review 完成"),
+      false,
+      "one-shot deep-review is no longer built-in",
     );
   });
 });
