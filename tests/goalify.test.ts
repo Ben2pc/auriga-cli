@@ -50,7 +50,7 @@ describe("goalify skill contract", () => {
     );
     assert.ok(
       text.includes("跑到 deep-review 收敛"),
-      "goalify must offer a converged deep-review terminus alongside the one-shot variant",
+      "goalify must offer a converged deep-review terminus",
     );
     assert.ok(
       text.includes("PR Check") && text.includes("unresolved"),
@@ -81,6 +81,7 @@ describe("goalify skill contract", () => {
 
   test("requires a stable /goal output shape", () => {
     const text = read("plugins/auriga-workflow/skills/goalify/SKILL.md");
+    let previousIndex = -1;
     for (const section of [
       "目标一句话",
       "事实来源",
@@ -89,7 +90,13 @@ describe("goalify skill contract", () => {
       "越界停止规则",
       "handoff 要求",
     ]) {
-      assert.ok(text.includes(section), `goalify output shape must include ${section}`);
+      const sectionIndex = text.indexOf(section);
+      assert.notEqual(sectionIndex, -1, `goalify output shape must include ${section}`);
+      assert.ok(
+        sectionIndex > previousIndex,
+        `goalify output shape must keep ${section} in order`,
+      );
+      previousIndex = sectionIndex;
     }
   });
 
