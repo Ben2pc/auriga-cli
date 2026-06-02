@@ -255,12 +255,13 @@ pkill -f 'auriga-cli web-ui'
     - **`skills-lock.json` 的结构性变化**——新增 / 删除条目，或编辑 `source` / `skillPath`。这些会改变 auriga-cli 提供哪些 skills（`dist/catalog.json`）或者安装从哪里拉取。**仅 `computedHash` 漂移不是版本提升触发条件**（见下方豁免项）。
     - **`.agents/skills/<name>/SKILL.md` frontmatter 的 `description:` 变化**——构建时会写进 `dist/catalog.json`，驱动 `--help` 输出和交互菜单。body / scripts / hooks 的变化不算（见下方豁免项）。
     - `AGENTS.template.zh-CN.md` / `AGENTS.template.en.md` —— workflow templates，runtime 会获取
-    - `README.md` / `README.zh-CN.md` —— 随 tarball 发出（npm 默认包含）；其中 `README.md` 会驱动 npmjs.com landing page
+    - `README.md` / `README.zh-CN.md` 中改变 CLI 安装、发布、运行时行为或用户可见 package 说明的内容——这些会随 tarball 发出；其中 `README.md` 会驱动 npmjs.com landing page
   - **豁免**（不需要 bump）：
     - `AGENTS.md` / `CLAUDE.md`（本仓库的 dev guide 和兼容软链——不发布、不获取）
     - `.claude/skills/<name>` 软链（仅供本仓库内的 Agents 使用；不发布、不获取）
     - `tests/`、`tsconfig*.json`、CI 配置（`.github/`）
     - `docs/`
+    - `README.md` / `README.zh-CN.md` 的纯仓库文档同步，例如 plugin payload 说明、开发协作说明、表述澄清；若只同步 plugin payload 内容，按插件自己的 manifest version 判断
     - `plugins/<name>/*` payload-only 变化——由 Agent plugin marketplaces 直接获取。Claude Code 用 `claude plugins marketplace update` + `claude plugins update`；Codex 用 `codex plugin marketplace add/upgrade` 刷新 marketplace snapshot，再用 `codex plugin add` 安装/更新 plugin（cache 物化与 config 写入都由 Codex CLI 负责）。因此 plugin payload-only 变化可以不经过 CLI 版本提升就传播；若 plugin 的 contract/content 真的变化，再提升 plugin 自己的 manifest version。
     - **外部 skill refresh——`skills-lock.json` 的 `computedHash` 漂移，以及 `.agents/skills/<name>/*` body/hooks/scripts 的变化**，前提是没有结构性 lock 字段变化，也没有 `SKILL.md` frontmatter `description:` 变化。`src/skills.ts` 的安装路径会输出 `npx -y skills add <source> --skill <name>`，它在安装时从 upstream HEAD 解析——auriga-cli 不会把用户锁到 lock 里的 `computedHash`。外部 skill 的内容新鲜度属于上游 repo（边界模型和 `plugins/<name>/*` 一样）；如果 contract 变化，就应在上游给外部 skill 自己 bump version。
   - **为什么**：runtime 会把 auriga-cli 自有的安装输入 pin 到 `v<package.version>`，而且 `dist/catalog.json` 在 tarball 里是冻结的。没有 version bump + tag，workflow templates、marketplace install surface、extra plugin config 或 CLI behavior 的变化，对 `npx auriga-cli` 用户来说都是不可见的（PR #57 就是那个破坏案例）。plugin payload 更新和 external skill 的 body/script 更新是两个例外——它们都各自有上游新鲜度通道（plugin marketplaces / `npx skills add` 到 upstream HEAD），所以可以不经过 CLI bump 传播。

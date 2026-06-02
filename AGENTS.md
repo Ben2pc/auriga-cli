@@ -117,13 +117,14 @@
 - `skills-lock.json` 的结构性变化
 - `.agents/skills/<name>/SKILL.md` frontmatter 的 `description:`
 - `AGENTS.template.zh-CN.md` / `AGENTS.template.en.md`
-- `README.md` / `README.zh-CN.md`
+- `README.md` / `README.zh-CN.md` 中改变 CLI 安装、发布、运行时行为或用户可见 package 说明的内容
 
 以下情况不需要提升版本：
 
 - 根目录 `AGENTS.md` / `CLAUDE.md` 开发指令
 - `.claude/skills/<name>` 软链
 - `tests/`, `docs/`, `tsconfig*.json`, `.github/`
+- `README.md` / `README.zh-CN.md` 的纯仓库文档同步，例如 plugin payload 说明、开发协作说明、表述澄清；若只同步 plugin payload 内容，按插件自己的 manifest version 判断
 - `plugins/<name>/*` 下仅变更 plugin payload 的内容，且 freshness 由插件自己的 marketplace/version 路径负责时
 - 仅刷新外部 skill 的正文或 hash，且没有结构性锁文件字段变化或 frontmatter `description:` 变化时
 
