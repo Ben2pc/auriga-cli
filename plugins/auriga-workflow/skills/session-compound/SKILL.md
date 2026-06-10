@@ -170,7 +170,7 @@ class 含义：
 把那个 script tag 里的 `[]` 替换为候选条目数组。每条候选都属于以下三类之一——**只有这三类**：
 
 1. **`existing-skill`** — 步骤 4 预查命中的现成 ecosystem skill，一条 `npx skills add` 命令即可装上
-2. **`agent-md`** — 写入 AGENTS.md 体系（根 AGENTS.md / `docs/rules/<topic>.md` + 索引 / 子目录 AGENTS.md，三种 target 任选其一）
+2. **`agent-md`** — 写入 AGENTS.md 体系（根 AGENTS.md / `docs/rules/<topic>.md` + 索引 / 消费方绑定的 `docs/rules/{spec,arch,test,review}/` / 子目录 AGENTS.md，按下方 target 表选一）
 3. **`skill-gap`** — 多步骤可重复模式，ecosystem 没现成可复用，值得抽象成新 skill
 
 Schema：
@@ -204,13 +204,16 @@ Schema：
   选 target 前**先勘察当前工程已有的指令组织规范**——别套用通用默认：
   1. 读根 `AGENTS.md` / `CLAUDE.md`：它通常是**入口 + 索引**，靠多级文件做渐进式披露（根文件保持精简、详细规范拆到 `docs/` 专题文件 / 子目录指令文件）。**不要往根 AGENTS.md 堆内容**——顺着它已有的分层结构走。
   2. 看 `docs/rules/` 等是否已有覆盖该领域的专题文件；有就**在那份文件里扩写**，而不是新建一份平行的。
-  3. 看工程**现有 skill** 是否已经覆盖这个模式——若只是某个 skill 的指引不到位 / 缺一条规则，**首选在那个 skill 的 `SKILL.md` 里就地优化**（target 指向该 skill 文件），比新增 AGENTS.md 段落或新建 skill 都更轻、更聚合。
+  3. 判断经验是否**绑定某个工作流阶段**——`docs/rules/` 下有四个**消费方绑定**目录，由对应 skill 在固定阶段机械读取：`docs/rules/spec/`（`spec-design` 调研阶段收集）、`docs/rules/arch/`（`arch-design` 作为设计硬约束）、`docs/rules/test/`（`test-designer` 派发包 + `deep-review` 的 test-quality 审查者）、`docs/rules/review/`（`deep-review` 自动发现并分派的自定义审查者）。落进这些目录的经验会在**犯错的那个阶段**被自动注入对应 agent 的上下文，而根 AGENTS.md 只能指望被想起——能归类到阶段的经验优先归到对应目录。
+  4. 看工程**现有 skill** 是否已经覆盖这个模式——若只是某个 skill 的指引不到位 / 缺一条规则，**首选在那个 skill 的 `SKILL.md` 里就地优化**（target 指向该 skill 文件），比新增 AGENTS.md 段落或新建 skill 都更轻、更聚合。
 
   按下表选 target（优先复用 / 扩写既有文件，最后才考虑新建）：
 
   | 经验范围 | target | 何时选 |
   |---|---|---|
   | **某个现有 skill 的指引可改进** | 那个 skill 的 `SKILL.md`（就地优化） | 模式已被某 skill 覆盖，只是规则缺一条 / 触发不准——最聚合，优先选 |
+  | **绑定工作流阶段的经验**（spec 澄清遗漏 / 架构约束 / 测试约定） | `docs/rules/spec/`、`docs/rules/arch/`、`docs/rules/test/` 下的专题文件（扩写已有或新建；无需根 AGENTS.md 索引行——消费方按目录自动发现） | 经验对应 `spec-design` / `arch-design` / `test-designer` / test-quality 的固定消费点，在下次同阶段工作时自动生效 |
+  | **审查维度类经验**（评审本该拦住的问题模式） | 扩写现有 `docs/rules/review/<name>.md` 的 Checklist / worked scenarios；**全新维度则建议运行 `reviewer-creator`**，不要徒手新建 | `docs/rules/review/` 文件有 frontmatter 契约且被 `deep-review` 自动分派——格式不对会污染分派 |
   | 现有 `docs/rules/<topic>.md` 已覆盖该领域 | 在那份文件里扩写（不新建平行文件） | 已有专题文件，顺着它加 |
   | 跨整个仓库 / 跨语言 / 工作流级（短规则） | 根 `AGENTS.md`（`CLAUDE.md` 是软链则只写一处） | 短、所有未来会话都该看，且根文件没有更合适的下级归宿 |
   | 跨整个仓库但**内容较长**（>10 行 / 表格 / 代码） | 新建 `docs/rules/<topic>.md` + 根 `AGENTS.md` 加一行索引 | 写进根 AGENTS.md 会让它膨胀，破坏渐进式披露 |
@@ -222,7 +225,7 @@ Schema：
   **落点理由**: <一句话：为什么是这个文件——已有 X 覆盖该领域 / 顺着现有分层 / 根文件无更合适下级>
   **要写入的内容**:
   > <逐字给出要追加 / 修改的段落，下游 agent 复制粘贴即可>
-  **索引行**（仅当新建 `docs/rules/<topic>.md` 时填）:
+  **索引行**（仅当新建通用 `docs/rules/<topic>.md` 时填；消费方绑定目录 `docs/rules/{spec,arch,test,review}/` 下的文件不填——对应 skill 按目录自动发现）:
   > - [<title>](docs/rules/<topic>.md) — <一句 hook>
   ```
 
@@ -234,6 +237,10 @@ Schema：
 |---|---|
 | ecosystem 已经有匹配 skill | `existing-skill`（最廉价） |
 | **工程现有 skill 已覆盖、只是指引不到位** | `agent-md` → 就地优化那个 skill 的 `SKILL.md`（最聚合，优先） |
+| spec 阶段就该问清却漏问、导致返工的维度 | `agent-md` → `docs/rules/spec/` 专题文件（扩写或新建） |
+| 被违反 / 争论过的架构约束（分层、依赖方向、模块边界） | `agent-md` → `docs/rules/arch/` 专题文件（扩写或新建） |
+| 测试设计约定 / fixture 约定 / flaky 模式 | `agent-md` → `docs/rules/test/` 专题文件（扩写或新建） |
+| 评审本该拦住的问题模式 | `agent-md` → 扩写现有 `docs/rules/review/<name>.md`；全新维度 → 建议运行 `reviewer-creator` |
 | 现有 `docs/rules/<topic>.md` 已覆盖该领域 | `agent-md` → 在那份文件里扩写 |
 | 跨会话的工作流约束 / 流程规则（短文本） | `agent-md` → 根 AGENTS.md（无更合适下级时） |
 | 跨会话的长文约定（>10 行 / 表格 / 代码） | `agent-md` → 新建 `docs/rules/<topic>.md` + 根 AGENTS.md 索引 |

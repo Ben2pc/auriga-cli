@@ -118,6 +118,31 @@ describe("project rule discovery anchors to the repo root", () => {
     );
   });
 
+  test("session-compound routes categorized lessons to consumer-bound rule directories", () => {
+    const text = read(
+      "plugins/auriga-workflow/skills/session-compound/SKILL.md",
+    );
+    for (const dir of [
+      "docs/rules/spec/",
+      "docs/rules/arch/",
+      "docs/rules/test/",
+      "docs/rules/review/",
+    ]) {
+      assert.ok(
+        text.includes(dir),
+        `session-compound must offer ${dir} as a sedimentation target`,
+      );
+    }
+    assert.ok(
+      text.includes("reviewer-creator"),
+      "session-compound must route new review dimensions through reviewer-creator instead of free-form files",
+    );
+    assert.ok(
+      /消费方绑定/.test(text),
+      "session-compound must explain that consumer-bound directories are auto-discovered by downstream skills",
+    );
+  });
+
   test("arch-design consumes project architecture rules as design constraints", () => {
     const text = read("plugins/auriga-workflow/skills/arch-design/SKILL.md");
     assert.ok(
