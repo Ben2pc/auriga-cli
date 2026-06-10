@@ -166,16 +166,12 @@ describe("spec-design skill — repo-check VALs", () => {
         `${f} must document the project architecture rules directory`,
       );
       assert.ok(
-        /spec-design[^]*?docs\/rules\/spec\/|docs\/rules\/spec\/[^]*?spec-design/.test(
-          text,
-        ),
-        `${f} must connect docs/rules/spec/ with spec-design`,
+        /docs\/rules\/spec\/[^\n]*spec-design/.test(text),
+        `${f} must name spec-design as the consumer on the docs/rules/spec/ table row`,
       );
       assert.ok(
-        /arch-design[^]*?docs\/rules\/arch\/|docs\/rules\/arch\/[^]*?arch-design/.test(
-          text,
-        ),
-        `${f} must connect docs/rules/arch/ with arch-design`,
+        /docs\/rules\/arch\/[^\n]*arch-design/.test(text),
+        `${f} must name arch-design as the consumer on the docs/rules/arch/ table row`,
       );
     }
   });
@@ -292,6 +288,8 @@ describe("spec-design skill — repo-check VALs", () => {
     assert.match(text, /Interactive CLI/);
     assert.match(text, /需求澄清：新需求先用 `spec-design`/);
     assert.match(text, /docs\/rules\/test\//);
+    assert.match(text, /docs\/rules\/spec\//);
+    assert.match(text, /docs\/rules\/arch\//);
     assert.match(text, /# auriga-cli 工程专属规则/);
     assert.ok(
       text.indexOf("# auriga-cli 工程专属规则") > text.indexOf("AURIGA:WORKFLOW:v1 END"),

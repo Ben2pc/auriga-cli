@@ -69,10 +69,10 @@ description: "当用户要求创建自定义审查者、添加项目专属审查
 
 ### 2. Generate the file
 
-输出目录以仓库根为锚（cwd 可能不在仓库根，例如从 monorepo 子目录启动）：
+输出目录以仓库根为锚（cwd 可能不在仓库根，例如从 monorepo 子目录启动）；非 git 仓库时回退为当前工作目录——不带回退的命令替换在非 git 目录下会展开为空串，把目录建到文件系统根上：
 
 ```bash
-mkdir -p "$(git rev-parse --show-toplevel)/docs/rules/review/"
+mkdir -p "$(git rev-parse --show-toplevel 2>/dev/null || pwd)/docs/rules/review/"
 ```
 
 monorepo 中如果该审查者只约束某个子包，可改为写入该子包内的 `docs/rules/review/`——`deep-review` 会两层都收集，子包级视为对仓库级的补充/收窄。

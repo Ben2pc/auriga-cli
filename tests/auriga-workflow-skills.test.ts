@@ -55,31 +55,36 @@ describe("auriga-workflow skill contracts", () => {
 });
 
 describe("project rule discovery anchors to the repo root", () => {
-  const ruleConsumers: Array<{ rel: string; area: string }> = [
+  const ruleConsumers: Array<{ rel: string; area: string; label: string }> = [
     {
       rel: "plugins/auriga-workflow/skills/deep-review/SKILL.md",
       area: "docs/rules/review/",
+      label: "deep-review",
     },
     {
       rel: "plugins/auriga-workflow/skills/test-designer/SKILL.md",
       area: "docs/rules/test/",
+      label: "test-designer",
     },
     {
       rel: "plugins/auriga-workflow/skills/deep-review/references/reviewers/test-quality.md",
       area: "docs/rules/test/",
+      label: "test-quality reviewer",
     },
     {
       rel: "plugins/auriga-workflow/skills/spec-design/SKILL.md",
       area: "docs/rules/spec/",
+      label: "spec-design",
     },
     {
       rel: "plugins/auriga-workflow/skills/arch-design/SKILL.md",
       area: "docs/rules/arch/",
+      label: "arch-design",
     },
   ];
 
-  for (const { rel, area } of ruleConsumers) {
-    test(`${path.basename(path.dirname(rel)) === "reviewers" ? "test-quality reviewer" : path.basename(path.dirname(rel))} resolves ${area} from the git repo root`, () => {
+  for (const { rel, area, label } of ruleConsumers) {
+    test(`${label} resolves ${area} from the git repo root`, () => {
       const text = read(rel);
       assert.ok(
         text.includes(area),
@@ -90,8 +95,12 @@ describe("project rule discovery anchors to the repo root", () => {
         `${rel} must anchor rule discovery to the repo root via git rev-parse --show-toplevel`,
       );
       assert.ok(
-        /子包级/.test(text) && /(为准|优先)/.test(text),
-        `${rel} must collect both repo-root and nearer subpackage rules, subpackage taking precedence`,
+        /子包级.{0,4}(为准|优先)/.test(text),
+        `${rel} must state subpackage-level precedence as one phrase (子包级…为准/优先)`,
+      );
+      assert.ok(
+        /非 git 仓库[^\n]{0,12}回退/.test(text),
+        `${rel} must define the non-git-repo fallback to cwd`,
       );
     });
   }
@@ -103,6 +112,14 @@ describe("project rule discovery anchors to the repo root", () => {
     assert.ok(
       text.includes("git rev-parse --show-toplevel"),
       "reviewer-creator must resolve the output directory from the git repo root",
+    );
+    assert.ok(
+      text.includes("|| pwd"),
+      "the mkdir command must fall back to cwd when git rev-parse fails (non-git dir would otherwise expand to /docs/rules/review/)",
+    );
+    assert.ok(
+      text.includes("<仓库根>/docs/rules/review/<name>.md"),
+      "the write target must be anchored to the repo root",
     );
   });
 

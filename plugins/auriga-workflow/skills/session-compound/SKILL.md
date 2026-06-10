@@ -76,11 +76,11 @@ node <skill-dir>/analyzers/codex.mjs > /tmp/session-compound.json
 - `health.skill_catalog` — 本机可用的全部已安装 skill 目录（`{name, description, editable}`，按 name 去重折叠插件缓存多版本；`editable` 表示该 skill 源在当前仓库内、可就地优化）。**指令遵循 & skill 召回评估的输入**
 - `health.workflow_rules` — 从仓库 AGENTS.md / CLAUDE.md 受管区块解析出的工作流规则（`{n, text}`）；无受管区块为空数组
 - `health.workflow_signals` — **中性事实包，不含任何判决**（`{git_branch, on_main, had_code_edit, first_edit_ts, prs_count, skills_invoked_count}`）。机械层只提取事实；指令遵循 / 召回 / skill 执行的判断**全部交评估 subagent**
-- `raw_for_compound` — 用来写候选条目的原材料（含 `agent_invocations`、`tool_failures`）
-- `raw_for_compound.skill_timeline` — Skill 调用时间线（`{ts, name}` 按调用顺序）。把 `feedback_moments` 的时间戳落到这条时间线上，就能机械判断"用户纠正发生时哪个工作流阶段在跑"——这是经验归类到 `docs/rules/{spec,arch,test}/` 的依据，长会话被 compact 后也不丢
-- `raw_for_compound.review_syntheses` — deep-review 主 Agent 的最终 punch list 全文（`{ts, text}`，按输出契约标题 `## Deep Review:` 机械匹配，截断上限 6000 字符）。review 类经验（评审本该拦住的问题模式）的首要原料
+- `raw_for_compound` — 用来写候选条目的原材料（含 `agent_invocations`、`tool_failures`、`skill_timeline`、`review_syntheses`）
+- `raw_for_compound.skill_timeline` — Skill 调用时间线（`{ts, name}` 按调用顺序；子代理 sidechain 与无时间戳的调用不入列）。把 `feedback_moments` 的时间戳落到这条时间线上，就能机械判断"用户纠正发生时哪个工作流阶段在跑"——这是经验归类到 `docs/rules/{spec,arch,test}/` 的依据，长会话被 compact 后也不丢
+- `raw_for_compound.review_syntheses` — deep-review 的 punch list 全文（`{ts, text}`，按输出契约标题 `## Deep Review:` 在代码围栏外匹配主对话助手消息——子代理与 Codex commentary 阶段消息已过滤；同一会话多次 review 会产生多条；截断为 6000 字符并追加省略号）。review 类经验（评审本该拦住的问题模式）的首要原料
 
-两套 analyzer 输出的**核心字段**（`session.{id,cwd,duration_ms,model,git,recorded_turn_ms}` / `narrative.{task_title,human_turns,feedback_moments,away_summaries}` / `health.{tokens,cache_hit_rate,tools,subagents,skills,skill_attribution,prs,tool_failures,expensive_turns,waste_signals,skill_catalog,workflow_rules,workflow_signals}` / `raw_for_compound.{feedback_moments,repeated_reads,agent_invocations,tool_failures,skill_timeline,review_syntheses}`）一致，模板按这些字段渲染。除此之外两侧各有 CLI-specific 扩展字段，Codex 多 `health.{compaction_count, turn_aborted_count, patch_apply, mcp_tool_call_count, custom_tool_call_count, web_search_count, tool_search_count, image_generation_count, context_window, reasoning_output_ratio}` 与 `narrative.{task_conclusion, task_completed, task_duration_ms, time_to_first_token_ms}`；Claude 多 `health.{api_calls, cache_breaks}`。注意 `skill_attribution` / `prs` / `away_summaries` 目前仅 Claude 端有数据（Codex 日志无等价信号），缺失侧为空集合。`skill_catalog` / `workflow_rules` / `workflow_signals` 两端都有，各从本 CLI 的 skill 根目录与会话 cwd 的 AGENTS.md 构建（`workflow_signals` 是中性事实，不下判决）。模板已按 CLI 分支处理这些差异。
+两套 analyzer 输出的**核心字段**（`session.{id,cwd,duration_ms,model,git,recorded_turn_ms}` / `narrative.{task_title,human_turns,feedback_moments,away_summaries}` / `health.{tokens,cache_hit_rate,tools,subagents,skills,skill_attribution,prs,tool_failures,expensive_turns,waste_signals,skill_catalog,workflow_rules,workflow_signals}` / `raw_for_compound.{feedback_moments,repeated_reads,agent_invocations,tool_failures,skill_timeline,review_syntheses}`）一致；其中展示字段由模板渲染，`skill_timeline` / `review_syntheses` 是步骤 4.5 / 5d 的 agent 侧原料，不进模板渲染。除此之外两侧各有 CLI-specific 扩展字段，Codex 多 `health.{compaction_count, turn_aborted_count, patch_apply, mcp_tool_call_count, custom_tool_call_count, web_search_count, tool_search_count, image_generation_count, context_window, reasoning_output_ratio}` 与 `narrative.{task_conclusion, task_completed, task_duration_ms, time_to_first_token_ms}`；Claude 多 `health.{api_calls, cache_breaks}`。注意 `skill_attribution` / `prs` / `away_summaries` 目前仅 Claude 端有数据（Codex 日志无等价信号），缺失侧为空集合。`skill_catalog` / `workflow_rules` / `workflow_signals` 两端都有，各从本 CLI 的 skill 根目录与会话 cwd 的 AGENTS.md 构建（`workflow_signals` 是中性事实，不下判决）。模板已按 CLI 分支处理这些差异。
 
 ### 步骤 3：复制模板到输出文件
 
@@ -215,7 +215,7 @@ Schema：
   |---|---|---|
   | **某个现有 skill 的指引可改进** | 那个 skill 的 `SKILL.md`（就地优化） | 模式已被某 skill 覆盖，只是规则缺一条 / 触发不准——最聚合，优先选 |
   | **绑定工作流阶段的经验**（spec 澄清遗漏 / 架构约束 / 测试约定） | `docs/rules/spec/`、`docs/rules/arch/`、`docs/rules/test/` 下的专题文件（扩写已有或新建；无需根 AGENTS.md 索引行——消费方按目录自动发现） | 经验对应 `spec-design` / `arch-design` / `test-designer` / test-quality 的固定消费点，在下次同阶段工作时自动生效 |
-  | **审查维度类经验**（评审本该拦住的问题模式） | 扩写现有 `docs/rules/review/<name>.md` 的 Checklist / worked scenarios；**全新维度则建议运行 `reviewer-creator`**，不要徒手新建 | `docs/rules/review/` 文件有 frontmatter 契约且被 `deep-review` 自动分派——格式不对会污染分派 |
+  | **审查维度类经验**（评审本该拦住的问题模式） | 扩写现有 `docs/rules/review/<name>.md` 的 Checklist / worked scenarios；**全新维度则建议运行 `reviewer-creator`**，不要徒手新建 | `docs/rules/review/` 文件承载 frontmatter 编排契约且被 `deep-review` 自动发现分派——徒手文件缺编排元数据时只能走降级路径靠语义猜测 |
   | 现有 `docs/rules/<topic>.md` 已覆盖该领域 | 在那份文件里扩写（不新建平行文件） | 已有专题文件，顺着它加 |
   | 跨整个仓库 / 跨语言 / 工作流级（短规则） | 根 `AGENTS.md`（`CLAUDE.md` 是软链则只写一处） | 短、所有未来会话都该看，且根文件没有更合适的下级归宿 |
   | 跨整个仓库但**内容较长**（>10 行 / 表格 / 代码） | 新建 `docs/rules/<topic>.md` + 根 `AGENTS.md` 加一行索引 | 写进根 AGENTS.md 会让它膨胀，破坏渐进式披露 |

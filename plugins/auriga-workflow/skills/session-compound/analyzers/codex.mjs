@@ -179,16 +179,32 @@ function newStats() {
     agentInvocations: [], // {ts, subagent_type, message_preview, fork_context}
     skillInvocations: {}, // skill name -> count (parsed from <skill><name> blocks)
     skillTimeline: [], // {ts, name} — mirrors claude-code.mjs, for stage classification
-    reviewSyntheses: [], // {ts, text} — agent messages carrying a deep-review punch list
+    reviewSyntheses: [], // {ts, text} — mirrors claude-code.mjs, deep-review punch lists
   }
 }
 
-// Kept identical to claude-code.mjs: the deep-review synthesis heading is the
-// mechanical signature; body capped, not previewed.
+// Kept identical to claude-code.mjs. The regex matches the deep-review
+// skill's synthesis output contract heading — the cheapest mechanical
+// signature for "the main agent's review summary". Body kept near-verbatim
+// (capped, not previewed): the punch list's value is the finding list itself.
 const REVIEW_SYNTHESIS_RE = /^##\s*Deep Review:/m
 const REVIEW_SYNTHESIS_CAP = 6000
 function capText(text, max = REVIEW_SYNTHESIS_CAP) {
   return text.length > max ? text.slice(0, max) + '…' : text
+}
+// Mirrors claude-code.mjs: a heading quoted inside a code fence (e.g. a
+// session editing deep-review's SKILL.md) must not count as a synthesis.
+function stripFencedBlocks(text) {
+  let inFence = false
+  const kept = []
+  for (const line of text.split('\n')) {
+    if (/^\s*(```|~~~)/.test(line)) {
+      inFence = !inFence
+      continue
+    }
+    if (!inFence) kept.push(line)
+  }
+  return kept.join('\n')
 }
 
 // Kept identical to claude-code.mjs (see comment there for calibration notes).
@@ -363,7 +379,14 @@ function handleEventMsg(p, ts, stats, setTurn) {
         // Fallback for runs that never label a final phase.
         stats.lastAgentFinalMessage = p.message
       }
-      if (typeof p.message === 'string' && REVIEW_SYNTHESIS_RE.test(p.message)) {
+      // Commentary-phase fragments are streamed progress notes; the same
+      // punch list arrives again in the final phase, so capturing commentary
+      // would double-count (mirrors the lastAgentFinalMessage phase rule).
+      if (
+        p.phase !== 'commentary' &&
+        typeof p.message === 'string' &&
+        REVIEW_SYNTHESIS_RE.test(stripFencedBlocks(p.message))
+      ) {
         stats.reviewSyntheses.push({ ts, text: capText(p.message) })
       }
       break
@@ -453,7 +476,9 @@ function handleResponseItem(p, ts, stats, currentTurn) {
         const name = m ? m[1].trim() : null
         if (name) {
           stats.skillInvocations[name] = (stats.skillInvocations[name] || 0) + 1
-          stats.skillTimeline.push({ ts, name })
+          // Mirrors claude-code.mjs: a null-ts entry can't anchor the
+          // feedback-alignment timeline; the count above still records it.
+          if (ts != null) stats.skillTimeline.push({ ts, name })
         }
       }
       break
@@ -756,9 +781,10 @@ function emit(stats, filePath) {
     const file = resolveFile()
     const stats = await scan(file)
     const out = emit(stats, file)
-    process.stdout.write(
-      PRETTY ? JSON.stringify(out, null, 2) : JSON.stringify(out),
-    )
+    const json = PRETTY ? JSON.stringify(out, null, 2) : JSON.stringify(out)
+    // Mirrors claude-code.mjs: escape "</" so the JSON can be pasted into
+    // <script id="report-data"> without a literal "</script>" closing it.
+    process.stdout.write(json.replace(/<\//g, '<\\/'))
     process.stdout.write('\n')
   } catch (err) {
     process.stderr.write(`[codex analyzer] ${err.message}\n`)

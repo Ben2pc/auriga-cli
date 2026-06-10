@@ -215,6 +215,13 @@ function codexAgentFinal(message, ts) {
     payload: { type: "agent_message", phase: "final", message },
   };
 }
+function codexAgentCommentary(message, ts) {
+  return {
+    type: "event_msg",
+    timestamp: ts,
+    payload: { type: "agent_message", phase: "commentary", message },
+  };
+}
 
 // ---------- shared helpers ----------
 const T0 = "2026-05-28T10:00:00.000Z";
@@ -1243,6 +1250,122 @@ test("codex analyzer captures deep-review synthesis from agent_message [VAL-RS-0
   const rs = out.raw_for_compound?.review_syntheses;
   assert(Array.isArray(rs) && rs.length === 1, "codex must capture the punch-list agent_message");
   assert(rs[0].text.includes("Blocking issues"), "synthesis text must be kept");
+});
+
+test("codex analyzer ignores commentary-phase agent_message for review_syntheses [VAL-RS-004]", () => {
+  const file = writeFixture("rs-codex-phase", [
+    codexMeta(),
+    codexTurnContext(),
+    codexUserMsgEvent("review the PR", T0),
+    codexAgentCommentary(DEEP_REVIEW_TEXT, T1),
+    codexAgentFinal(DEEP_REVIEW_TEXT, T2),
+  ]);
+  const out = runAnalyzer(CODEX, file);
+  const rs = out.raw_for_compound?.review_syntheses;
+  assert(Array.isArray(rs) && rs.length === 1,
+    `commentary copy must be filtered, final kept once — got ${rs?.length}`);
+});
+
+test("claude analyzer excludes sidechain entries from skill_timeline and review_syntheses [VAL-RS-005]", () => {
+  const side = claudeAssistant({
+    ts: T1,
+    reqId: "r-side",
+    content: [
+      { type: "tool_use", id: "ts1", name: "Skill", input: { skill: "side-skill" } },
+      { type: "text", text: DEEP_REVIEW_TEXT },
+    ],
+  });
+  side.isSidechain = true;
+  const file = writeFixture("rs-claude-side", [
+    claudeUser("review", T0),
+    side,
+    claudeAssistant({
+      ts: T2,
+      reqId: "r-main",
+      content: [{ type: "tool_use", id: "tm1", name: "Skill", input: { skill: "main-skill" } }],
+    }),
+  ]);
+  const out = runAnalyzer(CLAUDE, file);
+  const tl = out.raw_for_compound?.skill_timeline ?? [];
+  assert(tl.length === 1 && tl[0].name === "main-skill",
+    `sidechain Skill calls must not enter skill_timeline — got ${JSON.stringify(tl)}`);
+  assert((out.raw_for_compound?.review_syntheses ?? []).length === 0,
+    "sidechain text must not enter review_syntheses");
+});
+
+test("both analyzers ignore the punch-list heading quoted inside a code fence [VAL-RS-006]", () => {
+  const quoted = "看这个输出契约：\n```\n" + DEEP_REVIEW_TEXT + "\n```\n以上是格式说明。";
+  const claudeFile = writeFixture("rs-claude-fence", [
+    claudeUser("explain the contract", T0),
+    claudeAssistant({ ts: T1, reqId: "r1", content: [{ type: "text", text: quoted }] }),
+  ]);
+  assert((runAnalyzer(CLAUDE, claudeFile).raw_for_compound?.review_syntheses ?? []).length === 0,
+    "claude: fenced quote must not be captured");
+  const codexFile = writeFixture("rs-codex-fence", [
+    codexMeta(),
+    codexTurnContext(),
+    codexUserMsgEvent("explain the contract", T0),
+    codexAgentFinal(quoted, T1),
+  ]);
+  assert((runAnalyzer(CODEX, codexFile).raw_for_compound?.review_syntheses ?? []).length === 0,
+    "codex: fenced quote must not be captured");
+});
+
+test("claude analyzer drops timestamp-less Skill calls from skill_timeline but still counts them [VAL-TL-003]", () => {
+  const noTs = claudeAssistant({
+    ts: undefined,
+    reqId: "r1",
+    content: [{ type: "tool_use", id: "t1", name: "Skill", input: { skill: "spec-design" } }],
+  });
+  delete noTs.timestamp;
+  const file = writeFixture("tl-claude-nots", [claudeUser("go", T0), noTs]);
+  const out = runAnalyzer(CLAUDE, file);
+  assert((out.raw_for_compound?.skill_timeline ?? []).length === 0,
+    "an entry without a usable timestamp must not enter the alignment timeline");
+  const skills = out.health?.skills ?? [];
+  assert(skills.some((s) => s.name === "spec-design" && s.count === 1),
+    "the invocation count must still be recorded");
+});
+
+test("analyzer stdout never contains a literal </script (script-element-safe JSON) [VAL-ESC-001]", () => {
+  const payload = DEEP_REVIEW_TEXT + "\n- 复现：`</script><img src=x>` 这样的输入";
+  const file = writeFixture("esc-claude", [
+    claudeUser("review", T0),
+    claudeAssistant({ ts: T1, reqId: "r1", content: [{ type: "text", text: payload }] }),
+  ]);
+  const r = spawnSync("node", [CLAUDE, "--file", file], { encoding: "utf8" });
+  assert(r.status === 0, `analyzer exited ${r.status}: ${r.stderr}`);
+  assert(!r.stdout.includes("</script"),
+    "raw stdout must escape </ so step 5a can paste it into <script id=report-data>");
+  const roundtrip = JSON.parse(r.stdout);
+  const rs = roundtrip.raw_for_compound?.review_syntheses ?? [];
+  assert(rs.length === 1 && rs[0].text.includes("</script><img"),
+    "JSON.parse must still recover the original text verbatim");
+});
+
+test("review synthesis text is capped at 6000 chars plus an ellipsis [VAL-RS-007]", () => {
+  const long = DEEP_REVIEW_TEXT + "\n" + "x".repeat(7000);
+  const file = writeFixture("rs-claude-cap", [
+    claudeUser("review", T0),
+    claudeAssistant({ ts: T1, reqId: "r1", content: [{ type: "text", text: long }] }),
+  ]);
+  const rs = runAnalyzer(CLAUDE, file).raw_for_compound?.review_syntheses ?? [];
+  assert(rs.length === 1, "capped synthesis must still be captured");
+  assert(rs[0].text.length === 6001 && rs[0].text.endsWith("…"),
+    `cap contract is 6000 chars + ellipsis, got length ${rs[0].text.length}`);
+});
+
+test("codex analyzer emits empty skill_timeline / review_syntheses defaults [VAL-TL-002]", () => {
+  const file = writeFixture("tl-codex-empty", [
+    codexMeta(),
+    codexTurnContext(),
+    codexUserMsgEvent("hi", T0),
+  ]);
+  const out = runAnalyzer(CODEX, file);
+  assert(Array.isArray(out.raw_for_compound?.skill_timeline) && out.raw_for_compound.skill_timeline.length === 0,
+    "codex skill_timeline must default to an empty array");
+  assert(Array.isArray(out.raw_for_compound?.review_syntheses) && out.raw_for_compound.review_syntheses.length === 0,
+    "codex review_syntheses must default to an empty array");
 });
 
 test("SKILL.md documents skill_timeline / review_syntheses and CI review consumption [VAL-RS-003]", () => {
