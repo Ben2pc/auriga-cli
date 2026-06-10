@@ -1427,6 +1427,18 @@ test("eval output contract separates polarity from severity with evidence-based 
   assert(/证据强度/.test(template), "template must carry the confidence legend");
 });
 
+test("candidate generation carries explicit veto gates against one-off rules [VAL-CAND-003]", () => {
+  const txt = fs.readFileSync(SKILL_MD, "utf8");
+  assert(/否决闸门/.test(txt),
+    "5d must define veto gates applied before writing each agent-md candidate");
+  assert(/租金|持续成本/.test(txt),
+    "gates must frame rule cost as perpetual context rent, not one-time write cost");
+  assert(/已有机制|机制.{0,6}兜底/.test(txt),
+    "a problem already caught by an existing mechanism must not become a rule");
+  assert(/一次性/.test(txt) && /零租金|不进 agent 上下文/.test(txt),
+    "one-off frictions are vetoed; mechanism-shaped candidates (tests/CI/hooks) are preferred");
+});
+
 // ---------- report + cleanup ----------
 for (const dir of cleanupFiles) {
   try {
