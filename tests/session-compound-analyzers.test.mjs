@@ -1437,6 +1437,10 @@ test("candidate generation carries explicit veto gates against one-off rules [VA
     "a problem already caught by an existing mechanism must not become a rule");
   assert(/一次性/.test(txt) && /零租金|不进 agent 上下文/.test(txt),
     "one-off frictions are vetoed; mechanism-shaped candidates (tests/CI/hooks) are preferred");
+  assert(/lint/.test(txt) && /越早|最早/.test(txt),
+    "mechanism candidates must prefer the earliest feasible interception point (lint/type/static check before tests before CI)");
+  assert(/技术栈/.test(txt),
+    "the mechanism shape must be chosen per the project's tech stack");
 });
 
 // ---------- report + cleanup ----------
