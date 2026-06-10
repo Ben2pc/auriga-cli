@@ -194,6 +194,10 @@ function isHumanUserEntry(e) {
     if (c.startsWith('[Request interrupted')) return false
     if (c.startsWith('<command-')) return false
     if (c.startsWith('<local-command-stdout>')) return false
+    // Background-agent completion notices arrive as user entries; treating
+    // them as human turns pollutes feedback_moments (reviewer findings are
+    // full of correction words) and per-turn token attribution.
+    if (c.trimStart().startsWith('<task-notification>')) return false
     return true
   }
   if (Array.isArray(c) && c[0]?.type === 'text') {
@@ -201,6 +205,7 @@ function isHumanUserEntry(e) {
     if (!t) return false
     if (t.startsWith('[Request interrupted')) return false
     if (t.startsWith('<command-')) return false
+    if (t.startsWith('<task-notification>')) return false
     return true
   }
   return false

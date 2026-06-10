@@ -285,6 +285,9 @@
   .badge.sev-med  { background: rgba(212, 160, 23, 0.18); color: #6b4e08; }
   .badge.sev-low  { background: var(--surface-cream-strong); color: var(--body); }
   .badge.kind { background: var(--surface-card); color: var(--body); font-weight: 500; }
+  .badge.pol-positive { background: rgba(58, 138, 78, 0.14); color: #1f6a38; }
+  .badge.pol-gap { background: rgba(212, 160, 23, 0.18); color: #6b4e08; }
+  .eval-legend { font-size: 12px; color: var(--muted); margin: 4px 0 10px; line-height: 1.6; }
   .conf { font-size: 12.5px; color: var(--muted); white-space: nowrap; }
 
   /* Tables */
@@ -943,16 +946,42 @@
     const SEV = { high: '高', med: '中', low: '低' };
     const CONF = { high: '高', med: '中', low: '低' };
     const KIND = { recall: '召回', compliance: '指令遵循', 'skill-eval': 'skill 执行' };
+    const POL = { positive: '✓ 正向', gap: '⚠ 缺口' };
     const sevClass = (s) => 'sev-' + (['high', 'med', 'low'].includes(s) ? s : 'low');
-    const rows = evalFindings.map(f => `<tr>
-        <td><span class="badge ${sevClass(f.severity)}">${escapeHtml(SEV[f.severity] || f.severity || '—')}</span></td>
+    // polarity 缺失的旧格式 finding：带 severity 视为缺口语义，按原样显示。
+    const polOf = (f) => f.polarity === 'positive' || f.polarity === 'gap' ? f.polarity : null;
+    const sevRank = { high: 0, med: 1, low: 2 };
+    const sorted = [...evalFindings].sort((a, b) => {
+      const ag = polOf(a) === 'positive' ? 1 : 0;
+      const bg = polOf(b) === 'positive' ? 1 : 0;
+      if (ag !== bg) return ag - bg; // 缺口在前
+      return (sevRank[a.severity] ?? 3) - (sevRank[b.severity] ?? 3);
+    });
+    const rows = sorted.map(f => {
+      const pol = polOf(f);
+      const polCell = pol
+        ? `<span class="badge pol-${pol}">${POL[pol]}</span>`
+        : '<span class="conf">—</span>';
+      // 正向不显示 severity（没有问题就没有严重度）
+      const sevCell = pol === 'positive'
+        ? '<span class="conf">—</span>'
+        : `<span class="badge ${sevClass(f.severity)}">${escapeHtml(SEV[f.severity] || f.severity || '—')}</span>`;
+      return `<tr>
+        <td>${polCell}</td>
+        <td>${sevCell}</td>
         <td><span class="conf">${escapeHtml(CONF[f.confidence] || f.confidence || '—')}</span></td>
         <td><span class="badge kind">${escapeHtml(KIND[f.kind] || f.kind || '—')}</span></td>
         <td class="f-text">${escapeHtml(f.text || '')}</td>
         <td class="f-skill">${f.skill ? escapeHtml(f.skill) : '—'}</td>
-      </tr>`).join('');
-    $('#skill-eval-list').innerHTML = `<table class="findings">
-      <thead><tr><th>严重度</th><th>置信度</th><th>类型</th><th>发现</th><th>相关 skill</th></tr></thead>
+      </tr>`;
+    }).join('');
+    $('#skill-eval-list').innerHTML = `<div class="eval-legend">
+        <b>性质</b>：✓ 正向 = 被正确遵循 / 执行兑现；⚠ 缺口 = 本该发生而未发生，或执行欠佳。
+        <b>严重度</b>（仅缺口）：缺口的影响程度——高 = 工作流保证被实质削弱 / 中 = 局部削弱 / 低 = 形式偏差、实质无损。
+        <b>置信度</b> = 证据强度：高 = transcript 直接佐证（时间戳 / 原文）/ 中 = 间接推断 / 低 = 可辩护的解读。
+      </div>
+      <table class="findings">
+      <thead><tr><th>性质</th><th>严重度</th><th>置信度</th><th>类型</th><th>发现</th><th>相关 skill</th></tr></thead>
       <tbody>${rows}</tbody>
     </table>`;
   }

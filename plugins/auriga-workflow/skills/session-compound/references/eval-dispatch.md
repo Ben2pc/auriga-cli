@@ -37,6 +37,7 @@ session-compound 的「评估」tab 由一个**独立 subagent** 产出 `eval-fi
 ```json
 [
   { "kind": "recall|compliance|skill-eval",
+    "polarity": "positive|gap",
     "severity": "high|med|low",
     "confidence": "high|med|low",
     "text": "一句话事实性描述",
@@ -44,9 +45,11 @@ session-compound 的「评估」tab 由一个**独立 subagent** 产出 `eval-fi
 ]
 ```
 
-- `kind`:`recall`（召回缺口）/ `compliance`（指令遵循）/ `skill-eval`（逐 skill 执行）。
-- 每条都带 `severity` + `confidence`。
-- **不按重要性预过滤**——全部 in-scope finding 都报告（含 low severity / low confidence），过滤交给人（与 deep-review 同纪律）。
+- `kind`:`recall`（召回）/ `compliance`（指令遵循）/ `skill-eval`（逐 skill 执行）——维度。
+- `polarity`:`positive`（被正确遵循 / 执行兑现）或 `gap`（缺口 / 欠佳）——结论方向。
+- `severity` **仅 `gap` 必填**:缺口的影响程度（high = 工作流保证被实质削弱 / med = 局部削弱 / low = 形式偏差，实质无损）。`positive` finding **省略 severity**——没有问题就没有严重度,强行标注只会误读成"这条正向不重要"。
+- `confidence` 是**证据强度**,不是主观把握:high = transcript 可直接佐证（时间戳 / 原文引用）；med = 间接推断（多个信号合并得出）；low = 可辩护的解读（合理但存在另一种读法）。
+- **不按重要性预过滤**——全部 in-scope finding 都报告（含 low severity / low confidence），过滤交给人（与 deep-review 同纪律）。正向项同样报告（`polarity: positive`），给读者全貌。
 
 ## skill-body 优化候选（finding → 步骤 5d candidates）
 

@@ -113,7 +113,7 @@ npx skills find "<query>" 2>&1 | head -30
 
 - **必须用独立、零上下文继承（fresh context）的 subagent**：被评估的会话正是主 Agent 自己跑的，自评有系统性偏差（纪律同 `deep-review` / `test-designer`：新会话、不 resume、不把当前对话历史复制进子代理）。
 - **范围**：召回 / 指令遵循覆盖 `skill_catalog` 里**全部已安装 skill** 与全部 `workflow_rules`；逐 skill 执行 eval **仅覆盖本会话真正调用过 / 跑过的 skill**（`health.skills` 里的）。机械层只给 `workflow_signals` 中性事实（分支 / 是否在 main / 有无编辑 / PR / skill 调用数），**所有判断由 subagent 做**——包括"在 main 上编辑了"这类原来机械层下的判决。
-- **输出**：finding 数组 `{kind, severity, confidence, text, skill?}`，每条带 `severity` + `confidence`，**不按重要性预过滤**（全部 in-scope finding 都报告，过滤交给人）。
+- **输出**：finding 数组 `{kind, polarity, severity?, confidence, text, skill?}`——`polarity` 区分正向（positive）与缺口（gap），`severity` 仅缺口必填（正向省略），`confidence` 是证据强度（详见 `references/eval-dispatch.md` 的输出契约）。**不按重要性预过滤**（全部 in-scope finding 都报告，过滤交给人）。
 
 ### 步骤 5：注入数据 + 撰写 Agent 填空段（**用 Edit，不用 Write**——必须保留模板的 JS/CSS）
 

@@ -1376,6 +1376,45 @@ test("SKILL.md documents skill_timeline / review_syntheses and CI review consump
     "SKILL.md must instruct pulling PR review comments (incl. CI reviews) via gh");
 });
 
+// ---------- task-notification filtering + eval polarity contract ----------
+
+test("claude analyzer excludes task-notification entries from human turns and feedback [VAL-NTF-001]", () => {
+  const notification =
+    "<task-notification>\n<task-id>abc</task-id>\n<status>completed</status>\n" +
+    "<result>finding: 不要按严重度预过滤；this is wrong and should stop</result>\n</task-notification>";
+  const file = writeFixture("ntf-claude", [
+    claudeUser("开始干活", T0),
+    claudeUser(notification, T1),
+  ]);
+  const out = runAnalyzer(CLAUDE, file);
+  assert(out.narrative.human_turn_count === 1,
+    `task-notification must not count as a human turn — got ${out.narrative.human_turn_count}`);
+  assert((out.narrative.feedback_moments ?? []).length === 0,
+    "correction words inside a task-notification must not register as feedback moments");
+});
+
+test("eval output contract separates polarity from severity with evidence-based confidence [VAL-EVAL-004]", () => {
+  const dispatch = fs.readFileSync(
+    path.join(PLUGIN_ROOT, "skills/session-compound/references/eval-dispatch.md"),
+    "utf8",
+  );
+  assert(dispatch.includes("polarity"), "eval-dispatch.md must define a polarity field");
+  assert(/positive/.test(dispatch) && /gap/.test(dispatch),
+    "polarity values must be positive|gap");
+  assert(/证据强度/.test(dispatch),
+    "confidence must be defined as evidence strength with level definitions");
+  assert(/(positive|正向)[^\n]*(省略|不带|不填)[^\n]*severity|severity[^\n]*(仅|只)[^\n]*gap/.test(dispatch),
+    "severity must be scoped to gap findings only");
+  const skillMd = fs.readFileSync(SKILL_MD, "utf8");
+  assert(skillMd.includes("polarity"), "SKILL.md hard-constraint schema must include polarity");
+  const template = fs.readFileSync(
+    path.join(PLUGIN_ROOT, "skills/session-compound/template.html"),
+    "utf8",
+  );
+  assert(template.includes("polarity"), "template must render polarity-aware findings");
+  assert(/证据强度/.test(template), "template must carry the confidence legend");
+});
+
 // ---------- report + cleanup ----------
 for (const dir of cleanupFiles) {
   try {
