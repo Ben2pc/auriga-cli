@@ -19,6 +19,7 @@ travel together so they share one distribution model and one install step.
 | `deep-review` | Multi-dimensional PR review orchestrator — dispatches parallel fresh-context reviewers per dimension and synthesizes findings into a Blocking / Non-blocking / Architectural punch list. |
 | `reviewer-creator` | Scaffolds a project-level custom reviewer at `docs/rules/review/<name>.md`; `deep-review` auto-discovers and dispatches it alongside the built-ins. |
 | `git-workflow` | The git lifecycle skill — branch hygiene, atomic / checkpoint commits, the five-element PR body. |
+| `docent` | Explicit-invocation code docent — a single dedicated subagent locates and reads the code behind a natural-language question (or path), then emits a self-contained interactive HTML walkthrough with file:line anchors. |
 
 ## Hooks
 
