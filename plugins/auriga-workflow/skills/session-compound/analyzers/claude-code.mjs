@@ -105,7 +105,9 @@ function newStats() {
     humanTurns: [], // {ts, text, tokens, toolCounts}
     feedbackMoments: [], // {ts, text}
     skillInvocations: {}, // skill name -> count (Skill-tool invocations)
+    skillTimeline: [], // {ts, name} — Skill invocations in order, for stage classification
     skillAttribution: {}, // skill name -> attributed tool-call count (workload)
+    reviewSyntheses: [], // {ts, text} — assistant messages carrying a deep-review punch list
     agentInvocations: [], // {ts, description, subagent_type}
     cacheBreaks: [], // {ts, uncached, totalInput}
     todosFinal: [], // last TodoWrite payload
@@ -148,6 +150,16 @@ const FEEDBACK_RE = new RegExp(
 )
 
 const IDLE_GAP_MS = 5 * 60 * 1000
+
+// The deep-review skill's synthesis step opens with this exact heading
+// (its output contract) — the cheapest mechanical signature for "the main
+// agent's final review summary". Body kept near-verbatim (capped, not
+// previewed): the punch list's value is the finding list itself.
+const REVIEW_SYNTHESIS_RE = /^##\s*Deep Review:/m
+const REVIEW_SYNTHESIS_CAP = 6000
+function capText(text, max = REVIEW_SYNTHESIS_CAP) {
+  return text.length > max ? text.slice(0, max) + '…' : text
+}
 
 function tsToMs(ts) {
   if (!ts) return null
@@ -322,6 +334,16 @@ function handleAssistant(e, stats, currentTurn) {
   // requestId dedup.
   if (Array.isArray(content)) {
     for (const block of content) {
+      if (
+        block.type === 'text' &&
+        typeof block.text === 'string' &&
+        REVIEW_SYNTHESIS_RE.test(block.text)
+      ) {
+        stats.reviewSyntheses.push({
+          ts: tsToMs(e.timestamp),
+          text: capText(block.text),
+        })
+      }
       if (block.type === 'tool_use') {
         const name = block.name || 'unknown'
         stats.toolUses[name] = (stats.toolUses[name] || 0) + 1
@@ -349,6 +371,7 @@ function handleAssistant(e, stats, currentTurn) {
         if (name === 'Skill' && block.input?.skill) {
           const skill = block.input.skill
           stats.skillInvocations[skill] = (stats.skillInvocations[skill] || 0) + 1
+          stats.skillTimeline.push({ ts: tsToMs(e.timestamp), name: skill })
         }
         // Subagent dispatches
         if (name === 'Agent') {
@@ -581,6 +604,8 @@ function emit(stats, filePath) {
         .map(([file, count]) => ({ file, count })),
       agent_invocations: stats.agentInvocations,
       tool_failures: stats.toolFailures,
+      skill_timeline: stats.skillTimeline,
+      review_syntheses: stats.reviewSyntheses,
     },
   }
 }

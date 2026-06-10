@@ -1169,6 +1169,90 @@ test("substrate tests are wired into test:session-compound + CI [VAL-REL-002]", 
   assert(/test:session-compound/.test(ci), "CI must run test:session-compound");
 });
 
+// ---------- skill timeline + review syntheses (stage classification raw material) ----------
+
+const DEEP_REVIEW_TEXT =
+  "## Deep Review: PR #7 — fix scope\n**Tags**: logic  |  **Reviewers**: correctness\n### Blocking issues\n- [correctness] off-by-one in pager (severity: high, confidence: 0.9)\n### Non-blocking\n- none";
+
+test("claude analyzer emits a timestamped skill_timeline for Skill invocations [VAL-TL-001]", () => {
+  const file = writeFixture("tl-claude", [
+    claudeUser("start", T0),
+    claudeAssistant({
+      ts: T1,
+      reqId: "r1",
+      content: [{ type: "tool_use", id: "t1", name: "Skill", input: { skill: "spec-design" } }],
+    }),
+    claudeAssistant({
+      ts: T2,
+      reqId: "r2",
+      content: [{ type: "tool_use", id: "t2", name: "Skill", input: { skill: "test-driven-development" } }],
+    }),
+  ]);
+  const out = runAnalyzer(CLAUDE, file);
+  const tl = out.raw_for_compound?.skill_timeline;
+  assert(Array.isArray(tl), "raw_for_compound.skill_timeline must be an array");
+  assert(tl.length === 2, `expected 2 timeline entries, got ${tl?.length}`);
+  assert(tl[0].name === "spec-design" && typeof tl[0].ts === "number",
+    "each entry must carry {ts, name}");
+  assert(tl[1].name === "test-driven-development", "entries must keep invocation order");
+});
+
+test("claude analyzer emits empty skill_timeline without Skill calls [VAL-TL-001]", () => {
+  const file = writeFixture("tl-claude-empty", [claudeUser("hi", T0)]);
+  const out = runAnalyzer(CLAUDE, file);
+  assert(Array.isArray(out.raw_for_compound?.skill_timeline) && out.raw_for_compound.skill_timeline.length === 0,
+    "skill_timeline must default to an empty array");
+});
+
+test("codex analyzer emits a timestamped skill_timeline from <skill> blocks [VAL-TL-002]", () => {
+  const file = writeFixture("tl-codex", [
+    codexMeta(),
+    codexTurnContext(),
+    codexUserMsgEvent("start", T0),
+    codexSkillBlock("spec-design", T1),
+  ]);
+  const out = runAnalyzer(CODEX, file);
+  const tl = out.raw_for_compound?.skill_timeline;
+  assert(Array.isArray(tl) && tl.length === 1, "codex skill_timeline must capture the skill block");
+  assert(tl[0].name === "spec-design" && typeof tl[0].ts === "number",
+    "codex entries must carry {ts, name}");
+});
+
+test("claude analyzer captures deep-review synthesis text in review_syntheses [VAL-RS-001]", () => {
+  const file = writeFixture("rs-claude", [
+    claudeUser("review the PR", T0),
+    claudeAssistant({ ts: T1, reqId: "r1", content: [{ type: "text", text: "正在分派审查者……" }] }),
+    claudeAssistant({ ts: T2, reqId: "r2", content: [{ type: "text", text: DEEP_REVIEW_TEXT }] }),
+  ]);
+  const out = runAnalyzer(CLAUDE, file);
+  const rs = out.raw_for_compound?.review_syntheses;
+  assert(Array.isArray(rs) && rs.length === 1,
+    `only the punch-list message must be captured, got ${rs?.length}`);
+  assert(typeof rs[0].ts === "number" && rs[0].text.includes("Blocking issues"),
+    "the synthesis text must be kept (not a 200-char preview)");
+});
+
+test("codex analyzer captures deep-review synthesis from agent_message [VAL-RS-002]", () => {
+  const file = writeFixture("rs-codex", [
+    codexMeta(),
+    codexTurnContext(),
+    codexUserMsgEvent("review the PR", T0),
+    codexAgentFinal(DEEP_REVIEW_TEXT, T1),
+  ]);
+  const out = runAnalyzer(CODEX, file);
+  const rs = out.raw_for_compound?.review_syntheses;
+  assert(Array.isArray(rs) && rs.length === 1, "codex must capture the punch-list agent_message");
+  assert(rs[0].text.includes("Blocking issues"), "synthesis text must be kept");
+});
+
+test("SKILL.md documents skill_timeline / review_syntheses and CI review consumption [VAL-RS-003]", () => {
+  const txt = fs.readFileSync(SKILL_MD, "utf8");
+  assert(txt.includes("skill_timeline"), "SKILL.md must document skill_timeline");
+  assert(txt.includes("review_syntheses"), "SKILL.md must document review_syntheses");
+  assert(/gh pr view[^\n]*--comments|--comments[^\n]*gh pr view/.test(txt),
+    "SKILL.md must instruct pulling PR review comments (incl. CI reviews) via gh");
+});
+
 // ---------- report + cleanup ----------
 for (const dir of cleanupFiles) {
   try {

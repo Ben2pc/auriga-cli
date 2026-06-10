@@ -178,7 +178,17 @@ function newStats() {
     imageGenerationCount: 0,
     agentInvocations: [], // {ts, subagent_type, message_preview, fork_context}
     skillInvocations: {}, // skill name -> count (parsed from <skill><name> blocks)
+    skillTimeline: [], // {ts, name} — mirrors claude-code.mjs, for stage classification
+    reviewSyntheses: [], // {ts, text} — agent messages carrying a deep-review punch list
   }
+}
+
+// Kept identical to claude-code.mjs: the deep-review synthesis heading is the
+// mechanical signature; body capped, not previewed.
+const REVIEW_SYNTHESIS_RE = /^##\s*Deep Review:/m
+const REVIEW_SYNTHESIS_CAP = 6000
+function capText(text, max = REVIEW_SYNTHESIS_CAP) {
+  return text.length > max ? text.slice(0, max) + '…' : text
 }
 
 // Kept identical to claude-code.mjs (see comment there for calibration notes).
@@ -353,6 +363,9 @@ function handleEventMsg(p, ts, stats, setTurn) {
         // Fallback for runs that never label a final phase.
         stats.lastAgentFinalMessage = p.message
       }
+      if (typeof p.message === 'string' && REVIEW_SYNTHESIS_RE.test(p.message)) {
+        stats.reviewSyntheses.push({ ts, text: capText(p.message) })
+      }
       break
     }
     case 'token_count': {
@@ -440,6 +453,7 @@ function handleResponseItem(p, ts, stats, currentTurn) {
         const name = m ? m[1].trim() : null
         if (name) {
           stats.skillInvocations[name] = (stats.skillInvocations[name] || 0) + 1
+          stats.skillTimeline.push({ ts, name })
         }
       }
       break
@@ -730,6 +744,8 @@ function emit(stats, filePath) {
         .map(([file, count]) => ({ file, count })),
       tool_failures: stats.toolFailures,
       agent_invocations: stats.agentInvocations,
+      skill_timeline: stats.skillTimeline,
+      review_syntheses: stats.reviewSyntheses,
     },
   }
 }

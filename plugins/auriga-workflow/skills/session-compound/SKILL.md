@@ -77,8 +77,10 @@ node <skill-dir>/analyzers/codex.mjs > /tmp/session-compound.json
 - `health.workflow_rules` — 从仓库 AGENTS.md / CLAUDE.md 受管区块解析出的工作流规则（`{n, text}`）；无受管区块为空数组
 - `health.workflow_signals` — **中性事实包，不含任何判决**（`{git_branch, on_main, had_code_edit, first_edit_ts, prs_count, skills_invoked_count}`）。机械层只提取事实；指令遵循 / 召回 / skill 执行的判断**全部交评估 subagent**
 - `raw_for_compound` — 用来写候选条目的原材料（含 `agent_invocations`、`tool_failures`）
+- `raw_for_compound.skill_timeline` — Skill 调用时间线（`{ts, name}` 按调用顺序）。把 `feedback_moments` 的时间戳落到这条时间线上，就能机械判断"用户纠正发生时哪个工作流阶段在跑"——这是经验归类到 `docs/rules/{spec,arch,test}/` 的依据，长会话被 compact 后也不丢
+- `raw_for_compound.review_syntheses` — deep-review 主 Agent 的最终 punch list 全文（`{ts, text}`，按输出契约标题 `## Deep Review:` 机械匹配，截断上限 6000 字符）。review 类经验（评审本该拦住的问题模式）的首要原料
 
-两套 analyzer 输出的**核心字段**（`session.{id,cwd,duration_ms,model,git,recorded_turn_ms}` / `narrative.{task_title,human_turns,feedback_moments,away_summaries}` / `health.{tokens,cache_hit_rate,tools,subagents,skills,skill_attribution,prs,tool_failures,expensive_turns,waste_signals,skill_catalog,workflow_rules,workflow_signals}` / `raw_for_compound.{feedback_moments,repeated_reads,agent_invocations,tool_failures}`）一致，模板按这些字段渲染。除此之外两侧各有 CLI-specific 扩展字段，Codex 多 `health.{compaction_count, turn_aborted_count, patch_apply, mcp_tool_call_count, custom_tool_call_count, web_search_count, tool_search_count, image_generation_count, context_window, reasoning_output_ratio}` 与 `narrative.{task_conclusion, task_completed, task_duration_ms, time_to_first_token_ms}`；Claude 多 `health.{api_calls, cache_breaks}`。注意 `skill_attribution` / `prs` / `away_summaries` 目前仅 Claude 端有数据（Codex 日志无等价信号），缺失侧为空集合。`skill_catalog` / `workflow_rules` / `workflow_signals` 两端都有，各从本 CLI 的 skill 根目录与会话 cwd 的 AGENTS.md 构建（`workflow_signals` 是中性事实，不下判决）。模板已按 CLI 分支处理这些差异。
+两套 analyzer 输出的**核心字段**（`session.{id,cwd,duration_ms,model,git,recorded_turn_ms}` / `narrative.{task_title,human_turns,feedback_moments,away_summaries}` / `health.{tokens,cache_hit_rate,tools,subagents,skills,skill_attribution,prs,tool_failures,expensive_turns,waste_signals,skill_catalog,workflow_rules,workflow_signals}` / `raw_for_compound.{feedback_moments,repeated_reads,agent_invocations,tool_failures,skill_timeline,review_syntheses}`）一致，模板按这些字段渲染。除此之外两侧各有 CLI-specific 扩展字段，Codex 多 `health.{compaction_count, turn_aborted_count, patch_apply, mcp_tool_call_count, custom_tool_call_count, web_search_count, tool_search_count, image_generation_count, context_window, reasoning_output_ratio}` 与 `narrative.{task_conclusion, task_completed, task_duration_ms, time_to_first_token_ms}`；Claude 多 `health.{api_calls, cache_breaks}`。注意 `skill_attribution` / `prs` / `away_summaries` 目前仅 Claude 端有数据（Codex 日志无等价信号），缺失侧为空集合。`skill_catalog` / `workflow_rules` / `workflow_signals` 两端都有，各从本 CLI 的 skill 根目录与会话 cwd 的 AGENTS.md 构建（`workflow_signals` 是中性事实，不下判决）。模板已按 CLI 分支处理这些差异。
 
 ### 步骤 3：复制模板到输出文件
 
@@ -249,6 +251,11 @@ Schema：
 | 一次性 / 上游工具 issue / 不在用户控制范围内 | **不要写候选** |
 
 落点优先级（从最聚合到最重）：**就地优化现有 skill / 扩写现有 docs** → 现有分层里的合适位置 → 根 AGENTS.md 短规则 → 新建专题文件 → 新建 skill。先复用既有结构，最后才新建。
+
+##### 分类归档的原料来源
+
+- **阶段归类**（spec / arch / test）：用 `raw_for_compound.skill_timeline` 把每个 `feedback_moment` 的时间戳落到当时活跃的 skill 阶段上——spec-design 进行中收到的纠正多半是 spec 类经验，test 阶段的纠正多半是测试约定。不要只凭印象归类，长会话的记忆可能已被 compact。
+- **review 类经验**：首要原料是 `raw_for_compound.review_syntheses`（deep-review 主 Agent 的 punch list 全文）；`health.prs` 非空时，再用 `gh pr view <number> --comments` 拉取该 PR 上的评审意见——人工 review 和 CI 自动评审（机器人 review、check 结论）一起消费。穿过评审才被用户发现的问题、或评审反复指出的同类 finding，就是「评审本该拦住的模式」的直接证据。
 
 ##### `skill-gap` 候选必须自证「值得做成 skill」
 
