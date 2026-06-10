@@ -76,9 +76,11 @@ node <skill-dir>/analyzers/codex.mjs > /tmp/session-compound.json
 - `health.skill_catalog` — 本机可用的全部已安装 skill 目录（`{name, description, editable}`，按 name 去重折叠插件缓存多版本；`editable` 表示该 skill 源在当前仓库内、可就地优化）。**指令遵循 & skill 召回评估的输入**
 - `health.workflow_rules` — 从仓库 AGENTS.md / CLAUDE.md 受管区块解析出的工作流规则（`{n, text}`）；无受管区块为空数组
 - `health.workflow_signals` — **中性事实包，不含任何判决**（`{git_branch, on_main, had_code_edit, first_edit_ts, prs_count, skills_invoked_count}`）。机械层只提取事实；指令遵循 / 召回 / skill 执行的判断**全部交评估 subagent**
-- `raw_for_compound` — 用来写候选条目的原材料（含 `agent_invocations`、`tool_failures`）
+- `raw_for_compound` — 用来写候选条目的原材料（含 `agent_invocations`、`tool_failures`、`skill_timeline`、`review_syntheses`）
+- `raw_for_compound.skill_timeline` — Skill 调用时间线（`{ts, name}` 按调用顺序；子代理 sidechain 与无时间戳的调用不入列）。把 `feedback_moments` 的时间戳落到这条时间线上，就能机械判断"用户纠正发生时哪个工作流阶段在跑"——这是经验归类到 `docs/rules/{spec,arch,test}/` 的依据，长会话被 compact 后也不丢
+- `raw_for_compound.review_syntheses` — deep-review 的 punch list 全文（`{ts, text}`，按输出契约标题 `## Deep Review:` 在代码围栏外匹配主对话助手消息——子代理与 Codex commentary 阶段消息已过滤；同一会话多次 review 会产生多条；截断为 6000 字符并追加省略号）。review 类经验（评审本该拦住的问题模式）的首要原料
 
-两套 analyzer 输出的**核心字段**（`session.{id,cwd,duration_ms,model,git,recorded_turn_ms}` / `narrative.{task_title,human_turns,feedback_moments,away_summaries}` / `health.{tokens,cache_hit_rate,tools,subagents,skills,skill_attribution,prs,tool_failures,expensive_turns,waste_signals,skill_catalog,workflow_rules,workflow_signals}` / `raw_for_compound.{feedback_moments,repeated_reads,agent_invocations,tool_failures}`）一致，模板按这些字段渲染。除此之外两侧各有 CLI-specific 扩展字段，Codex 多 `health.{compaction_count, turn_aborted_count, patch_apply, mcp_tool_call_count, custom_tool_call_count, web_search_count, tool_search_count, image_generation_count, context_window, reasoning_output_ratio}` 与 `narrative.{task_conclusion, task_completed, task_duration_ms, time_to_first_token_ms}`；Claude 多 `health.{api_calls, cache_breaks}`。注意 `skill_attribution` / `prs` / `away_summaries` 目前仅 Claude 端有数据（Codex 日志无等价信号），缺失侧为空集合。`skill_catalog` / `workflow_rules` / `workflow_signals` 两端都有，各从本 CLI 的 skill 根目录与会话 cwd 的 AGENTS.md 构建（`workflow_signals` 是中性事实，不下判决）。模板已按 CLI 分支处理这些差异。
+两套 analyzer 输出的**核心字段**（`session.{id,cwd,duration_ms,model,git,recorded_turn_ms}` / `narrative.{task_title,human_turns,feedback_moments,away_summaries}` / `health.{tokens,cache_hit_rate,tools,subagents,skills,skill_attribution,prs,tool_failures,expensive_turns,waste_signals,skill_catalog,workflow_rules,workflow_signals}` / `raw_for_compound.{feedback_moments,repeated_reads,agent_invocations,tool_failures,skill_timeline,review_syntheses}`）一致；其中展示字段由模板渲染，`skill_timeline` / `review_syntheses` 是步骤 4.5 / 5d 的 agent 侧原料，不进模板渲染。除此之外两侧各有 CLI-specific 扩展字段，Codex 多 `health.{compaction_count, turn_aborted_count, patch_apply, mcp_tool_call_count, custom_tool_call_count, web_search_count, tool_search_count, image_generation_count, context_window, reasoning_output_ratio}` 与 `narrative.{task_conclusion, task_completed, task_duration_ms, time_to_first_token_ms}`；Claude 多 `health.{api_calls, cache_breaks}`。注意 `skill_attribution` / `prs` / `away_summaries` 目前仅 Claude 端有数据（Codex 日志无等价信号），缺失侧为空集合。`skill_catalog` / `workflow_rules` / `workflow_signals` 两端都有，各从本 CLI 的 skill 根目录与会话 cwd 的 AGENTS.md 构建（`workflow_signals` 是中性事实，不下判决）。模板已按 CLI 分支处理这些差异。
 
 ### 步骤 3：复制模板到输出文件
 
@@ -111,7 +113,7 @@ npx skills find "<query>" 2>&1 | head -30
 
 - **必须用独立、零上下文继承（fresh context）的 subagent**：被评估的会话正是主 Agent 自己跑的，自评有系统性偏差（纪律同 `deep-review` / `test-designer`：新会话、不 resume、不把当前对话历史复制进子代理）。
 - **范围**：召回 / 指令遵循覆盖 `skill_catalog` 里**全部已安装 skill** 与全部 `workflow_rules`；逐 skill 执行 eval **仅覆盖本会话真正调用过 / 跑过的 skill**（`health.skills` 里的）。机械层只给 `workflow_signals` 中性事实（分支 / 是否在 main / 有无编辑 / PR / skill 调用数），**所有判断由 subagent 做**——包括"在 main 上编辑了"这类原来机械层下的判决。
-- **输出**：finding 数组 `{kind, severity, confidence, text, skill?}`，每条带 `severity` + `confidence`，**不按重要性预过滤**（全部 in-scope finding 都报告，过滤交给人）。
+- **输出**：finding 数组 `{kind, polarity, severity?, confidence, text, skill?}`——`polarity` 区分正向（positive）与缺口（gap），`severity` 仅缺口必填（正向省略），`confidence` 是证据强度（详见 `references/eval-dispatch.md` 的输出契约）。**不按重要性预过滤**（全部 in-scope finding 都报告，过滤交给人）。
 
 ### 步骤 5：注入数据 + 撰写 Agent 填空段（**用 Edit，不用 Write**——必须保留模板的 JS/CSS）
 
@@ -170,7 +172,7 @@ class 含义：
 把那个 script tag 里的 `[]` 替换为候选条目数组。每条候选都属于以下三类之一——**只有这三类**：
 
 1. **`existing-skill`** — 步骤 4 预查命中的现成 ecosystem skill，一条 `npx skills add` 命令即可装上
-2. **`agent-md`** — 写入 AGENTS.md 体系（根 AGENTS.md / `docs/rules/<topic>.md` + 索引 / 子目录 AGENTS.md，三种 target 任选其一）
+2. **`agent-md`** — 写入 AGENTS.md 体系（根 AGENTS.md / `docs/rules/<topic>.md` + 索引 / 消费方绑定的 `docs/rules/{spec,arch,test,review}/` / 子目录 AGENTS.md，按下方 target 表选一）
 3. **`skill-gap`** — 多步骤可重复模式，ecosystem 没现成可复用，值得抽象成新 skill
 
 Schema：
@@ -204,13 +206,16 @@ Schema：
   选 target 前**先勘察当前工程已有的指令组织规范**——别套用通用默认：
   1. 读根 `AGENTS.md` / `CLAUDE.md`：它通常是**入口 + 索引**，靠多级文件做渐进式披露（根文件保持精简、详细规范拆到 `docs/` 专题文件 / 子目录指令文件）。**不要往根 AGENTS.md 堆内容**——顺着它已有的分层结构走。
   2. 看 `docs/rules/` 等是否已有覆盖该领域的专题文件；有就**在那份文件里扩写**，而不是新建一份平行的。
-  3. 看工程**现有 skill** 是否已经覆盖这个模式——若只是某个 skill 的指引不到位 / 缺一条规则，**首选在那个 skill 的 `SKILL.md` 里就地优化**（target 指向该 skill 文件），比新增 AGENTS.md 段落或新建 skill 都更轻、更聚合。
+  3. 判断经验是否**绑定某个工作流阶段**——`docs/rules/` 下有四个**消费方绑定**目录，由对应 skill 在固定阶段机械读取：`docs/rules/spec/`（`spec-design` 调研阶段收集）、`docs/rules/arch/`（`arch-design` 作为设计硬约束）、`docs/rules/test/`（`test-designer` 派发包 + `deep-review` 的 test-quality 审查者）、`docs/rules/review/`（`deep-review` 自动发现并分派的自定义审查者）。落进这些目录的经验会在**犯错的那个阶段**被自动注入对应 agent 的上下文，而根 AGENTS.md 只能指望被想起——能归类到阶段的经验优先归到对应目录。
+  4. 看工程**现有 skill** 是否已经覆盖这个模式——若只是某个 skill 的指引不到位 / 缺一条规则，**首选在那个 skill 的 `SKILL.md` 里就地优化**（target 指向该 skill 文件），比新增 AGENTS.md 段落或新建 skill 都更轻、更聚合。
 
   按下表选 target（优先复用 / 扩写既有文件，最后才考虑新建）：
 
   | 经验范围 | target | 何时选 |
   |---|---|---|
   | **某个现有 skill 的指引可改进** | 那个 skill 的 `SKILL.md`（就地优化） | 模式已被某 skill 覆盖，只是规则缺一条 / 触发不准——最聚合，优先选 |
+  | **绑定工作流阶段的经验**（spec 澄清遗漏 / 架构约束 / 测试约定） | `docs/rules/spec/`、`docs/rules/arch/`、`docs/rules/test/` 下的专题文件（扩写已有或新建；无需根 AGENTS.md 索引行——消费方按目录自动发现） | 经验对应 `spec-design` / `arch-design` / `test-designer` / test-quality 的固定消费点，在下次同阶段工作时自动生效 |
+  | **审查维度类经验**（评审本该拦住的问题模式） | 扩写现有 `docs/rules/review/<name>.md` 的 Checklist / worked scenarios；**全新维度则建议运行 `reviewer-creator`**，不要徒手新建 | `docs/rules/review/` 文件承载 frontmatter 编排契约且被 `deep-review` 自动发现分派——徒手文件缺编排元数据时只能走降级路径靠语义猜测 |
   | 现有 `docs/rules/<topic>.md` 已覆盖该领域 | 在那份文件里扩写（不新建平行文件） | 已有专题文件，顺着它加 |
   | 跨整个仓库 / 跨语言 / 工作流级（短规则） | 根 `AGENTS.md`（`CLAUDE.md` 是软链则只写一处） | 短、所有未来会话都该看，且根文件没有更合适的下级归宿 |
   | 跨整个仓库但**内容较长**（>10 行 / 表格 / 代码） | 新建 `docs/rules/<topic>.md` + 根 `AGENTS.md` 加一行索引 | 写进根 AGENTS.md 会让它膨胀，破坏渐进式披露 |
@@ -222,7 +227,7 @@ Schema：
   **落点理由**: <一句话：为什么是这个文件——已有 X 覆盖该领域 / 顺着现有分层 / 根文件无更合适下级>
   **要写入的内容**:
   > <逐字给出要追加 / 修改的段落，下游 agent 复制粘贴即可>
-  **索引行**（仅当新建 `docs/rules/<topic>.md` 时填）:
+  **索引行**（仅当新建通用 `docs/rules/<topic>.md` 时填；消费方绑定目录 `docs/rules/{spec,arch,test,review}/` 下的文件不填——对应 skill 按目录自动发现）:
   > - [<title>](docs/rules/<topic>.md) — <一句 hook>
   ```
 
@@ -234,6 +239,10 @@ Schema：
 |---|---|
 | ecosystem 已经有匹配 skill | `existing-skill`（最廉价） |
 | **工程现有 skill 已覆盖、只是指引不到位** | `agent-md` → 就地优化那个 skill 的 `SKILL.md`（最聚合，优先） |
+| spec 阶段就该问清却漏问、导致返工的维度 | `agent-md` → `docs/rules/spec/` 专题文件（扩写或新建） |
+| 被违反 / 争论过的架构约束（分层、依赖方向、模块边界） | `agent-md` → `docs/rules/arch/` 专题文件（扩写或新建） |
+| 测试设计约定 / fixture 约定 / flaky 模式 | `agent-md` → `docs/rules/test/` 专题文件（扩写或新建） |
+| 评审本该拦住的问题模式 | `agent-md` → 扩写现有 `docs/rules/review/<name>.md`；全新维度 → 建议运行 `reviewer-creator` |
 | 现有 `docs/rules/<topic>.md` 已覆盖该领域 | `agent-md` → 在那份文件里扩写 |
 | 跨会话的工作流约束 / 流程规则（短文本） | `agent-md` → 根 AGENTS.md（无更合适下级时） |
 | 跨会话的长文约定（>10 行 / 表格 / 代码） | `agent-md` → 新建 `docs/rules/<topic>.md` + 根 AGENTS.md 索引 |
@@ -242,6 +251,11 @@ Schema：
 | 一次性 / 上游工具 issue / 不在用户控制范围内 | **不要写候选** |
 
 落点优先级（从最聚合到最重）：**就地优化现有 skill / 扩写现有 docs** → 现有分层里的合适位置 → 根 AGENTS.md 短规则 → 新建专题文件 → 新建 skill。先复用既有结构，最后才新建。
+
+##### 分类归档的原料来源
+
+- **阶段归类**（spec / arch / test）：用 `raw_for_compound.skill_timeline` 把每个 `feedback_moment` 的时间戳落到当时活跃的 skill 阶段上——spec-design 进行中收到的纠正多半是 spec 类经验，test 阶段的纠正多半是测试约定。不要只凭印象归类，长会话的记忆可能已被 compact。
+- **review 类经验**：首要原料是 `raw_for_compound.review_syntheses`（deep-review 主 Agent 的 punch list 全文）；`health.prs` 非空时，再用 `gh pr view <number> --comments` 拉取该 PR 上的评审意见——人工 review 和 CI 自动评审（机器人 review、check 结论）一起消费。穿过评审才被用户发现的问题、或评审反复指出的同类 finding，就是「评审本该拦住的模式」的直接证据。
 
 ##### `skill-gap` 候选必须自证「值得做成 skill」
 
@@ -300,6 +314,14 @@ Schema：
 ##### 质量标准
 
 宁少勿滥。**3–8 条高价值候选** 胜过 20 条平庸候选。明显的别写——只保留**未来某次会话**会真正用到的。`skill-gap` 的标准最高，一次产出 0–2 条就够了。
+
+每条 `agent-md` 候选写入数组前过三道**否决闸门**（任一命中就不写）：
+
+1. **持续租金**：规则落进 AGENTS.md / `docs/rules/` 后，每次相关派发都要付上下文成本——这是永久租金，不是一次性写入成本。只有"写入时会反复发生、且下游兜不住"的问题付得起这个价；一次性摩擦、低频耦合不录入。
+2. **已有机制兜底**：问题如果正是被现有评审 / 测试 / hook 抓出来的，说明机制已经在工作，再写规则是重复供给。
+3. **机制可替代，且拦截点越早越好**：能用零租金机制（不进 agent 上下文）锁住的约束，候选就写成指向那个机制的就地改动，不写提示词规则。机制按拦截时点从早到晚选**最早可行**的一级：lint / 类型系统 / 静态检查（写代码当下就拦）→ 本地测试（验证时拦）→ CI / hook（推送时拦）——越晚拦截，修复回路越长，CI 上的 agent review 还要再付一轮 token 与人力。机制形态**按工程技术栈选原生的**（如 TypeScript 的 ESLint 自定义规则 / 类型约束、Swift 的 swiftlint、schema 校验、本仓库对 markdown 契约的 node:test 文本断言）；某一级在该技术栈实现成本明显过高时，才退到下一级。
+
+被闸门否决的经验不等于丢弃：实质是代码缺陷的，写修复候选（target 指向出问题的源文件）；值得跟踪但不属本次范围的，建议记入 PR 的 Remaining TODOs 或 issue。
 
 #### 5e. 填 `<script id="eval-findings">` 数组
 

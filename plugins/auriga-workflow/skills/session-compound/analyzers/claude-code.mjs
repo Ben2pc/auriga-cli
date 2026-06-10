@@ -105,7 +105,9 @@ function newStats() {
     humanTurns: [], // {ts, text, tokens, toolCounts}
     feedbackMoments: [], // {ts, text}
     skillInvocations: {}, // skill name -> count (Skill-tool invocations)
+    skillTimeline: [], // {ts, name} — Skill invocations in order, for stage classification
     skillAttribution: {}, // skill name -> attributed tool-call count (workload)
+    reviewSyntheses: [], // {ts, text} — assistant messages carrying a deep-review punch list
     agentInvocations: [], // {ts, description, subagent_type}
     cacheBreaks: [], // {ts, uncached, totalInput}
     todosFinal: [], // last TodoWrite payload
@@ -149,6 +151,31 @@ const FEEDBACK_RE = new RegExp(
 
 const IDLE_GAP_MS = 5 * 60 * 1000
 
+// The deep-review skill's synthesis step opens with this exact heading
+// (its output contract) — the cheapest mechanical signature for "the main
+// agent's final review summary". Body kept near-verbatim (capped, not
+// previewed): the punch list's value is the finding list itself.
+const REVIEW_SYNTHESIS_RE = /^##\s*Deep Review:/m
+const REVIEW_SYNTHESIS_CAP = 6000
+function capText(text, max = REVIEW_SYNTHESIS_CAP) {
+  return text.length > max ? text.slice(0, max) + '…' : text
+}
+// Quoting the heading inside a code fence (e.g. a session that edits
+// deep-review's own SKILL.md, which contains the literal contract) must not
+// count as a synthesis — match only against text outside fenced blocks.
+function stripFencedBlocks(text) {
+  let inFence = false
+  const kept = []
+  for (const line of text.split('\n')) {
+    if (/^\s*(```|~~~)/.test(line)) {
+      inFence = !inFence
+      continue
+    }
+    if (!inFence) kept.push(line)
+  }
+  return kept.join('\n')
+}
+
 function tsToMs(ts) {
   if (!ts) return null
   const d = new Date(ts)
@@ -167,6 +194,10 @@ function isHumanUserEntry(e) {
     if (c.startsWith('[Request interrupted')) return false
     if (c.startsWith('<command-')) return false
     if (c.startsWith('<local-command-stdout>')) return false
+    // Background-agent completion notices arrive as user entries; treating
+    // them as human turns pollutes feedback_moments (reviewer findings are
+    // full of correction words) and per-turn token attribution.
+    if (c.trimStart().startsWith('<task-notification>')) return false
     return true
   }
   if (Array.isArray(c) && c[0]?.type === 'text') {
@@ -174,6 +205,7 @@ function isHumanUserEntry(e) {
     if (!t) return false
     if (t.startsWith('[Request interrupted')) return false
     if (t.startsWith('<command-')) return false
+    if (t.startsWith('<task-notification>')) return false
     return true
   }
   return false
@@ -320,8 +352,23 @@ function handleAssistant(e, stats, currentTurn) {
   // Tool-use tally per content block — every assistant fragment carries one
   // content block; we want every tool_use to count once regardless of
   // requestId dedup.
+  // Sidechain entries are subagent traffic (e.g. deep-review's reviewers, an
+  // implementation agent running its own skills) — they would misattribute the
+  // main workflow's stage timeline and produce fake syntheses.
+  const sidechain = e.isSidechain === true
   if (Array.isArray(content)) {
     for (const block of content) {
+      if (
+        !sidechain &&
+        block.type === 'text' &&
+        typeof block.text === 'string' &&
+        REVIEW_SYNTHESIS_RE.test(stripFencedBlocks(block.text))
+      ) {
+        stats.reviewSyntheses.push({
+          ts: tsToMs(e.timestamp),
+          text: capText(block.text),
+        })
+      }
       if (block.type === 'tool_use') {
         const name = block.name || 'unknown'
         stats.toolUses[name] = (stats.toolUses[name] || 0) + 1
@@ -349,6 +396,13 @@ function handleAssistant(e, stats, currentTurn) {
         if (name === 'Skill' && block.input?.skill) {
           const skill = block.input.skill
           stats.skillInvocations[skill] = (stats.skillInvocations[skill] || 0) + 1
+          // The timeline exists to align feedback_moments by timestamp —
+          // a null-ts entry can't anchor anything, so it stays out (the
+          // invocation count above still records it).
+          const skillTs = tsToMs(e.timestamp)
+          if (!sidechain && skillTs != null) {
+            stats.skillTimeline.push({ ts: skillTs, name: skill })
+          }
         }
         // Subagent dispatches
         if (name === 'Agent') {
@@ -581,6 +635,8 @@ function emit(stats, filePath) {
         .map(([file, count]) => ({ file, count })),
       agent_invocations: stats.agentInvocations,
       tool_failures: stats.toolFailures,
+      skill_timeline: stats.skillTimeline,
+      review_syntheses: stats.reviewSyntheses,
     },
   }
 }
@@ -591,9 +647,11 @@ function emit(stats, filePath) {
     const file = resolveFile()
     const stats = await scan(file)
     const out = emit(stats, file)
-    process.stdout.write(
-      PRETTY ? JSON.stringify(out, null, 2) : JSON.stringify(out),
-    )
+    const json = PRETTY ? JSON.stringify(out, null, 2) : JSON.stringify(out)
+    // This JSON gets pasted verbatim into <script id="report-data"> (SKILL.md
+    // step 5a); a literal "</script>" in captured text would close the element
+    // early. "\/" is a legal JSON escape, so JSON.parse output is unchanged.
+    process.stdout.write(json.replace(/<\//g, '<\\/'))
     process.stdout.write('\n')
   } catch (err) {
     process.stderr.write(`[claude-code analyzer] ${err.message}\n`)

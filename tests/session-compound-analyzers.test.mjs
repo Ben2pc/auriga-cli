@@ -215,6 +215,13 @@ function codexAgentFinal(message, ts) {
     payload: { type: "agent_message", phase: "final", message },
   };
 }
+function codexAgentCommentary(message, ts) {
+  return {
+    type: "event_msg",
+    timestamp: ts,
+    payload: { type: "agent_message", phase: "commentary", message },
+  };
+}
 
 // ---------- shared helpers ----------
 const T0 = "2026-05-28T10:00:00.000Z";
@@ -1167,6 +1174,273 @@ test("substrate tests are wired into test:session-compound + CI [VAL-REL-002]", 
     "package.json test:session-compound must point at this file");
   const ci = fs.readFileSync(path.join(REPO_ROOT, ".github", "workflows", "test.yml"), "utf8");
   assert(/test:session-compound/.test(ci), "CI must run test:session-compound");
+});
+
+// ---------- skill timeline + review syntheses (stage classification raw material) ----------
+
+const DEEP_REVIEW_TEXT =
+  "## Deep Review: PR #7 — fix scope\n**Tags**: logic  |  **Reviewers**: correctness\n### Blocking issues\n- [correctness] off-by-one in pager (severity: high, confidence: 0.9)\n### Non-blocking\n- none";
+
+test("claude analyzer emits a timestamped skill_timeline for Skill invocations [VAL-TL-001]", () => {
+  const file = writeFixture("tl-claude", [
+    claudeUser("start", T0),
+    claudeAssistant({
+      ts: T1,
+      reqId: "r1",
+      content: [{ type: "tool_use", id: "t1", name: "Skill", input: { skill: "spec-design" } }],
+    }),
+    claudeAssistant({
+      ts: T2,
+      reqId: "r2",
+      content: [{ type: "tool_use", id: "t2", name: "Skill", input: { skill: "test-driven-development" } }],
+    }),
+  ]);
+  const out = runAnalyzer(CLAUDE, file);
+  const tl = out.raw_for_compound?.skill_timeline;
+  assert(Array.isArray(tl), "raw_for_compound.skill_timeline must be an array");
+  assert(tl.length === 2, `expected 2 timeline entries, got ${tl?.length}`);
+  assert(tl[0].name === "spec-design" && typeof tl[0].ts === "number",
+    "each entry must carry {ts, name}");
+  assert(tl[1].name === "test-driven-development", "entries must keep invocation order");
+});
+
+test("claude analyzer emits empty skill_timeline without Skill calls [VAL-TL-001]", () => {
+  const file = writeFixture("tl-claude-empty", [claudeUser("hi", T0)]);
+  const out = runAnalyzer(CLAUDE, file);
+  assert(Array.isArray(out.raw_for_compound?.skill_timeline) && out.raw_for_compound.skill_timeline.length === 0,
+    "skill_timeline must default to an empty array");
+});
+
+test("codex analyzer emits a timestamped skill_timeline from <skill> blocks [VAL-TL-002]", () => {
+  const file = writeFixture("tl-codex", [
+    codexMeta(),
+    codexTurnContext(),
+    codexUserMsgEvent("start", T0),
+    codexSkillBlock("spec-design", T1),
+  ]);
+  const out = runAnalyzer(CODEX, file);
+  const tl = out.raw_for_compound?.skill_timeline;
+  assert(Array.isArray(tl) && tl.length === 1, "codex skill_timeline must capture the skill block");
+  assert(tl[0].name === "spec-design" && typeof tl[0].ts === "number",
+    "codex entries must carry {ts, name}");
+});
+
+test("claude analyzer captures deep-review synthesis text in review_syntheses [VAL-RS-001]", () => {
+  const file = writeFixture("rs-claude", [
+    claudeUser("review the PR", T0),
+    claudeAssistant({ ts: T1, reqId: "r1", content: [{ type: "text", text: "正在分派审查者……" }] }),
+    claudeAssistant({ ts: T2, reqId: "r2", content: [{ type: "text", text: DEEP_REVIEW_TEXT }] }),
+  ]);
+  const out = runAnalyzer(CLAUDE, file);
+  const rs = out.raw_for_compound?.review_syntheses;
+  assert(Array.isArray(rs) && rs.length === 1,
+    `only the punch-list message must be captured, got ${rs?.length}`);
+  assert(typeof rs[0].ts === "number" && rs[0].text.includes("Blocking issues"),
+    "the synthesis text must be kept (not a 200-char preview)");
+});
+
+test("codex analyzer captures deep-review synthesis from agent_message [VAL-RS-002]", () => {
+  const file = writeFixture("rs-codex", [
+    codexMeta(),
+    codexTurnContext(),
+    codexUserMsgEvent("review the PR", T0),
+    codexAgentFinal(DEEP_REVIEW_TEXT, T1),
+  ]);
+  const out = runAnalyzer(CODEX, file);
+  const rs = out.raw_for_compound?.review_syntheses;
+  assert(Array.isArray(rs) && rs.length === 1, "codex must capture the punch-list agent_message");
+  assert(rs[0].text.includes("Blocking issues"), "synthesis text must be kept");
+});
+
+test("codex analyzer ignores commentary-phase agent_message for review_syntheses [VAL-RS-004]", () => {
+  const file = writeFixture("rs-codex-phase", [
+    codexMeta(),
+    codexTurnContext(),
+    codexUserMsgEvent("review the PR", T0),
+    codexAgentCommentary(DEEP_REVIEW_TEXT, T1),
+    codexAgentFinal(DEEP_REVIEW_TEXT, T2),
+  ]);
+  const out = runAnalyzer(CODEX, file);
+  const rs = out.raw_for_compound?.review_syntheses;
+  assert(Array.isArray(rs) && rs.length === 1,
+    `commentary copy must be filtered, final kept once — got ${rs?.length}`);
+});
+
+test("claude analyzer excludes sidechain entries from skill_timeline and review_syntheses [VAL-RS-005]", () => {
+  const side = claudeAssistant({
+    ts: T1,
+    reqId: "r-side",
+    content: [
+      { type: "tool_use", id: "ts1", name: "Skill", input: { skill: "side-skill" } },
+      { type: "text", text: DEEP_REVIEW_TEXT },
+    ],
+  });
+  side.isSidechain = true;
+  const file = writeFixture("rs-claude-side", [
+    claudeUser("review", T0),
+    side,
+    claudeAssistant({
+      ts: T2,
+      reqId: "r-main",
+      content: [{ type: "tool_use", id: "tm1", name: "Skill", input: { skill: "main-skill" } }],
+    }),
+  ]);
+  const out = runAnalyzer(CLAUDE, file);
+  const tl = out.raw_for_compound?.skill_timeline ?? [];
+  assert(tl.length === 1 && tl[0].name === "main-skill",
+    `sidechain Skill calls must not enter skill_timeline — got ${JSON.stringify(tl)}`);
+  assert((out.raw_for_compound?.review_syntheses ?? []).length === 0,
+    "sidechain text must not enter review_syntheses");
+});
+
+test("both analyzers ignore the punch-list heading quoted inside a code fence [VAL-RS-006]", () => {
+  const quoted = "看这个输出契约：\n```\n" + DEEP_REVIEW_TEXT + "\n```\n以上是格式说明。";
+  const claudeFile = writeFixture("rs-claude-fence", [
+    claudeUser("explain the contract", T0),
+    claudeAssistant({ ts: T1, reqId: "r1", content: [{ type: "text", text: quoted }] }),
+  ]);
+  assert((runAnalyzer(CLAUDE, claudeFile).raw_for_compound?.review_syntheses ?? []).length === 0,
+    "claude: fenced quote must not be captured");
+  const codexFile = writeFixture("rs-codex-fence", [
+    codexMeta(),
+    codexTurnContext(),
+    codexUserMsgEvent("explain the contract", T0),
+    codexAgentFinal(quoted, T1),
+  ]);
+  assert((runAnalyzer(CODEX, codexFile).raw_for_compound?.review_syntheses ?? []).length === 0,
+    "codex: fenced quote must not be captured");
+});
+
+test("claude analyzer drops timestamp-less Skill calls from skill_timeline but still counts them [VAL-TL-003]", () => {
+  const noTs = claudeAssistant({
+    ts: undefined,
+    reqId: "r1",
+    content: [{ type: "tool_use", id: "t1", name: "Skill", input: { skill: "spec-design" } }],
+  });
+  delete noTs.timestamp;
+  const file = writeFixture("tl-claude-nots", [claudeUser("go", T0), noTs]);
+  const out = runAnalyzer(CLAUDE, file);
+  assert((out.raw_for_compound?.skill_timeline ?? []).length === 0,
+    "an entry without a usable timestamp must not enter the alignment timeline");
+  const skills = out.health?.skills ?? [];
+  assert(skills.some((s) => s.name === "spec-design" && s.count === 1),
+    "the invocation count must still be recorded");
+});
+
+test("analyzer stdout never contains a literal </script (script-element-safe JSON) [VAL-ESC-001]", () => {
+  const payload = DEEP_REVIEW_TEXT + "\n- 复现：`</script><img src=x>` 这样的输入";
+  const file = writeFixture("esc-claude", [
+    claudeUser("review", T0),
+    claudeAssistant({ ts: T1, reqId: "r1", content: [{ type: "text", text: payload }] }),
+  ]);
+  const r = spawnSync("node", [CLAUDE, "--file", file], { encoding: "utf8" });
+  assert(r.status === 0, `analyzer exited ${r.status}: ${r.stderr}`);
+  assert(!r.stdout.includes("</script"),
+    "raw stdout must escape </ so step 5a can paste it into <script id=report-data>");
+  const roundtrip = JSON.parse(r.stdout);
+  const rs = roundtrip.raw_for_compound?.review_syntheses ?? [];
+  assert(rs.length === 1 && rs[0].text.includes("</script><img"),
+    "JSON.parse must still recover the original text verbatim");
+});
+
+test("review synthesis text is capped at 6000 chars plus an ellipsis [VAL-RS-007]", () => {
+  const long = DEEP_REVIEW_TEXT + "\n" + "x".repeat(7000);
+  const file = writeFixture("rs-claude-cap", [
+    claudeUser("review", T0),
+    claudeAssistant({ ts: T1, reqId: "r1", content: [{ type: "text", text: long }] }),
+  ]);
+  const rs = runAnalyzer(CLAUDE, file).raw_for_compound?.review_syntheses ?? [];
+  assert(rs.length === 1, "capped synthesis must still be captured");
+  assert(rs[0].text.length === 6001 && rs[0].text.endsWith("…"),
+    `cap contract is 6000 chars + ellipsis, got length ${rs[0].text.length}`);
+});
+
+test("codex analyzer emits empty skill_timeline / review_syntheses defaults [VAL-TL-002]", () => {
+  const file = writeFixture("tl-codex-empty", [
+    codexMeta(),
+    codexTurnContext(),
+    codexUserMsgEvent("hi", T0),
+  ]);
+  const out = runAnalyzer(CODEX, file);
+  assert(Array.isArray(out.raw_for_compound?.skill_timeline) && out.raw_for_compound.skill_timeline.length === 0,
+    "codex skill_timeline must default to an empty array");
+  assert(Array.isArray(out.raw_for_compound?.review_syntheses) && out.raw_for_compound.review_syntheses.length === 0,
+    "codex review_syntheses must default to an empty array");
+});
+
+test("deep-review SKILL.md keeps the literal punch-list heading the analyzers capture [VAL-RS-008]", () => {
+  // Cross-component contract: both analyzers capture review_syntheses by
+  // matching this exact heading. Rewording the deep-review output contract
+  // must be synced with REVIEW_SYNTHESIS_RE in analyzers/{claude-code,codex}.mjs.
+  const dr = fs.readFileSync(
+    path.join(PLUGIN_ROOT, "skills/deep-review/SKILL.md"),
+    "utf8",
+  );
+  assert(dr.includes("## Deep Review:"),
+    "deep-review's synthesis template must keep the literal '## Deep Review:' heading — the session-compound analyzers match it mechanically");
+});
+
+test("SKILL.md documents skill_timeline / review_syntheses and CI review consumption [VAL-RS-003]", () => {
+  const txt = fs.readFileSync(SKILL_MD, "utf8");
+  assert(txt.includes("skill_timeline"), "SKILL.md must document skill_timeline");
+  assert(txt.includes("review_syntheses"), "SKILL.md must document review_syntheses");
+  assert(/gh pr view[^\n]*--comments|--comments[^\n]*gh pr view/.test(txt),
+    "SKILL.md must instruct pulling PR review comments (incl. CI reviews) via gh");
+});
+
+// ---------- task-notification filtering + eval polarity contract ----------
+
+test("claude analyzer excludes task-notification entries from human turns and feedback [VAL-NTF-001]", () => {
+  const notification =
+    "<task-notification>\n<task-id>abc</task-id>\n<status>completed</status>\n" +
+    "<result>finding: 不要按严重度预过滤；this is wrong and should stop</result>\n</task-notification>";
+  const file = writeFixture("ntf-claude", [
+    claudeUser("开始干活", T0),
+    claudeUser(notification, T1),
+  ]);
+  const out = runAnalyzer(CLAUDE, file);
+  assert(out.narrative.human_turn_count === 1,
+    `task-notification must not count as a human turn — got ${out.narrative.human_turn_count}`);
+  assert((out.narrative.feedback_moments ?? []).length === 0,
+    "correction words inside a task-notification must not register as feedback moments");
+});
+
+test("eval output contract separates polarity from severity with evidence-based confidence [VAL-EVAL-004]", () => {
+  const dispatch = fs.readFileSync(
+    path.join(PLUGIN_ROOT, "skills/session-compound/references/eval-dispatch.md"),
+    "utf8",
+  );
+  assert(dispatch.includes("polarity"), "eval-dispatch.md must define a polarity field");
+  assert(/positive/.test(dispatch) && /gap/.test(dispatch),
+    "polarity values must be positive|gap");
+  assert(/证据强度/.test(dispatch),
+    "confidence must be defined as evidence strength with level definitions");
+  assert(/(positive|正向)[^\n]*(省略|不带|不填)[^\n]*severity|severity[^\n]*(仅|只)[^\n]*gap/.test(dispatch),
+    "severity must be scoped to gap findings only");
+  const skillMd = fs.readFileSync(SKILL_MD, "utf8");
+  assert(skillMd.includes("polarity"), "SKILL.md hard-constraint schema must include polarity");
+  const template = fs.readFileSync(
+    path.join(PLUGIN_ROOT, "skills/session-compound/template.html"),
+    "utf8",
+  );
+  assert(template.includes("polarity"), "template must render polarity-aware findings");
+  assert(/证据强度/.test(template), "template must carry the confidence legend");
+});
+
+test("candidate generation carries explicit veto gates against one-off rules [VAL-CAND-003]", () => {
+  const txt = fs.readFileSync(SKILL_MD, "utf8");
+  assert(/否决闸门/.test(txt),
+    "5d must define veto gates applied before writing each agent-md candidate");
+  assert(/租金|持续成本/.test(txt),
+    "gates must frame rule cost as perpetual context rent, not one-time write cost");
+  assert(/已有机制|机制.{0,6}兜底/.test(txt),
+    "a problem already caught by an existing mechanism must not become a rule");
+  assert(/一次性/.test(txt) && /零租金|不进 agent 上下文/.test(txt),
+    "one-off frictions are vetoed; mechanism-shaped candidates (tests/CI/hooks) are preferred");
+  assert(/lint/.test(txt) && /越早|最早/.test(txt),
+    "mechanism candidates must prefer the earliest feasible interception point (lint/type/static check before tests before CI)");
+  assert(/技术栈/.test(txt),
+    "the mechanism shape must be chosen per the project's tech stack");
 });
 
 // ---------- report + cleanup ----------

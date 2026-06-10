@@ -1,5 +1,5 @@
 <!-- AURIGA:WORKFLOW:v1 START — 受管区块,由 auriga-cli 维护,请勿手改;升级会整块覆盖。工程专属规则写在下方 END 标记之后。 -->
-# auriga 工作流 (v1.9.0)
+# auriga 工作流 (v1.10.0)
 
 1. 需求澄清：新需求先用 `spec-design` 澄清 requirement。**requirement聚焦"做什么"和验收标准，不写具体技术路径**，如果是产品功能优先关注"Why"，让实现阶段的 Agent 自行决定怎么做。**spec = why + what; plan = how。** 如果改动不影响外部行为契约（重构、换算法、换库但可观察行为不变），跳过 spec 直接进 plan。
 
@@ -11,7 +11,7 @@
 
 5. bugfix前，先查原因：遇到 bug、测试失败或异常行为时，先按 `systematic-debugging` 找根因，再决定修复。
 
-6. TDD：所有代码改动都遵循 `test-driven-development`（唯一例外见「快速开发流程」段：纯文档、纯配置）：先写失败测试，再写最小实现，再回归验证。**每个 task 开始前明确可测试的验收标准**（具体功能点 + 验收条件 + 边界场景），不是最后才检查。写/更新测试前，主 Agent 或 `test-designer` 必须先查看 `docs/rules/test/` 下与当前模块或测试类型相关的规则；目录不存在或无相关文件时，明确记录为无项目专属测试规则。满足以下**任一**条件时调用 `test-designer` skill：(a) 需求跨 ≥2 个模块且交互非显然；(b) 边界场景难以让实现 Agent 公平自测；(c) 你正想跳过 TDD，因为"实现看起来比测试更显然"。
+6. TDD：所有代码改动都遵循 `test-driven-development`（唯一例外见「快速开发流程」段：纯文档、纯配置）：先写失败测试，再写最小实现，再回归验证。**每个 task 开始前明确可测试的验收标准**（具体功能点 + 验收条件 + 边界场景），不是最后才检查。写/更新测试前，主 Agent 或 `test-designer` 必须先查看 `docs/rules/test/`（以 git 仓库根为锚定位；monorepo 下仓库根与更近的子包两层都看）下与当前模块或测试类型相关的规则；目录不存在或无相关文件时，明确记录为无项目专属测试规则。满足以下**任一**条件时调用 `test-designer` skill：(a) 需求跨 ≥2 个模块且交互非显然；(b) 边界场景难以让实现 Agent 公平自测；(c) 你正想跳过 TDD，因为"实现看起来比测试更显然"。
 
 7. 增量实现：绿灯阶段对任何非平凡的实现工作调用 `incremental-impl`——多文件改动、跨文件重构、落地一个已规划的 task（来源不限：内置 Plan、`planning-with-files`、`spec-design` spec、`arch-design` 的 arch_design.md、或用户直接给的任务）、跨切面修改、或预计要写超过 ~100 行。规模判定（XS–XL）、切片策略、按需并行派遣、片间执行纪律都由 skill 自身负责——具体规则看 skill 本身。仅当 skill 的规模判定为 XS、或改动是纯文档 / 纯配置时跳过。
 
@@ -44,6 +44,8 @@
 | `docs/rules/` | 编码规范、review checklist、命名 / 风格约定 | 长期维护 |
 | `docs/rules/review/` | 项目级自定义 reviewer；每个文件对应一个 `deep-review` 扩展维度，由 `reviewer-creator` 创建，`deep-review` 自动发现并分派 | 长期维护 |
 | `docs/rules/test/` | 项目级测试规则、测试设计约束和测试夹具约定；`test-designer` 或主 Agent 写/更新测试前必须先参考相关文件 | 长期维护 |
+| `docs/rules/spec/` | 项目级 spec 规则，规定哪些问题必须在 spec 阶段就明确（必答澄清维度、必填章节、特定领域验收要求）；`spec-design` 调研阶段必须先参考相关文件 | 长期维护 |
+| `docs/rules/arch/` | 项目级架构设计规范（分层规则、依赖方向、模块边界约定）；`arch-design` 把相关规则作为设计硬约束 | 长期维护 |
 | `docs/specs/` | **`spec-design` 和 `arch-design` 输出的默认归宿。** 开发期间存放活跃 spec / 架构设计 / 需求澄清的临时工作区。**PR Ready 前必须清空**——每个 spec 晋升到 `docs/architecture/`、归档到 `docs/worklog/worklog-<YYYY-MM-DD>-<branch-name>/`，或删除。 | 开发期临时 |
 | `docs/architecture/` | 稳定、长期的设计文档（模块布局、数据流、组件职责），以及架构决策记录（ADR，文件名 `ADR-<序号>-<标题>.md`）。 | 长期 |
 | `docs/` 其他 | 按需新增：`CI/`、`onboarding/` 等。一类文档一个目录，不混放 | 因类而异 |

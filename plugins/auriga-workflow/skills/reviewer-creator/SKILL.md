@@ -69,9 +69,13 @@ description: "当用户要求创建自定义审查者、添加项目专属审查
 
 ### 2. Generate the file
 
+输出目录以仓库根为锚（cwd 可能不在仓库根，例如从 monorepo 子目录启动）；非 git 仓库时回退为当前工作目录——不带回退的命令替换在非 git 目录下会展开为空串，把目录建到文件系统根上：
+
 ```bash
-mkdir -p docs/rules/review/
+mkdir -p "$(git rev-parse --show-toplevel 2>/dev/null || pwd)/docs/rules/review/"
 ```
+
+monorepo 中如果该审查者只约束某个子包，可改为写入该子包内的 `docs/rules/review/`——`deep-review` 会两层都收集，子包级视为对仓库级的补充/收窄。
 
 读取本技能的 `references/template.md`。替换：
 
@@ -87,7 +91,7 @@ mkdir -p docs/rules/review/
 | `<WORKED_SCENARIO_1>` | 第 1 步提供的那个场景 |
 | `<EXTENDS>` | 第 8 步的 Dispatch 模式（`extends: <内置名>` 或 `extends: standalone`） |
 
-将替换后的内容写入 `docs/rules/review/<name>.md`。
+将替换后的内容写入 `<仓库根>/docs/rules/review/<name>.md`（或选定的子包级目录）。
 
 frontmatter 的 `value` 字段，以及正文中其余的 `<TODO: ...>` 占位符（Checklist 正文、场景 2 和 3、Output contract 细节），留给用户填写——它们需要本技能无法合成的领域专业知识。
 

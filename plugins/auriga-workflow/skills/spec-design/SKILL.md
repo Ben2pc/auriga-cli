@@ -66,6 +66,7 @@ A. 调研   →  B. 定方向、定切分  →  C. 落到文件   →  D. 闸门
 在问任何澄清问题之前：
 
 - 按这个优先级读仓库入口：先 `AGENTS.md` 和 `CLAUDE.md`（面向 agent 的事实源），再相关的 `docs/` 子目录，再用 `git log` 看近期 commit。只有当 `AGENTS.md` 和 `CLAUDE.md` 都不存在时才读 `README.md`（README 面向人类，可能带宣传性质，或相对 agent 契约已经过时）。
+- 收集项目级 spec 规则：检索 `docs/rules/spec/` 下与本需求相关的规则——它们规定哪些问题必须在 spec 阶段就明确（必答的澄清维度、必填章节、特定领域的验收要求）。目录以仓库根为锚：用 `git rev-parse --show-toplevel` 解析仓库根，检索 `<仓库根>/docs/rules/spec/`；当 cwd 不在仓库根、且 cwd 到仓库根之间存在更近的 `docs/rules/spec/`（monorepo 子包）时，两层都收集——子包级规则视为对仓库级的补充/收窄，冲突时以子包级为准；非 git 仓库时回退为相对 cwd 检索。目录不存在或没有相关文件时，记录「无项目专属 spec 规则」。规则要求必须明确、而输入里还没答案的每一项，都进入 A2 的澄清清单。
 - 如果用户给了文件路径 / commit / issue 编号，*把它们打开*——不要转述
 - 如果输入属于模式 2–4（HTML / PRD / Figma），把关键可见元素抽取进一份草稿 `## Findings` 段
 - 如果输入是模式 5（用户自带 spec），跑下面的审计清单；任何缺失项都变成 A2 里的一个 Q
@@ -197,6 +198,7 @@ VAL 的 `Tool` 字段必须从下面的**类别**里选——绝不写具体工�
 - [ ] `validation-contract.md` 有一张 `## Toolchain` 表，覆盖其 VAL 用到的每个类别，每行点名一个 A1 调研中观察到的具体工具（仓库既有的测试设施，不是设计决策）
 - [ ] Out of scope 覆盖了所有"看起来该包含"但其实不包含的东西
 - [ ] What 与 VAL 之间没有矛盾
+- [ ] 项目级 spec 规则（`docs/rules/spec/`）要求必须明确的每一项，都已在 `spec.md` 或 `validation-contract.md` 中有着落；A1 没找到规则时，已记录「无项目专属 spec 规则」
 - [ ] Open questions 里只有刻意推迟给下游的决策，每条都有点名的归属（plan / impl）和写明的理由——没有未解决的需求歧义藏在里面
 - [ ] 若已拆分，umbrella.md 不打开子规范也能给出完整概览
 

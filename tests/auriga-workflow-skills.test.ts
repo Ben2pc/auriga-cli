@@ -54,6 +54,125 @@ describe("auriga-workflow skill contracts", () => {
   });
 });
 
+describe("project rule discovery anchors to the repo root", () => {
+  const ruleConsumers: Array<{ rel: string; area: string; label: string }> = [
+    {
+      rel: "plugins/auriga-workflow/skills/deep-review/SKILL.md",
+      area: "docs/rules/review/",
+      label: "deep-review",
+    },
+    {
+      rel: "plugins/auriga-workflow/skills/test-designer/SKILL.md",
+      area: "docs/rules/test/",
+      label: "test-designer",
+    },
+    {
+      rel: "plugins/auriga-workflow/skills/deep-review/references/reviewers/test-quality.md",
+      area: "docs/rules/test/",
+      label: "test-quality reviewer",
+    },
+    {
+      rel: "plugins/auriga-workflow/skills/spec-design/SKILL.md",
+      area: "docs/rules/spec/",
+      label: "spec-design",
+    },
+    {
+      rel: "plugins/auriga-workflow/skills/arch-design/SKILL.md",
+      area: "docs/rules/arch/",
+      label: "arch-design",
+    },
+  ];
+
+  for (const { rel, area, label } of ruleConsumers) {
+    test(`${label} resolves ${area} from the git repo root`, () => {
+      const text = read(rel);
+      assert.ok(
+        text.includes(area),
+        `${rel} must consume project rules under ${area}`,
+      );
+      assert.ok(
+        text.includes("git rev-parse --show-toplevel"),
+        `${rel} must anchor rule discovery to the repo root via git rev-parse --show-toplevel`,
+      );
+      assert.ok(
+        /子包级.{0,4}(为准|优先)/.test(text),
+        `${rel} must state subpackage-level precedence as one phrase (子包级…为准/优先)`,
+      );
+      assert.ok(
+        /非 git 仓库[^\n]{0,12}回退/.test(text),
+        `${rel} must define the non-git-repo fallback to cwd`,
+      );
+    });
+  }
+
+  test("reviewer-creator writes custom reviewers anchored to the repo root", () => {
+    const text = read(
+      "plugins/auriga-workflow/skills/reviewer-creator/SKILL.md",
+    );
+    assert.ok(
+      text.includes("git rev-parse --show-toplevel"),
+      "reviewer-creator must resolve the output directory from the git repo root",
+    );
+    assert.ok(
+      text.includes("|| pwd"),
+      "the mkdir command must fall back to cwd when git rev-parse fails (non-git dir would otherwise expand to /docs/rules/review/)",
+    );
+    assert.ok(
+      text.includes("<仓库根>/docs/rules/review/<name>.md"),
+      "the write target must be anchored to the repo root",
+    );
+  });
+
+  test("spec-design consumes project spec rules as clarification input and gate item", () => {
+    const text = read("plugins/auriga-workflow/skills/spec-design/SKILL.md");
+    assert.ok(
+      text.includes("docs/rules/spec/"),
+      "spec-design must consult project spec rules under docs/rules/spec/",
+    );
+    assert.ok(
+      /无项目专属 spec 规则/.test(text),
+      "spec-design must record explicitly when no project spec rules exist",
+    );
+  });
+
+  test("session-compound routes categorized lessons to consumer-bound rule directories", () => {
+    const text = read(
+      "plugins/auriga-workflow/skills/session-compound/SKILL.md",
+    );
+    for (const dir of [
+      "docs/rules/spec/",
+      "docs/rules/arch/",
+      "docs/rules/test/",
+      "docs/rules/review/",
+    ]) {
+      assert.ok(
+        text.includes(dir),
+        `session-compound must offer ${dir} as a sedimentation target`,
+      );
+    }
+    assert.ok(
+      text.includes("reviewer-creator"),
+      "session-compound must route new review dimensions through reviewer-creator instead of free-form files",
+    );
+    assert.ok(
+      /消费方绑定/.test(text),
+      "session-compound must explain that consumer-bound directories are auto-discovered by downstream skills",
+    );
+  });
+
+  test("arch-design consumes project architecture rules as design constraints", () => {
+    const text = read("plugins/auriga-workflow/skills/arch-design/SKILL.md");
+    assert.ok(
+      text.includes("docs/rules/arch/"),
+      "arch-design must consult project architecture rules under docs/rules/arch/",
+    );
+    assert.ok(
+      /无项目专属架构规则/.test(text),
+      "arch-design must record explicitly when no project architecture rules exist",
+    );
+  });
+});
+
 describe("deep-review custom-reviewer scope overlap", () => {
   // VAL-OVL-001 — overlapping custom reviewer is not dispatched separately
   test("overlapping custom reviewer is not dispatched as a separate subagent", () => {
