@@ -39,7 +39,7 @@ description: 当有一定复杂度的功能要开始 TDD、需求模糊到容易
 
 1. **验证契约（主要来源）** — 来自 `spec-design` 的 `docs/specs/<topic>/validation-contract.md`。VAL 列表（`VAL-XXX-NNN: Behavior + Tool + Evidence`）**是规范契约**。每个 VAL 映射到一个或多个失败测试：选择符合 `Tool` 类别的测试级别，并对 `Evidence` 定义进行断言。被派发代理必须通过逐条遍历 VAL 列表来枚举失败测试，而不是自行发挥。
 2. **需求描述（备用上下文）** — `docs/specs/<topic>/spec.md` 的 Why / Findings / What / Out of scope。当某个 VAL 的 Behavior 过于简短难以明确解读，或 VAL 列表看起来不完整时使用（`spec.md` § What 中描述的行为没有对应的 VAL）。如果频繁触发备用路径，请浮出水面——规格契约存在欠规范问题，应重新调用 `spec-design`，而不是用即兴测试掩盖缺口。
-3. **项目测试规则** — 先检查仓库中的 `docs/rules/test/`，收集与当前模块、测试类型、fixture 或 runner 相关的规则。若目录不存在或没有相关文件，派发包中明确写明「无项目专属测试规则」。被派发代理必须按这些规则设计测试；若规则与 VAL 冲突，先上报冲突，不要自行取舍。
+3. **项目测试规则** — 先检查仓库中的 `docs/rules/test/`。目录以仓库根为锚：用 `git rev-parse --show-toplevel` 解析仓库根，检索 `<仓库根>/docs/rules/test/`；当 cwd 不在仓库根、且 cwd 到仓库根之间存在更近的 `docs/rules/test/`（monorepo 子包）时，两层都收集——子包级规则视为对仓库级的补充/收窄，冲突时以子包级为准；非 git 仓库时回退为相对 cwd 检索。收集与当前模块、测试类型、fixture 或 runner 相关的规则，把规则文件的**绝对路径**一并写进派发包。若目录不存在或没有相关文件，派发包中明确写明「无项目专属测试规则」。被派发代理必须按这些规则设计测试；若规则与 VAL 冲突，先上报冲突，不要自行取舍。
 4. **相关代码文件路径** — 只读访问该功能将触及或集成的代码
 5. **边界场景提示** — 当这些维度的 VAL 覆盖偏薄时，被派发代理应枚举的类别：
    - 边界输入（空值、最大值、最小值、差一错误）
@@ -90,7 +90,8 @@ description: 当有一定复杂度的功能要开始 TDD、需求模糊到容易
 ## 先分析，再编写 / Analyze first, write second
 在起草任何测试之前：
 1. 阅读代码路径；识别公开 API / 可观测的行为面。
-2. 阅读 `docs/rules/test/` 中与当前模块或测试类型相关的规则；没有相关规则时，在输出中明确说明。
+2. 阅读派发包中按绝对路径列出的项目测试规则文件（源自仓库根及 monorepo 子包
+   的 `docs/rules/test/`）；派发包写明「无项目专属测试规则」时，在输出中明确说明。
 3. 扫描仓库中已有的测试文件；匹配其框架、runner、fixture 模式和命名风格。
    如果 `validation-contract.md` 提供了 `## Toolchain` 表格，直接从中取用
    runner / driver 并通过扫描确认，而不是从头重新推断技术栈。

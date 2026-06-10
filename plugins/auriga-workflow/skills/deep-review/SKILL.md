@@ -33,7 +33,7 @@ description: "当用户要求审查拉取请求、执行 /deep-review、将拉�
 
 对每位分派的审查者，**只读 `references/reviewers/<name>.md` 的 YAML frontmatter** 决定编排：`reasoning` 档位（`flagship` → 平台顶级模型；`workhorse` → 次于顶级，如 Sonnet / GPT-5.5-mini）、`tools`，以及可选的 `effort`（未指定时默认为 `xhigh`——当前 Claude / Codex 推荐值；仅在向下覆盖为简单检查或向上覆盖为 `max` 时才指定）。**正文（检查清单、检测表、输出契约）不读进主 agent 上下文**——把该文件的绝对路径交给子代理，指示其自读并遵循。
 
-**项目级自定义审查者**：同时检索 `docs/rules/review/*.md`（目录不存在则静默跳过）。对每个自定义文件，先做**范围重叠判定**，再决定分派方式。
+**项目级自定义审查者**：同时检索 `docs/rules/review/*.md`（目录不存在则静默跳过）。目录以仓库根为锚：用 `git rev-parse --show-toplevel` 解析仓库根，检索 `<仓库根>/docs/rules/review/`；当 cwd 不在仓库根、且 cwd 到仓库根之间存在更近的 `docs/rules/review/`（monorepo 子包）时，两层都收集——子包级审查者视为对仓库级的补充/收窄，重名时以子包级为准；非 git 仓库时回退为相对 cwd 检索。对每个自定义文件，先做**范围重叠判定**，再决定分派方式。
 
 **降级（旧版兼容）**：built-in reviewer 一律带 YAML frontmatter；但旧版项目自定义 reviewer 可能没有 YAML frontmatter（仍是正文的 `## Metadata` 项目列表）。读取编排字段（`name` / `best_for` / `trigger` / `reasoning` / `tools` / `extends`）时：优先读 frontmatter；文件没有 frontmatter 时回退读取正文的 `## Metadata` 段；两者都缺时按语义判断（见下方重叠判定），并把缺失记为「无项目专属元数据」。
 

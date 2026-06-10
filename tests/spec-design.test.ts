@@ -154,6 +154,32 @@ describe("spec-design skill — repo-check VALs", () => {
     }
   });
 
+  test("workflow docs define spec/arch rule subdirectories and consumers", () => {
+    for (const f of ["AGENTS.template.zh-CN.md", "AGENTS.template.en.md"]) {
+      const text = read(f);
+      assert.ok(
+        text.includes("docs/rules/spec/"),
+        `${f} must document the project spec rules directory`,
+      );
+      assert.ok(
+        text.includes("docs/rules/arch/"),
+        `${f} must document the project architecture rules directory`,
+      );
+      assert.ok(
+        /spec-design[^]*?docs\/rules\/spec\/|docs\/rules\/spec\/[^]*?spec-design/.test(
+          text,
+        ),
+        `${f} must connect docs/rules/spec/ with spec-design`,
+      );
+      assert.ok(
+        /arch-design[^]*?docs\/rules\/arch\/|docs\/rules\/arch\/[^]*?arch-design/.test(
+          text,
+        ),
+        `${f} must connect docs/rules/arch/ with arch-design`,
+      );
+    }
+  });
+
   test("VAL-DEP-002: skills-lock.json no longer contains brainstorming entry; .agents/skills/brainstorming/ is gone", () => {
     const lock = JSON.parse(read("skills-lock.json"));
     assert.equal(

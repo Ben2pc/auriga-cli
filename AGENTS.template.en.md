@@ -1,5 +1,5 @@
 <!-- AURIGA:WORKFLOW:v1 START — Managed block, maintained by auriga-cli. Do not edit by hand; upgrades replace it wholesale. Put project-specific instructions after the END marker below. -->
-# auriga Workflow (v1.9.0)
+# auriga Workflow (v1.10.0)
 
 1. Requirement Clarification: Use `spec-design` to clarify requirements for new features. **Requirements should focus on "what to do" and acceptance criteria, not specific technical paths.** For product features, prioritize "Why" and let the implementation-stage Agent decide how. **spec = why + what; plan = how.** If a change does not move the external behavior contract (refactor, algorithm swap, library replacement with same observable behavior), skip spec and go directly to plan.
 
@@ -44,6 +44,8 @@ Repo documentation lives under `docs/`, directory-per-purpose, so Agents, the `p
 | `docs/rules/` | Coding conventions, review checklists, naming / style decisions. | Long-lived, maintained |
 | `docs/rules/review/` | Project-level custom reviewers; each file maps to one `deep-review` extension dimension, created by `reviewer-creator` and auto-discovered by `deep-review`. | Long-lived, maintained |
 | `docs/rules/test/` | Project-level test rules, test-design constraints, and fixture conventions; `test-designer` or the main Agent must consult relevant files before writing or updating tests. | Long-lived, maintained |
+| `docs/rules/spec/` | Project-level spec rules defining what must be pinned down at the spec stage (mandatory clarification dimensions, required sections, domain-specific acceptance requirements); `spec-design` must consult relevant files during research. | Long-lived, maintained |
+| `docs/rules/arch/` | Project-level architecture design rules (layering rules, dependency direction, module boundary conventions); `arch-design` treats relevant rules as hard design constraints. | Long-lived, maintained |
 | `docs/specs/` | **Default destination for `spec-design` and `arch-design` outputs.** Temporary working area for active specs / architecture designs / requirement clarifications during development. **Must be empty by PR Ready** — promote each spec to `docs/architecture/`, archive to `docs/worklog/worklog-<YYYY-MM-DD>-<branch-name>/`, or delete. | Ephemeral during dev |
 | `docs/architecture/` | Stable, long-lived design docs (module layouts, data flows, component responsibilities), plus architecture decision records (ADRs, filename `ADR-<n>-<title>.md`). | Long-lived |
 | `docs/` (other categories) | Add one directory per new document category on demand: `CI/`, `onboarding/`, etc. One directory per category; don't mix. | Varies |

@@ -54,6 +54,83 @@ describe("auriga-workflow skill contracts", () => {
   });
 });
 
+describe("project rule discovery anchors to the repo root", () => {
+  const ruleConsumers: Array<{ rel: string; area: string }> = [
+    {
+      rel: "plugins/auriga-workflow/skills/deep-review/SKILL.md",
+      area: "docs/rules/review/",
+    },
+    {
+      rel: "plugins/auriga-workflow/skills/test-designer/SKILL.md",
+      area: "docs/rules/test/",
+    },
+    {
+      rel: "plugins/auriga-workflow/skills/deep-review/references/reviewers/test-quality.md",
+      area: "docs/rules/test/",
+    },
+    {
+      rel: "plugins/auriga-workflow/skills/spec-design/SKILL.md",
+      area: "docs/rules/spec/",
+    },
+    {
+      rel: "plugins/auriga-workflow/skills/arch-design/SKILL.md",
+      area: "docs/rules/arch/",
+    },
+  ];
+
+  for (const { rel, area } of ruleConsumers) {
+    test(`${path.basename(path.dirname(rel)) === "reviewers" ? "test-quality reviewer" : path.basename(path.dirname(rel))} resolves ${area} from the git repo root`, () => {
+      const text = read(rel);
+      assert.ok(
+        text.includes(area),
+        `${rel} must consume project rules under ${area}`,
+      );
+      assert.ok(
+        text.includes("git rev-parse --show-toplevel"),
+        `${rel} must anchor rule discovery to the repo root via git rev-parse --show-toplevel`,
+      );
+      assert.ok(
+        /子包级/.test(text) && /(为准|优先)/.test(text),
+        `${rel} must collect both repo-root and nearer subpackage rules, subpackage taking precedence`,
+      );
+    });
+  }
+
+  test("reviewer-creator writes custom reviewers anchored to the repo root", () => {
+    const text = read(
+      "plugins/auriga-workflow/skills/reviewer-creator/SKILL.md",
+    );
+    assert.ok(
+      text.includes("git rev-parse --show-toplevel"),
+      "reviewer-creator must resolve the output directory from the git repo root",
+    );
+  });
+
+  test("spec-design consumes project spec rules as clarification input and gate item", () => {
+    const text = read("plugins/auriga-workflow/skills/spec-design/SKILL.md");
+    assert.ok(
+      text.includes("docs/rules/spec/"),
+      "spec-design must consult project spec rules under docs/rules/spec/",
+    );
+    assert.ok(
+      /无项目专属 spec 规则/.test(text),
+      "spec-design must record explicitly when no project spec rules exist",
+    );
+  });
+
+  test("arch-design consumes project architecture rules as design constraints", () => {
+    const text = read("plugins/auriga-workflow/skills/arch-design/SKILL.md");
+    assert.ok(
+      text.includes("docs/rules/arch/"),
+      "arch-design must consult project architecture rules under docs/rules/arch/",
+    );
+    assert.ok(
+      /无项目专属架构规则/.test(text),
+      "arch-design must record explicitly when no project architecture rules exist",
+    );
+  });
+});
+
 describe("deep-review custom-reviewer scope overlap", () => {
   // VAL-OVL-001 — overlapping custom reviewer is not dispatched separately
   test("overlapping custom reviewer is not dispatched as a separate subagent", () => {

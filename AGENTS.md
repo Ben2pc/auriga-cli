@@ -1,5 +1,5 @@
 <!-- AURIGA:WORKFLOW:v1 START — 受管区块,由 auriga-cli 维护,请勿手改;升级会整块覆盖。工程专属规则写在下方 END 标记之后。 -->
-# auriga 工作流 (v1.9.0)
+# auriga 工作流 (v1.10.0)
 
 1. 需求澄清：新需求先用 `spec-design` 澄清 requirement。**requirement聚焦"做什么"和验收标准，不写具体技术路径**，如果是产品功能优先关注"Why"，让实现阶段的 Agent 自行决定怎么做。**spec = why + what; plan = how。** 如果改动不影响外部行为契约（重构、换算法、换库但可观察行为不变），跳过 spec 直接进 plan。
 
@@ -44,6 +44,8 @@
 | `docs/rules/` | 编码规范、review checklist、命名 / 风格约定 | 长期维护 |
 | `docs/rules/review/` | 项目级自定义 reviewer；每个文件对应一个 `deep-review` 扩展维度，由 `reviewer-creator` 创建，`deep-review` 自动发现并分派 | 长期维护 |
 | `docs/rules/test/` | 项目级测试规则、测试设计约束和测试夹具约定；`test-designer` 或主 Agent 写/更新测试前必须先参考相关文件 | 长期维护 |
+| `docs/rules/spec/` | 项目级 spec 规则，规定哪些问题必须在 spec 阶段就明确（必答澄清维度、必填章节、特定领域验收要求）；`spec-design` 调研阶段必须先参考相关文件 | 长期维护 |
+| `docs/rules/arch/` | 项目级架构设计规范（分层规则、依赖方向、模块边界约定）；`arch-design` 把相关规则作为设计硬约束 | 长期维护 |
 | `docs/specs/` | **`spec-design` 和 `arch-design` 输出的默认归宿。** 开发期间存放活跃 spec / 架构设计 / 需求澄清的临时工作区。**PR Ready 前必须清空**——每个 spec 晋升到 `docs/architecture/`、归档到 `docs/worklog/worklog-<YYYY-MM-DD>-<branch-name>/`，或删除。 | 开发期临时 |
 | `docs/architecture/` | 稳定、长期的设计文档（模块布局、数据流、组件职责），以及架构决策记录（ADR，文件名 `ADR-<序号>-<标题>.md`）。 | 长期 |
 | `docs/` 其他 | 按需新增：`CI/`、`onboarding/` 等。一类文档一个目录，不混放 | 因类而异 |
