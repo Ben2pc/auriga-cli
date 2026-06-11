@@ -1,0 +1,25 @@
+/* 文件树（代码地图用）：嵌套列表 + 引导线，禁止 ASCII 字符画 */
+.file-tree ul { list-style: none; margin: 0; padding-left: 18px; border-left: 1px solid var(--hairline); }
+.file-tree > ul { border-left: none; padding-left: 0; }
+.file-tree li { position: relative; padding: 3px 0 3px 14px; }
+.file-tree li::before { content: ""; position: absolute; left: 0; top: 14px; width: 10px; height: 1px; background: var(--hairline); }
+.file-tree details.dir > summary { cursor: pointer; font-weight: 600; color: var(--ink); list-style: none; }
+.file-tree details.dir > summary::before { content: "▸ "; color: var(--muted); }
+.file-tree details.dir[open] > summary::before { content: "▾ "; }
+.file-tree .role { color: var(--muted); font-size: 12px; margin-left: 8px; }
+
+/* 锚点徽章：每个代码结论旁的 文件:行号 */
+.anchor { font: 11px ui-monospace, SFMono-Regular, Menlo, monospace; background: var(--surface-soft);
+  border: 1px solid var(--hairline); border-radius: 6px; padding: 1px 7px;
+  color: var(--primary-active); text-decoration: none; white-space: nowrap; }
+.anchor:hover { border-color: var(--primary); }
+
+/* 提示卡：坑 / 特例 / 正向结论 */
+.callout { border-left: 3px solid var(--accent-teal); background: var(--surface-soft);
+  padding: 10px 14px; border-radius: 0 8px 8px 0; margin: 14px 0; }
+.callout.warn { border-left-color: var(--warning); }
+.callout.danger { border-left-color: var(--error); }
+
+/* 图表容器：统一留白与图注 */
+.fig { margin: 22px 0; overflow-x: auto; }
+.fig figcaption { color: var(--muted); font-size: 12.5px; margin-top: 6px; }

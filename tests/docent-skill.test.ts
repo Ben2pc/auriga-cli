@@ -1,0 +1,451 @@
+import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { describe, test } from "node:test";
+
+import matter from "gray-matter";
+
+const repoRoot = path.resolve(new URL(".", import.meta.url).pathname, "..", "..");
+
+const SKILL_DIR = "plugins/auriga-workflow/skills/docent";
+
+function read(rel: string): string {
+  return fs.readFileSync(path.join(repoRoot, rel), "utf-8");
+}
+
+function listFilesRecursive(rel: string): string[] {
+  const abs = path.join(repoRoot, rel);
+  if (!fs.existsSync(abs)) return [];
+  const out: string[] = [];
+  const walk = (dir: string) => {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) walk(full);
+      else out.push(full);
+    }
+  };
+  walk(abs);
+  return out;
+}
+
+describe("docent skill assets", () => {
+  // VAL-DCNT-001 — skill exists and is explicit-invocation only
+  test("SKILL.md exists with valid frontmatter and explicit-only invocation", () => {
+    const raw = read(`${SKILL_DIR}/SKILL.md`);
+    const parsed = matter(raw);
+    assert.equal(parsed.data.name, "docent", "frontmatter name must be docent");
+    assert.ok(
+      typeof parsed.data.description === "string" && parsed.data.description.length > 0,
+      "frontmatter must have a non-empty description",
+    );
+    assert.equal(
+      parsed.data["disable-model-invocation"],
+      true,
+      "docent must be explicit-invocation only (disable-model-invocation: true)",
+    );
+    assert.ok(
+      /显式/.test(String(parsed.data.description)),
+      "description must state the explicit-invocation-only boundary for runtimes that trigger by description",
+    );
+  });
+
+  // VAL-DCNT-002 — no fixed HTML template asset; quality is constrained by
+  // purpose + palette + hard constraints in prose
+  test("skill ships no fixed HTML template; hard constraints live in SKILL.md", () => {
+    const htmlAssets = listFilesRecursive(SKILL_DIR).filter((f) => f.endsWith(".html"));
+    assert.deepEqual(htmlAssets, [], "docent must not ship a fixed HTML template asset");
+    const text = read(`${SKILL_DIR}/SKILL.md`);
+    assert.ok(text.includes("必答"), "SKILL.md must carry the mandatory-answers checklist");
+    assert.ok(
+      /文件:行号/.test(text),
+      "SKILL.md must require file:line anchors for code conclusions",
+    );
+    assert.ok(text.includes("自包含"), "SKILL.md must require a self-contained offline HTML");
+    assert.ok(text.includes("阅读足迹"), "SKILL.md must require the reading-footprint section");
+    assert.ok(text.includes("不适用"), "SKILL.md must allow explicit N/A but forbid silent omission");
+    assert.ok(
+      /至少一张/.test(text) && /时序图|流程图|状态图/.test(text),
+      "SKILL.md must hard-require at least one standard software-engineering diagram for the main flow",
+    );
+    assert.ok(
+      text.includes("架构总览"),
+      "SKILL.md must require an architecture overview diagram on the first screen",
+    );
+    assert.ok(
+      text.includes("端到端"),
+      "SKILL.md must center the verify-understanding item on human end-to-end acceptance",
+    );
+    assert.ok(
+      text.includes("references/components.md"),
+      "SKILL.md must direct the report generator to the bundled component library",
+    );
+  });
+
+  // VAL-DCNT-003 — dual-agent portability conventions
+  test("skill files follow agent-portability conventions", () => {
+    const files = listFilesRecursive(SKILL_DIR).filter((f) => f.endsWith(".md"));
+    assert.ok(files.length > 0, "docent skill files must exist");
+    for (const file of files) {
+      const text = fs.readFileSync(file, "utf-8");
+      const rel = path.relative(repoRoot, file);
+      if (text.includes("AskUserQuestion")) {
+        assert.ok(
+          text.includes("request_user_input"),
+          `${rel}: Claude-only tool names must be paired with the Codex equivalent`,
+        );
+      }
+      assert.ok(
+        !text.includes(".claude/skills"),
+        `${rel}: plugin assets must not depend on .claude/ symlinked paths`,
+      );
+    }
+  });
+
+  // VAL-DCNT-013 — bundled frontend design reference, referenced by SKILL.md
+  test("design guidelines reference is bundled and wired into SKILL.md", () => {
+    const ref = `${SKILL_DIR}/references/design-guidelines.md`;
+    assert.ok(
+      fs.existsSync(path.join(repoRoot, ref)),
+      "docent must bundle references/design-guidelines.md",
+    );
+    const skill = read(`${SKILL_DIR}/SKILL.md`);
+    assert.ok(
+      skill.includes("references/design-guidelines.md"),
+      "SKILL.md must direct the report generator to the bundled design guidelines",
+    );
+    const refText = read(ref);
+    assert.ok(
+      !refText.includes(".claude/"),
+      "design guidelines must be self-contained, not a pointer into .claude/",
+    );
+    assert.ok(
+      refText.includes("ASCII") && refText.includes("目录树"),
+      "design guidelines must forbid ASCII-art directory trees and prescribe an HTML/CSS tree",
+    );
+    assert.ok(
+      refText.includes("--primary") && refText.includes("design token"),
+      "design guidelines must carry the recommended design-token palette",
+    );
+  });
+
+  // Component library lives under assets/ (standard skill layout: assets are
+  // files used in the output, fetched by name and assembled mechanically —
+  // never retyped through the model). references/components.md is the usage
+  // guide that names each asset.
+  test("component assets bundle tokens, tree CSS, and working SVG renderers", () => {
+    const tokens = read(`${SKILL_DIR}/assets/tokens.css`);
+    assert.ok(tokens.includes("--primary"), "tokens.css must define the design tokens");
+    const css = read(`${SKILL_DIR}/assets/components.css`);
+    assert.ok(css.includes("file-tree"), "components.css must include the file-tree component");
+
+    const guide = read(`${SKILL_DIR}/references/components.md`);
+    for (const name of ["assets/tokens.css", "assets/components.css", "assets/renderers.js"]) {
+      assert.ok(guide.includes(name), `components.md must reference ${name} by name`);
+    }
+    const skill = read(`${SKILL_DIR}/SKILL.md`);
+    assert.ok(
+      skill.includes("scripts/assemble.sh") && skill.includes("拼装"),
+      "SKILL.md must direct assembly through scripts/assemble.sh instead of retyping assets",
+    );
+
+    const code = read(`${SKILL_DIR}/assets/renderers.js`);
+    const exports = new Function(
+      `${code}; return { renderSequenceSvg, renderFlowSvg, textWidth };`,
+    )() as {
+      renderSequenceSvg: (d: unknown) => string;
+      renderFlowSvg: (d: unknown) => string;
+      textWidth: (s: string) => number;
+    };
+
+    const seq = exports.renderSequenceSvg({
+      participants: [
+        { id: "cli", label: "CLI", anchor: "src/cli.ts:10" },
+        { id: "gh", label: "GitHub <raw>" },
+      ],
+      messages: [
+        { from: "cli", to: "gh", label: "GET v1.x" },
+        { from: "gh", to: "cli", label: "404", kind: "return" },
+      ],
+    });
+    assert.ok(seq.startsWith("<svg"), "sequence renderer must return an <svg> string");
+    assert.ok(seq.includes("GET v1.x"), "sequence renderer must draw message labels");
+    assert.ok(!seq.includes("GitHub <raw>"), "sequence renderer must XML-escape labels");
+    assert.ok(seq.includes("GitHub &lt;raw&gt;"), "escaped label must survive");
+    assert.ok(
+      seq.includes('stroke-dasharray="6 4"'),
+      "return-kind messages must render as dashed arrows",
+    );
+    assert.ok(seq.includes("<title>src/cli.ts:10</title>"), "participant anchors must render as titles");
+
+    const flow = exports.renderFlowSvg({
+      layers: [
+        [{ id: "a", label: "入口", anchor: "src/utils.ts:239" }],
+        [{ id: "b", label: "环境变量覆盖?", kind: "decision" }],
+        [{ id: "c", label: "用 tag" }, { id: "d", label: "用 main" }],
+      ],
+      edges: [
+        { from: "a", to: "b" },
+        { from: "b", to: "c", label: "否" },
+        { from: "b", to: "d", label: "是" },
+      ],
+    });
+    assert.ok(flow.startsWith("<svg"), "flow renderer must return an <svg> string");
+    assert.ok(flow.includes("环境变量覆盖?"), "flow renderer must draw node labels");
+    assert.ok(
+      flow.includes("var(--accent-amber"),
+      "decision nodes must render with the amber accent stroke",
+    );
+    assert.ok(flow.includes("src/utils.ts:239"), "node anchors must render as a second line");
+    // node width must accommodate the anchor line, not just the label
+    const anchored = exports.renderFlowSvg({
+      layers: [[{ id: "a", label: "A", anchor: "plugins/auriga-workflow/skills/docent/SKILL.md:81" }]],
+      edges: [],
+    });
+    const anchorVb = /viewBox="[\d.-]+ [\d.-]+ ([\d.-]+)/.exec(anchored);
+    assert.ok(
+      Number(anchorVb![1]) >= exports.textWidth("plugins/auriga-workflow/skills/docent/SKILL.md:81") * 0.8,
+      "node width and viewBox must account for the anchor text",
+    );
+  });
+
+  // Invalid data must degrade visibly instead of throwing (which would kill
+  // every later figure in the same inline script block) or emitting NaN /
+  // -Infinity geometry silently.
+  test("renderers degrade gracefully on invalid data", () => {
+    const code = read(`${SKILL_DIR}/assets/renderers.js`);
+    const exports = new Function(
+      `${code}; return { renderSequenceSvg, renderFlowSvg };`,
+    )() as {
+      renderSequenceSvg: (d: unknown) => string;
+      renderFlowSvg: (d: unknown) => string;
+    };
+
+    const emptyFlow = exports.renderFlowSvg({ layers: [], edges: [] });
+    assert.ok(emptyFlow.startsWith("<svg"), "empty layers must yield a placeholder svg");
+    assert.ok(!emptyFlow.includes("Infinity"), "empty layers must not emit -Infinity geometry");
+
+    const emptySeq = exports.renderSequenceSvg({ participants: [], messages: [] });
+    assert.ok(emptySeq.startsWith("<svg"), "empty participants must yield a placeholder svg");
+    assert.ok(!emptySeq.includes("NaN"), "empty participants must not emit NaN geometry");
+
+    const badFlow = exports.renderFlowSvg({
+      layers: [[{ id: "a", label: "A" }], [{ id: "b", label: "B" }]],
+      edges: [
+        { from: "a", to: "b" },
+        { from: "a", to: "typo", label: "bad" },
+      ],
+    });
+    assert.ok(badFlow.includes("跳过"), "unknown edge ids must surface as a visible warning");
+    assert.ok(!badFlow.includes("NaN"), "unknown edge ids must not emit NaN geometry");
+
+    const badSeq = exports.renderSequenceSvg({
+      participants: [{ id: "a", label: "A" }],
+      messages: [{ from: "a", to: "ghost", label: "x" }],
+    });
+    assert.ok(badSeq.includes("跳过"), "unknown participant ids must surface as a visible warning");
+    assert.ok(!badSeq.includes("NaN"), "unknown participant ids must not emit NaN geometry");
+  });
+
+  // Regression: edge-label collisions, viewBox clipping, and skip-layer edges
+  // crossing nodes (found in the iOS learning-feature report).
+  test("flow renderer avoids label collisions, clipping, and node crossings", () => {
+    const code = read(`${SKILL_DIR}/assets/renderers.js`);
+    const exports = new Function(
+      `${code}; return { renderSequenceSvg, renderFlowSvg, textWidth };`,
+    )() as {
+      renderSequenceSvg: (d: unknown) => string;
+      renderFlowSvg: (d: unknown) => string;
+      textWidth: (s: string) => number;
+    };
+
+    // 1) two labelled edges sharing a midpoint must stagger vertically
+    const collide = exports.renderFlowSvg({
+      layers: [[{ id: "a", label: "answering" }], [{ id: "b", label: "feedback" }]],
+      edges: [
+        { from: "a", to: "b", label: "answerSubmitted 且判定通过" },
+        { from: "a", to: "b", label: "最后一题且无反馈视频" },
+      ],
+    });
+    const ys = [...collide.matchAll(/<text[^>]*class="edge-label"[^>]*y="([\d.-]+)"/g)].map(
+      (m) => Number(m[1]),
+    );
+    assert.equal(ys.length, 2, "both edge labels must render");
+    assert.ok(Math.abs(ys[0] - ys[1]) >= 12, "colliding edge labels must stagger vertically");
+
+    // 2) edge labels must have a canvas halo so they stay readable over lines
+    assert.ok(collide.includes("paint-order"), "edge labels must carry a halo (paint-order)");
+
+    // 3) a long edge label must widen the viewBox instead of clipping
+    const longLabel = "quizTriggered (boundary observer 精确回调登记契约触发)";
+    const wide = exports.renderFlowSvg({
+      layers: [[{ id: "a", label: "A" }], [{ id: "b", label: "B" }]],
+      edges: [{ from: "a", to: "b", label: longLabel }],
+    });
+    const vb = /viewBox="([\d.-]+) [\d.-]+ ([\d.-]+)/.exec(wide);
+    assert.ok(vb, "flow svg must carry a viewBox");
+    assert.ok(
+      Number(vb![2]) >= exports.textWidth(longLabel),
+      "viewBox must be wide enough for the longest edge label",
+    );
+
+    // 4) skip-layer and backward edges must route along a right-side rail —
+    // and their labels must sit beyond every node's right edge, never on a node
+    const skip = exports.renderFlowSvg({
+      layers: [
+        [{ id: "a", label: "mainVideo" }],
+        [{ id: "m", label: "preQuizVideo（题前互动视频）" }],
+        [{ id: "c", label: "answering" }],
+      ],
+      edges: [
+        { from: "a", to: "m" },
+        { from: "m", to: "c" },
+        { from: "a", to: "c", label: "无题前视频直接出题" },
+        { from: "c", to: "a", label: "回跳" },
+      ],
+    });
+    assert.ok(
+      /<path[^>]*marker-end/.test(skip),
+      "skip-layer edges must render as rail paths with arrowheads",
+    );
+    // 注意前置空格锚定 ` width=`，否则 [^>]* 贪婪回溯会匹配到 stroke-width
+    const nodeRights = [...skip.matchAll(/<rect x="([\d.-]+)"[^>]*? width="([\d.-]+)"/g)].map(
+      (m) => Number(m[1]) + Number(m[2]),
+    );
+    assert.ok(
+      nodeRights.some((r) => r > 96),
+      "node-right extraction must capture real widths, not stroke-width",
+    );
+    const maxNodeRight = Math.max(...nodeRights);
+    const railLabels = [
+      ...skip.matchAll(/<text[^>]*text-anchor="start"[^>]*x="([\d.-]+)"[^>]*>([^<]*)<\/text>/g),
+    ].map((m) => ({ x: Number(m[1]), text: m[2] }));
+    assert.equal(railLabels.length, 2, "both rail edge labels must render");
+    for (const l of railLabels) {
+      assert.ok(l.x > maxNodeRight, "rail labels must start beyond every node's right edge");
+    }
+    // each rail reserves its label's horizontal band — labels and rails of
+    // different lanes must never overlap, even at identical mid-heights
+    railLabels.sort((p, q) => p.x - q.x);
+    assert.ok(
+      railLabels[1].x >= railLabels[0].x + exports.textWidth(railLabels[0].text),
+      "rail label bands must be horizontally disjoint",
+    );
+    assert.ok(skip.includes("<circle"), "rail edges must mark their departure point with a dot");
+  });
+
+  // The assembly is a mechanism, not a prompt: scripts/assemble.sh produces
+  // the final single-file HTML so the model never retypes asset code.
+  test("scripts/assemble.sh assembles a self-contained report from fragments", () => {
+    const script = path.join(repoRoot, SKILL_DIR, "scripts", "assemble.sh");
+    assert.ok(fs.existsSync(script), "scripts/assemble.sh must exist");
+    assert.ok(fs.statSync(script).mode & 0o111, "assemble.sh must be executable");
+
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "docent-assemble-"));
+    try {
+      const body = path.join(tmp, "body.html");
+      const custom = path.join(tmp, "custom.css");
+      const out = path.join(tmp, "report.html");
+      fs.writeFileSync(
+        body,
+        `<h1>冒烟</h1><div id="f"></div><script>document.getElementById("f").innerHTML = renderFlowSvg({layers:[[{id:"a",label:"节点"}]],edges:[]});</script>`,
+      );
+      fs.writeFileSync(custom, "h1{color:var(--primary)}");
+      execFileSync("sh", [script, body, out, custom, "冒烟标题"]);
+
+      const html = fs.readFileSync(out, "utf-8");
+      assert.ok(html.startsWith("<!doctype html>"), "output must be a complete HTML document");
+      assert.ok(html.includes("--primary:"), "output must inline the design tokens");
+      assert.ok(html.includes("file-tree"), "output must inline the component CSS");
+      assert.ok(html.includes("h1{color:var(--primary)}"), "output must inline the custom CSS");
+      assert.ok(html.includes("冒烟标题"), "output must carry the title");
+      assert.ok(
+        html.indexOf("function renderFlowSvg") < html.indexOf("<h1>冒烟</h1>"),
+        "renderers must be defined in <head> before the body so inline calls work",
+      );
+      assert.ok(
+        !/(?:src|href)\s*=\s*["']https?:\/\//.test(html),
+        "output must stay offline self-contained",
+      );
+
+      // guard rails: output path colliding with an input must fail fast
+      // (cat-ing the file being written would self-feed and fill the disk)
+      assert.throws(
+        () => execFileSync("sh", [script, body, body], { stdio: "pipe" }),
+        "output path equal to body fragment must be rejected",
+      );
+      // a custom.css path that was given but does not exist must fail, not
+      // silently produce an unstyled report
+      assert.throws(
+        () => execFileSync("sh", [script, body, out, path.join(tmp, "missing.css")], { stdio: "pipe" }),
+        "missing custom css must fail fast",
+      );
+      // defaults + escaping: no custom css, hostile title
+      const out2 = path.join(tmp, "report2.html");
+      execFileSync("sh", [script, body, out2, "", '</title><script>alert(1)</script>']);
+      const html2 = fs.readFileSync(out2, "utf-8");
+      assert.ok(html2.includes('lang="zh"'), "lang must default to zh");
+      assert.ok(
+        !html2.includes("</title><script>alert(1)</script>"),
+        "title must be HTML-escaped, not injected verbatim",
+      );
+      assert.ok(html2.includes("&lt;/title&gt;"), "escaped title must survive in the output");
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("docent release sync", () => {
+  // VAL-DCNT-004 — plugin manifests bumped past 3.9.0 and kept in lockstep;
+  // marketplace descriptions enumerate docent
+  test("plugin manifests are bumped past 3.9.0 and stay in lockstep", () => {
+    const claude = JSON.parse(read("plugins/auriga-workflow/.claude-plugin/plugin.json"));
+    const codex = JSON.parse(read("plugins/auriga-workflow/.codex-plugin/plugin.json"));
+    const [maj, min] = String(claude.version).split(".").map(Number);
+    assert.ok(
+      maj > 3 || (maj === 3 && min >= 10),
+      `plugin version must be bumped past 3.9.0, got ${claude.version}`,
+    );
+    assert.equal(
+      codex.version,
+      claude.version,
+      "claude and codex plugin manifests must carry the same version",
+    );
+    for (const [label, manifest] of [
+      ["claude", claude],
+      ["codex", codex],
+    ] as const) {
+      assert.ok(
+        String(manifest.description).includes("docent"),
+        `${label} plugin manifest description must enumerate docent`,
+      );
+    }
+  });
+
+  test("marketplace listings and plugin README enumerate docent", () => {
+    const claudeMarketplace = JSON.parse(read(".claude-plugin/marketplace.json"));
+    const claudeEntry = (
+      claudeMarketplace.plugins as Array<{ name: string; description: string }>
+    ).find((p) => p.name === "auriga-workflow");
+    assert.ok(claudeEntry, ".claude-plugin/marketplace.json must list auriga-workflow");
+    assert.ok(
+      claudeEntry!.description.includes("docent"),
+      ".claude-plugin/marketplace.json: auriga-workflow description must enumerate docent",
+    );
+    // The .agents marketplace carries no description field — the Codex-side
+    // user-visible description lives in .codex-plugin/plugin.json (asserted
+    // above). Here we only require the entry to keep pointing at the plugin.
+    const agentsMarketplace = JSON.parse(read(".agents/plugins/marketplace.json"));
+    const agentsEntry = (
+      agentsMarketplace.plugins as Array<{ name: string; source: { path: string } }>
+    ).find((p) => p.name === "auriga-workflow");
+    assert.ok(agentsEntry, ".agents/plugins/marketplace.json must list auriga-workflow");
+    assert.equal(agentsEntry!.source.path, "./plugins/auriga-workflow");
+    assert.ok(
+      read("plugins/auriga-workflow/README.md").includes("docent"),
+      "plugin README skills table must list docent",
+    );
+  });
+});

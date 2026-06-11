@@ -1,0 +1,69 @@
+#!/bin/sh
+# docent 报告拼装：把固定资产与当次生成的片段拼成单文件离线 HTML。
+# 用法: assemble.sh <body.html> <output.html> [custom.css] [title] [lang]
+#   body.html   — 正文片段（含图容器与内联调用脚本；渲染器已在 <head> 定义，可直接调用）
+#   output.html — 输出路径（建议 /tmp/docent-<主题slug>.html）
+#   custom.css  — 当次定制版式 CSS（可选；传了路径但文件不存在会直接失败）
+#   title       — <title> 文本（可选，默认 Docent Report；会做 HTML 转义）
+#   lang        — html lang 属性（可选，默认 zh）
+set -eu
+
+if [ "$#" -lt 2 ]; then
+  echo "usage: assemble.sh <body.html> <output.html> [custom.css] [title] [lang]" >&2
+  exit 2
+fi
+
+BODY="$1"
+OUT="$2"
+CUSTOM="${3:-}"
+TITLE="${4:-Docent Report}"
+LANG_ATTR="${5:-zh}"
+
+# 输出路径不得与任何输入相同：cat 正在被写入的文件会自馈循环、撑爆磁盘
+for SRC in "$BODY" "$CUSTOM"; do
+  if [ -n "$SRC" ] && { [ "$SRC" = "$OUT" ] || { [ -e "$OUT" ] && [ "$SRC" -ef "$OUT" ]; }; }; then
+    echo "assemble.sh: output path must differ from input: $OUT" >&2
+    exit 2
+  fi
+done
+
+if [ ! -f "$BODY" ]; then
+  echo "assemble.sh: body fragment not found: $BODY" >&2
+  exit 1
+fi
+if [ -n "$CUSTOM" ] && [ ! -f "$CUSTOM" ]; then
+  echo "assemble.sh: custom css not found: $CUSTOM" >&2
+  exit 1
+fi
+
+html_escape() {
+  printf '%s' "$1" | sed -e 's/&/\&amp;/g' -e 's/</\&lt;/g' -e 's/>/\&gt;/g' -e 's/"/\&quot;/g'
+}
+TITLE_ESC="$(html_escape "$TITLE")"
+LANG_ESC="$(html_escape "$LANG_ATTR")"
+
+SD="$(cd "$(dirname "$0")/../assets" && pwd)"
+
+# 先写临时文件，成功后再原子替换——失败不会留下残缺产物、也不会截断旧报告
+TMP="$(mktemp "${TMPDIR:-/tmp}/docent-assemble.XXXXXX")"
+trap 'rm -f "$TMP"' EXIT
+
+{
+  printf '<!doctype html><html lang="%s"><head><meta charset="utf-8">' "$LANG_ESC"
+  printf '<meta name="viewport" content="width=device-width, initial-scale=1">'
+  printf '<title>%s</title>\n<style>\n' "$TITLE_ESC"
+  cat "$SD/tokens.css" "$SD/components.css"
+  if [ -n "$CUSTOM" ]; then
+    cat "$CUSTOM"
+  fi
+  printf '</style>\n<script>\n'
+  cat "$SD/renderers.js"
+  printf '</script></head>\n<body>\n'
+  cat "$BODY"
+  printf '\n</body></html>\n'
+} > "$TMP"
+
+mv "$TMP" "$OUT"
+trap - EXIT
+
+printf 'assembled: %s\n' "$OUT"
