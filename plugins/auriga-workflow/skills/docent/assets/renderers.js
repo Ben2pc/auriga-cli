@@ -107,7 +107,7 @@ function renderFlowSvg(data) {
   let minX = 0, maxX = width;
   const buckets = {};
   const maxNodeRight = Math.max(...Object.values(pos).map((p) => p.right));
-  let lane = 0;
+  const railEdges = [];
   for (const e of data.edges) {
     const a = pos[e.from], b = pos[e.to];
     if (b.layer - a.layer === 1) {
@@ -120,19 +120,26 @@ function renderFlowSvg(data) {
         (buckets[key] = buckets[key] || []).push({ x: midX, midY, text: e.label });
       }
     } else {
-      // 跨层 / 回跳 / 同层：右侧正交导轨，每条边独占一条 lane
-      const railX = maxNodeRight + 36 + lane * 26;
-      lane += 1;
-      edges += `<path d="M ${a.right} ${a.cy} H ${railX} V ${b.cy} H ${b.right + 2}" fill="none"` +
-        ` stroke="var(--body, #3d3d3a)" marker-end="url(#fArr)"/>`;
-      maxX = Math.max(maxX, railX + 10);
-      if (e.label) {
-        const lx = railX + 8, ly = (a.cy + b.cy) / 2 + 4;
-        maxX = Math.max(maxX, lx + textWidth(e.label) + 8);
-        labelEls += `<text class="edge-label" text-anchor="start" x="${lx}" y="${ly}" font-size="11"` +
-          `${LABEL_HALO} fill="var(--muted, #6c6a64)">${escapeXml(e.label)}</text>`;
-      }
+      railEdges.push(e);
     }
+  }
+  // 跨层 / 回跳 / 同层：右侧正交导轨。lane 按跨度从小到大向外排（短边贴内侧），
+  // 每条 lane 预留自身 label 的横向带宽——不同 lane 的导轨与文字互不交叠。
+  railEdges.sort((p, q) =>
+    Math.abs(pos[p.to].layer - pos[p.from].layer) - Math.abs(pos[q.to].layer - pos[q.from].layer));
+  let railCursor = maxNodeRight + 36;
+  for (const e of railEdges) {
+    const a = pos[e.from], b = pos[e.to];
+    const railX = railCursor;
+    railCursor += 26 + (e.label ? textWidth(e.label) + 14 : 0);
+    edges += `<circle cx="${a.right}" cy="${a.cy}" r="2.5" fill="var(--body, #3d3d3a)"/>`;
+    edges += `<path d="M ${a.right} ${a.cy} H ${railX} V ${b.cy} H ${b.right + 2}" fill="none"` +
+      ` stroke="var(--body, #3d3d3a)" marker-end="url(#fArr)"/>`;
+    if (e.label) {
+      labelEls += `<text class="edge-label" text-anchor="start" x="${railX + 8}" y="${(a.cy + b.cy) / 2 + 4}"` +
+        ` font-size="11"${LABEL_HALO} fill="var(--muted, #6c6a64)">${escapeXml(e.label)}</text>`;
+    }
+    maxX = Math.max(maxX, railCursor - 12);
   }
   for (const key in buckets) {
     const arr = buckets[key];

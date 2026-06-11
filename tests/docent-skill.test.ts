@@ -250,13 +250,21 @@ describe("docent skill assets", () => {
       (m) => Number(m[1]) + Number(m[2]),
     );
     const maxNodeRight = Math.max(...nodeRights);
-    const railLabelXs = [...skip.matchAll(/<text[^>]*text-anchor="start"[^>]*x="([\d.-]+)"/g)].map(
-      (m) => Number(m[1]),
-    );
-    assert.equal(railLabelXs.length, 2, "both rail edge labels must render");
-    for (const x of railLabelXs) {
-      assert.ok(x > maxNodeRight, "rail labels must start beyond every node's right edge");
+    const railLabels = [
+      ...skip.matchAll(/<text[^>]*text-anchor="start"[^>]*x="([\d.-]+)"[^>]*>([^<]*)<\/text>/g),
+    ].map((m) => ({ x: Number(m[1]), text: m[2] }));
+    assert.equal(railLabels.length, 2, "both rail edge labels must render");
+    for (const l of railLabels) {
+      assert.ok(l.x > maxNodeRight, "rail labels must start beyond every node's right edge");
     }
+    // each rail reserves its label's horizontal band — labels and rails of
+    // different lanes must never overlap, even at identical mid-heights
+    railLabels.sort((p, q) => p.x - q.x);
+    assert.ok(
+      railLabels[1].x >= railLabels[0].x + exports.textWidth(railLabels[0].text),
+      "rail label bands must be horizontally disjoint",
+    );
+    assert.ok(skip.includes("<circle"), "rail edges must mark their departure point with a dot");
   });
 
   // The assembly is a mechanism, not a prompt: scripts/assemble.sh produces
