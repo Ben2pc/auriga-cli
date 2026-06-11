@@ -12,24 +12,15 @@
 | `assets/components.css` | 文件树 `file-tree`、锚点徽章 `anchor`、提示卡 `callout`（`.warn`/`.danger`）、图表容器 `fig` | `<style>` |
 | `assets/renderers.js` | 纯函数 SVG 渲染器：`renderSequenceSvg`（时序图）、`renderFlowSvg`（分层流程图/状态图），含 `escapeXml`、中英文宽度估算 | `<script>` 开头 |
 
-## 拼装配方
+## 拼装：scripts/assemble.sh
 
-先用文件编辑工具写出两个片段：`body 片段`（正文 + 图容器 + 数据调用脚本）和 `custom.css`（当次定制版式），然后一条命令拼装成单文件（示例，按需调整）：
+先用文件编辑工具写出两个片段：`body 片段`（正文 + 图容器 + 内联调用脚本）和 `custom.css`（当次定制版式，可选），然后执行拼装脚本：
 
 ```sh
-SD="<skill-dir>/assets"
-{
-  printf '<!doctype html><html lang="zh"><head><meta charset="utf-8"><title>%s</title>\n<style>\n' "<标题>"
-  cat "$SD/tokens.css" "$SD/components.css" /tmp/docent-custom.css
-  printf '</style></head><body>\n'
-  cat /tmp/docent-body.html
-  printf '<script>\n'
-  cat "$SD/renderers.js"
-  printf '</script></body></html>\n'
-} > /tmp/docent-<主题slug>.html
+sh <skill-dir>/scripts/assemble.sh /tmp/docent-body.html /tmp/docent-<主题slug>.html /tmp/docent-custom.css "<报告标题>"
 ```
 
-正文里的图调用脚本可以直接写在 body 片段中（`renderers.js` 在其后拼入也能用：把调用包在 `DOMContentLoaded` 里，或把调用脚本放在 body 片段末尾、拼装时置于 renderers 之后——推荐后者，配方里 `<script>` 段在 body 之后，正文中用 `<div id="...">` 占位、调用集中写在一个尾部 `<script>` 由你追加在 renderers 之后）。
+脚本会把 `assets/` 三件资产注入完整文档：token 与组件 CSS 进 `<style>`，`renderers.js` 定义在 `<head>`——所以正文里任何位置的内联 `<script>` 都可以直接调用渲染器（目标 `<div>` 在调用之前出现即可）。不要自己手拼文档骨架，更不要重打资产内容。
 
 ## 渲染器数据契约
 

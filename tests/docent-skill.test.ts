@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { describe, test } from "node:test";
 
@@ -140,8 +142,8 @@ describe("docent skill assets", () => {
     }
     const skill = read(`${SKILL_DIR}/SKILL.md`);
     assert.ok(
-      skill.includes("assets/") && skill.includes("拼装"),
-      "SKILL.md must direct mechanical assembly of assets instead of retyping them",
+      skill.includes("scripts/assemble.sh") && skill.includes("拼装"),
+      "SKILL.md must direct assembly through scripts/assemble.sh instead of retyping assets",
     );
 
     const code = read(`${SKILL_DIR}/assets/renderers.js`);
@@ -181,6 +183,40 @@ describe("docent skill assets", () => {
     });
     assert.ok(flow.startsWith("<svg"), "flow renderer must return an <svg> string");
     assert.ok(flow.includes("环境变量覆盖?"), "flow renderer must draw node labels");
+  });
+
+  // The assembly is a mechanism, not a prompt: scripts/assemble.sh produces
+  // the final single-file HTML so the model never retypes asset code.
+  test("scripts/assemble.sh assembles a self-contained report from fragments", () => {
+    const script = path.join(repoRoot, SKILL_DIR, "scripts", "assemble.sh");
+    assert.ok(fs.existsSync(script), "scripts/assemble.sh must exist");
+    assert.ok(fs.statSync(script).mode & 0o111, "assemble.sh must be executable");
+
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "docent-assemble-"));
+    const body = path.join(tmp, "body.html");
+    const custom = path.join(tmp, "custom.css");
+    const out = path.join(tmp, "report.html");
+    fs.writeFileSync(
+      body,
+      `<h1>冒烟</h1><div id="f"></div><script>document.getElementById("f").innerHTML = renderFlowSvg({layers:[[{id:"a",label:"节点"}]],edges:[]});</script>`,
+    );
+    fs.writeFileSync(custom, "h1{color:var(--primary)}");
+    execFileSync("sh", [script, body, out, custom, "冒烟标题"]);
+
+    const html = fs.readFileSync(out, "utf-8");
+    assert.ok(html.startsWith("<!doctype html>"), "output must be a complete HTML document");
+    assert.ok(html.includes("--primary:"), "output must inline the design tokens");
+    assert.ok(html.includes("file-tree"), "output must inline the component CSS");
+    assert.ok(html.includes("h1{color:var(--primary)}"), "output must inline the custom CSS");
+    assert.ok(html.includes("冒烟标题"), "output must carry the title");
+    assert.ok(
+      html.indexOf("function renderFlowSvg") < html.indexOf("<h1>冒烟</h1>"),
+      "renderers must be defined in <head> before the body so inline calls work",
+    );
+    assert.ok(
+      !/(?:src|href)\s*=\s*["']https?:\/\//.test(html),
+      "output must stay offline self-contained",
+    );
   });
 });
 

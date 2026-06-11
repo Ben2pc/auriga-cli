@@ -67,7 +67,7 @@ Agent 写代码的速度远超人类阅读代码的速度，人类对代码库�
 
 **不固定模板**——呈现形式由你针对当次问题自行设计。先读两份参考：`<skill-dir>/references/design-guidelines.md`（设计规范）和 `<skill-dir>/references/components.md`（组件库使用指南）。
 
-**拼装纪律**：`<skill-dir>/assets/` 下的固定资产（`tokens.css`、`components.css`、`renderers.js`）按 components.md 的配方**用命令拼装**进 HTML，严禁通过模型逐字重打——那是几千 token 的复印机工作。你只生成三样：正文内容、图的 JSON 数据、当次定制的版式 CSS。画图写 JSON 调渲染器，不要手画 SVG 坐标；版式、叙事、设计立场仍然每次定制。
+**拼装纪律**：最终 HTML 由 `<skill-dir>/scripts/assemble.sh` 拼装产出（固定资产 `assets/tokens.css`、`assets/components.css`、`assets/renderers.js` 由脚本注入，渲染器定义在 `<head>`，正文内联脚本可直接调用）。你只生成三样并交给脚本：正文片段、图的 JSON 数据（写在正文内联脚本里）、当次定制的版式 CSS。严禁通过模型逐字重打资产内容；画图写 JSON 调渲染器，不要手画 SVG 坐标；版式、叙事、设计立场仍然每次定制。用法与数据契约见 components.md。
 
 可视化手段调色板（按问题自选，不要全用）：
 
