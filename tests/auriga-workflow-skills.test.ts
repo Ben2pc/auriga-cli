@@ -52,6 +52,45 @@ describe("auriga-workflow skill contracts", () => {
       "test-quality reviewer must scope test execution to unit tests only",
     );
   });
+
+  test("tiered reviewers classify targets before checking", () => {
+    const tiers: Array<{ file: string; section: string; anchors: string[] }> = [
+      {
+        file: "docs-sync.md",
+        section: "Document tiers",
+        anchors: ["归档快照", "精简或删除"],
+      },
+      {
+        file: "code-quality.md",
+        section: "Audience tiers",
+        anchors: ["低受众代码", "机制优先"],
+      },
+      {
+        file: "ux.md",
+        section: "Surface tiers",
+        anchors: ["内部工具 / 临时制品", "自动化承重"],
+      },
+    ];
+    for (const { file, section, anchors } of tiers) {
+      const text = read(
+        `plugins/auriga-workflow/skills/deep-review/references/reviewers/${file}`,
+      );
+      assert.ok(
+        text.includes(section),
+        `${file} must keep its "${section}" tiering section`,
+      );
+      for (const anchor of anchors) {
+        assert.ok(
+          text.includes(anchor),
+          `${file} tiering rule must keep the "${anchor}" rule anchor`,
+        );
+      }
+      assert.ok(
+        text.includes("不是预过滤"),
+        `${file} output contract must reconcile tiering with the no-prefilter preamble`,
+      );
+    }
+  });
 });
 
 describe("project rule discovery anchors to the repo root", () => {

@@ -13,7 +13,16 @@ value: "在死路、Accessibility 阻断和响应式布局问题影响用户之�
 
 以下检查清单是**起点，而非边界**。它涵盖最常见的用户体验模式——但请报告你在这一维度上会向同事指出的任何问题，包括未在此列举的类别。这些模式是帮助你不遗漏的入门脚手架；目标是判断力。
 
-本审查者涵盖三个关切：(i) 经典用户体验问题（死路、反馈缺失、误操作风险），(ii) **Accessibility**（按界面逐项检查——Web / 移动端 / 命令行），(iii) **Responsive design**（Web 和移动端）。Accessibility 在此不是可选项——它被视为一等视角，原因有二：(a) 在许多地区它是合规要求，(b) 上线后补救的成本远高于在拉取请求阶段发现。
+本审查者涵盖三个关切：(i) 经典用户体验问题（死路、反馈缺失、误操作风险），(ii) **Accessibility**（按界面逐项检查——Web / 移动端 / 命令行），(iii) **Responsive design**（Web 和移动端）。
+
+## Surface tiers（先分层，再检查）
+
+检查任何界面前先按交付面归类，检查强度随之分层：
+
+- **对外产品界面**：用户实际使用的产品 UI。三个关切全量检查。Accessibility 在这一层是合规要求，且上线后补救成本远高于拉取请求阶段。
+- **内部工具 / 临时制品**：内部调试页、写到 `/tmp` 的报告、一次性脚本的输出界面。只查经典用户体验问题（死路、反馈缺失、误操作风险）和下述自动化承重子集；纯感知类 Accessibility（颜色对比度、Dynamic Type、Reduce Motion）与 Responsive 发现一律至多 `[severity: non-blocking] [confidence: low]`——对没有合规义务、没有长期用户的界面要求 WCAG 级打磨是过度抛光。
+
+**自动化承重的 Accessibility 子集在任何交付面都保持一等**：可达性标识符、标签和角色不只是给屏幕阅读器的——它们同时是 UI 自动化测试定位元素的钩子。以 iOS 为例：`accessibilityIdentifier` / VoiceOver 标签是 XCUITest 定位元素的主要途径，缺失意味着 UI 测试只能退化到坐标点击或文本匹配（脆弱、随文案变更失效）。Web 的 role / `aria-label`（Playwright、Testing Library 的首选选择器）、Android 的 `resource-id` / TalkBack 标签（Espresso）同理。任何会被 UI 自动化覆盖（或按项目工作流应当被覆盖）的界面，这一子集缺失按正常 severity 评级。
 
 ## Checklist
 
@@ -71,7 +80,7 @@ Worked scenarios:
 
 ## Output contract
 
-将此轮视为**全覆盖，不是筛选**。报告所有问题，包括低置信度的。
+将此轮视为**全覆盖，不是筛选**。报告所有问题，包括低置信度的。对内部工具 / 临时制品的纯感知类 Accessibility 与 Responsive 发现，按 Surface tiers 一节执行封顶（仍然报告，定级至多 non-blocking / low）——封顶修正的是定级，不是丢弃发现，不是预过滤。
 
 返回：
 

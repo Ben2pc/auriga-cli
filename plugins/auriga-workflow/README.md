@@ -34,8 +34,9 @@ travel together so they share one distribution model and one install step.
 
 - `skills/<name>/SKILL.md` — one skill per directory, autoloaded by description.
 - `skills/deep-review/references/reviewers/<name>.md` — per-dimension reviewer
-  reference files (checklist + Detection table + Output contract), read on
-  dispatch and passed verbatim into the subagent prompt.
+  reference files (checklist + Detection table + Output contract). The main
+  agent reads only the YAML frontmatter for orchestration and hands the file's
+  absolute path to the reviewer subagent, which reads the body itself.
 - `hooks/hooks.json` — hook registry, `command` paths use `${CLAUDE_PLUGIN_ROOT}`.
 - `scripts/*.mjs` — the four hook scripts.
 
