@@ -124,17 +124,27 @@ describe("docent skill assets", () => {
     );
   });
 
-  // Component library: design tokens + CSS components + pure-function SVG
-  // renderers that the report author drives with JSON data instead of
-  // hand-drawing SVG coordinates.
-  test("component library bundles tokens, tree CSS, and working SVG renderers", () => {
-    const compText = read(`${SKILL_DIR}/references/components.md`);
-    assert.ok(compText.includes("--primary"), "components must define design tokens");
-    assert.ok(compText.includes("file-tree"), "components must include the file-tree component");
+  // Component library lives under assets/ (standard skill layout: assets are
+  // files used in the output, fetched by name and assembled mechanically —
+  // never retyped through the model). references/components.md is the usage
+  // guide that names each asset.
+  test("component assets bundle tokens, tree CSS, and working SVG renderers", () => {
+    const tokens = read(`${SKILL_DIR}/assets/tokens.css`);
+    assert.ok(tokens.includes("--primary"), "tokens.css must define the design tokens");
+    const css = read(`${SKILL_DIR}/assets/components.css`);
+    assert.ok(css.includes("file-tree"), "components.css must include the file-tree component");
 
-    const jsBlocks = [...compText.matchAll(/```js\n([\s\S]*?)```/g)].map((m) => m[1]);
-    assert.ok(jsBlocks.length > 0, "components.md must carry a ```js renderer block");
-    const code = jsBlocks.join("\n");
+    const guide = read(`${SKILL_DIR}/references/components.md`);
+    for (const name of ["assets/tokens.css", "assets/components.css", "assets/renderers.js"]) {
+      assert.ok(guide.includes(name), `components.md must reference ${name} by name`);
+    }
+    const skill = read(`${SKILL_DIR}/SKILL.md`);
+    assert.ok(
+      skill.includes("assets/") && skill.includes("拼装"),
+      "SKILL.md must direct mechanical assembly of assets instead of retyping them",
+    );
+
+    const code = read(`${SKILL_DIR}/assets/renderers.js`);
     const exports = new Function(
       `${code}; return { renderSequenceSvg, renderFlowSvg };`,
     )() as {

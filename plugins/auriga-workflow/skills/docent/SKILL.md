@@ -65,7 +65,9 @@ Agent 写代码的速度远超人类阅读代码的速度，人类对代码库�
 
 ### 4. 生成 HTML 报告
 
-**不固定模板**——呈现形式由你针对当次问题自行设计。先读两份参考：`<skill-dir>/references/design-guidelines.md`（设计规范）和 `<skill-dir>/references/components.md`（组件库：design token、文件树、锚点徽章、时序图 / 流程图的数据驱动渲染器）。机械组件直接复用组件库——画图写 JSON 数据，不要手画 SVG 坐标；版式、叙事、设计立场仍然每次定制。
+**不固定模板**——呈现形式由你针对当次问题自行设计。先读两份参考：`<skill-dir>/references/design-guidelines.md`（设计规范）和 `<skill-dir>/references/components.md`（组件库使用指南）。
+
+**拼装纪律**：`<skill-dir>/assets/` 下的固定资产（`tokens.css`、`components.css`、`renderers.js`）按 components.md 的配方**用命令拼装**进 HTML，严禁通过模型逐字重打——那是几千 token 的复印机工作。你只生成三样：正文内容、图的 JSON 数据、当次定制的版式 CSS。画图写 JSON 调渲染器，不要手画 SVG 坐标；版式、叙事、设计立场仍然每次定制。
 
 可视化手段调色板（按问题自选，不要全用）：
 

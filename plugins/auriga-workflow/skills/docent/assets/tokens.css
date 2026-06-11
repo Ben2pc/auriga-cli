@@ -1,0 +1,20 @@
+:root {
+  /* design token —— 暖纸面基调 */
+  --canvas: #faf9f5;            /* 页面底色 */
+  --surface-soft: #f5f0e8;      /* 浅层表面 */
+  --card: #efe9de;              /* 卡片 / 图表节点 */
+  --ink: #141413;               /* 标题主墨 */
+  --body: #3d3d3a;              /* 正文 */
+  --body-strong: #252523;       /* 正文强调 */
+  --muted: #6c6a64;             /* 次要信息 */
+  --hairline: #e6dfd8;          /* 分隔线 / 引导线 */
+  --primary: #cc785c;           /* 珊瑚主色：锚点、关键路径 */
+  --primary-active: #a9583e;
+  --accent-teal: #5db8a6;       /* 青：辅助强调 / 正向 */
+  --accent-amber: #e8a55a;      /* 琥珀：决策节点 / 注意 */
+  --success: #5db872;
+  --warning: #d4a017;
+  --error: #c64545;
+  --code-bg: #181715;           /* 代码块暗底 */
+  --code-fg: #faf9f5;
+}
