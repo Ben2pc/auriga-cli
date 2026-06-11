@@ -1,5 +1,5 @@
 <!-- AURIGA:WORKFLOW:v1 START — Managed block, maintained by auriga-cli. Do not edit by hand; upgrades replace it wholesale. Put project-specific instructions after the END marker below. -->
-# auriga Workflow (v1.10.0)
+# auriga Workflow (v1.11.0)
 
 1. Requirement Clarification: Use `spec-design` to clarify requirements for new features. **Requirements should focus on "what to do" and acceptance criteria, not specific technical paths.** For product features, prioritize "Why" and let the implementation-stage Agent decide how. **spec = why + what; plan = how.** If a change does not move the external behavior contract (refactor, algorithm swap, library replacement with same observable behavior), skip spec and go directly to plan.
 
@@ -74,7 +74,7 @@ Choose the right level of delegation:
 Key rules:
 
 - **Isolate parallel writes**: Use an independent git worktree, or ensure changed file directories are fully independent.
-- **Match model and effort to task**: Pick the model (Claude sonnet / opus, or Codex flagship / mini) and effort per task. Effort defaults: coding / agentic subagent tasks use `xhigh`; lightweight research can drop to `high`; translation, single-script execution, and other mechanical tasks can use `medium`.
+- **Match model tier and effort to task**: Pick by tier and resolve the concrete model at dispatch time from the platform's current lineup — never hardcode model names; tier semantics stay stable across model generations. flagship (the platform's strongest reasoning model right now) for architectural judgment / complex coding; workhorse (one tier below flagship, better cost-efficiency) for routine and mechanical tasks. Effort defaults: coding / agentic subagent tasks use `xhigh`; lightweight research can drop to `high`; translation, single-script execution, and other mechanical tasks can use `medium`.
 - **Always specify completion criteria and output format** (shape + scope/length): the rule is "must be explicit" — the specific format is task-dependent (e.g., "summary ≤300 words", "punch list, one finding per line", "acceptance criteria", "structured JSON `{...}`", "one-paragraph verdict + one-line rationale"). Don't enumerate formats; pick the right one per task.
 <!-- AURIGA:WORKFLOW:v1 END -->
 

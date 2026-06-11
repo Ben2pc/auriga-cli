@@ -60,7 +60,7 @@ description: "当用户要求创建自定义审查者、添加项目专属审查
    - `non-trivial` — 任何非平凡变更都触发
    - `detection-driven` — 仅当 Detection 信号匹配时触发（窄关切的推荐默认值）
 5. **Detection signals** — 至少 3 行可 grep 的规则（路径通配 / 导入模式 / API 调用模式）。`detection-driven` 必需；对其他类别可作为关注提示
-6. **Reasoning tier** — `flagship`（需要深层多跳推理——例如缺陷排查、架构判断）或 `workhorse`（模式匹配 / 清单核对）。各平台将其映射到各自的模型类别：Claude flagship → Opus，workhorse → Sonnet；Codex flagship → GPT-5.5，workhorse → GPT-5.5-mini。默认 `workhorse`，除非该审查者需要对差异做横切推理
+6. **Reasoning tier** — `flagship`（需要深层多跳推理——例如缺陷排查、架构判断）或 `workhorse`（模式匹配 / 清单核对）。档位在分派时由运行平台按当前模型梯队解析：flagship → 该平台当前最强推理模型；workhorse → 比 flagship 低一档、性价比更高的模型。不要在审查者文件里写死具体模型名——模型代际更替时档位语义不变。默认 `workhorse`，除非该审查者需要对差异做横切推理
 7. **One worked scenario** — 该审查者会捕捉的问题的具体 file:line 式示例（用于填充 Worked scenarios 章节；另外 ≥2 个留作 TODO）
 8. **Dispatch 模式（`extends`）** —（建议最先确认，它决定整份文件的定位）询问：这个审查者是 (a) **某个内置维度的项目专属补充**，还是 (b) **一个全新独立维度**？
    - (a) 选定一个内置审查者名（`spec-conformance` / `correctness` / `test-quality` / `docs-sync` / `robustness` / `security` / `ux` / `performance` / `architecture` / `code-quality` / `skill-plugin-quality`）→ 写 `extends: <内置名>`。`deep-review` 会把它的 Checklist 与 worked scenarios 吸收进该 host 一并审查，不额外占用子代理。
