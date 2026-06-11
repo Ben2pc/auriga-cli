@@ -67,8 +67,8 @@ function renderSequenceSvg(data) {
  *   layers: [[{ id, label, anchor?, kind?: "decision" | "terminal" }]],  // 每层一行
  *   edges: [{ from, to, label? }],
  * }
- * 渲染保证：同位 label 自动竖向错峰；viewBox 按最长 label 自动加宽（不裁剪）；
- * 跨层（span > 1）的边走右侧弧线，不直穿中间层节点。
+ * 渲染保证：同位 label 围绕中点竖向错峰；viewBox 按最长 label 自动加宽（不裁剪）；
+ * 跨层与回跳的边走右侧正交导轨（rail），label 锚定在导轨右侧空白区，结构上不会压到节点。
  */
 function renderFlowSvg(data) {
   const padX = 24, padY = 18, rowH = 84, nodeH = 44, gap = 30;
@@ -83,7 +83,7 @@ function renderFlowSvg(data) {
     const y = padY + li * rowH;
     for (const n of layer) {
       const w = Math.max(96, textWidth(n.label) + 30);
-      pos[n.id] = { cx: x + w / 2, top: y, bottom: y + nodeH, layer: li };
+      pos[n.id] = { cx: x + w / 2, cy: y + nodeH / 2, top: y, bottom: y + nodeH, right: x + w, layer: li };
       const decision = n.kind === "decision";
       const rx = n.kind === "terminal" ? nodeH / 2 : decision ? 14 : 8;
       const stroke = decision ? "var(--accent-amber, #e8a55a)" : "var(--hairline, #e6dfd8)";
@@ -103,42 +103,48 @@ function renderFlowSvg(data) {
     }
   });
   let edges = "";
-  const labels = [];
-  const laneTaken = {};
-  const bowX = width - padX + 60;
-  let hasBow = false;
-  for (const e of data.edges) {
-    const a = pos[e.from], b = pos[e.to];
-    const span = Math.abs(b.layer - a.layer);
-    let midX, midY;
-    if (span > 1) {
-      hasBow = true;
-      midY = (a.bottom + b.top) / 2;
-      edges += `<path d="M ${a.cx} ${a.bottom} Q ${bowX} ${midY} ${b.cx} ${b.top - 2}" fill="none"` +
-        ` stroke="var(--body, #3d3d3a)" marker-end="url(#fArr)"/>`;
-      midX = (a.cx + 2 * bowX + b.cx) / 4; // 二次贝塞尔 t=0.5 处的横坐标
-    } else {
-      edges += `<line x1="${a.cx}" y1="${a.bottom}" x2="${b.cx}" y2="${b.top - 2}"` +
-        ` stroke="var(--body, #3d3d3a)" marker-end="url(#fArr)"/>`;
-      midX = (a.cx + b.cx) / 2;
-      midY = (a.bottom + b.top) / 2;
-    }
-    if (e.label) {
-      const key = Math.round(midX / 60) + ":" + Math.round(midY / 40);
-      const slot = laneTaken[key] = (laneTaken[key] || 0) + 1;
-      labels.push({ x: midX, y: midY + 4 + (slot - 1) * 15, text: e.label });
-    }
-  }
   let labelEls = "";
   let minX = 0, maxX = width;
-  for (const l of labels) {
-    const half = textWidth(l.text) / 2 + 6;
-    minX = Math.min(minX, l.x - half);
-    maxX = Math.max(maxX, l.x + half);
-    labelEls += `<text class="edge-label" x="${l.x}" y="${l.y}" text-anchor="middle" font-size="11"` +
-      `${LABEL_HALO} fill="var(--muted, #6c6a64)">${escapeXml(l.text)}</text>`;
+  const buckets = {};
+  const maxNodeRight = Math.max(...Object.values(pos).map((p) => p.right));
+  let lane = 0;
+  for (const e of data.edges) {
+    const a = pos[e.from], b = pos[e.to];
+    if (b.layer - a.layer === 1) {
+      // 相邻下行：直线，label 进同位桶（绘制前统一错峰）
+      edges += `<line x1="${a.cx}" y1="${a.bottom}" x2="${b.cx}" y2="${b.top - 2}"` +
+        ` stroke="var(--body, #3d3d3a)" marker-end="url(#fArr)"/>`;
+      if (e.label) {
+        const midX = (a.cx + b.cx) / 2, midY = (a.bottom + b.top) / 2;
+        const key = Math.round(midX / 60) + ":" + Math.round(midY / 40);
+        (buckets[key] = buckets[key] || []).push({ x: midX, midY, text: e.label });
+      }
+    } else {
+      // 跨层 / 回跳 / 同层：右侧正交导轨，每条边独占一条 lane
+      const railX = maxNodeRight + 36 + lane * 26;
+      lane += 1;
+      edges += `<path d="M ${a.right} ${a.cy} H ${railX} V ${b.cy} H ${b.right + 2}" fill="none"` +
+        ` stroke="var(--body, #3d3d3a)" marker-end="url(#fArr)"/>`;
+      maxX = Math.max(maxX, railX + 10);
+      if (e.label) {
+        const lx = railX + 8, ly = (a.cy + b.cy) / 2 + 4;
+        maxX = Math.max(maxX, lx + textWidth(e.label) + 8);
+        labelEls += `<text class="edge-label" text-anchor="start" x="${lx}" y="${ly}" font-size="11"` +
+          `${LABEL_HALO} fill="var(--muted, #6c6a64)">${escapeXml(e.label)}</text>`;
+      }
+    }
   }
-  if (hasBow) maxX = Math.max(maxX, bowX + 10);
+  for (const key in buckets) {
+    const arr = buckets[key];
+    arr.forEach((l, i) => {
+      const y = l.midY + 4 + (i - (arr.length - 1) / 2) * 15;
+      const half = textWidth(l.text) / 2 + 6;
+      minX = Math.min(minX, l.x - half);
+      maxX = Math.max(maxX, l.x + half);
+      labelEls += `<text class="edge-label" x="${l.x}" y="${y}" text-anchor="middle" font-size="11"` +
+        `${LABEL_HALO} fill="var(--muted, #6c6a64)">${escapeXml(l.text)}</text>`;
+    });
+  }
   const vbW = maxX - minX;
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${minX} 0 ${vbW} ${height}" width="${vbW}"` +
     ` font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">` +

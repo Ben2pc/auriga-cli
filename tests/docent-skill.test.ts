@@ -227,24 +227,36 @@ describe("docent skill assets", () => {
       "viewBox must be wide enough for the longest edge label",
     );
 
-    // 4) an edge skipping a layer must route as a curved path, not a straight
-    // line through intermediate nodes
+    // 4) skip-layer and backward edges must route along a right-side rail —
+    // and their labels must sit beyond every node's right edge, never on a node
     const skip = exports.renderFlowSvg({
       layers: [
         [{ id: "a", label: "mainVideo" }],
-        [{ id: "m", label: "preQuizVideo" }],
+        [{ id: "m", label: "preQuizVideo（题前互动视频）" }],
         [{ id: "c", label: "answering" }],
       ],
       edges: [
         { from: "a", to: "m" },
         { from: "m", to: "c" },
-        { from: "a", to: "c", label: "skip" },
+        { from: "a", to: "c", label: "无题前视频直接出题" },
+        { from: "c", to: "a", label: "回跳" },
       ],
     });
     assert.ok(
       /<path[^>]*marker-end/.test(skip),
-      "skip-layer edges must render as curved paths with arrowheads",
+      "skip-layer edges must render as rail paths with arrowheads",
     );
+    const nodeRights = [...skip.matchAll(/<rect x="([\d.-]+)" [^>]*width="([\d.-]+)"/g)].map(
+      (m) => Number(m[1]) + Number(m[2]),
+    );
+    const maxNodeRight = Math.max(...nodeRights);
+    const railLabelXs = [...skip.matchAll(/<text[^>]*text-anchor="start"[^>]*x="([\d.-]+)"/g)].map(
+      (m) => Number(m[1]),
+    );
+    assert.equal(railLabelXs.length, 2, "both rail edge labels must render");
+    for (const x of railLabelXs) {
+      assert.ok(x > maxNodeRight, "rail labels must start beyond every node's right edge");
+    }
   });
 
   // The assembly is a mechanism, not a prompt: scripts/assemble.sh produces
