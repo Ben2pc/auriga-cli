@@ -67,6 +67,14 @@ describe("docent skill assets", () => {
       /至少一张/.test(text) && /时序图|流程图|状态图/.test(text),
       "SKILL.md must hard-require at least one standard software-engineering diagram for the main flow",
     );
+    assert.ok(
+      text.includes("架构总览"),
+      "SKILL.md must require an architecture overview diagram on the first screen",
+    );
+    assert.ok(
+      text.includes("references/components.md"),
+      "SKILL.md must direct the report generator to the bundled component library",
+    );
   });
 
   // VAL-DCNT-003 — dual-agent portability conventions
@@ -110,6 +118,59 @@ describe("docent skill assets", () => {
       refText.includes("ASCII") && refText.includes("目录树"),
       "design guidelines must forbid ASCII-art directory trees and prescribe an HTML/CSS tree",
     );
+    assert.ok(
+      refText.includes("--primary") && refText.includes("design token"),
+      "design guidelines must carry the recommended design-token palette",
+    );
+  });
+
+  // Component library: design tokens + CSS components + pure-function SVG
+  // renderers that the report author drives with JSON data instead of
+  // hand-drawing SVG coordinates.
+  test("component library bundles tokens, tree CSS, and working SVG renderers", () => {
+    const compText = read(`${SKILL_DIR}/references/components.md`);
+    assert.ok(compText.includes("--primary"), "components must define design tokens");
+    assert.ok(compText.includes("file-tree"), "components must include the file-tree component");
+
+    const jsBlocks = [...compText.matchAll(/```js\n([\s\S]*?)```/g)].map((m) => m[1]);
+    assert.ok(jsBlocks.length > 0, "components.md must carry a ```js renderer block");
+    const code = jsBlocks.join("\n");
+    const exports = new Function(
+      `${code}; return { renderSequenceSvg, renderFlowSvg };`,
+    )() as {
+      renderSequenceSvg: (d: unknown) => string;
+      renderFlowSvg: (d: unknown) => string;
+    };
+
+    const seq = exports.renderSequenceSvg({
+      participants: [
+        { id: "cli", label: "CLI", anchor: "src/cli.ts:10" },
+        { id: "gh", label: "GitHub <raw>" },
+      ],
+      messages: [
+        { from: "cli", to: "gh", label: "GET v1.x" },
+        { from: "gh", to: "cli", label: "404", kind: "return" },
+      ],
+    });
+    assert.ok(seq.startsWith("<svg"), "sequence renderer must return an <svg> string");
+    assert.ok(seq.includes("GET v1.x"), "sequence renderer must draw message labels");
+    assert.ok(!seq.includes("GitHub <raw>"), "sequence renderer must XML-escape labels");
+    assert.ok(seq.includes("GitHub &lt;raw&gt;"), "escaped label must survive");
+
+    const flow = exports.renderFlowSvg({
+      layers: [
+        [{ id: "a", label: "入口", anchor: "src/utils.ts:239" }],
+        [{ id: "b", label: "环境变量覆盖?", kind: "decision" }],
+        [{ id: "c", label: "用 tag" }, { id: "d", label: "用 main" }],
+      ],
+      edges: [
+        { from: "a", to: "b" },
+        { from: "b", to: "c", label: "否" },
+        { from: "b", to: "d", label: "是" },
+      ],
+    });
+    assert.ok(flow.startsWith("<svg"), "flow renderer must return an <svg> string");
+    assert.ok(flow.includes("环境变量覆盖?"), "flow renderer must draw node labels");
   });
 });
 
