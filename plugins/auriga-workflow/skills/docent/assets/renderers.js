@@ -9,6 +9,9 @@ function textWidth(label) {
   return w;
 }
 
+/* 文字 halo：画布底色描边，保证 label 压线、压图形时仍可读 */
+const LABEL_HALO = ` paint-order="stroke" stroke="var(--canvas, #faf9f5)" stroke-width="4" stroke-linejoin="round"`;
+
 /**
  * 时序图。data = {
  *   participants: [{ id, label, anchor? }],
@@ -48,11 +51,11 @@ function renderSequenceSvg(data) {
     if (m.from === m.to) {
       const x = cx(idx[m.from]);
       s += `<path d="M ${x} ${y - 6} h 46 v 16 h -46" fill="none"${stroke}/>`;
-      s += `<text x="${x + 54}" y="${y + 6}" fill="var(--body-strong, #252523)">${label}</text>`;
+      s += `<text x="${x + 54}" y="${y + 6}"${LABEL_HALO} fill="var(--body-strong, #252523)">${label}</text>`;
     } else {
       const x1 = cx(idx[m.from]), x2 = cx(idx[m.to]);
       s += `<line x1="${x1}" y1="${y}" x2="${x2}" y2="${y}"${stroke}/>`;
-      s += `<text x="${(x1 + x2) / 2}" y="${y - 7}" text-anchor="middle"` +
+      s += `<text x="${(x1 + x2) / 2}" y="${y - 7}" text-anchor="middle"${LABEL_HALO}` +
         ` fill="var(--body-strong, #252523)">${label}</text>`;
     }
   });
@@ -61,9 +64,11 @@ function renderSequenceSvg(data) {
 
 /**
  * 分层流程图（也可表达状态图：节点为状态、边为迁移）。data = {
- *   layers: [[{ id, label, anchor?, kind?: "decision"|"terminal" }]],  // 每层一行
+ *   layers: [[{ id, label, anchor?, kind?: "decision" | "terminal" }]],  // 每层一行
  *   edges: [{ from, to, label? }],
  * }
+ * 渲染保证：同位 label 自动竖向错峰；viewBox 按最长 label 自动加宽（不裁剪）；
+ * 跨层（span > 1）的边走右侧弧线，不直穿中间层节点。
  */
 function renderFlowSvg(data) {
   const padX = 24, padY = 18, rowH = 84, nodeH = 44, gap = 30;
@@ -78,7 +83,7 @@ function renderFlowSvg(data) {
     const y = padY + li * rowH;
     for (const n of layer) {
       const w = Math.max(96, textWidth(n.label) + 30);
-      pos[n.id] = { cx: x + w / 2, top: y, bottom: y + nodeH };
+      pos[n.id] = { cx: x + w / 2, top: y, bottom: y + nodeH, layer: li };
       const decision = n.kind === "decision";
       const rx = n.kind === "terminal" ? nodeH / 2 : decision ? 14 : 8;
       const stroke = decision ? "var(--accent-amber, #e8a55a)" : "var(--hairline, #e6dfd8)";
@@ -98,18 +103,46 @@ function renderFlowSvg(data) {
     }
   });
   let edges = "";
+  const labels = [];
+  const laneTaken = {};
+  const bowX = width - padX + 60;
+  let hasBow = false;
   for (const e of data.edges) {
     const a = pos[e.from], b = pos[e.to];
-    edges += `<line x1="${a.cx}" y1="${a.bottom}" x2="${b.cx}" y2="${b.top - 2}"` +
-      ` stroke="var(--body, #3d3d3a)" marker-end="url(#fArr)"/>`;
+    const span = Math.abs(b.layer - a.layer);
+    let midX, midY;
+    if (span > 1) {
+      hasBow = true;
+      midY = (a.bottom + b.top) / 2;
+      edges += `<path d="M ${a.cx} ${a.bottom} Q ${bowX} ${midY} ${b.cx} ${b.top - 2}" fill="none"` +
+        ` stroke="var(--body, #3d3d3a)" marker-end="url(#fArr)"/>`;
+      midX = (a.cx + 2 * bowX + b.cx) / 4; // 二次贝塞尔 t=0.5 处的横坐标
+    } else {
+      edges += `<line x1="${a.cx}" y1="${a.bottom}" x2="${b.cx}" y2="${b.top - 2}"` +
+        ` stroke="var(--body, #3d3d3a)" marker-end="url(#fArr)"/>`;
+      midX = (a.cx + b.cx) / 2;
+      midY = (a.bottom + b.top) / 2;
+    }
     if (e.label) {
-      edges += `<text x="${(a.cx + b.cx) / 2 + 8}" y="${(a.bottom + b.top) / 2}"` +
-        ` font-size="11" fill="var(--muted, #6c6a64)">${escapeXml(e.label)}</text>`;
+      const key = Math.round(midX / 60) + ":" + Math.round(midY / 40);
+      const slot = laneTaken[key] = (laneTaken[key] || 0) + 1;
+      labels.push({ x: midX, y: midY + 4 + (slot - 1) * 15, text: e.label });
     }
   }
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" width="${width}"` +
+  let labelEls = "";
+  let minX = 0, maxX = width;
+  for (const l of labels) {
+    const half = textWidth(l.text) / 2 + 6;
+    minX = Math.min(minX, l.x - half);
+    maxX = Math.max(maxX, l.x + half);
+    labelEls += `<text class="edge-label" x="${l.x}" y="${l.y}" text-anchor="middle" font-size="11"` +
+      `${LABEL_HALO} fill="var(--muted, #6c6a64)">${escapeXml(l.text)}</text>`;
+  }
+  if (hasBow) maxX = Math.max(maxX, bowX + 10);
+  const vbW = maxX - minX;
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${minX} 0 ${vbW} ${height}" width="${vbW}"` +
     ` font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">` +
     `<defs><marker id="fArr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7"` +
     ` orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="var(--body, #3d3d3a)"/></marker></defs>` +
-    edges + nodes + `</svg>`;
+    edges + nodes + labelEls + `</svg>`;
 }

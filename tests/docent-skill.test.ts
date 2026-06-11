@@ -185,6 +185,68 @@ describe("docent skill assets", () => {
     assert.ok(flow.includes("环境变量覆盖?"), "flow renderer must draw node labels");
   });
 
+  // Regression: edge-label collisions, viewBox clipping, and skip-layer edges
+  // crossing nodes (found in the iOS learning-feature report).
+  test("flow renderer avoids label collisions, clipping, and node crossings", () => {
+    const code = read(`${SKILL_DIR}/assets/renderers.js`);
+    const exports = new Function(
+      `${code}; return { renderSequenceSvg, renderFlowSvg, textWidth };`,
+    )() as {
+      renderSequenceSvg: (d: unknown) => string;
+      renderFlowSvg: (d: unknown) => string;
+      textWidth: (s: string) => number;
+    };
+
+    // 1) two labelled edges sharing a midpoint must stagger vertically
+    const collide = exports.renderFlowSvg({
+      layers: [[{ id: "a", label: "answering" }], [{ id: "b", label: "feedback" }]],
+      edges: [
+        { from: "a", to: "b", label: "answerSubmitted 且判定通过" },
+        { from: "a", to: "b", label: "最后一题且无反馈视频" },
+      ],
+    });
+    const ys = [...collide.matchAll(/<text[^>]*class="edge-label"[^>]*y="([\d.-]+)"/g)].map(
+      (m) => Number(m[1]),
+    );
+    assert.equal(ys.length, 2, "both edge labels must render");
+    assert.ok(Math.abs(ys[0] - ys[1]) >= 12, "colliding edge labels must stagger vertically");
+
+    // 2) edge labels must have a canvas halo so they stay readable over lines
+    assert.ok(collide.includes("paint-order"), "edge labels must carry a halo (paint-order)");
+
+    // 3) a long edge label must widen the viewBox instead of clipping
+    const longLabel = "quizTriggered (boundary observer 精确回调登记契约触发)";
+    const wide = exports.renderFlowSvg({
+      layers: [[{ id: "a", label: "A" }], [{ id: "b", label: "B" }]],
+      edges: [{ from: "a", to: "b", label: longLabel }],
+    });
+    const vb = /viewBox="([\d.-]+) [\d.-]+ ([\d.-]+)/.exec(wide);
+    assert.ok(vb, "flow svg must carry a viewBox");
+    assert.ok(
+      Number(vb![2]) >= exports.textWidth(longLabel),
+      "viewBox must be wide enough for the longest edge label",
+    );
+
+    // 4) an edge skipping a layer must route as a curved path, not a straight
+    // line through intermediate nodes
+    const skip = exports.renderFlowSvg({
+      layers: [
+        [{ id: "a", label: "mainVideo" }],
+        [{ id: "m", label: "preQuizVideo" }],
+        [{ id: "c", label: "answering" }],
+      ],
+      edges: [
+        { from: "a", to: "m" },
+        { from: "m", to: "c" },
+        { from: "a", to: "c", label: "skip" },
+      ],
+    });
+    assert.ok(
+      /<path[^>]*marker-end/.test(skip),
+      "skip-layer edges must render as curved paths with arrowheads",
+    );
+  });
+
   // The assembly is a mechanism, not a prompt: scripts/assemble.sh produces
   // the final single-file HTML so the model never retypes asset code.
   test("scripts/assemble.sh assembles a self-contained report from fragments", () => {
