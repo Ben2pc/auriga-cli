@@ -17,7 +17,7 @@ value: "过期文档是会复利积累的技术债；本审查者防止它在单
 
 ## Document tiers（先分层，再检查）
 
-代码是唯一真相源；文档的检查强度取决于它是否承重。检查任何文件前先归类：
+代码是唯一真相源；文档的检查强度取决于它是否承重。检查任何文件前先归类；同一文件同时命中两层判据时，以所在目录的生命周期定位为准（位于归档目录即按归档快照处理）：
 
 - **承重文档（活文档）**：代码注释、README、CLAUDE.md / AGENTS.md、API 模式，以及 `docs/rules/`、`docs/architecture/` 等长期维护目录。按下方检查清单全量检查，severity 正常评级。
 - **归档快照（worklog 类）**：`docs/worklog/`、已归档的 spec / 设计 / 规划产物、会话记录。它们是某个时间点的历史快照，与当前代码漂移是**预期状态而非缺陷**：
@@ -63,7 +63,7 @@ value: "过期文档是会复利积累的技术债；本审查者防止它在单
 1. **签名漂移。** 差异将公共函数中的 `userId` 重命名为 `accountId`，但文档字符串仍写 `@param userId`。审查者标记 `<file>:<line> — docstring param name does not match signature — [severity: non-blocking] — [confidence: high]`。
 2. **行为漂移。** 差异将 `getUser()` 从"缺失时返回 null"改为"抛出 NotFoundError"，但 README 示例仍展示 null 检查。审查者同时标记行为不匹配和现在具有误导性的 README 示例。
 3. **重述代码。** 差异在 `cache.set(key, user)` 上方添加了 `// store the user in the cache`。审查者标记为可删除（相较于代码没有增加任何信息）。
-4. **归档快照的过度抛光（反例）。** 差异把 spec 归档到 `docs/worklog/worklog-<date>-<branch>/`，其中某段描述与最终实现有出入。审查者**不**要求把归档 spec 更新到与代码一致——那是历史快照。仅当该段被 README 等承重文档引用为当前行为时才报告，且至多 `non-blocking / low`。若该归档大量逐行复述实现细节，建议精简为结论 + commit 链接。
+4. **归档快照的过度抛光（反例）。** 差异把 spec 归档到 `docs/worklog/worklog-<YYYY-MM-DD>-<branch-name>/`，其中某段描述与最终实现有出入。审查者**不**要求把归档 spec 更新到与代码一致——那是历史快照。仅当该段被 README 等承重文档引用为当前行为时才报告，且至多 `non-blocking / low`。若该归档大量逐行复述实现细节，建议精简为结论 + commit 链接。
 
 ## Output contract
 

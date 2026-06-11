@@ -80,7 +80,7 @@ Worked scenarios:
 
 ## Output contract
 
-将此轮视为**全覆盖，不是筛选**。报告所有问题，包括低置信度的。全覆盖的对象按 Surface tiers 一节分层执行——对内部工具 / 临时制品不提纯感知类 Accessibility 与 Responsive 的 polish 建议不是预过滤。
+将此轮视为**全覆盖，不是筛选**。报告所有问题，包括低置信度的。对内部工具 / 临时制品的纯感知类 Accessibility 与 Responsive 发现，按 Surface tiers 一节执行封顶（仍然报告，定级至多 non-blocking / low）——封顶修正的是定级，不是丢弃发现，不是预过滤。
 
 返回：
 
