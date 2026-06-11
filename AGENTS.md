@@ -1,5 +1,5 @@
 <!-- AURIGA:WORKFLOW:v1 START — 受管区块,由 auriga-cli 维护,请勿手改;升级会整块覆盖。工程专属规则写在下方 END 标记之后。 -->
-# auriga 工作流 (v1.10.0)
+# auriga 工作流 (v1.11.0)
 
 1. 需求澄清：新需求先用 `spec-design` 澄清 requirement。**requirement聚焦"做什么"和验收标准，不写具体技术路径**，如果是产品功能优先关注"Why"，让实现阶段的 Agent 自行决定怎么做。**spec = why + what; plan = how。** 如果改动不影响外部行为契约（重构、换算法、换库但可观察行为不变），跳过 spec 直接进 plan。
 
@@ -73,7 +73,7 @@
 
 核心规则：
 - **并行写必须隔离**：独立的git worktree、或者改的文件目录完全独立
-- **按任务选模型和 effort**：模型（Claude sonnet / opus，或 Codex 旗舰 / mini）与 effort 按任务选。Effort 默认值：写代码 / agentic 子任务默认用 `xhigh`；轻度的调研任务可以下降到 `high`；翻译 / 单个脚本执行等及机械化任务可以用 `medium`；
+- **按任务选模型档位和 effort**：模型按档位选，具体型号在分派时按平台当前模型梯队解析，不要写死模型名——模型代际更替时档位语义不变。flagship（平台当前最强推理模型）给架构判断 / 复杂编码；workhorse（比 flagship 低一档、性价比更高的模型）给常规与机械任务。Effort 默认值：写代码 / agentic 子任务默认用 `xhigh`；轻度的调研任务可以下降到 `high`；翻译 / 单个脚本执行等及机械化任务可以用 `medium`；
 - **始终显式指定任务完成的验收标准和输出格式**（shape + scope/length）：规则本身只约束"必须显式"——具体格式按任务选，例如 "summary ≤300 字"、"punch list，每项一行"、"验收标准"、"结构化 JSON `{...}`"、"一段话判断 + 一行依据"。不穷举格式清单，按任务选合适的。
 <!-- AURIGA:WORKFLOW:v1 END -->
 

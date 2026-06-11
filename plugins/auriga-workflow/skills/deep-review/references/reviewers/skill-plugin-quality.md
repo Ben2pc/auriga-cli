@@ -81,7 +81,7 @@ value: "本仓库是市场；格式错误的插件会让每个尝试安装它的
 注意：Claude Code 在插件内使用 Markdown 代理；Codex 的原生代理格式是 TOML，位于 `~/.codex/agents/`（不在插件范围内）。本块仅适用于差异中的 Markdown 代理文件。
 
 1. **YAML frontmatter**：存在 `name`、`description`、`model`；`name` 使用 kebab-case
-2. **Model value**：可识别的标识符（`inherit` / `sonnet` / `opus` / `haiku` 或带版本后缀的变体）
+2. **Model value**：可识别的标识符（`inherit`，或平台公布的模型别名，如 `sonnet` / `opus` / `haiku` / `fable`——非穷举，以平台当前清单为准；允许带版本后缀的变体）
 3. **Description completeness**：包含用于主动触发的 `<example>` 块（Anthropic 推荐模式；缺失时作为建议，而非 blocking）
 4. **System prompt body**：实质性内容（前置元数据后 >20 字符）
 
