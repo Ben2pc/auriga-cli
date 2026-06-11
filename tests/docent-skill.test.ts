@@ -74,6 +74,10 @@ describe("docent skill assets", () => {
       "SKILL.md must require an architecture overview diagram on the first screen",
     );
     assert.ok(
+      text.includes("端到端"),
+      "SKILL.md must center the verify-understanding item on human end-to-end acceptance",
+    );
+    assert.ok(
       text.includes("references/components.md"),
       "SKILL.md must direct the report generator to the bundled component library",
     );
