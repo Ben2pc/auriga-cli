@@ -61,8 +61,12 @@ describe("docent skill assets", () => {
       "SKILL.md must require file:line anchors for code conclusions",
     );
     assert.ok(text.includes("自包含"), "SKILL.md must require a self-contained offline HTML");
-    assert.ok(text.includes("定位透明"), "SKILL.md must require scoping transparency");
+    assert.ok(text.includes("阅读足迹"), "SKILL.md must require the reading-footprint section");
     assert.ok(text.includes("不适用"), "SKILL.md must allow explicit N/A but forbid silent omission");
+    assert.ok(
+      /至少一张/.test(text) && /时序图|流程图|状态图/.test(text),
+      "SKILL.md must hard-require at least one standard software-engineering diagram for the main flow",
+    );
   });
 
   // VAL-DCNT-003 — dual-agent portability conventions
@@ -101,6 +105,10 @@ describe("docent skill assets", () => {
     assert.ok(
       !refText.includes(".claude/"),
       "design guidelines must be self-contained, not a pointer into .claude/",
+    );
+    assert.ok(
+      refText.includes("ASCII") && refText.includes("目录树"),
+      "design guidelines must forbid ASCII-art directory trees and prescribe an HTML/CSS tree",
     );
   });
 });
