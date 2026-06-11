@@ -15,6 +15,16 @@ value: "过期文档是会复利积累的技术债；本审查者防止它在单
 
 指导原则：**没有文档胜过错误的文档。** 代码本身就是文档；只是重述代码的冗余文字会腐化并产生误导。倾向于删除过期/冗余内容，而非重写它。
 
+## Document tiers（先分层，再检查）
+
+代码是唯一真相源；文档的检查强度取决于它是否承重。检查任何文件前先归类：
+
+- **承重文档（活文档）**：代码注释、README、CLAUDE.md / AGENTS.md、API 模式，以及 `docs/rules/`、`docs/architecture/` 等长期维护目录。按下方检查清单全量检查，severity 正常评级。
+- **归档快照（worklog 类）**：`docs/worklog/`、已归档的 spec / 设计 / 规划产物、会话记录。它们是某个时间点的历史快照，与当前代码漂移是**预期状态而非缺陷**：
+  - 不要提"补充细节"、"完善措辞"、"与代码对齐"这类 polish 建议——流水账叙述和逐行复述代码的细节描述本身没有维护价值，把它们更新到与代码同步是在给无价值内容续命。
+  - 只有两类发现值得报告，且一律至多 `[severity: non-blocking] [confidence: low]`：(a) 归档内容被承重文档引用、会误导当前读者；(b) 文档把自己伪装成当前事实（缺归档标记、放在了长期维护目录里）。
+  - 若快照文档大量复述代码细节或堆积流水账，正确的建议方向是**精简或删除**（保留结论与指向 commit / PR 的链接即可），而不是更新内容。
+
 ## Checklist
 
 ### Three fact-verification axes (apply to every doc / comment in the diff)
@@ -53,10 +63,11 @@ value: "过期文档是会复利积累的技术债；本审查者防止它在单
 1. **签名漂移。** 差异将公共函数中的 `userId` 重命名为 `accountId`，但文档字符串仍写 `@param userId`。审查者标记 `<file>:<line> — docstring param name does not match signature — [severity: non-blocking] — [confidence: high]`。
 2. **行为漂移。** 差异将 `getUser()` 从"缺失时返回 null"改为"抛出 NotFoundError"，但 README 示例仍展示 null 检查。审查者同时标记行为不匹配和现在具有误导性的 README 示例。
 3. **重述代码。** 差异在 `cache.set(key, user)` 上方添加了 `// store the user in the cache`。审查者标记为可删除（相较于代码没有增加任何信息）。
+4. **归档快照的过度抛光（反例）。** 差异把 spec 归档到 `docs/worklog/worklog-<date>-<branch>/`，其中某段描述与最终实现有出入。审查者**不**要求把归档 spec 更新到与代码一致——那是历史快照。仅当该段被 README 等承重文档引用为当前行为时才报告，且至多 `non-blocking / low`。若该归档大量逐行复述实现细节，建议精简为结论 + commit 链接。
 
 ## Output contract
 
-将此轮视为**全覆盖，不是筛选**。报告所有问题。浮出一个被综合步骤过滤的发现，胜过静默丢弃真实漂移。
+将此轮视为**全覆盖，不是筛选**。报告所有问题。浮出一个被综合步骤过滤的发现，胜过静默丢弃真实漂移。全覆盖的对象是承重文档的漂移；对归档快照按 Document tiers 一节的口径执行——polish 建议不属于本维度的发现，不报告它们不是预过滤。
 
 返回：
 
