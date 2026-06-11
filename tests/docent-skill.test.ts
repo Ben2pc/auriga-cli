@@ -59,7 +59,7 @@ describe("docent skill assets", () => {
     const text = read(`${SKILL_DIR}/SKILL.md`);
     assert.ok(text.includes("必答"), "SKILL.md must carry the mandatory-answers checklist");
     assert.ok(
-      /文件:行号|`文件:行号`/.test(text),
+      /文件:行号/.test(text),
       "SKILL.md must require file:line anchors for code conclusions",
     );
     assert.ok(text.includes("自包含"), "SKILL.md must require a self-contained offline HTML");
@@ -152,10 +152,11 @@ describe("docent skill assets", () => {
 
     const code = read(`${SKILL_DIR}/assets/renderers.js`);
     const exports = new Function(
-      `${code}; return { renderSequenceSvg, renderFlowSvg };`,
+      `${code}; return { renderSequenceSvg, renderFlowSvg, textWidth };`,
     )() as {
       renderSequenceSvg: (d: unknown) => string;
       renderFlowSvg: (d: unknown) => string;
+      textWidth: (s: string) => number;
     };
 
     const seq = exports.renderSequenceSvg({
@@ -172,6 +173,11 @@ describe("docent skill assets", () => {
     assert.ok(seq.includes("GET v1.x"), "sequence renderer must draw message labels");
     assert.ok(!seq.includes("GitHub <raw>"), "sequence renderer must XML-escape labels");
     assert.ok(seq.includes("GitHub &lt;raw&gt;"), "escaped label must survive");
+    assert.ok(
+      seq.includes('stroke-dasharray="6 4"'),
+      "return-kind messages must render as dashed arrows",
+    );
+    assert.ok(seq.includes("<title>src/cli.ts:10</title>"), "participant anchors must render as titles");
 
     const flow = exports.renderFlowSvg({
       layers: [
@@ -187,6 +193,59 @@ describe("docent skill assets", () => {
     });
     assert.ok(flow.startsWith("<svg"), "flow renderer must return an <svg> string");
     assert.ok(flow.includes("环境变量覆盖?"), "flow renderer must draw node labels");
+    assert.ok(
+      flow.includes("var(--accent-amber"),
+      "decision nodes must render with the amber accent stroke",
+    );
+    assert.ok(flow.includes("src/utils.ts:239"), "node anchors must render as a second line");
+    // node width must accommodate the anchor line, not just the label
+    const anchored = exports.renderFlowSvg({
+      layers: [[{ id: "a", label: "A", anchor: "plugins/auriga-workflow/skills/docent/SKILL.md:81" }]],
+      edges: [],
+    });
+    const anchorVb = /viewBox="[\d.-]+ [\d.-]+ ([\d.-]+)/.exec(anchored);
+    assert.ok(
+      Number(anchorVb![1]) >= exports.textWidth("plugins/auriga-workflow/skills/docent/SKILL.md:81") * 0.8,
+      "node width and viewBox must account for the anchor text",
+    );
+  });
+
+  // Invalid data must degrade visibly instead of throwing (which would kill
+  // every later figure in the same inline script block) or emitting NaN /
+  // -Infinity geometry silently.
+  test("renderers degrade gracefully on invalid data", () => {
+    const code = read(`${SKILL_DIR}/assets/renderers.js`);
+    const exports = new Function(
+      `${code}; return { renderSequenceSvg, renderFlowSvg };`,
+    )() as {
+      renderSequenceSvg: (d: unknown) => string;
+      renderFlowSvg: (d: unknown) => string;
+    };
+
+    const emptyFlow = exports.renderFlowSvg({ layers: [], edges: [] });
+    assert.ok(emptyFlow.startsWith("<svg"), "empty layers must yield a placeholder svg");
+    assert.ok(!emptyFlow.includes("Infinity"), "empty layers must not emit -Infinity geometry");
+
+    const emptySeq = exports.renderSequenceSvg({ participants: [], messages: [] });
+    assert.ok(emptySeq.startsWith("<svg"), "empty participants must yield a placeholder svg");
+    assert.ok(!emptySeq.includes("NaN"), "empty participants must not emit NaN geometry");
+
+    const badFlow = exports.renderFlowSvg({
+      layers: [[{ id: "a", label: "A" }], [{ id: "b", label: "B" }]],
+      edges: [
+        { from: "a", to: "b" },
+        { from: "a", to: "typo", label: "bad" },
+      ],
+    });
+    assert.ok(badFlow.includes("跳过"), "unknown edge ids must surface as a visible warning");
+    assert.ok(!badFlow.includes("NaN"), "unknown edge ids must not emit NaN geometry");
+
+    const badSeq = exports.renderSequenceSvg({
+      participants: [{ id: "a", label: "A" }],
+      messages: [{ from: "a", to: "ghost", label: "x" }],
+    });
+    assert.ok(badSeq.includes("跳过"), "unknown participant ids must surface as a visible warning");
+    assert.ok(!badSeq.includes("NaN"), "unknown participant ids must not emit NaN geometry");
   });
 
   // Regression: edge-label collisions, viewBox clipping, and skip-layer edges
@@ -250,8 +309,13 @@ describe("docent skill assets", () => {
       /<path[^>]*marker-end/.test(skip),
       "skip-layer edges must render as rail paths with arrowheads",
     );
-    const nodeRights = [...skip.matchAll(/<rect x="([\d.-]+)" [^>]*width="([\d.-]+)"/g)].map(
+    // 注意前置空格锚定 ` width=`，否则 [^>]* 贪婪回溯会匹配到 stroke-width
+    const nodeRights = [...skip.matchAll(/<rect x="([\d.-]+)"[^>]*? width="([\d.-]+)"/g)].map(
       (m) => Number(m[1]) + Number(m[2]),
+    );
+    assert.ok(
+      nodeRights.some((r) => r > 96),
+      "node-right extraction must capture real widths, not stroke-width",
     );
     const maxNodeRight = Math.max(...nodeRights);
     const railLabels = [
@@ -279,30 +343,57 @@ describe("docent skill assets", () => {
     assert.ok(fs.statSync(script).mode & 0o111, "assemble.sh must be executable");
 
     const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "docent-assemble-"));
-    const body = path.join(tmp, "body.html");
-    const custom = path.join(tmp, "custom.css");
-    const out = path.join(tmp, "report.html");
-    fs.writeFileSync(
-      body,
-      `<h1>冒烟</h1><div id="f"></div><script>document.getElementById("f").innerHTML = renderFlowSvg({layers:[[{id:"a",label:"节点"}]],edges:[]});</script>`,
-    );
-    fs.writeFileSync(custom, "h1{color:var(--primary)}");
-    execFileSync("sh", [script, body, out, custom, "冒烟标题"]);
+    try {
+      const body = path.join(tmp, "body.html");
+      const custom = path.join(tmp, "custom.css");
+      const out = path.join(tmp, "report.html");
+      fs.writeFileSync(
+        body,
+        `<h1>冒烟</h1><div id="f"></div><script>document.getElementById("f").innerHTML = renderFlowSvg({layers:[[{id:"a",label:"节点"}]],edges:[]});</script>`,
+      );
+      fs.writeFileSync(custom, "h1{color:var(--primary)}");
+      execFileSync("sh", [script, body, out, custom, "冒烟标题"]);
 
-    const html = fs.readFileSync(out, "utf-8");
-    assert.ok(html.startsWith("<!doctype html>"), "output must be a complete HTML document");
-    assert.ok(html.includes("--primary:"), "output must inline the design tokens");
-    assert.ok(html.includes("file-tree"), "output must inline the component CSS");
-    assert.ok(html.includes("h1{color:var(--primary)}"), "output must inline the custom CSS");
-    assert.ok(html.includes("冒烟标题"), "output must carry the title");
-    assert.ok(
-      html.indexOf("function renderFlowSvg") < html.indexOf("<h1>冒烟</h1>"),
-      "renderers must be defined in <head> before the body so inline calls work",
-    );
-    assert.ok(
-      !/(?:src|href)\s*=\s*["']https?:\/\//.test(html),
-      "output must stay offline self-contained",
-    );
+      const html = fs.readFileSync(out, "utf-8");
+      assert.ok(html.startsWith("<!doctype html>"), "output must be a complete HTML document");
+      assert.ok(html.includes("--primary:"), "output must inline the design tokens");
+      assert.ok(html.includes("file-tree"), "output must inline the component CSS");
+      assert.ok(html.includes("h1{color:var(--primary)}"), "output must inline the custom CSS");
+      assert.ok(html.includes("冒烟标题"), "output must carry the title");
+      assert.ok(
+        html.indexOf("function renderFlowSvg") < html.indexOf("<h1>冒烟</h1>"),
+        "renderers must be defined in <head> before the body so inline calls work",
+      );
+      assert.ok(
+        !/(?:src|href)\s*=\s*["']https?:\/\//.test(html),
+        "output must stay offline self-contained",
+      );
+
+      // guard rails: output path colliding with an input must fail fast
+      // (cat-ing the file being written would self-feed and fill the disk)
+      assert.throws(
+        () => execFileSync("sh", [script, body, body], { stdio: "pipe" }),
+        "output path equal to body fragment must be rejected",
+      );
+      // a custom.css path that was given but does not exist must fail, not
+      // silently produce an unstyled report
+      assert.throws(
+        () => execFileSync("sh", [script, body, out, path.join(tmp, "missing.css")], { stdio: "pipe" }),
+        "missing custom css must fail fast",
+      );
+      // defaults + escaping: no custom css, hostile title
+      const out2 = path.join(tmp, "report2.html");
+      execFileSync("sh", [script, body, out2, "", '</title><script>alert(1)</script>']);
+      const html2 = fs.readFileSync(out2, "utf-8");
+      assert.ok(html2.includes('lang="zh"'), "lang must default to zh");
+      assert.ok(
+        !html2.includes("</title><script>alert(1)</script>"),
+        "title must be HTML-escaped, not injected verbatim",
+      );
+      assert.ok(html2.includes("&lt;/title&gt;"), "escaped title must survive in the output");
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
   });
 });
 

@@ -17,8 +17,10 @@
 先用文件编辑工具写出两个片段：`body 片段`（正文 + 图容器 + 内联调用脚本）和 `custom.css`（当次定制版式，可选），然后执行拼装脚本：
 
 ```sh
-sh <skill-dir>/scripts/assemble.sh /tmp/docent-body.html /tmp/docent-<主题slug>.html /tmp/docent-custom.css "<报告标题>"
+sh <skill-dir>/scripts/assemble.sh /tmp/docent-body.html /tmp/docent-<主题slug>.html /tmp/docent-custom.css "<报告标题>" "<lang>"
 ```
+
+`<skill-dir>` 是本 skill 的安装目录绝对路径，由派遣方在任务里提供——执行前必须替换成实际路径，不能照抄占位符。第 3~5 参可选：custom.css 可传空串跳过；第 5 参 `lang` 默认 `zh`，**报告语言不是中文时必须显式传**（如 `en`），与"报告语言跟随对话语言"的硬性约束对齐。标题会做 HTML 转义；输出路径不得与任何输入相同（脚本会拒绝）。
 
 脚本会把 `assets/` 三件资产注入完整文档：token 与组件 CSS 进 `<style>`，`renderers.js` 定义在 `<head>`——所以正文里任何位置的内联 `<script>` 都可以直接调用渲染器（目标 `<div>` 在调用之前出现即可）。不要自己手拼文档骨架，更不要重打资产内容。
 
