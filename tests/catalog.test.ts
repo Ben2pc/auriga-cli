@@ -78,7 +78,7 @@ describe("generateCatalog (build-time)", () => {
   });
 
   test("plugins: Claude Code entries plus Codex-only entries plus migrated repo-owned assets", () => {
-    assert.equal(catalog.plugins.length, 7);
+    assert.equal(catalog.plugins.length, 8);
     const names = catalog.plugins.map((e) => e.name).sort();
     assert.deepEqual(names, [
       "auriga-notify",
@@ -86,6 +86,7 @@ describe("generateCatalog (build-time)", () => {
       "claude-md-management",
       "codex",
       "playground",
+      "quality-gate-scaffolder",
       "session-instructions-loader",
       "skill-creator",
     ]);
@@ -139,6 +140,7 @@ describe("generateCatalog (build-time)", () => {
     const expectedAgents: Record<string, ("claude" | "codex")[]> = {
       "auriga-workflow": ["claude", "codex"],
       "auriga-notify": ["claude"],
+      "quality-gate-scaffolder": ["claude", "codex"],
       "session-instructions-loader": ["codex"],
       "skill-creator": ["claude"],
       "claude-md-management": ["claude", "codex"],

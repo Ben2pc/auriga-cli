@@ -19,6 +19,17 @@
       "homepage": "https://github.com/Ben2pc/auriga-cli/tree/main/plugins/auriga-workflow"
     },
     {
+      "name": "quality-gate-scaffolder",
+      "description": "为 Swift iOS、Kotlin Android、Python 后端、TypeScript 前端和 Node 工具仓库搭建技术栈专属硬质量门禁。每个技能都会区分检查工具、检查规则、调用时机，并在写文件或修改远端 GitHub 设置前要求明确确认。",
+      "author": {
+        "name": "Ben2pc",
+        "email": "pangcheng33@gmail.com"
+      },
+      "source": "./plugins/quality-gate-scaffolder",
+      "category": "development",
+      "homepage": "https://github.com/Ben2pc/auriga-cli/tree/main/plugins/quality-gate-scaffolder"
+    },
+    {
       "name": "auriga-notify",
       "description": "Opt-in macOS native notification hook for Claude Code Notification events.",
       "author": {

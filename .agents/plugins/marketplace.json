@@ -17,6 +17,18 @@
       "category": "Productivity"
     },
     {
+      "name": "quality-gate-scaffolder",
+      "source": {
+        "source": "local",
+        "path": "./plugins/quality-gate-scaffolder"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    },
+    {
       "name": "session-instructions-loader",
       "source": {
         "source": "local",

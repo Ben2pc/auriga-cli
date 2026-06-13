@@ -107,6 +107,7 @@ describe("tarball-shape — dist/catalog.json carries everything the scanner nee
     const owned = [
       "auriga-workflow",
       "auriga-notify",
+      "quality-gate-scaffolder",
       "session-instructions-loader",
     ];
     const external = ["skill-creator", "claude-md-management", "codex"];
