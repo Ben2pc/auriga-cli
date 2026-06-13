@@ -1,0 +1,36 @@
+{
+  "name": "quality-gate-scaffolder",
+  "version": "0.2.0",
+  "description": "为 Swift iOS、Kotlin Android、Python 后端、TypeScript 前端和 Node 工具项目搭建仓库质量门禁。",
+  "author": {
+    "name": "Ben2pc",
+    "email": "pangcheng33@gmail.com",
+    "url": "https://github.com/Ben2pc"
+  },
+  "homepage": "https://github.com/Ben2pc/auriga-cli/tree/main/plugins/quality-gate-scaffolder",
+  "repository": "https://github.com/Ben2pc/auriga-cli",
+  "license": "MIT",
+  "keywords": [
+    "quality-gates",
+    "lint",
+    "ci",
+    "github-actions",
+    "codex"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "质量门禁脚手架",
+    "shortDescription": "基于已验证项目模式搭建技术栈专属质量门禁",
+    "longDescription": "这组技能帮助 Agent 为 Swift iOS、Kotlin Android、Python 后端、TypeScript 前端和 Node 工具仓库搭建硬质量门禁。每个技能都会按检查工具、检查规则、调用时机三层梳理方案，并在写文件或修改远端 GitHub 设置前要求明确确认。",
+    "developerName": "Ben2pc",
+    "category": "Productivity",
+    "capabilities": [
+      "Read",
+      "Write"
+    ],
+    "websiteURL": "https://github.com/Ben2pc/auriga-cli",
+    "defaultPrompt": [
+      "帮我为一个 Node.js 工具仓库设计质量门禁脚手架，按检查工具、检查规则、调用时机三层输出建议，并在写入前先让我确认。"
+    ]
+  }
+}

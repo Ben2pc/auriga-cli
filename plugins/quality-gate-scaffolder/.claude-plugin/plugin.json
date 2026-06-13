@@ -1,0 +1,12 @@
+{
+  "name": "quality-gate-scaffolder",
+  "version": "0.2.0",
+  "description": "Scaffold stack-specific repository quality gates for Swift iOS, Kotlin Android, Python backend, TypeScript frontend, and Node tool projects.",
+  "author": {
+    "name": "Ben2pc",
+    "email": "pangcheng33@gmail.com"
+  },
+  "homepage": "https://github.com/Ben2pc/auriga-cli/tree/main/plugins/quality-gate-scaffolder",
+  "repository": "https://github.com/Ben2pc/auriga-cli",
+  "license": "MIT"
+}
