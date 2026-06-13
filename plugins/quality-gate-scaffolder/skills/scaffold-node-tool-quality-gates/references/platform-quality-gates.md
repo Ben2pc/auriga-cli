@@ -35,7 +35,7 @@
 
 ## 具体规则文件
 
-具体 Node 脚本规则、原生测试规则、包形态规则、ESLint/TypeScript 可选增强和配置漂移测试建议见 `references/concrete-rules.md`。需要写入或调整目标仓库规则配置时，先读取该文件，不要只依赖本总览。
+具体 Node 脚本规则、原生测试规则、包形态规则、ESLint/TypeScript 可选增强和配置漂移测试建议见 `concrete-rules.md`。需要写入或调整目标仓库规则配置时，先读取该文件，不要只依赖本总览。
 
 ## 第三层：触发时机建议
 
@@ -59,7 +59,7 @@
 
 ## 示例
 
-共享 hook 和 workflow 模板见 `../references/invocation-examples.md`。Node 工具侧可以按下面形态落地：
+共享 hook 和 workflow 模板见 `../../references/invocation-examples.md`。Node 工具侧可以按下面形态落地：
 
 ```sh
 # 本地全量门禁

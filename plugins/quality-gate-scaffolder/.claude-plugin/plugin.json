@@ -1,7 +1,7 @@
 {
   "name": "quality-gate-scaffolder",
   "version": "0.2.0",
-  "description": "为 Swift iOS、Kotlin Android、Python 后端、TypeScript 前端和 Node 工具项目搭建仓库质量门禁。",
+  "description": "Scaffold stack-specific repository quality gates for Swift iOS, Kotlin Android, Python backend, TypeScript frontend, and Node tool projects.",
   "author": {
     "name": "Ben2pc",
     "email": "pangcheng33@gmail.com"

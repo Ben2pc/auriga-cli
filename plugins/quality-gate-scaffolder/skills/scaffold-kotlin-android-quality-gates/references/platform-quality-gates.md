@@ -34,7 +34,7 @@ GitHub 侧模式是在默认分支启用 active 状态的 ruleset、拉取请求
 
 ## 具体规则文件
 
-具体 Detekt 规则清单、Spotless/Gradle 编译规则、Compose 规则、协程规则、风格规则和项目自定义 Gradle gate 建议见 `references/concrete-rules.md`。需要写入或调整目标仓库规则配置时，先读取该文件，不要只依赖本总览。
+具体 Detekt 规则清单、Spotless/Gradle 编译规则、Compose 规则、协程规则、风格规则和项目自定义 Gradle gate 建议见 `concrete-rules.md`。需要写入或调整目标仓库规则配置时，先读取该文件，不要只依赖本总览。
 
 ## 第三层：触发时机建议
 
@@ -44,7 +44,7 @@ GitHub 侧模式是在默认分支启用 active 状态的 ruleset、拉取请求
 | `pre-push` | shell 快速分类后调用 `check-affected-android-quality.sh`，只跑受影响 Gradle task | APK 打包、截图验证、模拟器 | `.githooks/pre-push` |
 | PR CI | `Quality Gates` required check：脚本自测、planner 自测、Spotless、Detekt、Android Lint、模块边界、单元测试 | 重型截图和设备回归 | `.github/workflows/pr-quality-checks.yml` |
 | 合入 `main` 后 | 如果需要尽快发现打包或发布配置问题，可跑 `assembleDebug`、关键模块集成检查 | 每次 PR 已覆盖的快速 lint | 当前主要放在定时回归；目标仓库可按发布风险加 main push workflow |
-| 定时 workflow | 截图回归、`assembleDebug`、测试 APK 打包、模拟器烟囱测试、失败自动分析 | 基础格式和静态检查 | `.github/workflows/weekday-android-regression.yml` |
+| 定时 workflow | 截图回归、`assembleDebug`、测试 APK 打包、模拟器烟雾测试、失败自动分析 | 基础格式和静态检查 | `.github/workflows/weekday-android-regression.yml` |
 
 基于 diff 的本地检查建议：
 
@@ -55,7 +55,7 @@ GitHub 侧模式是在默认分支启用 active 状态的 ruleset、拉取请求
 
 ## 示例
 
-共享脚本和 workflow 模板见 `../references/invocation-examples.md`。Android 侧可以按下面形态落地：
+共享脚本和 workflow 模板见 `../../references/invocation-examples.md`。Android 侧可以按下面形态落地：
 
 ```sh
 # 查看受影响 Gradle task

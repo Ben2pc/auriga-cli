@@ -37,7 +37,7 @@ GitHub 侧模式在 monorepo 中使用名为 `Frontend Gates` 的拉取请求检
 
 ## 具体规则文件
 
-具体 Biome 规则、ESLint 类型感知规则、TypeScript 编译选项、lint-staged 参数和配置漂移测试建议见 `references/concrete-rules.md`。需要写入或调整目标仓库规则配置时，先读取该文件，不要只依赖本总览。
+具体 Biome 规则、ESLint 类型感知规则、TypeScript 编译选项、lint-staged 参数和配置漂移测试建议见 `concrete-rules.md`。需要写入或调整目标仓库规则配置时，先读取该文件，不要只依赖本总览。
 
 ## 第三层：触发时机建议
 
@@ -59,7 +59,7 @@ GitHub 侧模式在 monorepo 中使用名为 `Frontend Gates` 的拉取请求检
 
 ## 示例
 
-共享 hook 和 workflow 模板见 `../references/invocation-examples.md`。TypeScript 前端侧可以按下面形态落地：
+共享 hook 和 workflow 模板见 `../../references/invocation-examples.md`。TypeScript 前端侧可以按下面形态落地：
 
 ```sh
 # 查看当前分支是否命中前端门禁

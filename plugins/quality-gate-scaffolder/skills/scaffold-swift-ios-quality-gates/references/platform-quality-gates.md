@@ -33,7 +33,7 @@ GitHub 侧模式是在默认分支启用 active 状态的 ruleset、拉取请求
 
 ## 具体规则文件
 
-具体 SwiftLint 规则清单、阈值、analyzer 取舍、本地化自定义规则和项目自定义 gate 建议见 `references/concrete-rules.md`。需要写入或调整目标仓库规则配置时，先读取该文件，不要只依赖本总览。
+具体 SwiftLint 规则清单、阈值、analyzer 取舍、本地化自定义规则和项目自定义 gate 建议见 `concrete-rules.md`。需要写入或调整目标仓库规则配置时，先读取该文件，不要只依赖本总览。
 
 ## 第三层：触发时机建议
 
@@ -54,7 +54,7 @@ GitHub 侧模式是在默认分支启用 active 状态的 ruleset、拉取请求
 
 ## 示例
 
-共享脚本和 workflow 模板见 `../references/invocation-examples.md`。iOS 侧可以按下面形态落地：
+共享脚本和 workflow 模板见 `../../references/invocation-examples.md`。iOS 侧可以按下面形态落地：
 
 ```sh
 # 本地查看某次改动会派发什么

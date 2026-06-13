@@ -24,6 +24,19 @@ function readJson<T>(rel: string): T {
   return JSON.parse(read(rel)) as T;
 }
 
+function markdownReferences(text: string): string[] {
+  const refs = new Set<string>();
+  for (const match of text.matchAll(/\[[^\]]+\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g)) {
+    refs.add(match[1]);
+  }
+  for (const match of text.matchAll(/`([^`\n]+\.md)`/g)) {
+    refs.add(match[1]);
+  }
+  return [...refs].filter(
+    (ref) => !ref.startsWith("#") && !/^[a-z][a-z0-9+.-]*:/i.test(ref),
+  );
+}
+
 describe("quality-gate-scaffolder 插件契约", () => {
   test("同时注册到 Codex 和 Claude Code marketplace", () => {
     const codexManifest = readJson<{
@@ -154,6 +167,44 @@ describe("quality-gate-scaffolder 插件契约", () => {
     }
   });
 
+  test("技能入口和平台总览中的相对 Markdown 引用都能从所在文件解析", () => {
+    for (const skillName of skillNames) {
+      for (const file of [
+        path.join(pluginRoot, "skills", skillName, "SKILL.md"),
+        path.join(pluginRoot, "skills", skillName, "references", "platform-quality-gates.md"),
+      ]) {
+        const text = fs.readFileSync(file, "utf-8");
+        for (const ref of markdownReferences(text)) {
+          if (path.basename(file) === "SKILL.md" && !ref.includes("/")) {
+            continue;
+          }
+          const [refPath] = ref.split("#", 1);
+          const resolved = path.resolve(path.dirname(file), refPath);
+          assert.ok(
+            fs.existsSync(resolved),
+            `${path.relative(repoRoot, file)} 引用了不存在的相对文档 ${ref}`,
+          );
+        }
+      }
+    }
+  });
+
+  test("远端 GitHub 写操作必须保留二次确认安全契约", () => {
+    const safety = fs.readFileSync(
+      path.join(pluginRoot, "skills", "references", "landing-safety.md"),
+      "utf-8",
+    );
+    for (const anchor of [
+      "远端 GitHub 写操作",
+      "第二次明确确认",
+      "ruleset",
+      "branch protection",
+      "required status check",
+    ]) {
+      assert.ok(safety.includes(anchor), `landing-safety.md 必须包含 ${anchor}`);
+    }
+  });
+
   test("共享调用示例保持通用,具体规则下沉到独立文件", () => {
     const shared = fs.readFileSync(
       path.join(pluginRoot, "skills", "references", "invocation-examples.md"),
@@ -260,6 +311,22 @@ describe("quality-gate-scaffolder 插件契约", () => {
       "## 用户确认问题",
     ]) {
       assert.ok(shared.includes(anchor), `gate-levels-and-template.md 必须包含 ${anchor}`);
+    }
+  });
+
+  test("仓库主测试入口保留既有测试并追加插件契约测试", () => {
+    const pkg = readJson<{ scripts: { test: string; "test:watch": string } }>("package.json");
+    for (const scriptName of ["test", "test:watch"] as const) {
+      assert.match(
+        pkg.scripts[scriptName],
+        /dist-test\/tests\/apply-handlers\.test\.js/,
+        `${scriptName} 必须继续运行 apply-handlers.test.js`,
+      );
+      assert.match(
+        pkg.scripts[scriptName],
+        /dist-test\/tests\/quality-gate-scaffolder-plugin\.test\.js/,
+        `${scriptName} 必须运行 quality-gate-scaffolder-plugin.test.js`,
+      );
     }
   });
 });

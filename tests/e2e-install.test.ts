@@ -455,27 +455,30 @@ describe(
         assert.ok(findSkillFile(proj, "systematic-debugging"), "systematic-debugging SKILL.md missing (skills category)");
 
         // Plugins category: `.claude/settings.json` exists AND mentions
-        // auriga-workflow. Gated above by CLAUDE_AVAILABLE so claude plugins
-        // install can actually write it.
+        // every default-on plugin. Gated above by CLAUDE_AVAILABLE so
+        // claude plugins install can actually write it.
         const settings = path.join(proj, ".claude", "settings.json");
         assert.ok(fs.existsSync(settings), ".claude/settings.json missing (plugins category)");
         const settingsContent = fs.readFileSync(settings, "utf-8");
-        // Skip in the pre-merge window where auriga-workflow is not yet in
-        // the Claude marketplace default branch (see the --plugin test).
-        if (
-          !/auriga-workflow/.test(settingsContent)
-          && isClaudeMarketplaceMissingPlugin(r.stderr, "auriga-workflow")
-        ) {
-          t.skip(
-            "auriga-workflow is present on this PR branch but not yet in the Claude marketplace default branch",
+        for (const pluginName of ["auriga-workflow", "quality-gate-scaffolder"]) {
+          // Skip in the pre-merge window where the plugin is present on this
+          // PR branch but not yet in the Claude marketplace default branch
+          // (see the --plugin test).
+          if (
+            !settingsContent.includes(pluginName)
+            && isClaudeMarketplaceMissingPlugin(r.stderr, pluginName)
+          ) {
+            t.skip(
+              `${pluginName} is present on this PR branch but not yet in the Claude marketplace default branch`,
+            );
+            return;
+          }
+          assert.match(
+            settingsContent,
+            new RegExp(pluginName),
+            `${pluginName} plugin not registered in settings.json (default plugin selection regressed)`,
           );
-          return;
         }
-        assert.match(
-          settingsContent,
-          /auriga-workflow/,
-          "auriga-workflow plugin not registered in settings.json (default plugin selection regressed)",
-        );
         assert.doesNotMatch(
           settingsContent,
           /auriga-notify/,

@@ -30,7 +30,7 @@
     ],
     "websiteURL": "https://github.com/Ben2pc/auriga-cli",
     "defaultPrompt": [
-      "当用户要求设计或搭建仓库硬质量门禁时，使用 quality-gate-scaffolder 技能。"
+      "帮我为一个 Node.js 工具仓库设计质量门禁脚手架，按检查工具、检查规则、调用时机三层输出建议，并在写入前先让我确认。"
     ]
   }
 }

@@ -1,7 +1,7 @@
 {
   "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
   "name": "auriga-cli",
-  "description": "Plugins shipped by the auriga-cli Claude Code harness (auriga-workflow skills + git guards, notifications).",
+  "description": "Plugins shipped by the auriga-cli Claude Code harness (workflow skills, git guards, quality-gate scaffolding, notifications).",
   "owner": {
     "name": "Ben2pc",
     "email": "pangcheng33@gmail.com"
@@ -20,7 +20,7 @@
     },
     {
       "name": "quality-gate-scaffolder",
-      "description": "为 Swift iOS、Kotlin Android、Python 后端、TypeScript 前端和 Node 工具仓库搭建技术栈专属硬质量门禁。每个技能都会区分检查工具、检查规则、调用时机，并在写文件或修改远端 GitHub 设置前要求明确确认。",
+      "description": "Scaffold stack-specific hard quality gates for Swift iOS, Kotlin Android, Python backend, TypeScript frontend, and Node tool repositories. Each skill separates tools, rules, and invocation timing, and requires explicit confirmation before writing files or changing remote GitHub settings.",
       "author": {
         "name": "Ben2pc",
         "email": "pangcheng33@gmail.com"
