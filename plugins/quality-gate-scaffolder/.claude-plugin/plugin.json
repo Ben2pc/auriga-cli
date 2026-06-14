@@ -1,6 +1,6 @@
 {
   "name": "quality-gate-scaffolder",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Scaffold stack-specific repository quality gates for Swift iOS, Kotlin Android, Python backend, TypeScript frontend, and Node tool projects.",
   "author": {
     "name": "Ben2pc",

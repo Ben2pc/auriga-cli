@@ -16,8 +16,15 @@
 - npm run 文档：https://docs.npmjs.com/cli/v11/commands/npm-run/
 - npm ci 文档：https://docs.npmjs.com/cli/v11/commands/npm-ci/
 - npm pack 文档：https://docs.npmjs.com/cli/v11/commands/npm-pack/
+- ESLint 规则文档：https://eslint.org/docs/latest/rules/
+- ESLint 规则配置文档：https://eslint.org/docs/latest/use/configure/rules
 - GitHub Actions workflow 语法：https://docs.github.com/actions/using-workflows/workflow-syntax-for-github-actions
+- GitHub Actions checkout：https://github.com/actions/checkout
+- GitHub Actions setup-node：https://github.com/actions/setup-node
+- GitHub 发布 Node.js 包：https://docs.github.com/actions/publishing-packages/publishing-nodejs-packages
 - GitHub ruleset 可用规则：https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-rulesets/available-rules-for-rulesets
+- npm trusted publishers：https://docs.npmjs.com/trusted-publishers/
+- npm provenance 文档：https://docs.npmjs.com/generating-provenance-statements/
 
 ## package scripts 规则
 
@@ -29,7 +36,9 @@
     "build": "find src -name '*.js' -print0 | xargs -0 -n1 node --check",
     "test": "node --test",
     "typecheck": "npm run build",
-    "pack:check": "npm pack --dry-run --json"
+    "lint": "eslint src tests eslint.config.js",
+    "pack:check": "npm pack --dry-run --json",
+    "quality": "npm run build && npm run lint && npm test && npm run pack:check"
   }
 }
 ```
@@ -39,7 +48,9 @@
 - `build` 可以用 `node --check` 表达语法门禁，但必须覆盖运行时源码目录。
 - `test` 优先用一个测试框架；小型 Node 工具默认用 `node --test`。
 - 纯 JavaScript 仓库不要把 `typecheck` 包装成不存在的类型安全；可以显式复用 `build`，也可以不提供 `typecheck`。
+- 生产级 Node 工具建议提供 `lint`，至少覆盖源码、测试和 lint 配置本身。
 - 发布型工具建议提供 `pack:check`，或者在 CI 直接执行 `npm pack --dry-run --json`。
+- 生产级单包工具建议提供 `quality`，把本地开发、git hook 和 PR CI 统一到同一个入口；没有 `quality` 时，workflow 才展开执行每个底层命令。
 - 如果仓库已有 TypeScript，`typecheck` 应改为 `tsc --noEmit`，`build` 应表达真实构建或语法输出检查。
 - `npm ci` 依赖已提交的锁文件。目标仓库没有 `package-lock.json` 时，先让用户决定是否生成锁文件；临时样本或零依赖草稿可以先用 `npm install --ignore-scripts` 或跳过安装步骤，但不能把这种形态推荐为长期 required check。
 
@@ -67,11 +78,25 @@ describe('quality gate package contract', () => {
   it('keeps required scripts strict', () => {
     assert.match(pkg.scripts.build, /node --check/)
     assert.equal(pkg.scripts.test, 'node --test')
+    assert.equal(pkg.scripts.lint, 'eslint src tests eslint.config.js')
+    assert.equal(pkg.scripts['pack:check'], 'npm pack --dry-run --json')
+    assert.equal(
+      pkg.scripts.quality,
+      'npm run build && npm run lint && npm test && npm run pack:check',
+    )
   })
 
   it('keeps bin entry publishable', () => {
-    assert.equal(pkg.bin['curiosea-lark-connect'], './src/cli.js')
+    assert.equal(pkg.bin['curiosea-lark-connect'], 'src/cli.js')
     assert.ok(fs.readFileSync('src/cli.js', 'utf8').startsWith('#!/usr/bin/env node'))
+  })
+
+  it('keeps package metadata aligned with the support policy', () => {
+    assert.deepEqual(pkg.files, ['src', 'README.md'])
+    assert.equal(pkg.engines.node, '>=22')
+    assert.equal(pkg.license, 'MIT')
+    assert.equal(pkg.repository.type, 'git')
+    assert.match(pkg.repository.url, /your-package\.git$/)
   })
 })
 ```
@@ -116,21 +141,119 @@ Node 工具经常处理令牌、密钥或本地服务地址，门禁应保护这
 - 如果目标不是 Git 仓库，先报告这一点；不要建议配置 required status check 或本地 hook，直到用户确认要初始化仓库或把样本迁入真实仓库。
 - 合入 `main` 后可以加 tarball 安装烟测：生成包、在临时目录安装，再执行 `--help` 或无凭证子命令。
 
-## ESLint 和 TypeScript 可选增强
+## ESLint 规则清单和配置契约
 
 不是所有 Node 工具都需要一开始引入 ESLint 或 TypeScript。选择规则：
 
 - L1 小工具：`node --check`、`node --test`、命令行冒烟、包形态检查通常足够。
-- L2 生产工具：如果已有多人协作或模块边界复杂，增加 ESLint。
+- L2 生产工具：如果已经发布到 npm、作为本地守护进程运行、提供 MCP 服务、已有多人协作或模块边界复杂，增加 ESLint。
 - L3 大型工具或 SDK：如果 API 契约复杂，增加 TypeScript 或 `checkJs`，并用 `tsc --noEmit` 阻塞 PR。
 
-ESLint 可以优先约束：
+纯 JavaScript Node 工具可以先用 `@eslint/js` 推荐规则，再加下面这些 bug-prevention 规则。规则名需要新增或升级时，从上方 ESLint 官方文档确认。
+
+```js
+import js from "@eslint/js";
+import globals from "globals";
+
+export default [
+  js.configs.recommended,
+  {
+    files: ["src/**/*.js", "tests/**/*.mjs", "eslint.config.js"],
+    languageOptions: {
+      ecmaVersion: "latest",
+      sourceType: "module",
+      globals: {
+        ...globals.node,
+      },
+    },
+    rules: {
+      "array-callback-return": "error",
+      eqeqeq: ["error", "always", { null: "ignore" }],
+      "no-console": ["error", { allow: ["warn", "error"] }],
+      "no-eval": "error",
+      "no-implied-eval": "error",
+      "no-implicit-coercion": ["error", { boolean: true, number: true, string: true }],
+      "no-new-func": "error",
+      "no-param-reassign": ["error", { props: false }],
+      "no-promise-executor-return": "error",
+      "no-return-assign": ["error", "always"],
+      "no-unused-expressions": "error",
+      "no-use-before-define": ["error", { functions: false, classes: true, variables: true }],
+      "no-var": "error",
+      "prefer-const": ["error", { destructuring: "all", ignoreReadBeforeAssign: true }],
+      "prefer-promise-reject-errors": "error",
+      radix: "error",
+    },
+  },
+  {
+    files: ["src/cli.js"],
+    rules: {
+      "no-console": "off",
+    },
+  },
+];
+```
+
+规则意图：
 
 - 禁止测试以外直接访问真实外部服务。
 - 禁止业务模块直接读取 `process.env`，统一走配置模块。
 - 禁止 CLI 层之外调用 `process.exit`。
 - 禁止深层模块写 `console.log`，统一走输出适配器。
 - 对未处理 Promise、未使用变量和导入顺序使用严格规则。
+- 禁止动态执行和隐式类型转换，降低命令行工具处理用户输入时的事故面。
+- 允许 `src/cli.js` 直接输出，但库模块和协议模块必须通过输出适配器或返回值表达结果。
+
+lint configuration contract 示例。测试要验证 ESLint 解析后的最终规则，不要只做字符串匹配：
+
+```js
+import { describe, it } from "node:test";
+import assert from "node:assert/strict";
+
+import { ESLint } from "eslint";
+
+const eslint = new ESLint();
+const libraryConfig = await eslint.calculateConfigForFile("src/lark/doctor.js");
+const cliConfig = await eslint.calculateConfigForFile("src/cli.js");
+
+describe("lint configuration contract", () => {
+  it("enables stricter bug-prevention rules for source and tests", () => {
+    assert.deepEqual(libraryConfig.rules.eqeqeq, [2, "always", { null: "ignore" }]);
+    assert.deepEqual(libraryConfig.rules["no-var"], [2]);
+    assert.deepEqual(libraryConfig.rules["prefer-const"], [
+      2,
+      { destructuring: "all", ignoreReadBeforeAssign: true },
+    ]);
+    assert.deepEqual(libraryConfig.rules["no-implicit-coercion"], [
+      2,
+      {
+        allow: [],
+        boolean: true,
+        disallowTemplateShorthand: false,
+        number: true,
+        string: true,
+      },
+    ]);
+  });
+
+  it("prevents dynamic execution and unstructured promise failures", () => {
+    assert.deepEqual(libraryConfig.rules["no-eval"], [2, { allowIndirect: false }]);
+    assert.deepEqual(libraryConfig.rules["no-new-func"], [2]);
+    assert.deepEqual(libraryConfig.rules["no-implied-eval"], [2]);
+    assert.deepEqual(libraryConfig.rules["prefer-promise-reject-errors"], [
+      2,
+      { allowEmptyReject: false },
+    ]);
+  });
+
+  it("allows console output only in the CLI entrypoint", () => {
+    assert.deepEqual(libraryConfig.rules["no-console"], [2, { allow: ["warn", "error"] }]);
+    assert.deepEqual(cliConfig.rules["no-console"], [0, { allow: ["warn", "error"] }]);
+  });
+});
+```
+
+## TypeScript 可选增强
 
 TypeScript 或 `checkJs` 可以优先约束：
 
@@ -149,6 +272,9 @@ on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
 
+permissions:
+  contents: read
+
 jobs:
   node-tool:
     name: Node Tool Gates
@@ -157,14 +283,12 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v5
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: "22"
           cache: npm
       - run: npm ci
-      - run: npm run build
-      - run: npm test
-      - run: npm pack --dry-run --json
+      - run: npm run quality
 ```
 
 规则：
@@ -173,7 +297,94 @@ jobs:
 - 不使用 workflow 级 `paths-ignore`，避免 required check 在文档 PR 上消失。
 - 小仓库不需要 planner；monorepo 才加 plan step。
 - 使用 `timeout-minutes` 防止长连接测试挂住。
+- workflow 权限默认最小化；PR 基础门禁通常只需要 `contents: read`。
+- `actions/checkout` 和 `actions/setup-node` 的主版本会变化，落地时按官方文档确认当前推荐主版本；不要长期复制旧样例。
 - live 集成检查单独 workflow，使用 `workflow_dispatch`、`schedule` 或合入 `main` 后触发。
+
+quality workflow contract 示例。这样可以防止 required check 名称、触发事件或质量入口被意外改掉：
+
+```js
+import { describe, it } from "node:test";
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+
+const workflow = readFileSync(".github/workflows/quality.yml", "utf8");
+
+describe("quality workflow contract", () => {
+  it("defines a stable required check for pull requests", () => {
+    assert.match(workflow, /^name: Node Tool Gates$/m);
+    assert.match(workflow, /^\s{2}pull_request:$/m);
+    assert.match(workflow, /types: \[opened, synchronize, reopened, ready_for_review\]/);
+    assert.match(workflow, /^\s{4}name: Node Tool Gates$/m);
+    assert.match(workflow, /github\.event\.pull_request\.draft == false/);
+  });
+
+  it("runs the repository quality entry on the supported Node version", () => {
+    assert.match(workflow, /permissions:\n\s+contents: read/);
+    assert.match(workflow, /uses: actions\/checkout@v5/);
+    assert.match(workflow, /uses: actions\/setup-node@v5/);
+    assert.match(workflow, /node-version: "22"/);
+    assert.match(workflow, /run: npm ci/);
+    assert.match(workflow, /run: npm run quality/);
+  });
+});
+```
+
+## npm 发布 workflow 规则
+
+发布到 npm 的命令行工具，建议把发布路径和 PR 基础门禁分开。发布 workflow 可以由 tag 触发；`workflow_dispatch` 只作为手工预检入口，常规手工运行通常选择 branch，不应被描述成绕过 tag 的发布开关：
+
+```yaml
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+  id-token: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "24"
+          registry-url: "https://registry.npmjs.org"
+      - run: npm install -g npm@latest
+      - run: npm ci
+      - name: Verify tag matches package.json version
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          PKG_VERSION=$(node -p "require('./package.json').version")
+          if [ "$TAG_VERSION" != "$PKG_VERSION" ]; then
+            echo "::error::Tag '$GITHUB_REF_NAME' does not match package.json version '$PKG_VERSION'."
+            exit 1
+          fi
+      - run: npm test
+      - run: npm run build
+      - run: npm pack --dry-run
+      - name: Publish to npm
+        if: startsWith(github.ref, 'refs/tags/v') && github.event_name == 'push'
+        run: npm publish --access public --provenance
+```
+
+规则：
+
+- npm 发布优先使用可信发布（Trusted Publishing）或 provenance（来源证明），避免长期 npm token。
+- workflow 需要 `id-token: write` 才能使用开放身份连接发布；如果仓库仍用 `NPM_TOKEN`，要明确这是兼容旧流程的折中。
+- 手工运行默认只做发布预检；如果团队要允许手工发布，必须先确认工作流是否运行在 tag ref 上，不要把 branch 上的 `workflow_dispatch` 误当作发布路径。
+- tag 版本必须等于 `package.json` 版本，避免发布不可追溯的包版本。
+- 发布前至少运行 `npm test`、`npm run build` 和 `npm pack --dry-run`。如果 `npm run quality` 已包含这些步骤，也可以直接复用。
+- `node-version` 可用最低支持版本做保守发布，也可用当前稳定版本做发布工具链；无论选择哪一种，都要在 PR CI 固定最低支持主版本。
 
 ## 版本规则
 
