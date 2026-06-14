@@ -139,7 +139,7 @@ describe("quality-gate-scaffolder 插件契约", () => {
       ],
       "scaffold-python-backend-quality-gates": ["lingolens/backend", "run_gates.sh"],
       "scaffold-typescript-frontend-quality-gates": ["lingolens", "Biome", "Vitest"],
-      "scaffold-node-tool-quality-gates": ["lark-connect", "node --test"],
+      "scaffold-node-tool-quality-gates": ["lark-connect", "node --test", "npm run quality"],
     };
 
     for (const [skillName, anchors] of Object.entries(evidenceBySkill)) {
@@ -264,7 +264,11 @@ describe("quality-gate-scaffolder 插件契约", () => {
         "https://docs.npmjs.com/files/package.json/",
         "https://docs.npmjs.com/cli/v11/commands/npm-pack/",
         "## 命令行入口规则",
+        "## ESLint 规则清单和配置契约",
         "quality gate package contract",
+        "lint configuration contract",
+        "quality workflow contract",
+        "npm publish --access public --provenance",
         "process.exit",
         "appSecret",
       ],
