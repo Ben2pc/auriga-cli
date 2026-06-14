@@ -78,6 +78,18 @@ describe("quality-gate-scaffolder 插件契约", () => {
     );
   });
 
+  test("quality-gate-scaffolder 双 runtime manifest 版本保持同步", () => {
+    const codexManifest = readJson<{ version: string }>(
+      "plugins/quality-gate-scaffolder/.codex-plugin/plugin.json",
+    );
+    const claudeManifest = readJson<{ version: string }>(
+      "plugins/quality-gate-scaffolder/.claude-plugin/plugin.json",
+    );
+
+    assert.equal(codexManifest.version, claudeManifest.version);
+    assert.equal(codexManifest.version, "0.2.1");
+  });
+
   test("每个受支持技术栈都有一个脚手架技能", () => {
     for (const skillName of skillNames) {
       const skillPath = path.join(pluginRoot, "skills", skillName, "SKILL.md");
@@ -139,7 +151,11 @@ describe("quality-gate-scaffolder 插件契约", () => {
       ],
       "scaffold-python-backend-quality-gates": ["lingolens/backend", "run_gates.sh"],
       "scaffold-typescript-frontend-quality-gates": ["lingolens", "Biome", "Vitest"],
-      "scaffold-node-tool-quality-gates": ["lark-connect", "node --test", "npm run quality"],
+      "scaffold-node-tool-quality-gates": [
+        "lark-connect",
+        "node --test",
+        "`quality` 作为本地和拉取请求持续集成的共同入口",
+      ],
     };
 
     for (const [skillName, anchors] of Object.entries(evidenceBySkill)) {
@@ -266,9 +282,14 @@ describe("quality-gate-scaffolder 插件契约", () => {
         "## 命令行入口规则",
         "## ESLint 规则清单和配置契约",
         "quality gate package contract",
+        "assert.equal(pkg.scripts.lint",
+        "assert.equal(pkg.scripts['pack:check']",
+        "assert.equal(pkg.repository.type, 'git')",
         "lint configuration contract",
+        "permissions:\\n\\s+contents: read",
         "quality workflow contract",
         "npm publish --access public --provenance",
+        "workflow_dispatch` 只作为手工预检入口",
         "process.exit",
         "appSecret",
       ],

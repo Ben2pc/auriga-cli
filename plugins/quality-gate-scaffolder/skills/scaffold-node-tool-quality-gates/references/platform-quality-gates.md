@@ -12,7 +12,7 @@
 | --- | --- | --- |
 | Node.js | 执行命令行工具、语法检查和原生测试 | CI 显式固定与 `engines.node` 兼容的版本；来源样本为 `>=22`，建议 CI 先固定 22 或当前长期支持版本，再按需加最新版矩阵 |
 | npm / `package-lock.json` | 提供可复现安装、脚本入口和发布包形态检查 | CI 使用 `npm ci`；锁文件必须提交；包发布前用 `npm pack --dry-run --json` 检查入包文件 |
-| `package.json` `quality` 脚本 | 给本地开发、hook 和 PR CI 提供同一个质量门禁入口 | 生产级单包工具优先提供 `npm run quality`；小工具可以先没有，但 PR workflow 不应把命令散落到多处 |
+| `package.json` `quality` 脚本 | 给本地开发、hook 和 PR CI 提供同一个质量门禁入口 | 生产级单包工具优先提供；小工具可以先没有，但 PR workflow 不应把命令散落到多处 |
 | `node --check` | 对纯 JavaScript 工具做低成本语法检查 | 适合无构建步骤的 ESM 或 CommonJS 项目；不能替代 lint 或运行时测试 |
 | `node --test` | 运行 Node 原生测试 | 小型工具默认优先用原生测试；已有 Vitest 或 Jest 时可以保留，但不要同时引入多个测试框架 |
 | ESLint | 约束未被语法检查覆盖的代码质量、导入边界和危险模式 | 不是低档位必需项；发布型工具、本地守护进程、MCP 服务或多人维护工具建议作为 L2 默认项，使用当前主版本和锁文件固定精确版本 |
@@ -34,7 +34,7 @@
 | 敏感配置规则 | `doctor` 或配置状态输出不得打印 secret 原文；错误消息不得包含环境变量值；测试中用假值覆盖 |
 | 网络和外部服务边界 | 默认测试不得依赖真实飞书、GitHub 或网络；真实集成放手动、合入后或定时 workflow |
 | 包形态漂移测试 | 锁住 `bin`、`files`、`engines`、必要脚本和 `npm pack --dry-run` 输出中的关键文件 |
-| lint / workflow 漂移测试 | 用 ESLint API 断言解析后的关键规则；用测试锁住 required check 名称、触发事件、Node 版本和 `npm run quality` |
+| lint / workflow 漂移测试 | 用 ESLint API 断言解析后的关键规则；用测试锁住 required check 名称、触发事件和 Node 版本 |
 | npm 发布门禁 | tag 版本必须等于 `package.json` 版本；发布前跑测试、构建和打包预检；使用 Trusted Publishing 或 provenance，避免长期 npm token |
 
 ## 具体规则文件
@@ -48,13 +48,13 @@
 | `pre-commit` | 暂存 JavaScript/TypeScript 文件的格式、lint 自动修复、空白检查 | 全量 `node --test`、包形态、真实外部集成 | 小仓库可以先跳过，等引入 ESLint 或格式化工具后再启用 |
 | `pre-push` | `npm run build`、`npm test`、`npm run lint`、轻量命令行冒烟；有统一入口时跑 `npm run quality` | 需要真实飞书凭证、长连接或网络的测试 | 适合 Node 工具仓库默认本地硬门禁；如果 `pack:check` 很慢，可只放 PR CI |
 | 本地 hook + planner | monorepo 中只在 `src/`、`tests/`、`package.json`、锁文件或门禁脚本变化时跑 Node 门禁 | 单包小仓库中过早引入复杂 planner | planner 失败时保守跑全量 |
-| PR CI | `npm ci`、`npm run quality`、配置漂移测试 | 使用 workflow 级路径过滤导致 required check 不上报 | 默认推荐作为 required status check；没有 `quality` 脚本时才展开为 build、lint、test、pack |
+| PR CI | `npm ci`、仓库统一质量入口、配置漂移测试 | 使用 workflow 级路径过滤导致 required check 不上报 | 默认推荐作为 required status check；没有统一入口时才展开为 build、lint、test、pack |
 | 合入 `main` 后 | 包安装烟测、`npx` 或 tarball 安装烟测、发布预检、tag/package 版本一致性检查 | 每个 PR 已覆盖的基础语法和单元测试 | 发布型工具建议在合入后跑；真正发布放 tag workflow |
 | 定时 workflow | 依赖审计、外部服务 live doctor、真实 API 权限冒烟 | 需要阻塞每个 PR 的基础质量门禁 | 必须使用 secrets，且不能输出敏感值 |
 
 基于 diff 的本地检查建议：
 
-- 单包 Node 工具仓库优先直接跑 `npm run quality`；如果还没有统一入口，先跑 `npm run build && npm test`，避免为了省几十秒引入 planner。
+- 单包 Node 工具仓库优先直接跑仓库统一质量入口；如果还没有统一入口，先跑 `npm run build && npm test`，避免为了省几十秒引入 planner。
 - 如果目标还不是 Git 仓库或没有锁文件，先把“是否生成并提交 `package-lock.json`、CI 是否使用 `npm ci`”列为用户确认项；不要在未确认时假设 `npm ci` 一定可用。
 - monorepo 或多包仓库再引入 planner；命中 `package.json`、锁文件、`src/**`、`tests/**`、`.github/workflows/**` 或 `tools/quality/**` 时输出 `node-tool`。
 - `pre-commit` 只处理暂存文件；`pre-push` 跑完整轻量门禁。
@@ -84,8 +84,8 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-node@v6
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: "22"
           cache: npm

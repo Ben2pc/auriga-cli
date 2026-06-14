@@ -95,7 +95,8 @@ describe('quality gate package contract', () => {
     assert.deepEqual(pkg.files, ['src', 'README.md'])
     assert.equal(pkg.engines.node, '>=22')
     assert.equal(pkg.license, 'MIT')
-    assert.match(pkg.repository.url, /your-org\/your-package\.git$/)
+    assert.equal(pkg.repository.type, 'git')
+    assert.match(pkg.repository.url, /your-package\.git$/)
   })
 })
 ```
@@ -281,8 +282,8 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-node@v6
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: "22"
           cache: npm
@@ -319,8 +320,9 @@ describe("quality workflow contract", () => {
   });
 
   it("runs the repository quality entry on the supported Node version", () => {
-    assert.match(workflow, /uses: actions\/checkout@v6/);
-    assert.match(workflow, /uses: actions\/setup-node@v6/);
+    assert.match(workflow, /permissions:\n\s+contents: read/);
+    assert.match(workflow, /uses: actions\/checkout@v5/);
+    assert.match(workflow, /uses: actions\/setup-node@v5/);
     assert.match(workflow, /node-version: "22"/);
     assert.match(workflow, /run: npm ci/);
     assert.match(workflow, /run: npm run quality/);
@@ -330,7 +332,7 @@ describe("quality workflow contract", () => {
 
 ## npm 发布 workflow 规则
 
-发布到 npm 的命令行工具，建议把发布路径和 PR 基础门禁分开。发布 workflow 可以由 tag 触发，或提供 `workflow_dispatch` 的 dry-run 模式：
+发布到 npm 的命令行工具，建议把发布路径和 PR 基础门禁分开。发布 workflow 可以由 tag 触发；`workflow_dispatch` 只作为手工预检入口，常规手工运行通常选择 branch，不应被描述成绕过 tag 的发布开关：
 
 ```yaml
 name: Release
@@ -339,12 +341,7 @@ on:
   push:
     tags:
       - "v*"
-  workflow_dispatch:
-    inputs:
-      dry_run:
-        description: "Build and test, but skip npm publish"
-        type: boolean
-        default: true
+  workflow_dispatch: {}
 
 permissions:
   contents: write
@@ -354,10 +351,10 @@ jobs:
   release:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v5
         with:
           node-version: "24"
           registry-url: "https://registry.npmjs.org"
@@ -376,11 +373,7 @@ jobs:
       - run: npm run build
       - run: npm pack --dry-run
       - name: Publish to npm
-        if: |
-          startsWith(github.ref, 'refs/tags/v') && (
-            github.event_name == 'push' ||
-            (github.event_name == 'workflow_dispatch' && inputs.dry_run == false)
-          )
+        if: startsWith(github.ref, 'refs/tags/v') && github.event_name == 'push'
         run: npm publish --access public --provenance
 ```
 
@@ -388,6 +381,7 @@ jobs:
 
 - npm 发布优先使用可信发布（Trusted Publishing）或 provenance（来源证明），避免长期 npm token。
 - workflow 需要 `id-token: write` 才能使用开放身份连接发布；如果仓库仍用 `NPM_TOKEN`，要明确这是兼容旧流程的折中。
+- 手工运行默认只做发布预检；如果团队要允许手工发布，必须先确认工作流是否运行在 tag ref 上，不要把 branch 上的 `workflow_dispatch` 误当作发布路径。
 - tag 版本必须等于 `package.json` 版本，避免发布不可追溯的包版本。
 - 发布前至少运行 `npm test`、`npm run build` 和 `npm pack --dry-run`。如果 `npm run quality` 已包含这些步骤，也可以直接复用。
 - `node-version` 可用最低支持版本做保守发布，也可用当前稳定版本做发布工具链；无论选择哪一种，都要在 PR CI 固定最低支持主版本。
