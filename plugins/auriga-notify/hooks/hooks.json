@@ -1,5 +1,4 @@
 {
-  "description": "auriga notify: opt-in macOS native notification hook for Claude Code Notification events.",
   "hooks": {
     "Notification": [
       {

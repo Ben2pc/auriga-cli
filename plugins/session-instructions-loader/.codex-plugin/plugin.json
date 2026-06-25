@@ -1,6 +1,6 @@
 {
   "name": "session-instructions-loader",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "SessionStart hook that injects ancestor AGENTS.md files and repo-configured instruction files.",
   "author": {
     "name": "Ben2pc",

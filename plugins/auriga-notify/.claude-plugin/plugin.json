@@ -1,6 +1,6 @@
 {
   "name": "auriga-notify",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Opt-in macOS native notification hook for Claude Code Notification events.",
   "author": {
     "name": "Ben2pc",
