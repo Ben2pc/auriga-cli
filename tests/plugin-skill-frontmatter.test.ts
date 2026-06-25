@@ -29,6 +29,16 @@ function discoverPluginSkillMds(): string[] {
   return found;
 }
 
+function discoverPluginHooksJson(): string[] {
+  const pluginsDir = path.join(REPO_ROOT, "plugins");
+  const found: string[] = [];
+  for (const plugin of fs.readdirSync(pluginsDir)) {
+    const hooksJson = path.join(pluginsDir, plugin, "hooks", "hooks.json");
+    if (fs.existsSync(hooksJson)) found.push(hooksJson);
+  }
+  return found;
+}
+
 describe("plugin-bundled SKILL.md frontmatter", () => {
   const skillMds = discoverPluginSkillMds();
 
@@ -55,6 +65,28 @@ describe("plugin-bundled SKILL.md frontmatter", () => {
         typeof parsed.data.description === "string" && parsed.data.description.length > 0,
         "frontmatter must have a non-empty string `description`",
       );
+    });
+  }
+});
+
+describe("plugin hooks.json contracts", () => {
+  const hooksJsonFiles = discoverPluginHooksJson();
+
+  test("at least one plugin hooks.json is discovered", () => {
+    assert.ok(hooksJsonFiles.length > 0, "expected to find plugin hooks.json files");
+  });
+
+  for (const hooksJson of hooksJsonFiles) {
+    const rel = path.relative(REPO_ROOT, hooksJson);
+    test(`${rel} has only the Codex-supported top-level hooks field`, () => {
+      const parsed = JSON.parse(fs.readFileSync(hooksJson, "utf-8")) as Record<string, unknown>;
+      assert.deepEqual(
+        Object.keys(parsed).sort(),
+        ["hooks"],
+        "Codex plugin hooks parser rejects unknown top-level fields",
+      );
+      assert.equal(typeof parsed.hooks, "object", "`hooks` must be an object");
+      assert.notEqual(parsed.hooks, null, "`hooks` must not be null");
     });
   }
 });
