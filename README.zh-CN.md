@@ -47,6 +47,9 @@ npx -y auriga-cli
 npx -y auriga-cli install --preset           # 工作流核心:AGENTS.md/CLAUDE.md
                                              #   + 工作流 skill + auriga-workflow 插件
                                              #   (默认:scope user、agent both、lang zh-CN)
+npx -y auriga-cli install --preset-plugins-skills
+                                             # 跳过 AGENTS.md/CLAUDE.md,只装预设 skill + auriga-workflow 插件
+                                             #   (默认:scope user、agent both)
 npx -y auriga-cli install --all              # 全装:workflow + skills + recommended + plugins
 npx -y auriga-cli install recommended        # 只装可选工具 skills
 npx -y auriga-cli install plugins --agent codex --plugin session-instructions-loader
@@ -54,7 +57,7 @@ npx -y auriga-cli install <type> [--flags]   # 单类:workflow | skills | recomm
 npx -y auriga-cli --help                     # 完整 catalog + flag 说明
 ```
 
-`--preset` 是原子标志 —— 不能与 `<type>` 或任何过滤标志同时使用,但可带 `--scope`、`--agent`、`--lang`(预设默认 `user` / `both` / `zh-CN`,与分类安装的默认不同)。
+`--preset` 是原子标志 —— 不能与 `<type>` 或任何过滤标志同时使用,但可带 `--scope`、`--agent`、`--lang`(预设默认 `user` / `both` / `zh-CN`,与分类安装的默认不同)。如果项目已经有自己的 `AGENTS.md / CLAUDE.md`,用 `--preset-plugins-skills` 只安装同一组预设 skills 和 `auriga-workflow` 插件,不触碰 workflow 文档。
 
 退出码：`0` 成功；`1` 致命错误（前置检查 / 解析 / 拉取失败）；`2` 部分成功——`stderr` 会列出逐类 `[OK]/[FAIL]` 和 `Retry:` 提示。装完后请重启 Agent 会话，让新的 `AGENTS.md` / skills / plugins / hook 插件注册生效。
 

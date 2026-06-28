@@ -7,8 +7,8 @@
 //   2. 工作流 skill (WORKFLOW_SKILLS 全集 —— installSkills 自身已限定)
 //   3. auriga-workflow 插件
 //
-// CLI 的 `--preset`、TUI 的「推荐预设」、Web UI 的一键按钮全部走这一个
-// 函数,因此「预设由什么构成」只有这一处真相。
+// CLI 的 `--preset`、`--preset-plugins-skills`、TUI 的「推荐预设」、
+// Web UI 的一键按钮都从这里取预设成员,因此「预设由什么构成」只有这一处真相。
 //
 // installPreset 返回逐步成败摘要 (PresetStepResult[]):
 //   - CLI 用它计算分级退出码(全成功 0 / 部分或全部失败 2),与 runAll
@@ -72,8 +72,32 @@ export async function installPreset(
   packageRoot: string,
   opts: PresetOpts,
 ): Promise<PresetStepResult[]> {
+  return installPresetSteps(PRESET_STEPS, packageRoot, opts);
+}
+
+/**
+ * 安装 `--preset` 中除 workflow 文档以外的成员。
+ *
+ * 用于已经手工维护 AGENTS.md / CLAUDE.md、但仍想拿到预设 skills 和
+ * auriga-workflow 插件的项目。
+ */
+export async function installPresetPluginsSkills(
+  packageRoot: string,
+  opts: Omit<PresetOpts, "lang">,
+): Promise<PresetStepResult[]> {
+  return installPresetSteps(["skills", "plugins"], packageRoot, {
+    ...opts,
+    lang: "",
+  });
+}
+
+async function installPresetSteps(
+  steps: readonly PresetStepResult["category"][],
+  packageRoot: string,
+  opts: PresetOpts,
+): Promise<PresetStepResult[]> {
   const results: PresetStepResult[] = [];
-  for (const category of PRESET_STEPS) {
+  for (const category of steps) {
     try {
       await runPresetStep(category, packageRoot, opts);
       results.push({ category, ok: true });

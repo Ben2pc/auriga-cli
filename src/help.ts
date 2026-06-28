@@ -20,6 +20,9 @@ USAGE
                                                          + workflow skills + auriga-workflow plugin
                                                          (defaults: scope user, agent both, lang zh-CN)
                                                          scope applies to skills/plugins; workflow writes current project
+  npx auriga-cli install --preset-plugins-skills [--scope <s>] [--agent <a>]
+                                                         preset skills + auriga-workflow plugin
+                                                         without touching workflow docs
   npx auriga-cli install --all [--scope <s>] [--agent <a>]
                                                          everything: workflow + skills
                                                          + recommended + plugins
@@ -32,6 +35,7 @@ USAGE
   For copy-paste or Agent use, prepend npx's own -y flag:
     npx -y auriga-cli guide
     npx -y auriga-cli install --preset
+    npx -y auriga-cli install --preset-plugins-skills
 
 TYPES (exactly one with <type> form)
   workflow       AGENTS.md + CLAUDE.md symlink (workflow manifesto)

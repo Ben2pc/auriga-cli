@@ -78,6 +78,10 @@ agent both (Claude Code + Codex), lang zh-CN. Scope applies to skills
 and plugins; the workflow doc always writes to the current project:
   ${cmd("npx -y auriga-cli install --preset")}
 
+Without workflow docs — same preset skills + auriga-workflow plugin,
+but leaves AGENTS.md / CLAUDE.md untouched:
+  ${cmd("npx -y auriga-cli install --preset-plugins-skills")}
+
 Everything — workflow + skills + recommended skills + default plugins:
   ${cmd("npx -y auriga-cli install --all")}
 

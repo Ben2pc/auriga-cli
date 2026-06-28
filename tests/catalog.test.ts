@@ -196,6 +196,8 @@ describe("generateCatalog (build-time)", () => {
     const help = renderHelp(catalog, "0.0.0-test");
     assert.match(help, /install --preset/);
     assert.match(help, /--preset[\s\S]*--scope[\s\S]*--agent[\s\S]*--lang/);
+    assert.match(help, /install --preset-plugins-skills/);
+    assert.match(help, /--preset-plugins-skills[\s\S]*--scope[\s\S]*--agent/);
   });
 
   // VAL-HELP-002: the removed `hooks` install surface must not resurface in
