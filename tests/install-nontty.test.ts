@@ -254,6 +254,33 @@ describe("main non-interactive install flow", () => {
       /Retry:\s+npx -y auriga-cli install --preset --scope project --agent codex --lang en/i,
     );
   });
+  test("preset-plugins-skills fails plugin precheck before fetch or installers", async () => {
+    const calls: string[] = [];
+    let fetchCalls = 0;
+    const main = await importMain({
+      exec: (cmd) => {
+        if (cmd === "which codex") throw new Error("missing");
+        return "";
+      },
+      fetchContentRoot: async () => {
+        fetchCalls += 1;
+        return process.cwd();
+      },
+      installSkills: async () => {
+        calls.push("skills");
+      },
+      installPlugins: async () => {
+        calls.push("plugins");
+      },
+    });
+    const { result, stderr } = await captureStderr(() =>
+      main(["install", "--preset-plugins-skills", "--agent", "codex"]),
+    );
+    assert.equal(result, 1);
+    assert.equal(fetchCalls, 0);
+    assert.deepEqual(calls, []);
+    assert.match(stderr, /codex.*CLI/i);
+  });
   // Covers spec §7 success-tail reload reminder and §11 full-install success acceptance.
   test("prints the reload reminder as the final stderr line on success", async () => {
     const main = await importMain({

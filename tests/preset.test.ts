@@ -249,6 +249,92 @@ describe("parseArgs --preset 解析契约", () => {
   });
 });
 
+describe("parseArgs --preset-plugins-skills 解析契约", () => {
+  test("空白 --preset-plugins-skills 解析为只安装预设 skill 和 plugin", () => {
+    const parsed = installArgs(["--preset-plugins-skills"]);
+    assert.equal(parsed.command, "install");
+    assert.equal(
+      (parsed as { install: { presetPluginsSkills?: boolean } }).install
+        .presetPluginsSkills,
+      true,
+    );
+  });
+
+  test("--preset-plugins-skills 接受 --scope / --agent 覆盖", () => {
+    const { install } = installArgs([
+      "--preset-plugins-skills",
+      "--scope",
+      "project",
+      "--agent",
+      "codex",
+    ]) as {
+      install: { presetPluginsSkills?: boolean; scope?: string; agent?: string };
+    };
+    assert.equal(install.presetPluginsSkills, true);
+    assert.equal(install.scope, "project");
+    assert.equal(install.agent, "codex");
+  });
+
+  test("--preset-plugins-skills 的修饰标志支持 --flag=value 等号形式", () => {
+    const { install } = installArgs([
+      "--preset-plugins-skills",
+      "--scope=user",
+      "--agent=codex",
+    ]) as {
+      install: { presetPluginsSkills?: boolean; scope?: string; agent?: string };
+    };
+    assert.equal(install.presetPluginsSkills, true);
+    assert.equal(install.scope, "user");
+    assert.equal(install.agent, "codex");
+  });
+
+  test("--preset-plugins-skills 带非法 --scope / --agent 值被拒绝", () => {
+    expectParseError(
+      ["install", "--preset-plugins-skills", "--scope", "team"],
+      /scope/i,
+    );
+    expectParseError(
+      ["install", "--preset-plugins-skills", "--agent", "nobody"],
+      /unknown --agent value/i,
+    );
+  });
+
+  test("--preset-plugins-skills 不接受 --lang / --cwd", () => {
+    expectAtomicConflictRejected(
+      ["install", "--preset-plugins-skills", "--lang", "en"],
+      "--preset-plugins-skills 不安装 workflow 文档,不应接受 --lang",
+    );
+    expectAtomicConflictRejected(
+      ["install", "--preset-plugins-skills", "--cwd", "."],
+      "--preset-plugins-skills 不安装 workflow 文档,不应接受 --cwd",
+    );
+  });
+
+  test("--preset-plugins-skills= 等号带空值被显式拒绝", () => {
+    expectAtomicConflictRejected(
+      ["install", "--preset-plugins-skills="],
+      "--preset-plugins-skills 不取值,等号空值形式应被专门拒绝",
+    );
+  });
+
+  test("--preset-plugins-skills 与 --preset / --all / <type> / filter 互斥", () => {
+    const cases: string[][] = [
+      ["install", "--preset-plugins-skills", "--preset"],
+      ["install", "--preset-plugins-skills", "--all"],
+      ["install", "--preset-plugins-skills", "skills"],
+      ["install", "plugins", "--preset-plugins-skills"],
+      ["install", "--preset-plugins-skills", "--plugin", "auriga-workflow"],
+      ["install", "--preset-plugins-skills", "--skill", "systematic-debugging"],
+    ];
+    for (const argv of cases) {
+      expectAtomicConflictRejected(
+        argv,
+        `${argv.join(" ")} 应被作为原子参数互斥拒绝`,
+      );
+    }
+  });
+});
+
 // ---------------------------------------------------------------------------
 // Part B —— 分发层 (integration):mock installer 边界,断言 main 的行为。
 // 沿用 tests/install-nontty.test.ts 的 importMain + captureStderr 模式。
@@ -277,6 +363,7 @@ interface InstallerCall {
   scope?: string;
   agent?: string;
   lang?: string;
+  selected?: string[];
 }
 
 async function captureStderr<T>(
@@ -380,9 +467,14 @@ async function importMainWithSpies(overrides: {
     namedExports: {
       installPlugins: async (
         _root: string,
-        opts: { scope?: string; agent?: string },
+        opts: { scope?: string; agent?: string; selected?: string[] },
       ) => {
-        calls.push({ category: "plugins", scope: opts.scope, agent: opts.agent });
+        calls.push({
+          category: "plugins",
+          scope: opts.scope,
+          agent: opts.agent,
+          selected: opts.selected,
+        });
         if (overrides.pluginsImpl) await overrides.pluginsImpl();
       },
     },
@@ -526,6 +618,90 @@ describe("main --preset 安装分发", () => {
     assert.match(stderr, /workflow/i);
     assert.match(stderr, /skills/i);
     assert.match(stderr, /plugins/i);
+  });
+});
+
+describe("main --preset-plugins-skills 安装分发", () => {
+  test("install --preset-plugins-skills 只触达 skills / plugins", async () => {
+    const { main, calls } = await importMainWithSpies();
+    const { result } = await captureStderr(() =>
+      main(["install", "--preset-plugins-skills"]),
+    );
+    assert.equal(result, 0);
+    const touched = new Set(calls.map((c) => c.category));
+    assert.deepEqual(
+      [...touched].sort(),
+      ["plugins", "skills"],
+      "不应安装 workflow 文档或 recommended skills",
+    );
+    const pluginCall = calls.find((c) => c.category === "plugins");
+    assert.deepEqual(
+      pluginCall?.selected,
+      ["auriga-workflow"],
+      "插件安装面必须收敛到 auriga-workflow",
+    );
+  });
+
+  test("install --preset-plugins-skills 默认 scope=user / agent=both", async () => {
+    const { main, calls } = await importMainWithSpies();
+    const { result } = await captureStderr(() =>
+      main(["install", "--preset-plugins-skills"]),
+    );
+    assert.equal(result, 0);
+    assert.ok(calls.length > 0, "应至少触达一个 installer");
+    for (const c of calls) {
+      assert.equal(c.scope, "user", `${c.category} 默认 scope 应为 user`);
+      assert.equal(c.agent, "both", `${c.category} 默认 agent 应为 both`);
+    }
+  });
+
+  test("install --preset-plugins-skills 覆盖 scope / agent 并保留 retry hint", async () => {
+    const { main, calls } = await importMainWithSpies({
+      pluginsImpl: async () => {
+        throw new Error("codex plugin install boom");
+      },
+    });
+    const { result, stderr } = await captureStderr(() =>
+      main([
+        "install",
+        "--preset-plugins-skills",
+        "--scope",
+        "project",
+        "--agent",
+        "codex",
+      ]),
+    );
+    assert.equal(result, 2);
+    for (const c of calls) {
+      assert.equal(c.scope, "project", `${c.category} 应收到覆盖后的 scope`);
+      assert.equal(c.agent, "codex", `${c.category} 应收到覆盖后的 agent`);
+    }
+    assert.match(
+      stderr,
+      /Retry:\s+npx -y auriga-cli install --preset-plugins-skills --scope project --agent codex/i,
+    );
+    assert.match(stderr, /\[OK\]\s+skills/i);
+    assert.match(stderr, /\[FAIL\]\s+plugins.*codex plugin install boom/i);
+    assert.match(stderr, /Reload your Agent session/i);
+    assert.doesNotMatch(stderr, /AGENTS\.md/i);
+  });
+
+  test("install --preset-plugins-skills 所有类别失败时 exit 2 且不打印 reload reminder", async () => {
+    const { main } = await importMainWithSpies({
+      skillsImpl: async () => {
+        throw new Error("skills boom");
+      },
+      pluginsImpl: async () => {
+        throw new Error("plugins boom");
+      },
+    });
+    const { result, stderr } = await captureStderr(() =>
+      main(["install", "--preset-plugins-skills"]),
+    );
+    assert.equal(result, 2);
+    assert.match(stderr, /\[FAIL\]\s+skills.*skills boom/i);
+    assert.match(stderr, /\[FAIL\]\s+plugins.*plugins boom/i);
+    assert.doesNotMatch(stderr, /Reload your Agent session/i);
   });
 });
 

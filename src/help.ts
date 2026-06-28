@@ -20,6 +20,9 @@ USAGE
                                                          + workflow skills + auriga-workflow plugin
                                                          (defaults: scope user, agent both, lang zh-CN)
                                                          scope applies to skills/plugins; workflow writes current project
+  npx auriga-cli install --preset-plugins-skills [--scope <s>] [--agent <a>]
+                                                         preset skills + auriga-workflow plugin
+                                                         without touching workflow docs
   npx auriga-cli install --all [--scope <s>] [--agent <a>]
                                                          everything: workflow + skills
                                                          + recommended + plugins
@@ -32,6 +35,7 @@ USAGE
   For copy-paste or Agent use, prepend npx's own -y flag:
     npx -y auriga-cli guide
     npx -y auriga-cli install --preset
+    npx -y auriga-cli install --preset-plugins-skills
 
 TYPES (exactly one with <type> form)
   workflow       AGENTS.md + CLAUDE.md symlink (workflow manifesto)
@@ -58,10 +62,10 @@ TOP-LEVEL OPTIONS
 CATALOG (what each category contains)
 ──────────────────────────────────────────────────────
 
-Workflow skills (category: skills)  ← installed by --all and --preset
+Workflow skills (category: skills)  ← installed by --all, --preset, and --preset-plugins-skills
 ${col(catalog.workflowSkills)}
 
-Recommended skills (category: recommended)  ← installed by --all, NOT by --preset
+Recommended skills (category: recommended)  ← installed by --all, NOT by preset modes
 ${col(catalog.recommendedSkills)}
 
 Plugins (category: plugins)
@@ -126,7 +130,7 @@ FLAGS
                                    omit → install every recommended skill listed below
   --scope <project|user>           default project
 
-CATALOG (recommended skills — opt-in; installed by --all, not by --preset)
+CATALOG (recommended skills — opt-in; installed by --all, not by preset modes)
 ${col(catalog.recommendedSkills)}
 `;
 

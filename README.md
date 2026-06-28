@@ -47,6 +47,9 @@ Non-interactive install commands:
 npx -y auriga-cli install --preset           # curated workflow core: AGENTS.md/CLAUDE.md
                                              #   + workflow skills + auriga-workflow plugin
                                              #   (defaults: scope user, agent both, lang zh-CN)
+npx -y auriga-cli install --preset-plugins-skills
+                                             # skip AGENTS.md/CLAUDE.md; install preset skills + auriga-workflow plugin
+                                             #   (defaults: scope user, agent both)
 npx -y auriga-cli install --all              # everything: workflow + skills + recommended + plugins
 npx -y auriga-cli install recommended        # just the opt-in utility skills
 npx -y auriga-cli install plugins --agent codex --plugin session-instructions-loader
@@ -54,7 +57,7 @@ npx -y auriga-cli install <type> [--flags]   # one of: workflow | skills | recom
 npx -y auriga-cli --help                     # full catalog + flags
 ```
 
-`--preset` is atomic — it cannot be combined with a `<type>` or any filter flag, but it accepts `--scope`, `--agent`, and `--lang` (preset defaults: `user` / `both` / `zh-CN`, which differ from the per-category defaults).
+`--preset` is atomic — it cannot be combined with a `<type>` or any filter flag, but it accepts `--scope`, `--agent`, and `--lang` (preset defaults: `user` / `both` / `zh-CN`, which differ from the per-category defaults). If the project already has its own `AGENTS.md / CLAUDE.md`, use `--preset-plugins-skills` to install the same preset skills and `auriga-workflow` plugin without touching workflow docs.
 
 Exit codes: `0` success, `1` fatal (precheck / parse / fetch), `2` partial success — `stderr` lists per-category `[OK]/[FAIL]` and a `Retry:` hint. After install, reload the Agent session so the new `AGENTS.md` / skills / plugins / hook-plugin registrations are picked up.
 

@@ -18,7 +18,11 @@ import {
 import { installWorkflow } from "./workflow.js";
 import { installSkills, installRecommendedSkills } from "./skills.js";
 import { installPlugins } from "./plugins.js";
-import { installPreset } from "./preset.js";
+import {
+  installPreset,
+  installPresetPluginsSkills,
+  type PresetStepResult,
+} from "./preset.js";
 import { loadCatalog } from "./catalog.js";
 import { renderHelp, renderTypeHelp } from "./help.js";
 import { renderGuide } from "./guide.js";
@@ -27,6 +31,8 @@ export type { CategoryName } from "./types.js";
 
 const RELOAD_REMINDER =
   "\n⚠ Reload your Agent session to pick up the new harness (AGENTS.md / skills / plugins are loaded at session startup).\n";
+const SKILLS_PLUGINS_RELOAD_REMINDER =
+  "\n⚠ Reload your Agent session to pick up the new skills / plugins (loaded at session startup).\n";
 
 // ---------------------------------------------------------------------------
 // parseArgs — pure argv parser (spec §3.5 / §5.2)
@@ -38,6 +44,9 @@ export interface InstallParsed {
    *  doc + workflow skills + auriga-workflow plugin). Mutually exclusive
    *  with `all` / `type` / `filter`. */
   preset?: boolean;
+  /** `--preset-plugins-skills` — atomic install of the curated default
+   *  set minus workflow docs: workflow skills + auriga-workflow plugin. */
+  presetPluginsSkills?: boolean;
   type?: CategoryName;
   filter?: string[];
   lang?: string;
@@ -242,6 +251,14 @@ function parseInstall(argv: string[]): InstallParsed {
     if (t.startsWith("--preset=")) {
       parseErr("--preset takes no value.");
     }
+    if (t === "--preset-plugins-skills") {
+      out.presetPluginsSkills = true;
+      i += 1;
+      continue;
+    }
+    if (t.startsWith("--preset-plugins-skills=")) {
+      parseErr("--preset-plugins-skills takes no value.");
+    }
 
     // Accept both `--lang en` and `--lang=en` (and same for --cwd, --scope).
     // The equals form is a common CLI affordance; rejecting it confuses
@@ -313,30 +330,35 @@ function parseInstall(argv: string[]): InstallParsed {
 }
 
 function validateInstall(out: InstallParsed, filterFlag: string | null): void {
-  // Rule 1: --preset is atomic. It installs the curated default set
-  // (workflow doc + workflow skills + auriga-workflow plugin) and cannot
-  // combine with a <type>, a sub-item filter, or --all. Unlike a category
-  // install it DOES accept --scope / --agent / --lang as preset modifiers
-  // (the preset defaults differ: user / both / zh-CN). --cwd is not a preset
-  // modifier — the workflow doc always lands in the current directory.
-  if (out.preset) {
+  // Rule 1: preset flags are atomic. `--preset` installs the curated
+  // default set (workflow doc + workflow skills + auriga-workflow plugin).
+  // `--preset-plugins-skills` installs the same curated skills/plugins
+  // surface without touching workflow docs.
+  if (out.preset || out.presetPluginsSkills) {
+    const flag = out.preset ? "--preset" : "--preset-plugins-skills";
+    if (out.preset && out.presetPluginsSkills) {
+      parseErr("--preset and --preset-plugins-skills are both atomic; pass only one.");
+    }
     if (out.all) {
-      parseErr("--preset and --all are both atomic; pass only one.");
+      parseErr(`${flag} and --all are both atomic; pass only one.`);
     }
     if (out.type) {
-      parseErr(`--preset is atomic; it cannot combine with the '${out.type}' type.`);
+      parseErr(`${flag} is atomic; it cannot combine with the '${out.type}' type.`);
     }
     if (out.filter) {
       parseErr(
-        "--preset is atomic; it cannot combine with --skill/--recommended-skill/--plugin.",
+        `${flag} is atomic; it cannot combine with --skill/--recommended-skill/--plugin.`,
       );
     }
     if (out.cwd !== undefined) {
-      parseErr("--cwd does not apply to --preset.");
+      parseErr(`${flag} does not accept --cwd.`);
+    }
+    if (out.presetPluginsSkills && out.lang !== undefined) {
+      parseErr("--lang does not apply to --preset-plugins-skills.");
     }
     if (out.scope !== undefined) validateScopeValue(out.scope);
     if (out.agent !== undefined) validateAgentValue(out.agent);
-    if (out.lang !== undefined) {
+    if (out.preset && out.lang !== undefined) {
       const valid = LANGUAGES.map((l) => l.value);
       if (!valid.includes(out.lang)) {
         parseErr(`unknown language '${out.lang}'; available: ${valid.join(", ")}`);
@@ -525,9 +547,9 @@ export async function main(argv: string[]): Promise<number> {
 }
 
 async function runInstall(p: InstallParsed): Promise<number> {
-  // Bare `install` (no type, no --all, no --preset, no filter):
+  // Bare `install` (no type, no --all, no preset flag, no filter):
   // TTY → menu, non-TTY → exit 1.
-  if (!p.all && !p.preset && !p.type) {
+  if (!p.all && !p.preset && !p.presetPluginsSkills && !p.type) {
     if (isNonInteractive()) {
       log.error(
         "Interactive mode requires a TTY. Run 'npx auriga-cli --help' for non-interactive options.",
@@ -542,6 +564,10 @@ async function runInstall(p: InstallParsed): Promise<number> {
     return runPreset(p);
   }
 
+  if (p.presetPluginsSkills) {
+    return runPresetPluginsSkills(p);
+  }
+
   // --all: precheck + fan-out.
   if (p.all) {
     return runAll(p);
@@ -549,6 +575,24 @@ async function runInstall(p: InstallParsed): Promise<number> {
 
   // Single-category install.
   return runSingle(p);
+}
+
+async function runPresetPluginsSkills(p: InstallParsed): Promise<number> {
+  const agent: PluginAgent = p.agent ?? "both";
+  const prep = await prepareInstall(["plugins"], agent);
+  if ("exit" in prep) return prep.exit;
+  const { packageRoot } = prep;
+
+  const results = await installPresetPluginsSkills(packageRoot, {
+    interactive: false,
+    scope: p.scope ?? "user",
+    agent,
+  });
+
+  const retryArgs = ["install", "--preset-plugins-skills"];
+  if (p.scope) retryArgs.push("--scope", p.scope);
+  if (p.agent) retryArgs.push("--agent", p.agent);
+  return finishPresetInstall(results, retryArgs, SKILLS_PLUGINS_RELOAD_REMINDER);
 }
 
 /**
@@ -574,6 +618,21 @@ async function runPreset(p: InstallParsed): Promise<number> {
     lang: p.lang ?? DEFAULT_WORKFLOW_LANG,
   });
 
+  // The preset is one atomic "install the right defaults" action — the
+  // retry is the whole command again, not a per-category fan-out like
+  // runAll's hint.
+  const retryArgs = ["install", "--preset"];
+  if (p.scope) retryArgs.push("--scope", p.scope);
+  if (p.agent) retryArgs.push("--agent", p.agent);
+  if (p.lang) retryArgs.push("--lang", p.lang);
+  return finishPresetInstall(results, retryArgs, RELOAD_REMINDER);
+}
+
+function finishPresetInstall(
+  results: PresetStepResult[],
+  retryArgs: string[],
+  reloadReminder: string,
+): number {
   for (const r of results) {
     if (r.ok) {
       process.stderr.write(`[OK]   ${r.category}\n`);
@@ -584,20 +643,13 @@ async function runPreset(p: InstallParsed): Promise<number> {
 
   const failed = results.filter((r) => !r.ok);
   if (failed.length === 0) {
-    process.stderr.write(RELOAD_REMINDER);
+    process.stderr.write(reloadReminder);
     return 0;
   }
 
-  // The preset is one atomic "install the right defaults" action — the
-  // retry is the whole command again, not a per-category fan-out like
-  // runAll's hint.
-  const retryArgs = ["install", "--preset"];
-  if (p.scope) retryArgs.push("--scope", p.scope);
-  if (p.agent) retryArgs.push("--agent", p.agent);
-  if (p.lang) retryArgs.push("--lang", p.lang);
   process.stderr.write(`\nRetry:\n  npx -y auriga-cli ${retryArgs.join(" ")}\n`);
   if (failed.length < results.length) {
-    process.stderr.write(RELOAD_REMINDER);
+    process.stderr.write(reloadReminder);
   }
   return 2;
 }
