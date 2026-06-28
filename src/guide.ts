@@ -34,8 +34,7 @@ It is meant to be read by an Agent after the user asks it to install
 Auriga from an interactive session.
 
 Run each step in order. If any step fails with exit 1, stop and report.
-If exit 2, see stderr for per-category status and follow the "Retry"
-hint.
+If exit 2, see stderr for per-category status and follow the Retry line printed on stderr.
 
 ${h("## Step 1 — Prerequisite check")}
 
@@ -107,12 +106,12 @@ Exit codes:
   0  — all requested categories installed
   1  — fatal error (parse / fetch / missing prerequisite). Read stderr;
        fix the root cause and re-run the SAME command.
-  2  — partial success. stderr lists per-category status. Retry only the
-       failed category (the retry line is printed verbatim on stderr).
+  2  — partial success. stderr lists per-category status. Follow the
+       Retry line printed on stderr.
 
 ${h("## Step 4 — Reload session after install")}
 
-${warn("⚠")} AGENTS.md, .agents/skills/, and plugin enablement /
+${warn("⚠")} AGENTS.md (when installed), skills, and plugin enablement /
 registrations are loaded at session startup. If you installed Auriga
 from an existing Agent session, the current session will NOT see the new
 harness until it is reloaded.
@@ -125,8 +124,11 @@ Action:
 ${h("## Step 5 — Verify install")}
 
 Expected artifacts/checks:
-  - AGENTS.md                 (workflow manifesto, Chinese by default)
-  - CLAUDE.md -> AGENTS.md    (Claude Code compatibility symlink)
+  - If workflow docs were installed:
+    - AGENTS.md                 (workflow manifesto, Chinese by default)
+    - CLAUDE.md -> AGENTS.md    (Claude Code compatibility symlink)
+  - If using --preset-plugins-skills:
+    - AGENTS.md / CLAUDE.md remain untouched
   - .agents/skills/<name>/    (one per installed skill)
   - claude plugins list       (shows Claude plugins, if Claude plugins selected)
   - ~/.codex/config.toml      (Codex plugin enablement, if Codex plugins selected)

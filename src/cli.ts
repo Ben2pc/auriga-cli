@@ -18,7 +18,11 @@ import {
 import { installWorkflow } from "./workflow.js";
 import { installSkills, installRecommendedSkills } from "./skills.js";
 import { installPlugins } from "./plugins.js";
-import { installPreset, installPresetPluginsSkills } from "./preset.js";
+import {
+  installPreset,
+  installPresetPluginsSkills,
+  type PresetStepResult,
+} from "./preset.js";
 import { loadCatalog } from "./catalog.js";
 import { renderHelp, renderTypeHelp } from "./help.js";
 import { renderGuide } from "./guide.js";
@@ -27,6 +31,8 @@ export type { CategoryName } from "./types.js";
 
 const RELOAD_REMINDER =
   "\n⚠ Reload your Agent session to pick up the new harness (AGENTS.md / skills / plugins are loaded at session startup).\n";
+const SKILLS_PLUGINS_RELOAD_REMINDER =
+  "\n⚠ Reload your Agent session to pick up the new skills / plugins (loaded at session startup).\n";
 
 // ---------------------------------------------------------------------------
 // parseArgs — pure argv parser (spec §3.5 / §5.2)
@@ -583,28 +589,10 @@ async function runPresetPluginsSkills(p: InstallParsed): Promise<number> {
     agent,
   });
 
-  for (const r of results) {
-    if (r.ok) {
-      process.stderr.write(`[OK]   ${r.category}\n`);
-    } else {
-      process.stderr.write(`[FAIL] ${r.category} — ${r.err}\n`);
-    }
-  }
-
-  const failed = results.filter((r) => !r.ok);
-  if (failed.length === 0) {
-    process.stderr.write(RELOAD_REMINDER);
-    return 0;
-  }
-
   const retryArgs = ["install", "--preset-plugins-skills"];
   if (p.scope) retryArgs.push("--scope", p.scope);
   if (p.agent) retryArgs.push("--agent", p.agent);
-  process.stderr.write(`\nRetry:\n  npx -y auriga-cli ${retryArgs.join(" ")}\n`);
-  if (failed.length < results.length) {
-    process.stderr.write(RELOAD_REMINDER);
-  }
-  return 2;
+  return finishPresetInstall(results, retryArgs, SKILLS_PLUGINS_RELOAD_REMINDER);
 }
 
 /**
@@ -630,6 +618,21 @@ async function runPreset(p: InstallParsed): Promise<number> {
     lang: p.lang ?? DEFAULT_WORKFLOW_LANG,
   });
 
+  // The preset is one atomic "install the right defaults" action — the
+  // retry is the whole command again, not a per-category fan-out like
+  // runAll's hint.
+  const retryArgs = ["install", "--preset"];
+  if (p.scope) retryArgs.push("--scope", p.scope);
+  if (p.agent) retryArgs.push("--agent", p.agent);
+  if (p.lang) retryArgs.push("--lang", p.lang);
+  return finishPresetInstall(results, retryArgs, RELOAD_REMINDER);
+}
+
+function finishPresetInstall(
+  results: PresetStepResult[],
+  retryArgs: string[],
+  reloadReminder: string,
+): number {
   for (const r of results) {
     if (r.ok) {
       process.stderr.write(`[OK]   ${r.category}\n`);
@@ -640,20 +643,13 @@ async function runPreset(p: InstallParsed): Promise<number> {
 
   const failed = results.filter((r) => !r.ok);
   if (failed.length === 0) {
-    process.stderr.write(RELOAD_REMINDER);
+    process.stderr.write(reloadReminder);
     return 0;
   }
 
-  // The preset is one atomic "install the right defaults" action — the
-  // retry is the whole command again, not a per-category fan-out like
-  // runAll's hint.
-  const retryArgs = ["install", "--preset"];
-  if (p.scope) retryArgs.push("--scope", p.scope);
-  if (p.agent) retryArgs.push("--agent", p.agent);
-  if (p.lang) retryArgs.push("--lang", p.lang);
   process.stderr.write(`\nRetry:\n  npx -y auriga-cli ${retryArgs.join(" ")}\n`);
   if (failed.length < results.length) {
-    process.stderr.write(RELOAD_REMINDER);
+    process.stderr.write(reloadReminder);
   }
   return 2;
 }

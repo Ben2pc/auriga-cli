@@ -62,6 +62,9 @@ const PRESET_STEPS: readonly PresetStepResult["category"][] = [
   "plugins",
 ] as const;
 
+const PRESET_PLUGINS_SKILLS_STEPS: readonly PresetStepResult["category"][] =
+  PRESET_STEPS.filter((category) => category !== "workflow");
+
 /**
  * 按 workflow → skills → plugins 顺序执行预设安装。
  *
@@ -85,7 +88,7 @@ export async function installPresetPluginsSkills(
   packageRoot: string,
   opts: Omit<PresetOpts, "lang">,
 ): Promise<PresetStepResult[]> {
-  return installPresetSteps(["skills", "plugins"], packageRoot, {
+  return installPresetSteps(PRESET_PLUGINS_SKILLS_STEPS, packageRoot, {
     ...opts,
     lang: "",
   });

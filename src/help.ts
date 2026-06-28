@@ -62,10 +62,10 @@ TOP-LEVEL OPTIONS
 CATALOG (what each category contains)
 ──────────────────────────────────────────────────────
 
-Workflow skills (category: skills)  ← installed by --all and --preset
+Workflow skills (category: skills)  ← installed by --all, --preset, and --preset-plugins-skills
 ${col(catalog.workflowSkills)}
 
-Recommended skills (category: recommended)  ← installed by --all, NOT by --preset
+Recommended skills (category: recommended)  ← installed by --all, NOT by preset modes
 ${col(catalog.recommendedSkills)}
 
 Plugins (category: plugins)
@@ -130,7 +130,7 @@ FLAGS
                                    omit → install every recommended skill listed below
   --scope <project|user>           default project
 
-CATALOG (recommended skills — opt-in; installed by --all, not by --preset)
+CATALOG (recommended skills — opt-in; installed by --all, not by preset modes)
 ${col(catalog.recommendedSkills)}
 `;
 
