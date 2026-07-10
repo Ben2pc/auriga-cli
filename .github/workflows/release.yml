@@ -41,13 +41,16 @@ jobs:
           node-version: '24'
           registry-url: 'https://registry.npmjs.org'
 
-      - name: Upgrade npm to >=11.5.1
+      - name: Upgrade npm to latest 11.x
         # Belt-and-suspenders: Node 24 ships a recent npm, but the
         # version floor for Trusted Publishing (per the 2025-07-31 GA
-        # announcement) is 11.5.1. Explicit upgrade guarantees the
-        # floor regardless of what setup-node resolves to. Self-
-        # documents the dependency.
-        run: npm install -g npm@latest
+        # announcement) is 11.5.1. Pinned to the npm 11 line, not
+        # npm@latest: npm 12.0.0 breaks `publish --provenance`
+        # (MODULE_NOT_FOUND: sigstore inside libnpmpublish, v1.33.0
+        # release run 29081393099) and also changed the `pack --json`
+        # output shape. Revisit the pin once an npm 12.x release ships
+        # a working provenance path.
+        run: npm install -g npm@11
 
       - name: Install dependencies
         run: npm ci
