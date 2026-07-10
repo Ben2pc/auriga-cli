@@ -30,15 +30,21 @@ let tarballPath: string;
 before(() => {
   // Pack into a scratch dir so we never pollute the repo root with a .tgz.
   tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "tarball-shape-"));
-  // `npm pack --json` returns the exact filename so we don't have to guess
-  // the version. `--silent` keeps non-JSON output out of stdout.
-  const packed = JSON.parse(
-    execSync(`npm pack --pack-destination ${tmpDir} --json --silent`, {
-      cwd: REPO_ROOT,
-      encoding: "utf-8",
-    }),
-  ) as Array<{ filename: string }>;
-  tarballPath = path.join(tmpDir, packed[0].filename);
+  // Locate the tarball by listing the scratch dir instead of parsing
+  // `npm pack --json`: npm 12 changed that JSON shape from an array to an
+  // object keyed by package name, while a fresh scratch dir holds exactly
+  // one .tgz on any npm version.
+  execSync(`npm pack --pack-destination ${tmpDir} --silent`, {
+    cwd: REPO_ROOT,
+    encoding: "utf-8",
+  });
+  const tgzs = fs.readdirSync(tmpDir).filter((f) => f.endsWith(".tgz"));
+  assert.equal(
+    tgzs.length,
+    1,
+    `expected exactly one .tgz in ${tmpDir}, got [${tgzs.join(", ")}]`,
+  );
+  tarballPath = path.join(tmpDir, tgzs[0]);
 
   // Extract just dist/catalog.json — we don't need the rest of the tarball
   // for these assertions and avoiding a full extract keeps the test fast.
