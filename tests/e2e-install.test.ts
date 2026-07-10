@@ -97,23 +97,19 @@ describe(
 
     function packTarball(): string {
       const dest = makeScratch("pack");
-      // `npm pack --json` is structured and version-proof: stdout is a
-      // JSON array with `.filename` on each entry. Parsing the last
-      // line of human-readable output is fragile across npm versions.
-      const r = run("npm", ["pack", "--pack-destination", dest, "--json"]);
+      // Locate the tarball by listing the scratch dir instead of parsing
+      // `npm pack --json`: npm 12 changed that JSON shape from an array
+      // to an object keyed by package name, while a fresh scratch dir
+      // holds exactly one .tgz on any npm version.
+      const r = run("npm", ["pack", "--pack-destination", dest]);
       if (r.status !== 0) {
         throw new Error(`npm pack failed (exit ${r.status}): ${r.stderr || r.stdout || "(no output)"}`);
       }
-      const parsed = JSON.parse(r.stdout) as Array<{ filename?: string }>;
-      const filename = parsed?.[0]?.filename;
-      if (!filename) {
-        throw new Error(`npm pack --json returned unexpected shape: ${r.stdout.slice(0, 200)}`);
+      const tgzs = fs.readdirSync(dest).filter((f) => f.endsWith(".tgz"));
+      if (tgzs.length !== 1) {
+        throw new Error(`expected exactly one .tgz in ${dest}, found [${tgzs.join(", ")}]`);
       }
-      const tarball = path.join(dest, filename);
-      if (!fs.existsSync(tarball)) {
-        throw new Error(`npm pack claimed to emit ${filename} but it does not exist in ${dest}`);
-      }
-      return tarball;
+      return path.join(dest, tgzs[0]);
     }
 
     // Set up a fresh scratch project and install the just-packed
