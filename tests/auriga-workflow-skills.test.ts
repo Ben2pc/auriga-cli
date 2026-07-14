@@ -244,6 +244,10 @@ describe("auriga-workflow skill contracts", () => {
     }
     assert.match(template, /同一抽象层级/);
     assert.match(template, /改变前后|前后对照/);
+    assert.match(template, /文件粒度/);
+    assert.ok(template.includes("<current-file>"), "current directory tree must show files");
+    assert.ok(template.includes("<new-file>"), "target directory tree must show added files");
+    assert.ok(template.includes("<existing-file>"), "target directory tree must show changed files");
     assert.ok(template.includes("（新增）"), "target directory tree must mark added paths");
     assert.ok(template.includes("（改）"), "target directory tree must mark changed paths");
     for (const diagram of ["C4", "sequenceDiagram", "stateDiagram-v2", "erDiagram", "classDiagram"]) {

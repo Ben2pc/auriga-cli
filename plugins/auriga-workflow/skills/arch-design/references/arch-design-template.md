@@ -37,12 +37,15 @@ flowchart LR
 
 ### Current Directory Structure / 当前目录结构
 
-> 保留与本次设计有关的目录和文件，不复制无关的完整仓库树。
+> 展开到与本次设计有关的文件粒度，让评审者看清职责当前落在哪些文件；保留必要的父目录，不复制无关的完整仓库树。
 
 ```text
 <repo>/
 ├── <current-module-a>/
+│   ├── <current-file>
+│   └── <related-test-file>
 └── <current-module-b>/
+    └── <current-file>
 ```
 
 ## Context & Problem / 背景与问题
@@ -90,12 +93,15 @@ flowchart LR
 
 ### Target Directory Structure / 目标目录结构
 
-> 目录布局发生变化时保留，并与当前目录结构使用相同展开深度；用 `（新增）`、`（改）` 标出变化。
+> 目录或文件布局发生变化时保留，并与当前目录结构使用相同展开深度。必须展开到文件粒度，用 `（新增）`、`（改）` 标出新增或修改的目录和文件。
 
 ```text
 <repo>/
-├── <new-module>/       （新增）
-└── <existing-module>/  （改）
+├── <new-module>/          （新增）
+│   └── <new-file>         （新增）
+└── <existing-module>/
+    ├── <added-file>       （新增）
+    └── <existing-file>    （改）
 ```
 
 ### Responsibilities & Boundaries / 职责与边界
