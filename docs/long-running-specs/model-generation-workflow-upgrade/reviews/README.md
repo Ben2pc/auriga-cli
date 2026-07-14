@@ -41,7 +41,7 @@
 | `reviewer-creator` | Auriga 插件 | Claude Code / Codex | 待评审 |
 | `session-compound` | Auriga 插件 | Claude Code / Codex | 待评审 |
 | `spec-design` | Auriga 插件 | Claude Code / Codex | 待评审 |
-| [`systematic-debugging`](../../../worklog/worklog-2026-07-14-feat-model-generation-workflow-upgrade/systematic-debugging/review.md) | Auriga 插件；内化自 `obra/superpowers` | Claude Code / Codex | 内化结论暂定；实现已合入 PR #177；迁移安全由 PR #178 加固；模型评测未执行且不在 PR #178 范围内 |
+| [`systematic-debugging`](../../../worklog/worklog-2026-07-14-feat-model-generation-workflow-upgrade/systematic-debugging/review.md) | Auriga 插件；内化自 `obra/superpowers` | Claude Code / Codex | 内化结论暂定；实现已合入 PR #177；PR #178 取消自动迁移并采用团队人工清理；模型评测未执行且不在 PR #178 范围内 |
 | `test-designer` | Auriga 插件 | Claude Code / Codex | 待评审 |
 
 ### Auriga 自有质量门禁技能

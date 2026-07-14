@@ -82,11 +82,6 @@ const CLAUDE_AVAILABLE = (() => {
   return r.status === 0 && r.stdout.trim().length > 0;
 })();
 
-const CODEX_AVAILABLE = (() => {
-  const r = spawnSync("which", ["codex"], { encoding: "utf-8" });
-  return r.status === 0 && r.stdout.trim().length > 0;
-})();
-
 describe(
   "e2e install — tarball → npm install → auriga-cli install",
   { skip: gitState().skipReason },
@@ -318,68 +313,23 @@ describe(
     });
 
     test(
-      "preset plugins + skills for both runtimes → plugin skill is discoverable and historical shared copy is migrated",
-      {
-        skip: CLAUDE_AVAILABLE && CODEX_AVAILABLE
-          ? undefined
-          : "requires both 'claude' and 'codex' CLIs",
-        timeout: TIMEOUT,
-      },
+      "install plugins --plugin auriga-workflow → plugin registered without modifying standalone skills",
+      { skip: CLAUDE_AVAILABLE ? undefined : "requires 'claude' CLI", timeout: TIMEOUT },
       () => {
         const proj = setupProject(tarballPath!);
-        const runtimeHome = makeScratch("runtime-home");
-        const codexHome = path.join(runtimeHome, ".codex");
-        fs.mkdirSync(codexHome, { recursive: true });
-        const codexLegacyDir = path.join(proj, ".agents", "skills", "systematic-debugging");
-        const claudeLegacyDir = path.join(proj, ".claude", "skills", "systematic-debugging");
-        const userCodexLegacyDir = path.join(runtimeHome, ".agents", "skills", "systematic-debugging");
-        const userClaudeLegacyDir = path.join(runtimeHome, ".claude", "skills", "systematic-debugging");
-        const legacySkill = "# legacy systematic-debugging\n";
-        for (const [codexDir, claudeDir] of [
-          [codexLegacyDir, claudeLegacyDir],
-          [userCodexLegacyDir, userClaudeLegacyDir],
-        ]) {
-          fs.mkdirSync(codexDir, { recursive: true });
-          fs.mkdirSync(path.dirname(claudeDir), { recursive: true });
-          fs.writeFileSync(path.join(codexDir, "SKILL.md"), legacySkill);
-          fs.symlinkSync("../../.agents/skills/systematic-debugging", claudeDir);
-        }
-        const legacyHash = crypto.createHash("sha256")
-          .update("SKILL.md")
-          .update(legacySkill)
-          .digest("hex");
-        fs.writeFileSync(
-          path.join(proj, "skills-lock.json"),
-          JSON.stringify({
-            version: 1,
-            skills: {
-              "systematic-debugging": {
-                source: "obra/superpowers",
-                sourceType: "github",
-                computedHash: legacyHash,
-              },
-            },
-          }, null, 2) + "\n",
-        );
-        fs.mkdirSync(path.join(runtimeHome, ".agents"), { recursive: true });
-        fs.writeFileSync(
-          path.join(runtimeHome, ".agents", ".skill-lock.json"),
-          JSON.stringify({
-            version: 3,
-            skills: {
-              "systematic-debugging": {
-                source: "obra/superpowers",
-                sourceType: "github",
-                computedHash: legacyHash,
-              },
-            },
-          }, null, 2) + "\n",
-        );
-        const r = runCli(
-          proj,
-          ["install", "--preset-plugins-skills", "--scope", "project", "--agent", "both"],
-          { HOME: runtimeHome, CODEX_HOME: codexHome },
-        );
+        const legacyDir = path.join(proj, ".agents", "skills", "systematic-debugging");
+        fs.mkdirSync(legacyDir, { recursive: true });
+        fs.writeFileSync(path.join(legacyDir, "SKILL.md"), "# team-managed legacy copy\n");
+        const lockPath = path.join(proj, "skills-lock.json");
+        fs.writeFileSync(lockPath, JSON.stringify({
+          version: 1,
+          skills: {
+            "systematic-debugging": { source: "obra/superpowers" },
+          },
+        }, null, 2) + "\n");
+        const lockBefore = fs.readFileSync(lockPath, "utf-8");
+
+        const r = runCli(proj, ["install", "plugins", "--plugin", "auriga-workflow"]);
         assert.equal(
           r.status,
           0,
@@ -387,87 +337,16 @@ describe(
         );
         const settings = path.join(proj, ".claude", "settings.json");
         assert.ok(fs.existsSync(settings), `.claude/settings.json missing at ${settings}`);
-        const content = fs.readFileSync(settings, "utf-8");
-        assert.match(content, /auriga-workflow/, "auriga-workflow not mentioned in .claude/settings.json");
-
-        const runtimeEnv: NodeJS.ProcessEnv = {
-          ...process.env,
-          HOME: runtimeHome,
-          CODEX_HOME: codexHome,
-        };
-        const claudeList = run("claude", ["plugins", "list", "--json"], { cwd: proj, env: runtimeEnv });
-        assert.equal(
-          claudeList.status,
-          0,
-          `claude plugins list failed: ${claudeList.stderr || claudeList.stdout}`,
-        );
-        const claudePlugin = (JSON.parse(claudeList.stdout) as Array<{
-          id?: string;
-          enabled?: boolean;
-          installPath?: string;
-        }>).find((plugin) => plugin.id === "auriga-workflow@auriga-cli" && plugin.enabled !== false);
-        assert.ok(claudePlugin?.installPath, "Claude must report the enabled auriga-workflow install root");
-        assert.ok(
-          fs.existsSync(path.join(claudePlugin.installPath, "skills", "systematic-debugging", "SKILL.md")),
-          "Claude must discover systematic-debugging from the installed plugin payload",
-        );
-
-        const codexList = run("codex", ["plugin", "list", "--json"], { cwd: proj, env: runtimeEnv });
-        assert.equal(
-          codexList.status,
-          0,
-          `codex plugin list failed: ${codexList.stderr || codexList.stdout}`,
-        );
-        const codexPlugin = (JSON.parse(codexList.stdout) as {
-          installed?: Array<{
-            pluginId?: string;
-            installed?: boolean;
-            enabled?: boolean;
-            source?: { path?: string };
-          }>;
-        }).installed?.find(
-          (plugin) => plugin.pluginId === "auriga-workflow@auriga-cli"
-            && plugin.installed !== false
-            && plugin.enabled !== false,
-        );
-        assert.ok(codexPlugin?.source?.path, "Codex must report the enabled auriga-workflow install root");
-        assert.ok(
-          fs.existsSync(path.join(codexPlugin.source.path, "skills", "systematic-debugging", "SKILL.md")),
-          "Codex must discover systematic-debugging from the installed plugin payload",
+        assert.match(
+          fs.readFileSync(settings, "utf-8"),
+          /auriga-workflow/,
+          "auriga-workflow not mentioned in .claude/settings.json",
         );
         assert.equal(
-          fs.lstatSync(claudeLegacyDir, { throwIfNoEntry: false }),
-          undefined,
-          "legacy Claude compatibility symlink should not shadow the preset plugin skill",
+          fs.readFileSync(path.join(legacyDir, "SKILL.md"), "utf-8"),
+          "# team-managed legacy copy\n",
         );
-        assert.equal(
-          fs.lstatSync(codexLegacyDir, { throwIfNoEntry: false }),
-          undefined,
-          "legacy Codex skill directory should not shadow the plugin skill",
-        );
-        assert.equal(
-          fs.lstatSync(userClaudeLegacyDir).isDirectory(),
-          true,
-          "project-scoped Claude install must retain a durable user-level Claude fallback",
-        );
-        assert.ok(fs.existsSync(path.join(userClaudeLegacyDir, "SKILL.md")));
-        assert.equal(
-          fs.lstatSync(userCodexLegacyDir, { throwIfNoEntry: false }),
-          undefined,
-          "legacy user-level Codex skill directory should be removed",
-        );
-        const lock = JSON.parse(fs.readFileSync(path.join(proj, "skills-lock.json"), "utf-8")) as {
-          skills: Record<string, unknown>;
-        };
-        assert.equal("systematic-debugging" in lock.skills, false);
-        const userLock = JSON.parse(
-          fs.readFileSync(path.join(runtimeHome, ".agents", ".skill-lock.json"), "utf-8"),
-        ) as { skills: Record<string, unknown> };
-        assert.equal(
-          "systematic-debugging" in userLock.skills,
-          true,
-          "the user lock remains while the project-scoped Claude plugin does not replace the user fallback",
-        );
+        assert.equal(fs.readFileSync(lockPath, "utf-8"), lockBefore);
       },
     );
 

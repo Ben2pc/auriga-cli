@@ -271,8 +271,8 @@ describe("spec-design skill — repo-check VALs", () => {
       "VAL-REV-002": "待定",
       "VAL-REV-003": "待定",
       "VAL-MIG-001": "待定",
-      "VAL-MIG-002": "VAL-PUBL-001..002、VAL-SAFE-001、VAL-SAFE-003、VAL-INST-001",
-      "VAL-MIG-003": "VAL-PUBL-001、VAL-SAFE-002、VAL-SAFE-004、VAL-RELEASE-001",
+      "VAL-MIG-002": "VAL-PUBL-001..002、VAL-REMOVE-001、VAL-NOMUTATE-001",
+      "VAL-MIG-003": "VAL-PUBL-001、VAL-MANUAL-001、VAL-RELEASE-001",
       "VAL-DOC-001": "VAL-LIFE-001",
       "VAL-DOC-002": "VAL-LIFE-001",
     };
@@ -318,11 +318,11 @@ describe("spec-design skill — repo-check VALs", () => {
       .find((line) => line.includes("systematic-debugging"));
     assert.ok(systematicRow, "umbrella must keep the systematic-debugging child row");
     assert.match(systematicRow, /实现[^|]*(?:完成|已合入).*PR #177/);
-    assert.match(systematicRow, /迁移安全[^|]*(?:修复|加固).*PR #178/);
+    assert.match(systematicRow, /PR #178[^|]*(?:取消自动迁移|人工清理)/);
     assert.match(systematicRow, /模型评测[^|]*(?:未执行|不在[^|]*范围)/);
     for (const text of [reviewIndex, childReview]) {
       assert.match(text, /实现[^\n]*(?:完成|已合入)/, "must state implementation status");
-      assert.match(text, /迁移安全[^\n]*(?:修复|加固)/, "must state migration-safety follow-up status");
+      assert.match(text, /PR #178[^\n]*(?:取消自动迁移|人工清理)/, "must state manual cleanup decision");
       assert.match(text, /模型评测[^\n]*(?:未执行|不在[^\n]*范围)/, "must state model evaluation status");
     }
     assert.match(
@@ -368,8 +368,8 @@ describe("spec-design skill — repo-check VALs", () => {
     assert.equal(new Set(childIds).size, childIds.length, "child VAL ids must be unique across archived contracts");
     const repairCoverage = markdownSection(repair, "## Parent coverage map");
     for (const row of [
-      ["VAL-MIG-002", "VAL-SAFE-001", "VAL-INST-001"],
-      ["VAL-MIG-003", "VAL-SAFE-002", "VAL-SAFE-004", "VAL-RELEASE-001"],
+      ["VAL-MIG-002", "VAL-REMOVE-001", "VAL-NOMUTATE-001"],
+      ["VAL-MIG-003", "VAL-MANUAL-001", "VAL-RELEASE-001"],
       ["VAL-DOC-001", "VAL-LIFE-001"],
       ["VAL-DOC-002", "VAL-LIFE-001"],
     ]) {

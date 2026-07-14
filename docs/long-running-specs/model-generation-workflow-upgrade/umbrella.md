@@ -6,8 +6,8 @@
 |---|---|---|---|
 | 1 | `model-evaluation-baseline/` | VAL-EVAL-001..005 | 待创建 |
 | 2 | `auriga-owned-skills/` | VAL-AURI-001..017 | 待逐项评审 |
-| 3 | [`systematic-debugging`](../../worklog/worklog-2026-07-14-feat-model-generation-workflow-upgrade/systematic-debugging/) | VAL-DIAG-001..VAL-PUBL-002 | 实现已合入 PR #177；迁移安全由 PR #178 加固；模型评测未执行且不在 PR #178 范围内 |
-| 4 | [迁移安全修复](../../worklog/worklog-2026-07-14-fix-migrated-skill-cleanup/) | VAL-SAFE-001..VAL-LIFE-001 | PR #178 已完成实现与验证，等待合并；不包含模型评测 |
+| 3 | [`systematic-debugging`](../../worklog/worklog-2026-07-14-feat-model-generation-workflow-upgrade/systematic-debugging/) | VAL-DIAG-001..VAL-PUBL-002 | 实现已合入 PR #177；PR #178 取消自动迁移并改为团队人工清理；模型评测未执行且不在 PR #178 范围内 |
+| 4 | [取消自动技能迁移](../../worklog/worklog-2026-07-14-fix-migrated-skill-cleanup/) | VAL-REMOVE-001..VAL-LIFE-001 | PR #178 删除高复杂度自动迁移状态机，等待合并；不包含模型评测 |
 | 5 | `vendor-core-skills/` 其余技能 | VAL-CORE-001..003 | 待逐项评审 |
 | 6 | `vendor-recommended-skills/` | VAL-RECO-001..008 | 待逐项评审 |
 | 7 | `external-plugins/` | VAL-PLUG-001..005 | 待逐项评审 |
@@ -23,10 +23,10 @@
 | VAL-REV-002 | 待定 | 待定 | 等待模型评测基线验证目标模型原生能力边界；当前工程证据不能替代模型证据 |
 | VAL-REV-003 | 待定 | 待定 | 等待后续删除或精简约束的子规范覆盖 |
 | VAL-MIG-001 | 待定 | 待定 | 等待 workflow-consolidation 子规范覆盖 |
-| VAL-MIG-002 | [`systematic-debugging`](../../worklog/worklog-2026-07-14-feat-model-generation-workflow-upgrade/systematic-debugging/validation-contract.md)、[迁移安全修复](../../worklog/worklog-2026-07-14-fix-migrated-skill-cleanup/validation-contract.md) | VAL-PUBL-001..002、VAL-SAFE-001、VAL-SAFE-003、VAL-INST-001 | 实现已合入 PR #177；迁移安全由 PR #178 加固并验证 |
-| VAL-MIG-003 | [`systematic-debugging`](../../worklog/worklog-2026-07-14-feat-model-generation-workflow-upgrade/systematic-debugging/validation-contract.md)、[迁移安全修复](../../worklog/worklog-2026-07-14-fix-migrated-skill-cleanup/validation-contract.md) | VAL-PUBL-001、VAL-SAFE-002、VAL-SAFE-004、VAL-RELEASE-001 | PR #177 已同步技能清单和文档；PR #178 同步迁移行为、双语说明与版本 |
-| VAL-DOC-001 | [迁移安全修复](../../worklog/worklog-2026-07-14-fix-migrated-skill-cleanup/validation-contract.md) | VAL-LIFE-001 | 长期总规范继续保留；PR #178 子规范已归档到 worklog |
-| VAL-DOC-002 | [迁移安全修复](../../worklog/worklog-2026-07-14-fix-migrated-skill-cleanup/validation-contract.md) | VAL-LIFE-001 | 子 PR 使用独立验收契约；长期总规范最终归档仍由人工决定 |
+| VAL-MIG-002 | [`systematic-debugging`](../../worklog/worklog-2026-07-14-feat-model-generation-workflow-upgrade/systematic-debugging/validation-contract.md)、[取消自动技能迁移](../../worklog/worklog-2026-07-14-fix-migrated-skill-cleanup/validation-contract.md) | VAL-PUBL-001..002、VAL-REMOVE-001、VAL-NOMUTATE-001 | 插件技能已发布；PR #178 删除自动清理，旧副本由团队人工处理 |
+| VAL-MIG-003 | [`systematic-debugging`](../../worklog/worklog-2026-07-14-feat-model-generation-workflow-upgrade/systematic-debugging/validation-contract.md)、[取消自动技能迁移](../../worklog/worklog-2026-07-14-fix-migrated-skill-cleanup/validation-contract.md) | VAL-PUBL-001、VAL-MANUAL-001、VAL-RELEASE-001 | 双语说明和 CLI 版本同步人工清理决策 |
+| VAL-DOC-001 | [取消自动技能迁移](../../worklog/worklog-2026-07-14-fix-migrated-skill-cleanup/validation-contract.md) | VAL-LIFE-001 | 长期总规范继续保留；PR #178 子规范已归档到 worklog |
+| VAL-DOC-002 | [取消自动技能迁移](../../worklog/worklog-2026-07-14-fix-migrated-skill-cleanup/validation-contract.md) | VAL-LIFE-001 | 子 PR 使用独立验收契约；长期总规范最终归档仍由人工决定 |
 
 ## Slicing axis (拆分轴)
 
