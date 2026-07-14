@@ -2,6 +2,7 @@
 
 > 与 spec.md 配套：spec.md 描述 why+what；本文件描述“什么算通过”。
 > 每条 VAL 只描述 Behavior + Tool + Evidence；测试设计归后续测试驱动开发阶段。
+> 本文件随 PR #178 在 Ready 前于 2026-07-14 归档。
 
 ## Coverage map (覆盖矩阵)
 

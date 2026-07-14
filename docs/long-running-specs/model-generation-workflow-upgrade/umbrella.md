@@ -18,8 +18,8 @@
 |---|---|---|---|
 | VAL-REV-001 | [`systematic-debugging`](../../worklog/worklog-2026-07-14-feat-model-generation-workflow-upgrade/systematic-debugging/validation-contract.md) | VAL-DIAG-001..003、VAL-PROD-001..002 | 模型评测未执行；处置结论暂定，不宣称父级验收通过 |
 | VAL-REV-002 | [`systematic-debugging`](../../worklog/worklog-2026-07-14-feat-model-generation-workflow-upgrade/systematic-debugging/validation-contract.md) | VAL-DIAG-001..003、VAL-PROD-001..002 | 工程失效模式已有人工证据；模型评测未执行，不宣称父级验收通过 |
-| VAL-MIG-002 | [`systematic-debugging`](../../worklog/worklog-2026-07-14-feat-model-generation-workflow-upgrade/systematic-debugging/validation-contract.md) | VAL-PUBL-001..002 | 实现已合入 PR #177；迁移安全由 PR #178 加固并验证 |
-| VAL-MIG-003 | [`systematic-debugging`](../../worklog/worklog-2026-07-14-feat-model-generation-workflow-upgrade/systematic-debugging/validation-contract.md) | VAL-PUBL-001 | PR #177 已同步技能清单和文档；PR #178 同步迁移行为与版本 |
+| VAL-MIG-002 | [`systematic-debugging`](../../worklog/worklog-2026-07-14-feat-model-generation-workflow-upgrade/systematic-debugging/validation-contract.md)、[迁移安全修复](../../worklog/worklog-2026-07-14-fix-migrated-skill-cleanup/validation-contract.md) | VAL-PUBL-001..002、VAL-SAFE-001..004、VAL-INST-001 | 实现已合入 PR #177；迁移安全由 PR #178 加固并验证 |
+| VAL-MIG-003 | [`systematic-debugging`](../../worklog/worklog-2026-07-14-feat-model-generation-workflow-upgrade/systematic-debugging/validation-contract.md)、[迁移安全修复](../../worklog/worklog-2026-07-14-fix-migrated-skill-cleanup/validation-contract.md) | VAL-PUBL-001、VAL-SAFE-002、VAL-SAFE-004、VAL-TRACE-001 | PR #177 已同步技能清单和文档；PR #178 同步迁移行为与版本 |
 
 ## Slicing axis (拆分轴)
 
