@@ -255,6 +255,35 @@ describe("auriga-workflow skill contracts", () => {
     }
   });
 
+  test("arch-design makes technical quality and code-level flows reviewable", () => {
+    const text = read("plugins/auriga-workflow/skills/arch-design/SKILL.md");
+    const template = read(
+      "plugins/auriga-workflow/skills/arch-design/references/arch-design-template.md",
+    );
+
+    assert.match(text, /技术质量目标/);
+    assert.match(text, /人工[^。\n]*重点评审/);
+    assert.match(template, /Quality Attributes & Technical Goals \/ 质量属性与技术目标/);
+    assert.match(template, /重点评审/);
+    for (const example of [
+      "可观测性",
+      "可排查性",
+      "故障隔离或容灾",
+      "数据一致性",
+      "安全性",
+      "性能与资源预算",
+    ]) {
+      assert.ok(template.includes(example), `technical quality examples must cue ${example}`);
+    }
+    assert.match(template, /示例[^。\n]*不是必填|不是必填[^。\n]*示例/);
+    assert.match(template, /Data Flow \/ 数据流/);
+    assert.match(template, /用户[^。\n]*外部系统[^。\n]*(?:定时任务|领域事件)/);
+    assert.match(template, /代码内部/);
+    assert.match(template, /文件级职责/);
+    assert.match(template, /接口实现映射/);
+    assert.match(template, /Deployment & Operations \/ 部署与运行/);
+  });
+
   test("arch-design resolves target-local rules and degrades safely without a writable project", () => {
     const text = read("plugins/auriga-workflow/skills/arch-design/SKILL.md");
 
