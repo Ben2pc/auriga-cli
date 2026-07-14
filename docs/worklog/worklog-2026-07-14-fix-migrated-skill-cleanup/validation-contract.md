@@ -82,7 +82,7 @@
 
 ## Verification record (验证记录)
 
-- 2026-07-14，提交 `fd3d9e0`：`npm test` 通过 512/512。
-- 2026-07-14，提交 `fd3d9e0`：`npm run test:e2e` 通过 8/8；双运行时预设安装场景实际执行且未跳过，确认 Claude Code 与 Codex 都能发现插件技能，并清除项目级历史共享副本及锁记录。用户级边界在后续加固提交中加入同一端到端场景后重新验证。
+- 2026-07-14，提交 `6bea213`：`npm test` 通过 514/514。
+- 2026-07-14，提交 `6bea213`：`npm run test:e2e` 通过 8/8；双运行时预设安装场景实际执行且未跳过，确认 Claude Code 与 Codex 都能发现插件技能。项目级共享副本全部退出；用户级 Codex 副本退出；未被项目范围 Claude 插件替代的用户级 Claude 副本已物化保留，对应用户锁继续存在。
 - 2026-07-14：`npm run test:session-instructions-loader` 通过 20/20；`npm run test:git-guards` 全部通过。
 - 本次未执行 GPT 5.6 Sol 或 Fable 5 模型评测；该项不属于 PR #178 的完成证据。
