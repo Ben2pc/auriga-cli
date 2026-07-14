@@ -107,7 +107,7 @@ npx auriga-cli install recommended
 npx auriga-cli install plugins
 
 # 类内子项过滤
-npx auriga-cli install skills --skill verification-before-completion
+npx auriga-cli install skills --skill planning-with-files
 npx auriga-cli install plugins --plugin auriga-workflow
 npx auriga-cli install plugins --plugin auriga-notify
 npx auriga-cli install recommended --recommended-skill codex-agent
@@ -206,7 +206,7 @@ Full — workflow + skills + recommended + default plugins:
 
 Targeted — single category:
   npx -y auriga-cli install workflow --lang en
-  npx -y auriga-cli install skills --skill verification-before-completion
+  npx -y auriga-cli install skills --skill planning-with-files
   npx -y auriga-cli install plugins --plugin skill-creator codex --scope user
   npx -y auriga-cli install plugins --plugin auriga-notify
 
@@ -316,7 +316,6 @@ CATALOG (what each category contains)
 Workflow skills (category: skills)  ← installed by --all and --preset
   planning-with-files            Manus-style file-based planning for complex tasks
   playwright-cli                 Browser automation & testing verification
-  verification-before-completion Require verification evidence before claiming done
 
 Recommended skills (category: recommended)  ← installed by --all, NOT by --preset
   claude-code-agent              Delegate tasks to another Claude Code CLI instance
@@ -344,7 +343,7 @@ EXAMPLES
   npx auriga-cli install workflow --lang zh-CN
 
   # one workflow skill
-  npx auriga-cli install skills --skill verification-before-completion
+  npx auriga-cli install skills --skill planning-with-files
 
 More: https://github.com/Ben2pc/auriga-cli
 ```
@@ -492,7 +491,7 @@ exit 2
 ```json
 {
   "generatedAt": "2026-04-21T...",
-  "workflowSkills": [{ "name": "verification-before-completion", "description": "..." }, ...],
+  "workflowSkills": [{ "name": "planning-with-files", "description": "..." }, ...],
   "recommendedSkills": [{ "name": "claude-code-agent", "description": "..." }, ...],
   "plugins": [{ "name": "auriga-workflow", "description": "..." }, ...]
 }
@@ -653,7 +652,7 @@ README 更新：
 - [ ] `npx auriga-cli install --preset` 在非 TTY 下装好 workflow 文档 + 工作流 skill + auriga-workflow 插件;默认 scope user / agent both / lang en
 - [ ] `npx auriga-cli install --all` 在非 TTY 下装好 workflow / skills / recommended / plugins;成功输出末尾含 reload 提醒
 - [ ] `npx auriga-cli install workflow --lang zh-CN` 装中文 CLAUDE.md
-- [ ] `npx auriga-cli install skills --skill verification-before-completion` 只装指定 skill
+- [ ] `npx auriga-cli install skills --skill planning-with-files` 只装指定 skill
 - [ ] `npx auriga-cli install`（TTY 无参）进 checkbox 菜单（现状行为）
 - [ ] `npx auriga-cli install`（非 TTY 无参）exit 1 + 正确错误串
 - [ ] `npx auriga-cli`（无参、TTY）进 checkbox 菜单（沿用现状，与 `install` 无参等价）

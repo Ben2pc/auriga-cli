@@ -86,7 +86,7 @@ Everything — workflow + skills + recommended skills + default plugins:
 
 Targeted — single category, picking from the catalog surfaced in Step 2:
   ${cmd("npx -y auriga-cli install workflow --lang en")}
-  ${cmd("npx -y auriga-cli install skills --skill verification-before-completion")}
+  ${cmd("npx -y auriga-cli install skills --skill planning-with-files")}
   ${cmd("npx -y auriga-cli install plugins --plugin skill-creator codex --scope user")}
   ${cmd("npx -y auriga-cli install plugins --agent codex --plugin session-instructions-loader")}
 

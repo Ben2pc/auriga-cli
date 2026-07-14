@@ -17,7 +17,7 @@ Auriga's harness design is inspired by several open-source skill and agent-workf
 | Module | Description |
 |---|---|
 | **Workflow** | `AGENTS.md` auriga workflow: requirement clarification -> TDD -> Review, Harness principles, Subagent usage guide |
-| **Skills** | External development process skills — verification, planning, playwright (`systematic-debugging`, TDD, spec authoring, and architecture design ship inside the `auriga-workflow` plugin) |
+| **Skills** | External development process skills — planning and playwright (`systematic-debugging`, TDD, spec authoring, architecture design, and completion-evidence discipline ship inside the workflow or `auriga-workflow` plugin) |
 | **Recommended Skills** | Optional utility skills (e.g. `codex-agent`, `claude-code-agent`) you can add on top of the workflow skills |
 | **Plugins** | Recommended Claude Code and Codex plugins — skill-creator, claude-md-management, playground, codex, auriga-workflow, auriga-notify, session-instructions-loader |
 
@@ -106,7 +106,6 @@ Installs selected skills via `npx skills add`, targeting both Claude Code and Co
 
 | Skill | Source | Description |
 |---|---|---|
-| verification-before-completion | [obra/superpowers](https://github.com/obra/superpowers) | Pre-completion verification — evidence before assertions |
 | planning-with-files | [OthmanAdi/planning-with-files](https://github.com/OthmanAdi/planning-with-files) | File-based task planning and progress tracking |
 | playwright-cli | [microsoft/playwright-cli](https://github.com/microsoft/playwright-cli) | Browser automation and testing |
 

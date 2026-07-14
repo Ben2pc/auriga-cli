@@ -1,5 +1,5 @@
 <!-- AURIGA:WORKFLOW:v1 START — Managed block, maintained by auriga-cli. Do not edit by hand; upgrades replace it wholesale. Put project-specific instructions after the END marker below. -->
-# auriga Workflow (v1.15.0)
+# auriga Workflow (v1.16.0)
 
 1. Requirement Clarification: Clarify new requirements with `spec-design` first. **spec = why + what; plan = how** — requirements state "what to do" and acceptance criteria, not technical paths; for product features, lead with the "Why". Skip spec and go straight to plan when a change doesn't move the external behavior contract.
 
@@ -15,7 +15,7 @@
 
 7. Incremental implementation: Invoke `incremental-impl` for non-trivial work (multi-file changes, cross-file refactors, executing a planned task, ~100+ lines expected) — size triage, slicing, and dispatch belong to the skill; skip when it rates the work XS or the change is pure docs/config.
 
-8. Verify before claiming done: Before any "done / fixed / ready for review" judgment, run full verification per `verification-before-completion` (automated tests plus any needed UI interaction checks); don't judge by reading the implementation alone.
+8. Verify before claiming done: Any "done, fixed, passing, or ready for review" judgment must be based on verification results that match the claim and were obtained after the last relevant change; when evidence is insufficient, state the gap.
 
 9. PR readiness: Mark Ready only after verification passes, the base branch is confirmed, and the PR body covers the five elements (scope / acceptance criteria / design decisions / risks / TODOs — see `git-workflow`). For design artifacts scoped to the current PR (spec.md, task_plan.md, etc.), use `AskUserQuestion` / `request_user_input` to ask the user: delete or archive to `docs/worklog/worklog-<YYYY-MM-DD>-<branch-name>/`. A program spec spanning multiple PRs may remain under `docs/long-running-specs/` and does not participate in the Ready cleanup gate; a human decides when to archive it after all child PRs finish.
 

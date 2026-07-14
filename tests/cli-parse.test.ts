@@ -50,13 +50,13 @@ describe("parseArgs", () => {
         cwd: process.cwd(),
       },
     });
-    assert.deepEqual(installArgs(["skills", "--scope", "user", "--skill", "planning-with-files", "verification-before-completion"]), {
+    assert.deepEqual(installArgs(["skills", "--scope", "user", "--skill", "planning-with-files", "playwright-cli"]), {
       command: "install",
       install: {
         all: false,
         type: "skills",
         scope: "user",
-        filter: ["planning-with-files", "verification-before-completion"],
+        filter: ["planning-with-files", "playwright-cli"],
       },
     });
     assert.deepEqual(installArgs(["recommended", "--recommended-skill", "codex-agent"]), {
@@ -122,17 +122,17 @@ describe("parseArgs", () => {
 
   // Covers spec §5.2 filter nargs terminator rules and the explicit `--` edge case.
   test("stops filter nargs at the next flag or explicit terminator", () => {
-    assert.deepEqual(installArgs(["skills", "--skill", "verification-before-completion", "verification-before-completion", "--scope", "user"]), {
+    assert.deepEqual(installArgs(["skills", "--skill", "playwright-cli", "playwright-cli", "--scope", "user"]), {
       command: "install",
       install: {
         all: false,
         type: "skills",
-        filter: ["verification-before-completion", "verification-before-completion"],
+        filter: ["playwright-cli", "playwright-cli"],
         scope: "user",
       },
     });
     expectParseError(
-      ["install", "skills", "--skill", "verification-before-completion", "--", "verification-before-completion"],
+      ["install", "skills", "--skill", "playwright-cli", "--", "playwright-cli"],
       /install takes one <type> at a time/i,
     );
   });
@@ -141,8 +141,8 @@ describe("parseArgs", () => {
   test("fail-fasts on illegal combinations, mismatched filters, and top-level misuse", () => {
     expectParseError(["install", "workflow", "skills"], /install takes one <type> at a time/i);
     expectParseError(["install", "--all", "recommended"], /--all is atomic; no extra types or filters/i);
-    expectParseError(["install", "--all", "--skill", "verification-before-completion"], /--all is atomic; no extra types or filters/i);
-    expectParseError(["install", "workflow", "--skill", "verification-before-completion"], /--skill requires 'install skills'/i);
+    expectParseError(["install", "--all", "--skill", "planning-with-files"], /--all is atomic; no extra types or filters/i);
+    expectParseError(["install", "workflow", "--skill", "planning-with-files"], /--skill requires 'install skills'/i);
     expectParseError(["install", "--recommended-skill", "codex-agent"], /--recommended-skill requires 'install recommended'/i);
     expectParseError(["install", "workflow", "--plugin", "auriga-workflow"], /--plugin requires 'install plugins'/i);
     expectParseError(["install", "skills", "--lang", "en"], /--lang\/--cwd only apply to workflow/i);
@@ -188,7 +188,7 @@ describe("parseArgs", () => {
 
   // Covers spec §7 catalog-backed validation, strict value validation, and guide arity fail-fast.
   test("validates names, language, scope, cwd, and guide arity", () => {
-    expectParseError(["install", "skills", "--skill", "foo"], /unknown skill 'foo'; available: .*verification-before-completion/i);
+    expectParseError(["install", "skills", "--skill", "foo"], /unknown skill 'foo'; available: .*planning-with-files/i);
     expectParseError(["install", "recommended", "--recommended-skill", "foo"], /available: .*codex-agent/i);
     expectParseError(["install", "plugins", "--plugin", "foo"], /available: .*auriga-workflow/i);
     expectParseError(["install", "skills", "--skill", "incremental-impl"], /auriga-workflow/i);
@@ -238,9 +238,9 @@ describe("parseArgs", () => {
       command: "install",
       install: { all: false, type: "workflow", lang: "zh-CN", cwd: process.cwd() },
     });
-    assert.deepEqual(installArgs(["skills", "--scope=user", "--skill", "verification-before-completion"]), {
+    assert.deepEqual(installArgs(["skills", "--scope=user", "--skill", "planning-with-files"]), {
       command: "install",
-      install: { all: false, type: "skills", scope: "user", filter: ["verification-before-completion"] },
+      install: { all: false, type: "skills", scope: "user", filter: ["planning-with-files"] },
     });
     expectParseError(["install", "workflow", "--lang="], /--lang requires a value/i);
     expectParseError(["install", "plugins", "--scope="], /--scope requires a value/i);
