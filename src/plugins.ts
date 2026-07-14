@@ -472,6 +472,18 @@ function hasReadableSkillFile(skillDir: string): boolean {
   }
 }
 
+function isProvablyDanglingSymlink(targetPath: string): boolean {
+  const link = fs.lstatSync(targetPath, { throwIfNoEntry: false });
+  if (!link?.isSymbolicLink()) return false;
+  try {
+    return fs.statSync(targetPath, { throwIfNoEntry: false }) === undefined;
+  } catch {
+    // Permission and transient filesystem failures do not prove that the
+    // target is absent. Preserve the link rather than risking user data.
+    return false;
+  }
+}
+
 function hasValidSkillFile(skillDir: string, expectedName: string): boolean {
   try {
     const skillFile = path.join(skillDir, "SKILL.md");
@@ -606,8 +618,9 @@ function migratedSkillCleanupTargets(
 function managedLockPathsForSkill(
   target: MigratedSkillCleanupTarget,
   name: keyof typeof MIGRATED_WORKFLOW_SKILL_SOURCES,
-): { managedLockPaths: string[]; preservationReason?: string } {
+): { managedLockPaths: string[]; expectedHash?: string; preservationReason?: string } {
   const managedLockPaths: string[] = [];
+  let verifiedExpectedHash: string | undefined;
   for (const lockPath of target.lockPaths) {
     const exists = fs.existsSync(lockPath);
     const lock = readSkillLock(lockPath);
@@ -629,13 +642,20 @@ function managedLockPathsForSkill(
         preservationReason: `lock content hash is missing or invalid: ${lockPath}`,
       };
     }
+    if (verifiedExpectedHash !== undefined && verifiedExpectedHash !== expectedHash) {
+      return {
+        managedLockPaths: [],
+        preservationReason: `managed lock content hashes disagree for ${name}`,
+      };
+    }
+    verifiedExpectedHash = expectedHash;
     const checkedPaths = new Set<string>();
     for (const runtime of ["claude", "codex"] as const) {
       const skillDir = legacySkillDirAt(target.baseDir, runtime, name);
       const skillStat = fs.lstatSync(skillDir, { throwIfNoEntry: false });
       if (!skillStat) continue;
       if (!hasReadableSkillFile(skillDir)) {
-        if (skillStat.isSymbolicLink()) continue;
+        if (isProvablyDanglingSymlink(skillDir)) continue;
         return {
           managedLockPaths: [],
           preservationReason: `skill content is incomplete or unreadable: ${skillDir}`,
@@ -666,13 +686,20 @@ function managedLockPathsForSkill(
       preservationReason: "lock provenance does not match the migrated source",
     };
   }
-  return { managedLockPaths };
+  return { managedLockPaths, expectedHash: verifiedExpectedHash };
 }
 
 interface MaterializationJournal {
   version: 1;
   token: string;
   skillName: string;
+}
+
+interface RemovalJournal {
+  version: 1;
+  token: string;
+  skillName: string;
+  expectedHash: string;
 }
 
 function materializationArtifacts(claudeDir: string, token: string): {
@@ -723,6 +750,60 @@ function recoverInterruptedMaterialization(claudeDir: string, skillName: string)
       throw new Error(`cannot safely recover migration because both original and replacement are missing: ${claudeDir}`);
     }
     fs.rmSync(staged, { recursive: true, force: true });
+    fs.rmSync(journalPath, { force: true });
+  }
+}
+
+function removalArtifacts(dir: string, token: string): { trash: string; journal: string } {
+  const prefix = path.join(path.dirname(dir), `.${path.basename(dir)}.auriga-remove-${token}`);
+  return {
+    trash: `${prefix}.trash`,
+    journal: `${prefix}.journal`,
+  };
+}
+
+function removalJournalPaths(dir: string): string[] {
+  const parent = path.dirname(dir);
+  if (!fs.existsSync(parent)) return [];
+  const prefix = `.${path.basename(dir)}.auriga-remove-`;
+  return fs.readdirSync(parent)
+    .filter((entry) => entry.startsWith(prefix) && entry.endsWith(".journal"))
+    .map((entry) => path.join(parent, entry));
+}
+
+function recoverInterruptedRemoval(dir: string, skillName: string): void {
+  for (const journalPath of removalJournalPaths(dir)) {
+    let journal: RemovalJournal;
+    try {
+      journal = JSON.parse(fs.readFileSync(journalPath, "utf-8")) as RemovalJournal;
+    } catch {
+      throw new Error(`removal journal is unreadable: ${journalPath}`);
+    }
+    if (
+      journal.version !== 1
+      || journal.skillName !== skillName
+      || !/^[a-f0-9]{16}$/.test(journal.token)
+      || !/^[a-f0-9]{64}$/i.test(journal.expectedHash)
+      || removalArtifacts(dir, journal.token).journal !== journalPath
+    ) {
+      throw new Error(`removal journal is invalid: ${journalPath}`);
+    }
+    const { trash } = removalArtifacts(dir, journal.token);
+    if (!pathEntryExists(trash)) {
+      fs.rmSync(journalPath, { force: true });
+      continue;
+    }
+    if (pathEntryExists(dir)) {
+      throw new Error(`cannot safely recover removal while both ${dir} and ${trash} exist`);
+    }
+    const actualHash = computeSkillFolderHash(trash);
+    if (actualHash === journal.expectedHash) {
+      fs.rmSync(trash, { recursive: true, force: true });
+    } else {
+      // A partial deletion or external writer changed the renamed entity.
+      // Restore what remains so the normal fail-closed checks preserve it.
+      fs.renameSync(trash, dir);
+    }
     fs.rmSync(journalPath, { force: true });
   }
 }
@@ -819,10 +900,32 @@ function withMigrationLock(target: MigratedSkillCleanupTarget, action: () => voi
   }
 }
 
-function removeLegacySkillAtomically(dir: string): void {
-  const trash = `${dir}.auriga-remove-${crypto.randomBytes(8).toString("hex")}`;
-  fs.renameSync(dir, trash);
+function removeLegacySkillAtomically(
+  dir: string,
+  skillName: string,
+  expectedHash: string,
+): void {
+  const token = crypto.randomBytes(8).toString("hex");
+  const { trash, journal } = removalArtifacts(dir, token);
+  fs.writeFileSync(
+    journal,
+    JSON.stringify({ version: 1, token, skillName, expectedHash } satisfies RemovalJournal) + "\n",
+    { flag: "wx" },
+  );
+  try {
+    fs.renameSync(dir, trash);
+  } catch (error) {
+    fs.rmSync(journal, { force: true });
+    throw error;
+  }
+  const actualHash = computeSkillFolderHash(trash);
+  if (actualHash !== expectedHash) {
+    if (!pathEntryExists(dir)) fs.renameSync(trash, dir);
+    if (!pathEntryExists(trash)) fs.rmSync(journal, { force: true });
+    throw new Error(`skill content changed during removal: ${dir}`);
+  }
   fs.rmSync(trash, { recursive: true, force: true });
+  fs.rmSync(journal, { force: true });
 }
 
 function hasManagedLegacySkillCandidate(
@@ -833,7 +936,14 @@ function hasManagedLegacySkillCandidate(
     for (const name of MIGRATED_WORKFLOW_SKILLS) {
       const { managedLockPaths } = managedLockPathsForSkill(target, name);
       if (managedLockPaths.length === 0) continue;
-      if (runtimes.some((runtime) => pathEntryExists(legacySkillDirAt(target.baseDir, runtime, name)))) {
+      const hasSelectedCopy = runtimes.some((runtime) =>
+        pathEntryExists(legacySkillDirAt(target.baseDir, runtime, name))
+      );
+      const hasInterruptedRemoval = (["claude", "codex"] as const).some((runtime) => {
+        const dir = legacySkillDirAt(target.baseDir, runtime, name);
+        return removalJournalPaths(dir).length > 0;
+      });
+      if (hasSelectedCopy || hasInterruptedRemoval) {
         return true;
       }
     }
@@ -862,7 +972,10 @@ function cleanupMigratedWorkflowSkillInstalls(
   for (const target of targets) {
     withMigrationLock(target, () => {
       for (const name of MIGRATED_WORKFLOW_SKILLS) {
-        const { managedLockPaths, preservationReason } = managedLockPathsForSkill(target, name);
+        for (const runtime of ["claude", "codex"] as const) {
+          recoverInterruptedRemoval(legacySkillDirAt(target.baseDir, runtime, name), name);
+        }
+        const { managedLockPaths, expectedHash, preservationReason } = managedLockPathsForSkill(target, name);
         if (managedLockPaths.length === 0) {
           const hasCopy = (["claude", "codex"] as const).some((runtime) =>
             pathEntryExists(legacySkillDirAt(target.baseDir, runtime, name))
@@ -880,8 +993,7 @@ function cleanupMigratedWorkflowSkillInstalls(
 
         for (const runtime of ["claude", "codex"] as const) {
           const dir = legacySkillDirAt(target.baseDir, runtime, name);
-          const stat = fs.lstatSync(dir, { throwIfNoEntry: false });
-          if (stat?.isSymbolicLink() && !hasReadableSkillFile(dir)) {
+          if (isProvablyDanglingSymlink(dir)) {
             fs.rmSync(dir, { force: true });
             emitMigrationLog(opts, `removed dangling ${dir}`);
           }
@@ -898,7 +1010,10 @@ function cleanupMigratedWorkflowSkillInstalls(
             emitMigrationLog(opts, `preserved ${runtimeSkillRoot(runtime)}/skills/${name} development symlink`);
             continue;
           }
-          removeLegacySkillAtomically(dir);
+          if (!expectedHash) {
+            throw new Error(`managed content hash is unavailable for ${dir}`);
+          }
+          removeLegacySkillAtomically(dir, name, expectedHash);
           emitMigrationLog(opts, `removed ${dir}`);
         }
 
