@@ -58,16 +58,7 @@ describe("auriga-workflow skill contracts", () => {
       text.split("\n").length <= 80,
       "the unified TDD skill must stay within an 80-line context budget",
     );
-    assert.match(
-      text,
-      /测试设计和实现[^。\n]{0,16}(?:由|归)[^。\n]{0,12}当前实现代理[^。\n]{0,12}(?:完成|负责)/,
-      "the independently installable skill must keep test design with the implementation agent",
-    );
-    assert.match(
-      text,
-      /不[^。\n]{0,8}(?:另派|派发)[^。\n]{0,8}(?:独立)?测试代理/,
-      "the independently installable skill must reject a separate test agent",
-    );
+    assert.doesNotMatch(text, /独立测试代理|另派[^。\n]*测试代理|separate test agent/i);
     assert.doesNotMatch(text, /xhigh|最强模型|全新会话|fresh context/i);
     assert.match(
       text,

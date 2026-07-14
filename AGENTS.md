@@ -1,5 +1,5 @@
 <!-- AURIGA:WORKFLOW:v1 START — 受管区块,由 auriga-cli 维护,请勿手改;升级会整块覆盖。工程专属规则写在下方 END 标记之后。 -->
-# auriga 工作流 (v1.14.0)
+# auriga 工作流 (v1.15.0)
 
 1. 需求澄清：新需求先用 `spec-design` 澄清。**spec = why + what; plan = how**——requirement 只写"做什么"和验收标准，不写技术路径；产品功能优先讲清"Why"。改动不影响外部行为契约时跳过 spec 直进 plan。
 
@@ -11,7 +11,7 @@
 
 5. bugfix 前先查根因：按 `systematic-debugging`，再决定怎么修。
 
-6. TDD：会改变可观察行为的代码改动遵循 `test-driven-development`；纯文档、纯配置、生成代码或没有有效自动化接缝的改动除外。每个 task 开始前明确可测试的验收标准，写测试前先查 `docs/rules/test/`。测试设计和红绿循环由当前实现 Agent 完成，不另派独立测试 Agent。
+6. TDD：会改变可观察行为的代码改动遵循 `test-driven-development`；纯文档、纯配置、生成代码或没有有效自动化接缝的改动除外。每个 task 开始前明确可测试的验收标准，写测试前先查 `docs/rules/test/`。
 
 7. 增量实现：非平凡实现（多文件、跨文件重构、落地已规划 task、预计写超 ~100 行）调用 `incremental-impl`——规模判定、切片、派遣由 skill 自身负责；判定 XS 或纯文档/配置时跳过。
 
@@ -48,7 +48,7 @@
 
 - **约束靠机制执行，不靠提示词**：核心规则尽量用 linter / CI / 类型系统 / hook 执行。
 - **仓库是唯一信息源**：Agent 无法访问的东西等于不存在；计划、设计决策、技术债务作为版本化产物入库。
-- **独立评估**：测试设计由当前实现 Agent 完成；正式 review 中的测试质量与其他维度由独立 Agent 评估，不让实现 Agent 对自己的工作作最终判断。
+- **独立评估**：正式 review 中的测试质量与其他维度由独立 Agent 评估，不让实现 Agent 对自己的工作作最终判断。
 - **持续对抗熵增**：技术债务小额持续偿还。
 - **组件可拆卸**：每个流程步骤都编码了"模型做不好这件事"的假设，随模型能力提升定期审视，每次只动一个变量。
 - **指令文件是目录，不是百科全书**：AGENTS.md 保持精简（~200 行）做入口导航，细则拆到 `docs/`；以 AGENTS.md 为主文件，建 `CLAUDE.md -> AGENTS.md` 兼容软链（`ln -s AGENTS.md CLAUDE.md`）。
@@ -65,7 +65,7 @@
 - **并行写必须隔离**：独立 git worktree，或改动目录完全独立。
 - **按档位选模型，不写死型号**：flagship 给架构判断 / 复杂编码；workhorse 给常规机械任务。Effort：写码 / agentic 子任务 `xhigh`，轻度调研 `high`，机械任务 `medium`。
 - **派遣必须显式给出验收标准和输出格式**（shape + scope/length），具体格式按任务选。
-<!-- AURIGA:WORKFLOW:v1 END sha256=28ea597dbbe02903 -->
+<!-- AURIGA:WORKFLOW:v1 END sha256=91837a25b123ccde -->
 
 <!-- 在下方添加你的工程专属规则。上方受管区块由 auriga-cli 维护,升级时整块替换;此处内容会被保留。 -->
 
