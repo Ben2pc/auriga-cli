@@ -146,13 +146,14 @@ main Agent 在一条消息里把并行 slices 派发给 subagents：每个 slice
 ### 4.1 增量循环 / Increment Cycle
 
 ```
-Implement → Test → Verify → Commit → Handoff → Next slice
+Test evidence → Implement → Test → Verify → Commit → Handoff → Next slice
 ```
 
 这是核心循环。每个 slice 都必须完整跑完循环，才能进入下一步。
 
+- **Test evidence**：按 `test-driven-development` 为新行为或缺陷建立失败证据；重构则先确认行为保护网
 - **Implement**：实现这个 slice 中最小但完整的功能片段
-- **Test**：运行相关测试套件，或按 `test-driven-development` 先写 failing test
+- **Test**：运行相关测试套件，确认当前切片通过
 - **Verify**：tests 通过、build 成功、type checks 干净，需要时完成 manual check
 - **Commit**：每个 slice 一个 atomic commit（commit message 规则见 `git-workflow`）
 - **Handoff**：输出结构化 handoff block（第 4.8 节）。派发出去的 subagent slice 把它作为返回回复的最后部分；inline slice 由 main Agent 在进入下一 slice 前写入对话记录

@@ -24,6 +24,17 @@ describe("auriga-workflow skill contracts", () => {
     const parsed = matter(text);
 
     assert.equal(parsed.data.name, "test-driven-development");
+    for (const anchor of [
+      "validation-contract.md",
+      "公共接口",
+      "失败",
+      "最小实现",
+      "纵向",
+      "系统边界",
+      "机器协议",
+    ]) {
+      assert.ok(text.includes(anchor), `unified TDD must keep the ${anchor} contract`);
+    }
     assert.ok(
       text.split("\n").length <= 80,
       "the unified TDD skill must stay within an 80-line context budget",
@@ -33,6 +44,46 @@ describe("auriga-workflow skill contracts", () => {
       /xhigh|最强模型|全新会话|fresh context|派发.{0,12}(?:独立|测试).{0,4}代理|delete means delete/i,
       "the unified TDD skill must not orchestrate an independent test agent or force destructive restart rituals",
     );
+  });
+
+  test("auriga-workflow publishes the exact owned skill inventory", () => {
+    const skillsRoot = path.join(repoRoot, "plugins/auriga-workflow/skills");
+    const actual = fs.readdirSync(skillsRoot)
+      .filter((name) => fs.existsSync(path.join(skillsRoot, name, "SKILL.md")))
+      .sort();
+    assert.deepEqual(actual, [
+      "arch-design",
+      "code-simplify",
+      "deep-review",
+      "docent",
+      "documentation-and-adrs",
+      "git-workflow",
+      "goalify",
+      "incremental-impl",
+      "reviewer-creator",
+      "session-compound",
+      "spec-design",
+      "systematic-debugging",
+      "test-driven-development",
+    ]);
+    assert.equal(fs.existsSync(path.join(repoRoot, ".agents/skills/test-driven-development")), false);
+    assert.equal(fs.existsSync(path.join(repoRoot, ".claude/skills/test-driven-development")), false);
+  });
+
+  test("active workflow surfaces contain no retired test-designer reference", () => {
+    for (const rel of [
+      "AGENTS.md",
+      "AGENTS.template.zh-CN.md",
+      "AGENTS.template.en.md",
+      "plugins/auriga-workflow/skills/arch-design/SKILL.md",
+      "plugins/auriga-workflow/skills/code-simplify/SKILL.md",
+      "plugins/auriga-workflow/skills/deep-review/SKILL.md",
+      "plugins/auriga-workflow/skills/incremental-impl/SKILL.md",
+      "plugins/auriga-workflow/skills/spec-design/SKILL.md",
+      "plugins/auriga-workflow/skills/deep-review/references/reviewers/test-quality.md",
+    ]) {
+      assert.doesNotMatch(read(rel), /test-designer/, `${rel} must not reference the retired skill`);
+    }
   });
 
   test("systematic-debugging keeps diagnosis evidence-first without a fixed ritual", () => {

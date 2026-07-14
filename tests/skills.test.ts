@@ -21,7 +21,6 @@ const LOCK: SkillsLock["skills"] = {
   "verification-before-completion": stub("obra/superpowers"),
   "claude-code-agent": stub("Ben2pc/g-claude-code-plugins"),
   "codex-agent": stub("Ben2pc/g-claude-code-plugins"),
-  "incremental-impl": stub("Ben2pc/auriga-cli"),
   "planning-with-files": stub("OthmanAdi/planning-with-files"),
   "playwright-cli": stub("microsoft/playwright-cli"),
 };
@@ -58,20 +57,32 @@ describe("planSkillInstallCommands", () => {
 
   test("single source, multiple skills → merged --skill list, space-separated", () => {
     const batches = planSkillInstallCommands(
-      ["verification-before-completion", "verification-before-completion"],
+      ["claude-code-agent", "codex-agent"],
       LOCK,
       "",
     );
     assert.equal(batches.length, 1);
-    assert.equal(batches[0].source, "obra/superpowers");
+    assert.equal(batches[0].source, "Ben2pc/g-claude-code-plugins");
+    assert.deepEqual(batches[0].skills, [
+      "claude-code-agent",
+      "codex-agent",
+    ]);
+    assert.match(
+      batches[0].command,
+      / --skill claude-code-agent codex-agent /,
+    );
+  });
+
+  test("duplicate selections are preserved for the caller to diagnose", () => {
+    const batches = planSkillInstallCommands(
+      ["verification-before-completion", "verification-before-completion"],
+      LOCK,
+      "",
+    );
     assert.deepEqual(batches[0].skills, [
       "verification-before-completion",
       "verification-before-completion",
     ]);
-    assert.match(
-      batches[0].command,
-      / --skill verification-before-completion verification-before-completion /,
-    );
   });
 
   test("multiple sources → one batch per source, grouping is stable", () => {
@@ -79,7 +90,6 @@ describe("planSkillInstallCommands", () => {
       [
         "verification-before-completion",
         "claude-code-agent",
-        "verification-before-completion",
         "codex-agent",
         "planning-with-files",
       ],
@@ -88,10 +98,7 @@ describe("planSkillInstallCommands", () => {
     );
     assert.equal(batches.length, 3);
     const bySource = Object.fromEntries(batches.map((b) => [b.source, b.skills]));
-    assert.deepEqual(bySource["obra/superpowers"], [
-      "verification-before-completion",
-      "verification-before-completion",
-    ]);
+    assert.deepEqual(bySource["obra/superpowers"], ["verification-before-completion"]);
     assert.deepEqual(bySource["Ben2pc/g-claude-code-plugins"], [
       "claude-code-agent",
       "codex-agent",
@@ -103,7 +110,7 @@ describe("planSkillInstallCommands", () => {
 
   test("every distinct source yields one batch", () => {
     const batches = planSkillInstallCommands(Object.keys(LOCK), LOCK, "");
-    assert.equal(batches.length, 5); // 5 distinct sources in LOCK
+    assert.equal(batches.length, 4); // 4 distinct sources in the real lock fixture
   });
 
   test("globalFlag threads into every command", () => {

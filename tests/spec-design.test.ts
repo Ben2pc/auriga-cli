@@ -43,6 +43,10 @@ describe("spec-design skill — repo-check VALs", () => {
       codex.version,
       "Claude/Codex plugin manifest versions must match",
     );
+    assert.ok(
+      Number(claude.version.split(".")[0]) >= 4,
+      "removing the public test-designer skill must advance the plugin major version",
+    );
   });
 
   test("SKILL.md frontmatter has name and description", () => {
@@ -162,6 +166,23 @@ describe("spec-design skill — repo-check VALs", () => {
     }
   });
 
+  test("workflow templates keep the unified TDD ownership and refactor boundary", () => {
+    for (const f of ["AGENTS.template.zh-CN.md", "AGENTS.template.en.md"]) {
+      const text = read(f);
+      assert.match(text, /v1\.14\.0/, `${f} must advance the workflow contract version`);
+      assert.doesNotMatch(
+        text,
+        /复杂功能的测试设计[^\n]*独立|test design for complex features[^\n]*independent/i,
+        `${f} must not restore an independent test-design agent`,
+      );
+      assert.match(
+        text,
+        /(?:重构[^\n]*保护网|refactor[^\n]*protection)/i,
+        `${f} must preserve the green characterization-test path for refactors`,
+      );
+    }
+  });
+
   test("workflow docs define spec/arch rule subdirectories and consumers", () => {
     for (const f of ["AGENTS.template.zh-CN.md", "AGENTS.template.en.md"]) {
       const text = read(f);
@@ -269,10 +290,10 @@ describe("spec-design skill — repo-check VALs", () => {
       "VAL-INV-002": "待定",
       "VAL-REV-001": "待定",
       "VAL-REV-002": "待定",
-      "VAL-REV-003": "待定",
-      "VAL-MIG-001": "待定",
-      "VAL-MIG-002": "VAL-PUBL-001..002、VAL-REMOVE-001、VAL-NOMUTATE-001",
-      "VAL-MIG-003": "VAL-PUBL-001、VAL-MANUAL-001、VAL-RELEASE-001",
+      "VAL-REV-003": "VAL-RISK-001",
+      "VAL-MIG-001": "VAL-ASSET-001、VAL-FLOW-001..002",
+      "VAL-MIG-002": "VAL-PUBL-001..002、VAL-REMOVE-001、VAL-NOMUTATE-001、VAL-FLOW-002、VAL-REL-002",
+      "VAL-MIG-003": "VAL-PUBL-001、VAL-MANUAL-001、VAL-RELEASE-001、VAL-REL-001",
       "VAL-DOC-001": "VAL-LIFE-001",
       "VAL-DOC-002": "VAL-LIFE-001",
     };
@@ -348,7 +369,10 @@ describe("spec-design skill — repo-check VALs", () => {
     const repair = read(
       "docs/worklog/worklog-2026-07-14-fix-migrated-skill-cleanup/validation-contract.md",
     );
-    const childIds = [child, repair]
+    const unifiedTdd = read(
+      "docs/worklog/worklog-2026-07-14-refactor-simplify-tdd-skill/unified-tdd-skill/validation-contract.md",
+    );
+    const childIds = [child, repair, unifiedTdd]
       .flatMap((text) => text.match(/### (VAL-[A-Z]+-\d+)/g)?.map((line) => line.slice(4)) ?? []);
 
     assert.equal(
@@ -366,6 +390,9 @@ describe("spec-design skill — repo-check VALs", () => {
     assert.equal(childCoverage.includes("VAL-PROD-001"), false, "production VALs must not stand in for model evidence");
 
     assert.equal(new Set(childIds).size, childIds.length, "child VAL ids must be unique across archived contracts");
+    const tddCoverage = markdownSection(unifiedTdd, "## Parent coverage map");
+    assert.match(tddCoverage, /\| VAL-REV-003 \| VAL-RISK-001 \|/);
+    assert.match(tddCoverage, /\| VAL-MIG-001 \| VAL-ASSET-001、VAL-FLOW-001\.\.002 \|/);
     const repairCoverage = markdownSection(repair, "## Parent coverage map");
     for (const row of [
       ["VAL-MIG-002", "VAL-REMOVE-001", "VAL-NOMUTATE-001"],

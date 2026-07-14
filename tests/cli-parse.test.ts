@@ -193,6 +193,10 @@ describe("parseArgs", () => {
     expectParseError(["install", "plugins", "--plugin", "foo"], /available: .*auriga-workflow/i);
     expectParseError(["install", "skills", "--skill", "incremental-impl"], /auriga-workflow/i);
     expectParseError(["install", "skills", "--skill", "test-driven-development"], /auriga-workflow/i);
+    expectParseError(
+      ["install", "skills", "--skill", "test-designer"],
+      /retired.*test-driven-development.*auriga-workflow/i,
+    );
     expectParseError(["install", "skills", "--skill", "session-compound"], /auriga-workflow/i);
     expectParseError(
       ["install", "skills", "--skill", "systematic-debugging"],

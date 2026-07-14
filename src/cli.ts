@@ -449,6 +449,9 @@ function validateFilterAgainstCatalog(type: CategoryName, filter: string[]): voi
 }
 
 function migratedPluginHint(type: CategoryName, name: string): string | undefined {
+  if (type === "skills" && name === "test-designer") {
+    return "This skill was retired and merged into test-driven-development in the auriga-workflow plugin; install it with `install plugins --plugin auriga-workflow`.";
+  }
   if (
     type === "skills" &&
     [

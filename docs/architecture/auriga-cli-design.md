@@ -28,6 +28,8 @@ auriga-cli/
 ├── skills-lock.json           # Skills 清单，npx skills experimental_install 消费
 ├── .agents/
 │   └── skills/
+│       ├── systematic-debugging/
+│       ├── test-driven-development/
 │       ├── verification-before-completion/
 │       ├── planning-with-files/
 │       └── playwright-cli/
@@ -147,9 +149,13 @@ $ npx auriga-cli
   ○ Global（用户级）
 
 ? 选择要安装的 Skills：（多选）
+  ◉ systematic-debugging — 系统化调试
+  ◉ test-driven-development — 测试驱动开发
   ◉ verification-before-completion — 完成前自验证
   ...
 
+  → systematic-debugging: hash 一致，跳过
+  → test-driven-development: 有更新，是否更新？[Y/n]
   → verification-before-completion: 新增
   → 合并 skills-lock.json ✓
   → 执行 npx skills experimental_install ✓
