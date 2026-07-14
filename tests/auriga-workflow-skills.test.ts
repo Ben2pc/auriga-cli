@@ -282,6 +282,8 @@ describe("auriga-workflow skill contracts", () => {
     assert.match(template, /文件级职责/);
     assert.match(template, /接口实现映射/);
     assert.match(template, /Deployment & Operations \/ 部署与运行/);
+    assert.match(template, /可选章节/);
+    assert.match(template, /普通前端[^。\n]*移动端[^。\n]*默认删除/);
   });
 
   test("arch-design resolves target-local rules and degrades safely without a writable project", () => {
