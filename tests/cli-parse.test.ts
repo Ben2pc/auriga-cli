@@ -116,7 +116,7 @@ describe("parseArgs", () => {
     });
     expectParseError(
       ["install", "skills", "--skill", "systematic-debugging"],
-      /unknown skill 'systematic-debugging'/i,
+      /auriga-workflow/i,
     );
   });
 

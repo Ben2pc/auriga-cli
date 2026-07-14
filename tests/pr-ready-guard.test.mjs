@@ -348,6 +348,22 @@ const cases = [
     expect: { status: 0, stdoutEq: "", stderrNotIncludes: "pr-ready-guard" },
   },
   {
+    name: "gh pr create without --draft allows a cross-PR long-running spec",
+    setup: () => {
+      const dir = makeRepo();
+      const programDir = path.join(
+        dir,
+        "docs",
+        "long-running-specs",
+        "model-generation-workflow-upgrade",
+      );
+      fs.mkdirSync(programDir, { recursive: true });
+      fs.writeFileSync(path.join(programDir, "spec.md"), "# cross-PR spec\n");
+      return { cwd: dir, cmd: 'gh pr create --title foo --body "x"' };
+    },
+    expect: { status: 0, stderrNotIncludes: "active specs" },
+  },
+  {
     name: "gh pr create without --draft + stray findings.md blocks",
     setup: () => {
       const dir = makeRepo();

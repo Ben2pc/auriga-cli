@@ -6,7 +6,7 @@
 |---|---|---|---|
 | 1 | `model-evaluation-baseline/` | VAL-EVAL-001..005 | 待创建 |
 | 2 | `auriga-owned-skills/` | VAL-AURI-001..017 | 待逐项评审 |
-| 3 | [`systematic-debugging`](../../worklog/worklog-2026-07-14-feat-model-generation-workflow-upgrade/systematic-debugging/) | VAL-DIAG-001..VAL-MIG-002 | 已完成；PR #177 |
+| 3 | [`systematic-debugging`](../../worklog/worklog-2026-07-14-feat-model-generation-workflow-upgrade/systematic-debugging/) | VAL-DIAG-001..VAL-MIG-002 | 实现与迁移待合并；目标模型受控评测待基线补充；PR #177 |
 | 4 | `vendor-core-skills/` 其余技能 | VAL-CORE-001..003 | 待逐项评审 |
 | 5 | `vendor-recommended-skills/` | VAL-RECO-001..008 | 待逐项评审 |
 | 6 | `external-plugins/` | VAL-PLUG-001..005 | 待逐项评审 |

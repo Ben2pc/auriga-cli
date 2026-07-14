@@ -9,9 +9,10 @@ travel together so they share one distribution model and one install step.
 
 | Skill | What it does |
 |---|---|
+| `systematic-debugging` | Evidence-first diagnosis — establishes a repeatable verification path or a production evidence-collection path before permanent repair. |
 | `incremental-impl` | Size triage (XS–XL), slicing strategy, optional parallel subagent dispatch, per-slice Implement → Test → Verify → Commit discipline. |
 | `test-designer` | Independent test design — dispatches a context-free agent that sees only the requirement and code paths, returns executable failing tests. |
-| `spec-design` | Requirement clarification — produces `spec.md` + `validation-contract.md` under `docs/specs/<topic>/`. |
+| `spec-design` | Requirement clarification — produces PR-scoped contracts under `docs/specs/<topic>/`, or an explicitly approved cross-PR program contract under `docs/long-running-specs/<topic>/`. |
 | `arch-design` | Architecture-level design — module decomposition, dependency direction, candidate tradeoffs, migration path. |
 | `code-simplify` | Code-level simplification — identifies code smells and reduces maintenance cost. |
 | `session-compound` | Compounds a session into a self-contained interactive HTML report. |
@@ -19,6 +20,7 @@ travel together so they share one distribution model and one install step.
 | `deep-review` | Multi-dimensional PR review orchestrator — dispatches parallel fresh-context reviewers per dimension and synthesizes findings into a Blocking / Non-blocking / Architectural punch list. |
 | `reviewer-creator` | Scaffolds a project-level custom reviewer at `docs/rules/review/<name>.md`; `deep-review` auto-discovers and dispatches it alongside the built-ins. |
 | `git-workflow` | The git lifecycle skill — branch hygiene, atomic / checkpoint commits, the five-element PR body. |
+| `documentation-and-adrs` | Documentation and architecture-decision discipline — promotes stable decisions into `docs/architecture/`. |
 | `docent` | Explicit-invocation code docent — a single dedicated subagent locates and reads the code behind a natural-language question (or path), then emits a self-contained interactive HTML walkthrough with file:line anchors. |
 
 ## Hooks

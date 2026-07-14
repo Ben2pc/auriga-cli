@@ -105,7 +105,7 @@ A. 调研   →  B. 定方向、定切分  →  C. 落到文件   →  D. 闸门
 
 **C2.** 按 `references/validation-contract-template.md` 撰写 `<spec-root>/<topic>/validation-contract.md`。反模式检查：每条 VAL 只说*什么*算通过，不说*怎么*测——后者是 `test-designer` 的活。用 A1 调研结果填 `## Toolchain` 表（仓库里每个类别对应的具体工具），把工具链调研结论往下游传递，省得下游重新发现。
 
-**C2.5.** 若 B0 触发了拆分，按 `references/umbrella-template.md` 撰写 `<spec-root>/<topic>/umbrella.md`。
+**C2.5.** 若 B0 触发了拆分，按 `references/umbrella-template.md` 撰写 `<spec-root>/<topic>/umbrella.md`。长期总规范的验收契约是整个计划完成时的总闸门，不要求每个子 PR 单独满足全部断言；但每个子规范必须复制或派生所有适用的长期 VAL，并在 `umbrella.md` 中记录父级 VAL 到子规范的覆盖关系与待补项。
 
 ### Phase D — 闸门与交接
 
@@ -122,7 +122,7 @@ A. 调研   →  B. 定方向、定切分  →  C. 落到文件   →  D. 闸门
 
 **D2. 明确同意闸门。** 把 spec 文件路径打印回给用户，等明确批准。不要因为沉默就开始 plan 或编码前准备。
 
-**D3. 交接。** 套用 `CLAUDE.md` / `AGENTS.md` 里的规模判定。长期总规范只负责跨 PR 的共同契约和状态；执行任一子 PR 前，先从总规范切出当前 PR 的 `docs/specs/<child-topic>/spec.md` 与 `validation-contract.md`：
+**D3. 交接。** 套用 `CLAUDE.md` / `AGENTS.md` 里的规模判定。长期总规范只负责跨 PR 的共同契约和状态；执行任一子 PR 前，先从总规范切出当前 PR 的 `docs/specs/<child-topic>/spec.md` 与 `validation-contract.md`，复制或派生所有适用于该子 PR 的长期 VAL。长期总规范不能替代或绕过当前子 PR 的 `docs/specs/<child-topic>/` Ready 契约：
 - QDF 三条谓词全部成立（单模块、验收标准 ≤ 5、无跨边界接口）→ 跳过 plan，直接进编码前准备 / 建分支
 - 否则 → 交接给用户选定的 plan 阶段工具（内置 Plan、`planning-with-files`、或用户选的任何下游规划 skill）。不要写死某个具体的 plan 阶段 skill 名；那个决定归工作流 CLAUDE.md / AGENTS.md 管。
 

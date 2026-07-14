@@ -189,6 +189,21 @@ describe("spec-design skill — repo-check VALs", () => {
       /docs\/long-running-specs\/[\s\S]*跨[^\n]*PR|跨[^\n]*PR[\s\S]*docs\/long-running-specs\//,
       "spec-design must reserve long-running specs for cross-PR work",
     );
+    assert.match(
+      skill,
+      /用户明确(?:批准|确认)[^\n]*长期|长期[^\n]*用户明确(?:批准|确认)/,
+      "spec-design must require explicit user approval before using the long-running lifecycle",
+    );
+    assert.match(
+      skill,
+      /每个子(?:规范| PR)[^\n]*(?:适用|对应)[^\n]*长期[^\n]*VAL|长期[^\n]*VAL[^\n]*(?:适用|对应)[^\n]*每个子(?:规范| PR)/,
+      "each child spec must carry forward every applicable parent validation assertion",
+    );
+    assert.match(
+      skill,
+      /docs\/specs\/<child-topic>\/[\s\S]*(?:不能|不得|不可)[^\n]*(?:替代|绕过)|(?:不能|不得|不可)[^\n]*(?:替代|绕过)[\s\S]*docs\/specs\/<child-topic>\//,
+      "long-running specs must not replace or bypass the child PR Ready contract",
+    );
 
     for (const f of ["AGENTS.template.zh-CN.md", "AGENTS.template.en.md"]) {
       const text = read(f);

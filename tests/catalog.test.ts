@@ -180,7 +180,12 @@ describe("generateCatalog (build-time)", () => {
     // rationale: install help is rendered from the generated catalog, so this
     // pins the user-visible CLI surface as well as dist/catalog.json.
     const skillHelp = renderTypeHelp(catalog, "skills", "0.0.0-test");
-    for (const name of ["incremental-impl", "test-designer", "session-compound"]) {
+    for (const name of [
+      "incremental-impl",
+      "test-designer",
+      "session-compound",
+      "systematic-debugging",
+    ]) {
       assert.doesNotMatch(skillHelp, new RegExp(`\\b${name}\\b`));
     }
 

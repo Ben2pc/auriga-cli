@@ -49,6 +49,10 @@ describe("auriga-workflow skill contracts", () => {
       );
     }
     assert.match(text, /只诊断[^\n]{0,40}不(?:实施|修改)/);
+    assert.match(text, /仅在用户授权修复后执行/);
+    assert.match(text, /不得记录密钥、令牌、个人信息或完整敏感载荷/);
+    assert.match(text, /重新运行最初的问题验证路径/);
+    assert.match(text, /删除临时日志、脚本和诊断代码/);
     assert.ok(
       !text.includes("superpowers:test-driven-development"),
       "systematic-debugging must not force a chained vendor skill invocation",

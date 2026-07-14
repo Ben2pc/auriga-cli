@@ -41,7 +41,7 @@
 | `reviewer-creator` | Auriga 插件 | Claude Code / Codex | 待评审 |
 | `session-compound` | Auriga 插件 | Claude Code / Codex | 待评审 |
 | `spec-design` | Auriga 插件 | Claude Code / Codex | 待评审 |
-| [`systematic-debugging`](../../../worklog/worklog-2026-07-14-feat-model-generation-workflow-upgrade/systematic-debugging/review.md) | Auriga 插件；内化自 `obra/superpowers` | Claude Code / Codex | 内化；已完成，PR #177 |
+| [`systematic-debugging`](../../../worklog/worklog-2026-07-14-feat-model-generation-workflow-upgrade/systematic-debugging/review.md) | Auriga 插件；内化自 `obra/superpowers` | Claude Code / Codex | 内化；实现与迁移待合并，目标模型受控评测待补；PR #177 |
 | `test-designer` | Auriga 插件 | Claude Code / Codex | 待评审 |
 
 ### Auriga 自有质量门禁技能
@@ -58,6 +58,8 @@
 
 | Asset (资产) | Source (来源) | Runtime (运行时) | Status (状态) |
 |---|---|---|---|
+| `planning-with-files` | `OthmanAdi/planning-with-files` | Claude Code / Codex | 待评审 |
+| `playwright-cli` | `microsoft/playwright-cli` | Claude Code / Codex | 待评审 |
 | `test-driven-development` | `obra/superpowers` | Claude Code / Codex | 待评审 |
 | `verification-before-completion` | `obra/superpowers` | Claude Code / Codex | 待评审 |
 
@@ -71,8 +73,6 @@
 | `design-taste-frontend` | `Leonxlnx/taste-skill` | Claude Code / Codex | 待评审 |
 | `frontend-design` | `anthropics/skills` | Claude Code / Codex | 待评审 |
 | `make-interfaces-feel-better` | `jakubkrehel/make-interfaces-feel-better` | Claude Code / Codex | 待评审 |
-| `planning-with-files` | `OthmanAdi/planning-with-files` | Claude Code / Codex | 待评审 |
-| `playwright-cli` | `microsoft/playwright-cli` | Claude Code / Codex | 待评审 |
 
 ### 外部或可选插件
 
@@ -83,6 +83,7 @@
 | `claude-md-management` | Anthropic 官方插件市场 | Claude Code / Codex | 待评审 |
 | `playground` | Anthropic 官方插件市场 | Claude Code / Codex | 待评审 |
 | `codex` | OpenAI 插件市场 | Claude Code | 待评审 |
+| `session-instructions-loader` | Auriga 插件 | Codex | 待评审 |
 
 ## 单项记录模板
 
