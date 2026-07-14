@@ -332,9 +332,10 @@ describe(
         fs.mkdirSync(codexHome, { recursive: true });
         const codexLegacyDir = path.join(proj, ".agents", "skills", "systematic-debugging");
         const claudeLegacyDir = path.join(proj, ".claude", "skills", "systematic-debugging");
+        const legacySkill = "# legacy systematic-debugging\n";
         fs.mkdirSync(codexLegacyDir, { recursive: true });
         fs.mkdirSync(path.dirname(claudeLegacyDir), { recursive: true });
-        fs.writeFileSync(path.join(codexLegacyDir, "SKILL.md"), "# legacy systematic-debugging\n");
+        fs.writeFileSync(path.join(codexLegacyDir, "SKILL.md"), legacySkill);
         fs.symlinkSync("../../.agents/skills/systematic-debugging", claudeLegacyDir);
         fs.writeFileSync(
           path.join(proj, "skills-lock.json"),
@@ -344,7 +345,10 @@ describe(
               "systematic-debugging": {
                 source: "obra/superpowers",
                 sourceType: "github",
-                computedHash: "legacy",
+                computedHash: crypto.createHash("sha256")
+                  .update("SKILL.md")
+                  .update(legacySkill)
+                  .digest("hex"),
               },
             },
           }, null, 2) + "\n",
@@ -420,13 +424,13 @@ describe(
           "Codex must discover systematic-debugging from the installed plugin payload",
         );
         assert.equal(
-          fs.existsSync(claudeLegacyDir),
-          false,
+          fs.lstatSync(claudeLegacyDir, { throwIfNoEntry: false }),
+          undefined,
           "legacy Claude compatibility symlink should not shadow the preset plugin skill",
         );
         assert.equal(
-          fs.existsSync(codexLegacyDir),
-          false,
+          fs.lstatSync(codexLegacyDir, { throwIfNoEntry: false }),
+          undefined,
           "legacy Codex skill directory should not shadow the plugin skill",
         );
         const lock = JSON.parse(fs.readFileSync(path.join(proj, "skills-lock.json"), "utf-8")) as {

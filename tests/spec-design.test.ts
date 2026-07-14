@@ -249,6 +249,9 @@ describe("spec-design skill — repo-check VALs", () => {
   });
 
   test("systematic-debugging records map parent VALs and separate implementation from model evaluation", () => {
+    const parentContract = read(
+      "docs/long-running-specs/model-generation-workflow-upgrade/validation-contract.md",
+    );
     const umbrella = read(
       "docs/long-running-specs/model-generation-workflow-upgrade/umbrella.md",
     );
@@ -260,36 +263,31 @@ describe("spec-design skill — repo-check VALs", () => {
     );
 
     const parentCoverage = markdownSection(umbrella, "## Parent coverage map");
-    for (const parentVal of [
-      "VAL-REV-001",
-      "VAL-REV-002",
-      "VAL-MIG-002",
-      "VAL-MIG-003",
-      "VAL-DOC-001",
-      "VAL-DOC-002",
-    ]) {
+    const parentIds = parentContract.match(/### (VAL-[A-Z]+-\d+)/g)?.map((line) => line.slice(4)) ?? [];
+    for (const parentVal of parentIds) {
+      const rows = parentCoverage.split("\n").filter((line) => line.startsWith(`| ${parentVal} |`));
+      assert.equal(rows.length, 1, `umbrella must contain exactly one coverage row for ${parentVal}`);
       assert.match(
-        parentCoverage,
-        new RegExp(`\\| ${parentVal} \\|[^\\n]*validation-contract\\.md[^\\n]*\\|[^\\n]*VAL-`),
-        `umbrella must map ${parentVal} to the systematic-debugging child contract`,
+        rows[0],
+        /\| (?:\[[^\]]+\]\([^\)]+validation-contract\.md\)|待定)(?:、\[[^\]]+\]\([^\)]+validation-contract\.md\))* \| (?:VAL-[A-Z]+-\d+(?:\.\.\d+)?(?:、VAL-[A-Z]+-\d+(?:\.\.\d+)?)*|待定) \| [^|]+ \|$/,
+        `${parentVal} must map to exact child contracts and child VALs, or be explicitly pending`,
       );
     }
     assert.ok(
       umbrella.includes("## Parent coverage map"),
       "active long-running umbrella must carry the parent coverage map",
     );
-    for (const text of [umbrella, reviewIndex, childReview]) {
+    const systematicRow = markdownSection(umbrella, "## Sub-specs")
+      .split("\n")
+      .find((line) => line.includes("systematic-debugging"));
+    assert.ok(systematicRow, "umbrella must keep the systematic-debugging child row");
+    assert.match(systematicRow, /实现[^|]*(?:完成|已合入).*PR #177/);
+    assert.match(systematicRow, /迁移安全[^|]*(?:修复|加固).*PR #178/);
+    assert.match(systematicRow, /模型评测[^|]*(?:未执行|不在[^|]*范围)/);
+    for (const text of [reviewIndex, childReview]) {
       assert.match(text, /实现[^\n]*(?:完成|已合入)/, "must state implementation status");
-      assert.match(
-        text,
-        /迁移安全[^\n]*(?:修复|加固)/,
-        "must state migration-safety follow-up status",
-      );
-      assert.match(
-        text,
-        /模型评测[^\n]*(?:未执行|不在[^\n]*范围)/,
-        "must explicitly state that model evaluation was not executed",
-      );
+      assert.match(text, /迁移安全[^\n]*(?:修复|加固)/, "must state migration-safety follow-up status");
+      assert.match(text, /模型评测[^\n]*(?:未执行|不在[^\n]*范围)/, "must state model evaluation status");
     }
     assert.match(
       reviewIndex,
@@ -311,7 +309,11 @@ describe("spec-design skill — repo-check VALs", () => {
       "docs/worklog/worklog-2026-07-14-feat-model-generation-workflow-upgrade/systematic-debugging/validation-contract.md",
     );
     const parentIds = new Set(parent.match(/### (VAL-[A-Z]+-\d+)/g)?.map((line) => line.slice(4)) ?? []);
-    const childIds = child.match(/### (VAL-[A-Z]+-\d+)/g)?.map((line) => line.slice(4)) ?? [];
+    const repair = read(
+      "docs/worklog/worklog-2026-07-14-fix-migrated-skill-cleanup/validation-contract.md",
+    );
+    const childIds = [child, repair]
+      .flatMap((text) => text.match(/### (VAL-[A-Z]+-\d+)/g)?.map((line) => line.slice(4)) ?? []);
 
     assert.equal(
       childIds.some((id) => parentIds.has(id)),
@@ -327,15 +329,13 @@ describe("spec-design skill — repo-check VALs", () => {
       assert.ok(childCoverage.includes(childVal), `parent coverage map must reference ${childVal}`);
     }
 
-    const repair = read(
-      "docs/worklog/worklog-2026-07-14-fix-migrated-skill-cleanup/validation-contract.md",
-    );
+    assert.equal(new Set(childIds).size, childIds.length, "child VAL ids must be unique across archived contracts");
     const repairCoverage = markdownSection(repair, "## Parent coverage map");
     for (const row of [
       ["VAL-MIG-002", "VAL-SAFE-001", "VAL-INST-001"],
-      ["VAL-MIG-003", "VAL-SAFE-002", "VAL-SAFE-004"],
-      ["VAL-DOC-001", "VAL-TRACE-001"],
-      ["VAL-DOC-002", "VAL-TRACE-001"],
+      ["VAL-MIG-003", "VAL-SAFE-002", "VAL-SAFE-004", "VAL-RELEASE-001"],
+      ["VAL-DOC-001", "VAL-LIFE-001"],
+      ["VAL-DOC-002", "VAL-LIFE-001"],
     ]) {
       const [parentVal, ...childVals] = row;
       const line = repairCoverage.split("\n").find((candidate) => candidate.startsWith(`| ${parentVal} |`));

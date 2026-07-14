@@ -1,7 +1,9 @@
+import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { checkbox, select } from "@inquirer/prompts";
+import matter from "gray-matter";
 import { parse as parseToml } from "smol-toml";
 import type { TomlTable } from "smol-toml";
 import {
@@ -470,6 +472,51 @@ function hasReadableSkillFile(skillDir: string): boolean {
   }
 }
 
+function hasValidSkillFile(skillDir: string, expectedName: string): boolean {
+  try {
+    const skillFile = path.join(skillDir, "SKILL.md");
+    const raw = fs.readFileSync(skillFile, "utf-8");
+    const parsed = matter(raw);
+    return fs.statSync(skillFile).isFile()
+      && parsed.content.trim().length > 0
+      && parsed.data.name === expectedName
+      && typeof parsed.data.description === "string"
+      && parsed.data.description.trim().length > 0;
+  } catch {
+    return false;
+  }
+}
+
+function computeSkillFolderHash(skillDir: string): string | null {
+  try {
+    const files: Array<{ relativePath: string; content: Buffer }> = [];
+    const collect = (currentDir: string): void => {
+      for (const entry of fs.readdirSync(currentDir, { withFileTypes: true })) {
+        const fullPath = path.join(currentDir, entry.name);
+        if (entry.isDirectory()) {
+          if (entry.name === ".git" || entry.name === "node_modules") continue;
+          collect(fullPath);
+        } else if (entry.isFile()) {
+          files.push({
+            relativePath: path.relative(skillDir, fullPath).split(path.sep).join("/"),
+            content: fs.readFileSync(fullPath),
+          });
+        }
+      }
+    };
+    collect(skillDir);
+    files.sort((a, b) => a.relativePath.localeCompare(b.relativePath));
+    const hash = crypto.createHash("sha256");
+    for (const file of files) {
+      hash.update(file.relativePath);
+      hash.update(file.content);
+    }
+    return hash.digest("hex");
+  } catch {
+    return null;
+  }
+}
+
 function isWorkflowPluginDevSymlink(skillPath: string, cwd: string, name: string): boolean {
   const stat = fs.lstatSync(skillPath, { throwIfNoEntry: false });
   if (!stat?.isSymbolicLink()) return false;
@@ -480,7 +527,7 @@ function isWorkflowPluginDevSymlink(skillPath: string, cwd: string, name: string
 }
 
 interface SkillLockFile {
-  skills?: Record<string, { source?: unknown; [key: string]: unknown }>;
+  skills?: Record<string, { source?: unknown; computedHash?: unknown; [key: string]: unknown }>;
   [key: string]: unknown;
 }
 
@@ -568,6 +615,27 @@ function managedLockPathsForSkill(
         preservationReason: `lock provenance does not match the migrated source: ${lockPath}`,
       };
     }
+    const expectedHash = entry.computedHash;
+    if (typeof expectedHash !== "string" || !/^[a-f0-9]{64}$/i.test(expectedHash)) {
+      return {
+        managedLockPaths: [],
+        preservationReason: `lock content hash is missing or invalid: ${lockPath}`,
+      };
+    }
+    const checkedPaths = new Set<string>();
+    for (const runtime of ["claude", "codex"] as const) {
+      const skillDir = legacySkillDirAt(target.baseDir, runtime, name);
+      if (!hasReadableSkillFile(skillDir)) continue;
+      const canonical = canonicalFilesystemPath(skillDir);
+      if (checkedPaths.has(canonical)) continue;
+      checkedPaths.add(canonical);
+      if (computeSkillFolderHash(skillDir) !== expectedHash) {
+        return {
+          managedLockPaths: [],
+          preservationReason: `skill content changed since the managed install: ${skillDir}`,
+        };
+      }
+    }
     managedLockPaths.push(lockPath);
   }
   if (managedLockPaths.length === 0) {
@@ -605,6 +673,20 @@ function materializeUnselectedClaudeCopy(
 
   const claudeDir = legacySkillDirAt(target.baseDir, "claude", name);
   const codexDir = legacySkillDirAt(target.baseDir, "codex", name);
+  const staged = `${claudeDir}.auriga-migration`;
+  const originalLink = `${claudeDir}.auriga-original`;
+  if (pathEntryExists(originalLink)) {
+    if (!pathEntryExists(claudeDir)) {
+      fs.renameSync(originalLink, claudeDir);
+    } else if (hasReadableSkillFile(claudeDir)) {
+      fs.rmSync(originalLink, { recursive: true, force: true });
+    } else {
+      fs.rmSync(claudeDir, { recursive: true, force: true });
+      fs.renameSync(originalLink, claudeDir);
+    }
+  }
+  fs.rmSync(staged, { recursive: true, force: true });
+
   const stat = fs.lstatSync(claudeDir, { throwIfNoEntry: false });
   if (!stat?.isSymbolicLink()) return;
   if (target.preserveDevelopmentSymlinks && isWorkflowPluginDevSymlink(claudeDir, cwd, name)) {
@@ -614,11 +696,10 @@ function materializeUnselectedClaudeCopy(
   const resolved = path.resolve(path.dirname(claudeDir), fs.readlinkSync(claudeDir));
   if (!sameFilesystemPath(resolved, codexDir) || !hasReadableSkillFile(codexDir)) return;
 
-  const staged = `${claudeDir}.auriga-migration-${process.pid}`;
-  const originalLink = `${claudeDir}.auriga-original-${process.pid}`;
-  fs.cpSync(codexDir, staged, { recursive: true, dereference: true });
-  fs.renameSync(claudeDir, originalLink);
   try {
+    const sourceRoot = fs.realpathSync.native(codexDir);
+    fs.cpSync(sourceRoot, staged, { recursive: true, dereference: false });
+    fs.renameSync(claudeDir, originalLink);
     fs.renameSync(staged, claudeDir);
     fs.rmSync(originalLink, { force: true });
   } catch (error) {
@@ -631,6 +712,46 @@ function materializeUnselectedClaudeCopy(
     if (pathEntryExists(claudeDir)) fs.rmSync(originalLink, { force: true });
   }
   emitMigrationLog(opts, `materialized ${claudeDir} before removing its shared Codex target`);
+}
+
+function processIsRunning(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    return (error as NodeJS.ErrnoException).code !== "ESRCH";
+  }
+}
+
+function withMigrationLock(target: MigratedSkillCleanupTarget, action: () => void): void {
+  const lockPath = path.join(target.baseDir, ".auriga-plugin-migration.lock");
+  const acquire = (): number => fs.openSync(lockPath, "wx");
+  let fd: number;
+  try {
+    fd = acquire();
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
+    let ownerPid: number | null = null;
+    try {
+      const raw = fs.readFileSync(lockPath, "utf-8").trim();
+      const parsed = Number.parseInt(raw, 10);
+      if (Number.isSafeInteger(parsed) && parsed > 0) ownerPid = parsed;
+    } catch {
+      // An unreadable lock cannot be proven stale, so preserve all legacy state.
+    }
+    if (ownerPid === null || processIsRunning(ownerPid)) {
+      throw new Error(`another auriga skill migration is active for ${target.baseDir}`);
+    }
+    fs.rmSync(lockPath, { force: true });
+    fd = acquire();
+  }
+  try {
+    fs.writeFileSync(fd, `${process.pid}\n`);
+    action();
+  } finally {
+    fs.closeSync(fd);
+    fs.rmSync(lockPath, { force: true });
+  }
 }
 
 function hasManagedLegacySkillCandidate(
@@ -651,7 +772,7 @@ function hasManagedLegacySkillCandidate(
 
 function assertWorkflowPluginProvidesMigratedSkills(pluginRoot: string | undefined): void {
   const missing = MIGRATED_WORKFLOW_SKILLS.filter(
-    (name) => !pluginRoot || !hasReadableSkillFile(path.join(pluginRoot, "skills", name)),
+    (name) => !pluginRoot || !hasValidSkillFile(path.join(pluginRoot, "skills", name), name),
   );
   if (missing.length > 0) {
     throw new Error(
@@ -667,54 +788,56 @@ function cleanupMigratedWorkflowSkillInstalls(
   const cwd = installTargetCwd(opts);
   const targets = migratedSkillCleanupTargets(opts, runtimes);
 
-  for (const name of MIGRATED_WORKFLOW_SKILLS) {
-    for (const target of targets) {
-      const { managedLockPaths, preservationReason } = managedLockPathsForSkill(target, name);
-      if (managedLockPaths.length === 0) {
-        const hasCopy = (["claude", "codex"] as const).some((runtime) =>
-          pathEntryExists(legacySkillDirAt(target.baseDir, runtime, name))
-        );
-        if (hasCopy) {
-          emitMigrationWarning(
-            opts,
-            `preserved ${name} under ${target.baseDir}: ${preservationReason}`,
+  for (const target of targets) {
+    withMigrationLock(target, () => {
+      for (const name of MIGRATED_WORKFLOW_SKILLS) {
+        const { managedLockPaths, preservationReason } = managedLockPathsForSkill(target, name);
+        if (managedLockPaths.length === 0) {
+          const hasCopy = (["claude", "codex"] as const).some((runtime) =>
+            pathEntryExists(legacySkillDirAt(target.baseDir, runtime, name))
           );
-        }
-        continue;
-      }
-
-      materializeUnselectedClaudeCopy(target, cwd, name, runtimes, opts);
-
-      for (const runtime of ["claude", "codex"] as const) {
-        const dir = legacySkillDirAt(target.baseDir, runtime, name);
-        const stat = fs.lstatSync(dir, { throwIfNoEntry: false });
-        if (stat?.isSymbolicLink() && !hasReadableSkillFile(dir)) {
-          fs.rmSync(dir, { force: true });
-          emitMigrationLog(opts, `removed dangling ${dir}`);
-        }
-      }
-
-      for (const runtime of runtimes) {
-        const dir = legacySkillDirAt(target.baseDir, runtime, name);
-        const stat = fs.lstatSync(dir, { throwIfNoEntry: false });
-        if (!stat) continue;
-        if (
-          target.preserveDevelopmentSymlinks &&
-          isWorkflowPluginDevSymlink(dir, cwd, name)
-        ) {
-          emitMigrationLog(opts, `preserved ${runtimeSkillRoot(runtime)}/skills/${name} development symlink`);
+          if (hasCopy) {
+            emitMigrationWarning(
+              opts,
+              `preserved ${name} under ${target.baseDir}: ${preservationReason}`,
+            );
+          }
           continue;
         }
-        fs.rmSync(dir, { recursive: true, force: true });
-        emitMigrationLog(opts, `removed ${dir}`);
-      }
 
-      if (!hasLegacySkillCopy(target, cwd, name)) {
-        for (const lockPath of managedLockPaths) {
-          removeMigratedSkillFromLock(lockPath, name, opts);
+        materializeUnselectedClaudeCopy(target, cwd, name, runtimes, opts);
+
+        for (const runtime of ["claude", "codex"] as const) {
+          const dir = legacySkillDirAt(target.baseDir, runtime, name);
+          const stat = fs.lstatSync(dir, { throwIfNoEntry: false });
+          if (stat?.isSymbolicLink() && !hasReadableSkillFile(dir)) {
+            fs.rmSync(dir, { force: true });
+            emitMigrationLog(opts, `removed dangling ${dir}`);
+          }
+        }
+
+        for (const runtime of runtimes) {
+          const dir = legacySkillDirAt(target.baseDir, runtime, name);
+          const stat = fs.lstatSync(dir, { throwIfNoEntry: false });
+          if (!stat) continue;
+          if (
+            target.preserveDevelopmentSymlinks &&
+            isWorkflowPluginDevSymlink(dir, cwd, name)
+          ) {
+            emitMigrationLog(opts, `preserved ${runtimeSkillRoot(runtime)}/skills/${name} development symlink`);
+            continue;
+          }
+          fs.rmSync(dir, { recursive: true, force: true });
+          emitMigrationLog(opts, `removed ${dir}`);
+        }
+
+        if (!hasLegacySkillCopy(target, cwd, name)) {
+          for (const lockPath of managedLockPaths) {
+            removeMigratedSkillFromLock(lockPath, name, opts);
+          }
         }
       }
-    }
+    });
   }
 }
 
