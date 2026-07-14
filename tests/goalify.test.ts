@@ -23,6 +23,13 @@ describe("goalify skill contract", () => {
     );
   });
 
+  test("does not start an autonomous implementation across an unapproved architecture gate", () => {
+    const text = read("plugins/auriga-workflow/skills/goalify/SKILL.md");
+
+    assert.match(text, /启动[^。\n]*goal[^。\n]*架构设计[^。\n]*用户确认/);
+    assert.match(text, /自驱[^。\n]*(?:不能|不得)[^。\n]*(?:批准|绕过)[^。\n]*arch-design/);
+  });
+
   test("keeps /goal text portable and boundary-light", () => {
     const text = read("plugins/auriga-workflow/skills/goalify/SKILL.md");
     assert.ok(text.includes("## Must Not"), "goalify must define Must Not rules");

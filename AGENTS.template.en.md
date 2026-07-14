@@ -3,7 +3,7 @@
 
 1. Requirement Clarification: Clarify new requirements with `spec-design` first. **spec = why + observable what; arch design = structural how; plan = implementation steps** — requirements do not prescribe technical paths; for product features, lead with the Why. A change that does not move the external behavior contract may skip the spec, but its technical design may still need architecture clarification.
 
-2. Planning: Run scope triage first — when all three predicates hold (see "Quick Development Flow"), take the quick flow; otherwise take the full path. Run `arch-design` first when a new feature spans modules, redraws boundaries, or has a non-obvious approach, and when the user asks to improve an existing architecture or clarify a domain model and its responsibilities. When substantive design decisions exist, produce a human-reviewable `arch_design.md` and obtain user approval before implementation planning. Then use `AskUserQuestion` / `request_user_input` to present the full execution-tracking menu — built-in Plan (medium complexity), `planning-with-files` (long-running, persistent tracking), `goalify` (autonomous `/goal`).
+2. Planning: Run `arch-design` first when a new feature spans modules, redraws boundaries, or has a non-obvious approach, and when the user asks to improve an existing architecture or clarify a domain model and its responsibilities. When substantive design decisions exist, produce a human-reviewable `arch_design.md` and obtain user approval before continuing. The quick flow skips only implementation planning; it never bypasses this architecture-clarification gate. Then run scope triage: when all three predicates hold (see "Quick Development Flow"), proceed directly to implementation; otherwise use `AskUserQuestion` / `request_user_input` to present the full execution-tracking menu — built-in Plan (medium complexity), `planning-with-files` (long-running, persistent tracking), `goalify` (autonomous `/goal`).
 
 3. Branch first: Create a branch from main before writing code; never commit directly to main. Prefixes: `feat/`, `fix/`, `docs/`, `refactor/`, `chore/`. All git/gh operations go through `git-workflow`.
 
@@ -25,7 +25,7 @@
 
 ## Quick Development Flow (bug fix / small refactor / small feature)
 
-Triggered only when all three predicates hold: (a) single module; (b) acceptance criteria ≤5 bullets; (c) no cross-boundary interface changes (public APIs, schemas, shared modules). If any fails or you're unsure, take the full path. When it applies, skip planning only — clarification, branch, Draft PR, TDD, verification, and review rules stay. For new behavior and bug fixes, move from failing evidence to the minimal implementation; for a small refactor, confirm the behavior protection net and keep it green while changing structure; then run full regression.
+Triggered only when all three predicates hold: (a) single module; (b) acceptance criteria ≤5 bullets; (c) no cross-boundary interface changes (public APIs, schemas, shared modules). If any fails or you're unsure, take the full path. The quick flow skips only implementation planning, never requirement or architecture clarification; branch, Draft PR, TDD, verification, and review rules also stay. For new behavior and bug fixes, move from failing evidence to the minimal implementation; for a small refactor, confirm the behavior protection net and keep it green while changing structure; then run full regression.
 
 ## Document Conventions
 
