@@ -404,7 +404,7 @@ describe("spec-design skill — repo-check VALs", () => {
       "docs/worklog/worklog-2026-07-14-refactor-simplify-tdd-skill/unified-tdd-skill/validation-contract.md",
     );
     const verificationRule = read(
-      "docs/specs/verification-before-completion/validation-contract.md",
+      "docs/worklog/worklog-2026-07-14-refactor-remove-verification-skill/verification-before-completion/validation-contract.md",
     );
     const childIds = [child, repair, unifiedTdd, verificationRule]
       .flatMap((text) => text.match(/### (VAL-[A-Z]+-\d+)/g)?.map((line) => line.slice(4)) ?? []);
