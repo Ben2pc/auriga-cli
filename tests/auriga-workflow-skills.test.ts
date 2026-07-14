@@ -15,6 +15,26 @@ const deepReview = (): string =>
   read("plugins/auriga-workflow/skills/deep-review/SKILL.md");
 
 describe("auriga-workflow skill contracts", () => {
+  test("unified test-driven-development is plugin-bundled and concise", () => {
+    const rel = "plugins/auriga-workflow/skills/test-driven-development/SKILL.md";
+    const abs = path.join(repoRoot, rel);
+
+    assert.ok(fs.existsSync(abs), `${rel} must exist`);
+    const text = read(rel);
+    const parsed = matter(text);
+
+    assert.equal(parsed.data.name, "test-driven-development");
+    assert.ok(
+      text.split("\n").length <= 80,
+      "the unified TDD skill must stay within an 80-line context budget",
+    );
+    assert.doesNotMatch(
+      text,
+      /xhigh|最强模型|全新会话|fresh context|派发.{0,12}(?:独立|测试).{0,4}代理|delete means delete/i,
+      "the unified TDD skill must not orchestrate an independent test agent or force destructive restart rituals",
+    );
+  });
+
   test("systematic-debugging keeps diagnosis evidence-first without a fixed ritual", () => {
     const text = read(
       "plugins/auriga-workflow/skills/systematic-debugging/SKILL.md",
