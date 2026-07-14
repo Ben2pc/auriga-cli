@@ -298,7 +298,7 @@ describe(
         0,
         `install skills exited ${r.status}.\nstdout: ${r.stdout}\nstderr: ${r.stderr}`,
       );
-      assert.ok(findSkillFile(proj, "systematic-debugging"), "systematic-debugging SKILL.md missing");
+      assert.ok(findSkillFile(proj, "test-driven-development"), "test-driven-development SKILL.md missing");
     });
 
     test("install recommended --recommended-skill codex-agent → only codex-agent lands", { timeout: TIMEOUT }, () => {
@@ -410,23 +410,23 @@ describe(
       },
     );
 
-    test("install skills --skill systematic-debugging → filter actually filters (other skills absent)", { timeout: TIMEOUT }, () => {
+    test("install skills --skill test-driven-development → filter actually filters (other skills absent)", { timeout: TIMEOUT }, () => {
       const proj = setupProject(tarballPath!);
-      const r = runCli(proj, ["install", "skills", "--skill", "systematic-debugging"]);
+      const r = runCli(proj, ["install", "skills", "--skill", "test-driven-development"]);
       assert.equal(
         r.status,
         0,
-        `install skills --skill systematic-debugging exited ${r.status}.\nstdout: ${r.stdout}\nstderr: ${r.stderr}`,
+        `install skills --skill test-driven-development exited ${r.status}.\nstdout: ${r.stdout}\nstderr: ${r.stderr}`,
       );
-      // systematic-debugging must be present — otherwise the filter-leak
+      // test-driven-development must be present — otherwise the filter-leak
       // check below would pass vacuously if the whole install silently
       // errored out and produced no skills dir at all.
-      assert.ok(findSkillDir(proj, "systematic-debugging"), "systematic-debugging dir missing (filter test would be vacuous)");
+      assert.ok(findSkillDir(proj, "test-driven-development"), "test-driven-development dir missing (filter test would be vacuous)");
       // A random non-selected workflow skill must NOT be present —
       // proves the filter isn't a silent no-op that installs everything.
       assert.ok(
-        !findSkillDir(proj, "test-driven-development"),
-        "non-selected skill leaked through filter: test-driven-development",
+        !findSkillDir(proj, "verification-before-completion"),
+        "non-selected skill leaked through filter: verification-before-completion",
       );
     });
 
@@ -448,7 +448,7 @@ describe(
         const agentsMd = path.join(proj, "AGENTS.md");
         assert.ok(fs.existsSync(agentsMd) && fs.statSync(agentsMd).size > 0, "AGENTS.md missing/empty (workflow category)");
 
-        assert.ok(findSkillFile(proj, "systematic-debugging"), "systematic-debugging SKILL.md missing (skills category)");
+        assert.ok(findSkillFile(proj, "test-driven-development"), "test-driven-development SKILL.md missing (skills category)");
 
         // Plugins category: `.claude/settings.json` exists AND mentions
         // every default-on plugin. Gated above by CLAUDE_AVAILABLE so

@@ -50,13 +50,13 @@ describe("parseArgs", () => {
         cwd: process.cwd(),
       },
     });
-    assert.deepEqual(installArgs(["skills", "--scope", "user", "--skill", "systematic-debugging", "test-driven-development"]), {
+    assert.deepEqual(installArgs(["skills", "--scope", "user", "--skill", "test-driven-development", "verification-before-completion"]), {
       command: "install",
       install: {
         all: false,
         type: "skills",
         scope: "user",
-        filter: ["systematic-debugging", "test-driven-development"],
+        filter: ["test-driven-development", "verification-before-completion"],
       },
     });
     assert.deepEqual(installArgs(["recommended", "--recommended-skill", "codex-agent"]), {
@@ -114,21 +114,25 @@ describe("parseArgs", () => {
         filter: ["auriga-notify"],
       },
     });
+    expectParseError(
+      ["install", "skills", "--skill", "systematic-debugging"],
+      /unknown skill 'systematic-debugging'/i,
+    );
   });
 
   // Covers spec §5.2 filter nargs terminator rules and the explicit `--` edge case.
   test("stops filter nargs at the next flag or explicit terminator", () => {
-    assert.deepEqual(installArgs(["skills", "--skill", "systematic-debugging", "systematic-debugging", "--scope", "user"]), {
+    assert.deepEqual(installArgs(["skills", "--skill", "test-driven-development", "test-driven-development", "--scope", "user"]), {
       command: "install",
       install: {
         all: false,
         type: "skills",
-        filter: ["systematic-debugging", "systematic-debugging"],
+        filter: ["test-driven-development", "test-driven-development"],
         scope: "user",
       },
     });
     expectParseError(
-      ["install", "skills", "--skill", "systematic-debugging", "--", "systematic-debugging"],
+      ["install", "skills", "--skill", "test-driven-development", "--", "test-driven-development"],
       /install takes one <type> at a time/i,
     );
   });
@@ -137,8 +141,8 @@ describe("parseArgs", () => {
   test("fail-fasts on illegal combinations, mismatched filters, and top-level misuse", () => {
     expectParseError(["install", "workflow", "skills"], /install takes one <type> at a time/i);
     expectParseError(["install", "--all", "recommended"], /--all is atomic; no extra types or filters/i);
-    expectParseError(["install", "--all", "--skill", "systematic-debugging"], /--all is atomic; no extra types or filters/i);
-    expectParseError(["install", "workflow", "--skill", "systematic-debugging"], /--skill requires 'install skills'/i);
+    expectParseError(["install", "--all", "--skill", "test-driven-development"], /--all is atomic; no extra types or filters/i);
+    expectParseError(["install", "workflow", "--skill", "test-driven-development"], /--skill requires 'install skills'/i);
     expectParseError(["install", "--recommended-skill", "codex-agent"], /--recommended-skill requires 'install recommended'/i);
     expectParseError(["install", "workflow", "--plugin", "auriga-workflow"], /--plugin requires 'install plugins'/i);
     expectParseError(["install", "skills", "--lang", "en"], /--lang\/--cwd only apply to workflow/i);
@@ -184,12 +188,16 @@ describe("parseArgs", () => {
 
   // Covers spec §7 catalog-backed validation, strict value validation, and guide arity fail-fast.
   test("validates names, language, scope, cwd, and guide arity", () => {
-    expectParseError(["install", "skills", "--skill", "foo"], /unknown skill 'foo'; available: .*systematic-debugging/i);
+    expectParseError(["install", "skills", "--skill", "foo"], /unknown skill 'foo'; available: .*test-driven-development/i);
     expectParseError(["install", "recommended", "--recommended-skill", "foo"], /available: .*codex-agent/i);
     expectParseError(["install", "plugins", "--plugin", "foo"], /available: .*auriga-workflow/i);
     expectParseError(["install", "skills", "--skill", "incremental-impl"], /auriga-workflow/i);
     expectParseError(["install", "skills", "--skill", "test-designer"], /auriga-workflow/i);
     expectParseError(["install", "skills", "--skill", "session-compound"], /auriga-workflow/i);
+    expectParseError(
+      ["install", "skills", "--skill", "systematic-debugging"],
+      /unknown skill 'systematic-debugging'/i,
+    );
     expectParseError(["install", "workflow", "--lang", "xx"], /en.*zh-CN|zh-CN.*en/i);
     expectParseError(["install", "plugins", "--scope", "team"], /scope/i);
     expectParseError(["install", "workflow", "--cwd", "/definitely/not/here"], /cwd|directory|exist/i);
@@ -223,9 +231,9 @@ describe("parseArgs", () => {
       command: "install",
       install: { all: false, type: "workflow", lang: "zh-CN", cwd: process.cwd() },
     });
-    assert.deepEqual(installArgs(["skills", "--scope=user", "--skill", "systematic-debugging"]), {
+    assert.deepEqual(installArgs(["skills", "--scope=user", "--skill", "test-driven-development"]), {
       command: "install",
-      install: { all: false, type: "skills", scope: "user", filter: ["systematic-debugging"] },
+      install: { all: false, type: "skills", scope: "user", filter: ["test-driven-development"] },
     });
     expectParseError(["install", "workflow", "--lang="], /--lang requires a value/i);
     expectParseError(["install", "plugins", "--scope="], /--scope requires a value/i);

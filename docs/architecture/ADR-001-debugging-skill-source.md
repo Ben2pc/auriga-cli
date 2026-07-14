@@ -1,8 +1,10 @@
 # ADR-001: systematic-debugging skill 的来源选型
 
-- 状态：**已评估，决策延后**
+- 状态：**被 ADR-002 取代**
 - 日期：2026-05-12
 - 当前选择：保留 `obra/superpowers` 上游，不引入 `addyosmani/agent-skills`
+
+> 2026-07-14：新一代模型评审触发了本文约定的重新评估条件。后续决策见 `ADR-002-internalize-systematic-debugging.md`。
 
 ## 背景
 
