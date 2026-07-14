@@ -308,7 +308,7 @@ describe("scanState — generated catalog migration surface", () => {
     });
 
     const skillNames = report.skills.map((s) => s.name).sort();
-    for (const name of ["incremental-impl", "test-designer", "session-compound"]) {
+    for (const name of ["incremental-impl", "test-designer", "test-driven-development", "session-compound"]) {
       assert.equal(skillNames.includes(name), false, `${name} must not render as a standalone skill row`);
     }
 

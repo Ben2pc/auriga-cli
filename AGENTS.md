@@ -1,5 +1,5 @@
 <!-- AURIGA:WORKFLOW:v1 START — 受管区块,由 auriga-cli 维护,请勿手改;升级会整块覆盖。工程专属规则写在下方 END 标记之后。 -->
-# auriga 工作流 (v1.13.0)
+# auriga 工作流 (v1.14.0)
 
 1. 需求澄清：新需求先用 `spec-design` 澄清。**spec = why + what; plan = how**——requirement 只写"做什么"和验收标准，不写技术路径；产品功能优先讲清"Why"。改动不影响外部行为契约时跳过 spec 直进 plan。
 
@@ -11,7 +11,7 @@
 
 5. bugfix 前先查根因：按 `systematic-debugging`，再决定怎么修。
 
-6. TDD：所有代码改动遵循 `test-driven-development`（唯一例外：纯文档、纯配置）。每个 task 开始前明确可测试的验收标准。写测试前先查 `docs/rules/test/` 相关规则，无则明确记录。需求跨模块且交互非显然、边界场景难自测、或你正想跳过 TDD 时，调用 `test-designer`。
+6. TDD：会改变可观察行为的代码改动遵循 `test-driven-development`；纯文档、纯配置、生成代码或没有有效自动化接缝的改动除外。每个 task 开始前明确可测试的验收标准，写测试前先查 `docs/rules/test/`。测试设计和红绿循环由当前实现 Agent 完成，不另派独立测试 Agent。
 
 7. 增量实现：非平凡实现（多文件、跨文件重构、落地已规划 task、预计写超 ~100 行）调用 `incremental-impl`——规模判定、切片、派遣由 skill 自身负责；判定 XS 或纯文档/配置时跳过。
 
@@ -25,7 +25,7 @@
 
 ## 快速开发流程（bug fix / 小重构 / 小功能）
 
-三条谓词全部成立才触发：(a) 单一模块；(b) 验收标准 ≤5 条；(c) 无跨边界接口改动（公共 API、schema、共享模块）。任一不成立或拿不准，走完整路径。命中时只跳过 planning——澄清、分支、Draft PR、TDD、验证、review 规则不变，按标准 TDD 循环执行：跑基线 → 红 → 绿 → 全量回归。
+三条谓词全部成立才触发：(a) 单一模块；(b) 验收标准 ≤5 条；(c) 无跨边界接口改动（公共 API、schema、共享模块）。任一不成立或拿不准，走完整路径。命中时只跳过 planning——澄清、分支、Draft PR、TDD、验证、review 规则不变。新行为与缺陷修复按失败证据 → 最小实现推进；小重构先确认行为保护网，再在持续通过的状态下改结构；最后运行全量回归。
 
 ## 文档规范
 
@@ -36,7 +36,7 @@
 | `docs/worklog/worklog-<YYYY-MM-DD>-<branch-name>/` | 已归档的 spec / planning / 架构产物；一个 PR 一个子目录 | 永久 |
 | `docs/rules/` | 编码规范、review checklist、命名约定 | 长期 |
 | `docs/rules/review/` | 项目自定义 reviewer；`reviewer-creator` 创建，`deep-review` 自动发现分派 | 长期 |
-| `docs/rules/test/` | 项目测试规则；`test-designer` 或主 Agent 写测试前必读 | 长期 |
+| `docs/rules/test/` | 项目测试规则；`test-driven-development` 在写测试前读取 | 长期 |
 | `docs/rules/spec/` | 项目 spec 规则；`spec-design` 调研阶段必读 | 长期 |
 | `docs/rules/arch/` | 项目架构设计规范；`arch-design` 作为设计硬约束 | 长期 |
 | `docs/specs/` | `spec-design` / `arch-design` 输出默认归宿，开发期临时工作区。**PR Ready 前必须清空**：晋升到 `docs/architecture/`、归档到 worklog、或删除 | 开发期 |
@@ -48,7 +48,7 @@
 
 - **约束靠机制执行，不靠提示词**：核心规则尽量用 linter / CI / 类型系统 / hook 执行。
 - **仓库是唯一信息源**：Agent 无法访问的东西等于不存在；计划、设计决策、技术债务作为版本化产物入库。
-- **独立评估**：复杂功能的测试设计和正式 review 由独立 agent 执行，不让 Agent 评估自己的工作。
+- **独立评估**：测试设计由当前实现 Agent 完成；正式 review 中的测试质量与其他维度由独立 Agent 评估，不让实现 Agent 对自己的工作作最终判断。
 - **持续对抗熵增**：技术债务小额持续偿还。
 - **组件可拆卸**：每个流程步骤都编码了"模型做不好这件事"的假设，随模型能力提升定期审视，每次只动一个变量。
 - **指令文件是目录，不是百科全书**：AGENTS.md 保持精简（~200 行）做入口导航，细则拆到 `docs/`；以 AGENTS.md 为主文件，建 `CLAUDE.md -> AGENTS.md` 兼容软链（`ln -s AGENTS.md CLAUDE.md`）。
@@ -65,7 +65,7 @@
 - **并行写必须隔离**：独立 git worktree，或改动目录完全独立。
 - **按档位选模型，不写死型号**：flagship 给架构判断 / 复杂编码；workhorse 给常规机械任务。Effort：写码 / agentic 子任务 `xhigh`，轻度调研 `high`，机械任务 `medium`。
 - **派遣必须显式给出验收标准和输出格式**（shape + scope/length），具体格式按任务选。
-<!-- AURIGA:WORKFLOW:v1 END -->
+<!-- AURIGA:WORKFLOW:v1 END sha256=28ea597dbbe02903 -->
 
 <!-- 在下方添加你的工程专属规则。上方受管区块由 auriga-cli 维护,升级时整块替换;此处内容会被保留。 -->
 
@@ -145,7 +145,7 @@ npm run test:git-guards
 - 跨多个 PR 的总规范放在 `docs/long-running-specs/`；它不受单个 PR 的 Ready 清理门禁影响，全部子 PR 结束后由人工归档。
 - 稳定的模块和流程文档放在 `docs/architecture/`、`docs/rules/`、`docs/runbooks/`，或者其他按用途划分的目录下。
 - `docs/rules/review/` 放的是给 `deep-review` 使用的项目自定义 reviewer。
-- `docs/rules/test/` 放的是项目测试规则；`test-designer` 或主 agent 在写测试前必须先检查相关文件。
+- `docs/rules/test/` 放的是项目测试规则；`test-driven-development` 在写测试前必须先检查相关文件。
 
 ## 编辑指引
 

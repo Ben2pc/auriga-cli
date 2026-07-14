@@ -11,7 +11,7 @@ travel together so they share one distribution model and one install step.
 |---|---|
 | `systematic-debugging` | Evidence-first diagnosis — establishes a repeatable verification path or a production evidence-collection path before permanent repair. |
 | `incremental-impl` | Size triage (XS–XL), slicing strategy, optional parallel subagent dispatch, per-slice Implement → Test → Verify → Commit discipline. |
-| `test-designer` | Independent test design — dispatches a context-free agent that sees only the requirement and code paths, returns executable failing tests. |
+| `test-driven-development` | Minimal behavior-first TDD — consumes acceptance contracts and project test rules without dispatching a separate test agent. |
 | `spec-design` | Requirement clarification — produces PR-scoped contracts under `docs/specs/<topic>/`, or an explicitly approved cross-PR program contract under `docs/long-running-specs/<topic>/`. |
 | `arch-design` | Architecture-level design — module decomposition, dependency direction, candidate tradeoffs, migration path. |
 | `code-simplify` | Code-level simplification — identifies code smells and reduces maintenance cost. |

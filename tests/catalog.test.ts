@@ -51,12 +51,11 @@ describe("generateCatalog (build-time)", () => {
   });
 
   test("workflow skills exclude repo-owned skills migrated into auriga-workflow (and dropped retired brainstorming)", () => {
-    assert.equal(catalog.workflowSkills.length, 4);
+    assert.equal(catalog.workflowSkills.length, 3);
     const names = catalog.workflowSkills.map((e) => e.name).sort();
     assert.deepEqual(names, [
       "planning-with-files",
       "playwright-cli",
-      "test-driven-development",
       "verification-before-completion",
     ]);
     assertEntriesShape(catalog.workflowSkills, "workflowSkills");
@@ -176,7 +175,7 @@ describe("generateCatalog (build-time)", () => {
     }
   });
 
-  test("install help reflects migrated plugin surfaces instead of standalone entries", () => {
+  test("install surfaces reflect plugin-owned skills instead of standalone entries", () => {
     // rationale: install help is rendered from the generated catalog, so this
     // pins the user-visible CLI surface as well as dist/catalog.json.
     const skillHelp = renderTypeHelp(catalog, "skills", "0.0.0-test");
@@ -185,6 +184,7 @@ describe("generateCatalog (build-time)", () => {
       "test-designer",
       "session-compound",
       "systematic-debugging",
+      "test-driven-development",
     ]) {
       assert.doesNotMatch(skillHelp, new RegExp(`\\b${name}\\b`));
     }
@@ -192,6 +192,10 @@ describe("generateCatalog (build-time)", () => {
     const pluginHelp = renderTypeHelp(catalog, "plugins", "0.0.0-test");
     assert.match(pluginHelp, /\bauriga-workflow\b/);
     assert.match(pluginHelp, /\bauriga-notify\b/);
+    const workflowPlugin = catalog.plugins.find((entry) => entry.name === "auriga-workflow");
+    assert.ok(workflowPlugin, "auriga-workflow must remain in the plugin catalog");
+    assert.match(workflowPlugin.description, /test-driven-development/);
+    assert.doesNotMatch(workflowPlugin.description, /test-designer/);
   });
 
   // VAL-HELP-001: top-level `--help` advertises the `install --preset` entry

@@ -1,7 +1,7 @@
 # Validation Contract — 新一代模型工作流升级 (验收契约 — 新一代模型工作流升级)
 
 > 与 spec.md 配套：spec.md 描述 why+what；本文件描述“什么算通过”。
-> 每条 VAL 只描述 Behavior + Tool + Evidence；测试设计归后续独立测试设计阶段。
+> 每条 VAL 只描述 Behavior + Tool + Evidence；测试设计归后续测试驱动开发阶段。
 
 ## Coverage map (覆盖矩阵)
 

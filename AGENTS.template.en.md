@@ -1,5 +1,5 @@
 <!-- AURIGA:WORKFLOW:v1 START — Managed block, maintained by auriga-cli. Do not edit by hand; upgrades replace it wholesale. Put project-specific instructions after the END marker below. -->
-# auriga Workflow (v1.13.0)
+# auriga Workflow (v1.14.0)
 
 1. Requirement Clarification: Clarify new requirements with `spec-design` first. **spec = why + what; plan = how** — requirements state "what to do" and acceptance criteria, not technical paths; for product features, lead with the "Why". Skip spec and go straight to plan when a change doesn't move the external behavior contract.
 
@@ -11,7 +11,7 @@
 
 5. Root-cause before bugfixes: Follow `systematic-debugging` before deciding on a fix.
 
-6. TDD: All code changes follow `test-driven-development` (sole exception: pure docs / pure config). Define testable acceptance criteria before each task. Check `docs/rules/test/` for relevant rules before writing tests; record explicitly if none apply. Invoke `test-designer` when a requirement spans modules with non-obvious interactions, edge cases are hard to self-test fairly, or you're tempted to skip TDD.
+6. TDD: Code changes that alter observable behavior follow `test-driven-development`; pure documentation, pure configuration, generated code, and changes without a useful automated seam are exempt. Define testable acceptance criteria before each task and read `docs/rules/test/` before writing tests. The current implementation Agent owns test design and the red-green loop; do not dispatch a separate test Agent.
 
 7. Incremental implementation: Invoke `incremental-impl` for non-trivial work (multi-file changes, cross-file refactors, executing a planned task, ~100+ lines expected) — size triage, slicing, and dispatch belong to the skill; skip when it rates the work XS or the change is pure docs/config.
 
@@ -25,7 +25,7 @@
 
 ## Quick Development Flow (bug fix / small refactor / small feature)
 
-Triggered only when all three predicates hold: (a) single module; (b) acceptance criteria ≤5 bullets; (c) no cross-boundary interface changes (public APIs, schemas, shared modules). If any fails or you're unsure, take the full path. When it applies, skip planning only — clarification, branch, Draft PR, TDD, verification, and review rules stay; run the standard TDD loop: baseline → red → green → full regression.
+Triggered only when all three predicates hold: (a) single module; (b) acceptance criteria ≤5 bullets; (c) no cross-boundary interface changes (public APIs, schemas, shared modules). If any fails or you're unsure, take the full path. When it applies, skip planning only — clarification, branch, Draft PR, TDD, verification, and review rules stay. For new behavior and bug fixes, move from failing evidence to the minimal implementation; for a small refactor, confirm the behavior protection net and keep it green while changing structure; then run full regression.
 
 ## Document Conventions
 
@@ -36,7 +36,7 @@ Repo documentation lives under `docs/`, one directory per purpose:
 | `docs/worklog/worklog-<YYYY-MM-DD>-<branch-name>/` | Archived spec / planning / architecture artifacts; one subdirectory per PR | Permanent |
 | `docs/rules/` | Coding conventions, review checklists, naming decisions | Long-lived |
 | `docs/rules/review/` | Project custom reviewers; created by `reviewer-creator`, auto-discovered by `deep-review` | Long-lived |
-| `docs/rules/test/` | Project test rules; `test-designer` or the main Agent must consult before writing tests | Long-lived |
+| `docs/rules/test/` | Project test rules; `test-driven-development` reads them before tests are written | Long-lived |
 | `docs/rules/spec/` | Project spec rules; `spec-design` must consult during research | Long-lived |
 | `docs/rules/arch/` | Project architecture rules; `arch-design` treats them as hard constraints | Long-lived |
 | `docs/specs/` | Default destination for `spec-design` / `arch-design` outputs; ephemeral dev workspace. **Must be empty by PR Ready**: promote to `docs/architecture/`, archive to worklog, or delete | Dev-only |
@@ -48,7 +48,7 @@ Repo documentation lives under `docs/`, one directory per purpose:
 
 - **Enforce constraints via mechanisms, not prompts**: core rules belong in linters / CI / type systems / hooks.
 - **The repo is the single source of truth**: what Agents can't access doesn't exist; plans, design decisions, and tech debt live in the repo as versioned artifacts.
-- **Independent Evaluation**: test design for complex features and formal review are done by independent agents — never let an Agent grade its own work.
+- **Independent Evaluation**: the current implementation Agent owns test design; independent Agents assess test quality and the other formal-review dimensions, so the implementer never makes the final judgment on its own work.
 - **Continuously fight entropy**: pay down tech debt in small, steady increments.
 - **Components are detachable**: each workflow step encodes a "the model isn't good at this" assumption; reassess as models improve, one variable at a time.
 - **Instruction files are directories, not encyclopedias**: keep AGENTS.md lean (~200 lines) as entry and navigation; details go to `docs/`. Use AGENTS.md as the primary file with a `CLAUDE.md -> AGENTS.md` compatibility symlink (`ln -s AGENTS.md CLAUDE.md`).

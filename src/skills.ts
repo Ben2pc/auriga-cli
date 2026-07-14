@@ -5,13 +5,13 @@ import { checkbox, select } from "@inquirer/prompts";
 import { atomicWriteFile, exec, execAsync, log, withEsc } from "./utils.js";
 import type { InstallOpts, SkillEntry, SkillsLock } from "./utils.js";
 
-// Curated default-on set: skills that the shipped workflow template
-// directly references. Anything else in skills-lock.json is surfaced via
+// Curated default-on set of externally installed workflow skills. Repo-owned
+// skills referenced by the workflow template ship through auriga-workflow
+// instead. Anything else in skills-lock.json is surfaced via
 // installRecommendedSkills as an opt-in utility.
 export const WORKFLOW_SKILLS = [
   "planning-with-files",
   "playwright-cli",
-  "test-driven-development",
   "verification-before-completion",
 ];
 

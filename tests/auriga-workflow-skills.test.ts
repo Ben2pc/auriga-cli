@@ -15,6 +15,97 @@ const deepReview = (): string =>
   read("plugins/auriga-workflow/skills/deep-review/SKILL.md");
 
 describe("auriga-workflow skill contracts", () => {
+  test("unified test-driven-development is plugin-bundled and concise", () => {
+    const rel = "plugins/auriga-workflow/skills/test-driven-development/SKILL.md";
+    const abs = path.join(repoRoot, rel);
+
+    assert.ok(fs.existsSync(abs), `${rel} must exist`);
+    const text = read(rel);
+    const parsed = matter(text);
+
+    assert.equal(parsed.data.name, "test-driven-development");
+    assert.match(parsed.data.description, /功能.*缺陷修复.*重构/);
+    assert.match(
+      parsed.data.description,
+      /纯文档.*纯配置.*生成代码.*没有有效自动化接缝.*不触发/,
+      "frontmatter must preserve the exemption semantics",
+    );
+    for (const anchor of [
+      "validation-contract.md",
+      "公共接口",
+      "失败",
+      "最小实现",
+      "纵向",
+      "系统边界",
+      "机器协议",
+    ]) {
+      assert.ok(text.includes(anchor), `unified TDD must keep the ${anchor} contract`);
+    }
+    assert.ok(
+      text.split("\n").length <= 80,
+      "the unified TDD skill must stay within an 80-line context budget",
+    );
+    assert.match(
+      text,
+      /当前实现代理[^。\n]{0,20}(?:完成|负责)[^。\n]{0,20}测试设计|测试设计[^。\n]{0,20}(?:由|归)[^。\n]{0,12}当前实现代理/,
+      "the current implementation agent must own test design",
+    );
+    assert.match(
+      text,
+      /不[^。\n]{0,8}(?:另派|派发)[^。\n]{0,8}(?:独立)?测试代理/,
+      "the skill must reject a separate test agent",
+    );
+    assert.doesNotMatch(text, /xhigh|最强模型|全新会话|fresh context/i);
+    assert.match(
+      text,
+      /不因[^。\n]{0,30}删除[^。\n]{0,12}(?:实现|代码)|不因[^。\n]{0,20}(?:实现|代码)[^。\n]{0,20}删除/,
+      "the skill must reject deleting usable implementation only to restart the ritual",
+    );
+    assert.doesNotMatch(text, /delete means delete/i);
+  });
+
+  test("auriga-workflow publishes the exact owned skill inventory", () => {
+    const skillsRoot = path.join(repoRoot, "plugins/auriga-workflow/skills");
+    const actual = fs.readdirSync(skillsRoot)
+      .filter((name) => fs.existsSync(path.join(skillsRoot, name, "SKILL.md")))
+      .sort();
+    assert.deepEqual(actual, [
+      "arch-design",
+      "code-simplify",
+      "deep-review",
+      "docent",
+      "documentation-and-adrs",
+      "git-workflow",
+      "goalify",
+      "incremental-impl",
+      "reviewer-creator",
+      "session-compound",
+      "spec-design",
+      "systematic-debugging",
+      "test-driven-development",
+    ]);
+    assert.equal(fs.existsSync(path.join(repoRoot, ".agents/skills/test-driven-development")), false);
+    assert.equal(fs.existsSync(path.join(repoRoot, ".claude/skills/test-driven-development")), false);
+  });
+
+  test("active workflow surfaces contain no retired test-designer reference", () => {
+    for (const rel of [
+      "AGENTS.md",
+      "AGENTS.template.zh-CN.md",
+      "AGENTS.template.en.md",
+      "plugins/auriga-workflow/skills/arch-design/SKILL.md",
+      "plugins/auriga-workflow/skills/code-simplify/SKILL.md",
+      "plugins/auriga-workflow/skills/deep-review/SKILL.md",
+      "plugins/auriga-workflow/skills/incremental-impl/SKILL.md",
+      "plugins/auriga-workflow/skills/session-compound/SKILL.md",
+      "plugins/auriga-workflow/skills/session-compound/references/eval-dispatch.md",
+      "plugins/auriga-workflow/skills/spec-design/SKILL.md",
+      "plugins/auriga-workflow/skills/deep-review/references/reviewers/test-quality.md",
+    ]) {
+      assert.doesNotMatch(read(rel), /test-designer/, `${rel} must not reference the retired skill`);
+    }
+  });
+
   test("systematic-debugging keeps diagnosis evidence-first without a fixed ritual", () => {
     const text = read(
       "plugins/auriga-workflow/skills/systematic-debugging/SKILL.md",
@@ -59,16 +150,6 @@ describe("auriga-workflow skill contracts", () => {
     );
   });
 
-  test("test-designer consumes project test rules", () => {
-    const text = read(
-      "plugins/auriga-workflow/skills/test-designer/SKILL.md",
-    );
-    assert.ok(
-      text.includes("docs/rules/test/"),
-      "test-designer must consult project test rules under docs/rules/test/",
-    );
-  });
-
   test("deep-review test-quality reviewer consumes project test rules", () => {
     const text = read(
       "plugins/auriga-workflow/skills/deep-review/references/reviewers/test-quality.md",
@@ -78,8 +159,8 @@ describe("auriga-workflow skill contracts", () => {
       "test-quality reviewer must consult project test rules under docs/rules/test/",
     );
     assert.ok(
-      /test-designer/.test(text),
-      "test-quality reviewer must stay aligned with test-designer",
+      /test-driven-development/.test(text),
+      "test-quality reviewer must stay aligned with test-driven-development",
     );
   });
 
@@ -145,9 +226,9 @@ describe("project rule discovery anchors to the repo root", () => {
       label: "deep-review",
     },
     {
-      rel: "plugins/auriga-workflow/skills/test-designer/SKILL.md",
+      rel: "plugins/auriga-workflow/skills/test-driven-development/SKILL.md",
       area: "docs/rules/test/",
-      label: "test-designer",
+      label: "test-driven-development",
     },
     {
       rel: "plugins/auriga-workflow/skills/deep-review/references/reviewers/test-quality.md",

@@ -968,7 +968,7 @@ test("claude analyzer emits neutral workflow_signals facts (no verdicts) [VAL-SU
       ts: T0,
       reqId: "r1",
       content: [
-        { type: "tool_use", id: "s1", name: "Skill", input: { skill: "test-designer" } },
+        { type: "tool_use", id: "s1", name: "Skill", input: { skill: "test-driven-development" } },
         { type: "tool_use", id: "e1", name: "Edit", input: { file_path: "/a" } },
       ],
     }),

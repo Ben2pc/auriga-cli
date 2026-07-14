@@ -42,7 +42,7 @@
 | `session-compound` | Auriga 插件 | Claude Code / Codex | 待评审 |
 | `spec-design` | Auriga 插件 | Claude Code / Codex | 待评审 |
 | [`systematic-debugging`](../../../worklog/worklog-2026-07-14-feat-model-generation-workflow-upgrade/systematic-debugging/review.md) | Auriga 插件；内化自 `obra/superpowers` | Claude Code / Codex | 内化结论暂定；实现已合入 PR #177；PR #178 取消自动迁移并采用团队人工清理；模型评测未执行且不在 PR #178 范围内 |
-| `test-designer` | Auriga 插件 | Claude Code / Codex | 待评审 |
+| [`test-driven-development`](../../../worklog/worklog-2026-07-14-refactor-simplify-tdd-skill/unified-tdd-skill/review.md) | Auriga 插件；精简自 `obra/superpowers` 并合并原 `test-designer` | Claude Code / Codex | 精简、内化并合并；不再派遣独立测试代理；模型评测未执行 |
 
 ### Auriga 自有质量门禁技能
 
@@ -60,7 +60,7 @@
 |---|---|---|---|
 | `planning-with-files` | `OthmanAdi/planning-with-files` | Claude Code / Codex | 待评审 |
 | `playwright-cli` | `microsoft/playwright-cli` | Claude Code / Codex | 待评审 |
-| `test-driven-development` | `obra/superpowers` | Claude Code / Codex | 待评审 |
+| [`test-driven-development`](../../../worklog/worklog-2026-07-14-refactor-simplify-tdd-skill/unified-tdd-skill/review.md) | `obra/superpowers` | Claude Code / Codex | 外部版本退出锁定与预设，由 Auriga 精简版本替代；模型评测未执行 |
 | `verification-before-completion` | `obra/superpowers` | Claude Code / Codex | 待评审 |
 
 ### 外部推荐技能
