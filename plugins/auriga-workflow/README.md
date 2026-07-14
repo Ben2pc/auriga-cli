@@ -13,7 +13,7 @@ travel together so they share one distribution model and one install step.
 | `incremental-impl` | Size triage (XS–XL), slicing strategy, optional parallel subagent dispatch, per-slice Implement → Test → Verify → Commit discipline. |
 | `test-driven-development` | Minimal behavior-first TDD — consumes acceptance contracts and project test rules. |
 | `spec-design` | Requirement clarification — produces PR-scoped contracts under `docs/specs/<topic>/`, or an explicitly approved cross-PR program contract under `docs/long-running-specs/<topic>/`. |
-| `arch-design` | Architecture-level design — module decomposition, dependency direction, candidate tradeoffs, migration path. |
+| `arch-design` | Technical design clarification — domain models, module boundaries, dependency direction, human-reviewed design records, and migration constraints. |
 | `code-simplify` | Code-level simplification — identifies code smells and reduces maintenance cost. |
 | `session-compound` | Compounds a session into a self-contained interactive HTML report. |
 | `goalify` | Plans an autonomous goal from a spec or work-in-progress and dispatches it via the built-in `/goal` command. |

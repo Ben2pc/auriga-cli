@@ -162,6 +162,199 @@ describe("auriga-workflow skill contracts", () => {
     );
   });
 
+  test("arch-design triggers for architecture and domain-model clarification", () => {
+    const text = read("plugins/auriga-workflow/skills/arch-design/SKILL.md");
+    const parsed = matter(text);
+
+    assert.match(parsed.data.description, /(?:架构优化|优化[^。；]*架构)/);
+    assert.match(parsed.data.description, /领域模型|领域建模/);
+    assert.match(text, /技术方案澄清/);
+    assert.match(text, /模块内部[^。\n]*(?:code-simplify|代码简化)/);
+
+    for (const trigger of ["新功能", "职责", "边界", "分层", "依赖", "架构演进"]) {
+      assert.ok(
+        parsed.data.description.includes(trigger),
+        `arch-design description must cover the ${trigger} trigger`,
+      );
+    }
+
+    for (const rel of ["AGENTS.md", "AGENTS.template.zh-CN.md", "AGENTS.template.en.md"]) {
+      const template = read(rel);
+      assert.match(template, /v1\.17\.0/);
+      assert.match(
+        template,
+        /领域模型|domain model/i,
+        `${rel} must route domain-model clarification to arch-design`,
+      );
+      assert.match(
+        template,
+        /(?:快速流程|quick flow)[^\n]*(?:只跳过实施计划|skips only implementation planning)/i,
+        `${rel} must not let the quick flow bypass architecture clarification`,
+      );
+    }
+  });
+
+  test("arch-design separates behavior, technical design, and execution planning", () => {
+    const text = read("plugins/auriga-workflow/skills/arch-design/SKILL.md");
+
+    for (const anchor of [
+      "用户可观察",
+      "领域概念",
+      "模块边界",
+      "依赖方向",
+      "关键接口",
+      "数据流",
+      "实施步骤",
+    ]) {
+      assert.ok(text.includes(anchor), `arch-design must keep the ${anchor} boundary`);
+    }
+    assert.match(text, /产品语义[^。\n]*(?:spec-design|需求规格)/);
+    assert.match(text, /本技能不写实施步骤、切片顺序/);
+  });
+
+  test("arch-design makes its design document an implementation-entry review gate", () => {
+    const text = read("plugins/auriga-workflow/skills/arch-design/SKILL.md");
+    const template = read(
+      "plugins/auriga-workflow/skills/arch-design/references/arch-design-template.md",
+    );
+
+    assert.match(text, /实质[^。\n]*(?:架构|领域模型|跨边界)[^。\n]*arch_design\.md/);
+    assert.match(text, /实现前[^。\n]*用户[^。\n]*(?:确认|评审)/);
+    assert.match(text, /不能把沉默当作批准/);
+    assert.match(text, /设计文档或对话内已确认的设计/);
+    assert.match(template, /Review Focus \/ 人工评审重点/);
+    assert.match(template, /Domain Model \/ 领域模型/);
+    for (const field of ["评审状态", "核心决定", "主要影响", "首要风险", "Human Decisions"]) {
+      assert.ok(template.includes(field), `arch-design template must preserve ${field}`);
+    }
+  });
+
+  test("arch-design template makes current and target architecture easy to compare", () => {
+    const template = read(
+      "plugins/auriga-workflow/skills/arch-design/references/arch-design-template.md",
+    );
+
+    for (const section of [
+      "Current Architecture / 当前架构现状",
+      "Current Directory Structure / 当前目录结构",
+      "Target Architecture / 目标整体架构",
+      "Target Directory Structure / 目标目录结构",
+    ]) {
+      assert.ok(template.includes(section), `arch-design template must preserve ${section}`);
+    }
+    assert.match(template, /同一抽象层级/);
+    assert.match(template, /改变前后|前后对照/);
+    assert.match(template, /文件粒度/);
+    assert.ok(template.includes("<current-file>"), "current directory tree must show files");
+    assert.ok(template.includes("<new-file>"), "target directory tree must show added files");
+    assert.ok(template.includes("<existing-file>"), "target directory tree must show changed files");
+    assert.ok(template.includes("（新增）"), "target directory tree must mark added paths");
+    assert.ok(template.includes("（改）"), "target directory tree must mark changed paths");
+    for (const diagram of ["C4", "sequenceDiagram", "stateDiagram-v2", "erDiagram", "classDiagram"]) {
+      assert.ok(template.includes(diagram), `arch-design template must cue ${diagram}`);
+    }
+  });
+
+  test("arch-design makes technical quality and code-level flows reviewable", () => {
+    const text = read("plugins/auriga-workflow/skills/arch-design/SKILL.md");
+    const template = read(
+      "plugins/auriga-workflow/skills/arch-design/references/arch-design-template.md",
+    );
+
+    assert.match(text, /技术质量目标/);
+    assert.match(text, /人工[^。\n]*重点评审/);
+    assert.match(template, /Quality Attributes & Technical Goals \/ 质量属性与技术目标/);
+    assert.match(template, /重点评审/);
+    for (const example of [
+      "可观测性",
+      "可排查性",
+      "故障隔离或容灾",
+      "数据一致性",
+      "安全性",
+      "性能与资源预算",
+    ]) {
+      assert.ok(template.includes(example), `technical quality examples must cue ${example}`);
+    }
+    assert.match(template, /示例[^。\n]*不是必填|不是必填[^。\n]*示例/);
+    assert.match(template, /Data Flow \/ 数据流/);
+    assert.match(template, /用户[^。\n]*外部系统[^。\n]*(?:定时任务|领域事件)/);
+    assert.match(template, /代码内部/);
+    assert.match(template, /文件级职责/);
+    assert.match(template, /接口实现映射/);
+    assert.match(template, /Deployment & Operations \/ 部署与运行/);
+    assert.match(template, /可选章节/);
+    assert.match(template, /普通前端[^。\n]*移动端[^。\n]*默认删除/);
+  });
+
+  test("arch-design resolves target-local rules and degrades safely without a writable project", () => {
+    const text = read("plugins/auriga-workflow/skills/arch-design/SKILL.md");
+
+    assert.match(text, /受影响代码[^。\n]*更近的 `docs\/rules\/arch\/`/);
+    assert.match(text, /目标范围[^。\n]*(?:确认|澄清)/);
+    assert.match(text, /无法写入[^。\n]*(?:对话|会话)/);
+  });
+
+  test("arch-design routes design conditions to a compact reference toolbox", () => {
+    const text = read("plugins/auriga-workflow/skills/arch-design/SKILL.md");
+    const references = [
+      "component-design.md",
+      "interface-design.md",
+      "domain-modeling.md",
+      "migration-strategies.md",
+    ];
+
+    for (const file of references) {
+      const rel = `plugins/auriga-workflow/skills/arch-design/references/${file}`;
+      assert.ok(fs.existsSync(path.join(repoRoot, rel)), `${rel} must exist`);
+      assert.ok(text.includes(`references/${file}`), `${file} must have a routing condition`);
+      const reference = read(rel);
+      assert.match(reference, /何时使用/);
+      assert.match(reference, /可用方法|可用兵器/);
+    }
+  });
+
+  test("arch-design removes presentation detours and synthetic option generation", () => {
+    const text = read("plugins/auriga-workflow/skills/arch-design/SKILL.md");
+    const template = read(
+      "plugins/auriga-workflow/skills/arch-design/references/arch-design-template.md",
+    );
+
+    for (const content of [text, template]) {
+      assert.doesNotMatch(content, /playground|静态 HTML|arch-overview\.html/i);
+      assert.doesNotMatch(content, /(?:≥|>=)\s*2[^。\n]*候选|出[^。\n]*(?:≥|>=)\s*2/);
+    }
+    assert.match(text, /真实[^。\n]*取舍[^。\n]*候选/);
+    assert.match(template, /仅在存在真实取舍时保留本节/);
+  });
+
+  test("arch-design migration handoff preserves transition exit conditions", () => {
+    const template = read(
+      "plugins/auriga-workflow/skills/arch-design/references/arch-design-template.md",
+    );
+    const migration = read(
+      "plugins/auriga-workflow/skills/arch-design/references/migration-strategies.md",
+    );
+
+    for (const field of ["中间状态", "兼容窗口", "切换信号", "旧路径删除条件", "负责人"]) {
+      assert.ok(template.includes(field), `arch-design template must preserve ${field}`);
+      assert.match(
+        migration.match(/## 输出到设计文档[\s\S]*/)![0],
+        new RegExp(field),
+        `migration output mapping must preserve ${field}`,
+      );
+    }
+  });
+
+  test("architecture consumers honor the approved design boundary", () => {
+    const specDesign = read("plugins/auriga-workflow/skills/spec-design/SKILL.md");
+    const incremental = read("plugins/auriga-workflow/skills/incremental-impl/SKILL.md");
+    const handoff = specDesign.match(/\*\*D3\. 交接。\*\*[\s\S]*?## 用户自带 spec 审计/);
+
+    assert.ok(handoff, "spec-design must preserve its D3 handoff section");
+    assert.match(handoff[0], /arch-design[^。\n]*人工确认/);
+    assert.match(incremental, /已确认[^。\n]*arch_design\.md[^。\n]*(?:优先|约束)/);
+  });
+
   test("deep-review test-quality reviewer consumes project test rules", () => {
     const text = read(
       "plugins/auriga-workflow/skills/deep-review/references/reviewers/test-quality.md",

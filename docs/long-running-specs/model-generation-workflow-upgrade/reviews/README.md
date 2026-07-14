@@ -36,9 +36,9 @@
 
 | Asset (资产) | Source (来源) | Runtime (运行时) | Status (状态) |
 |---|---|---|---|
-| `arch-design` | Auriga 插件 | Claude Code / Codex | 待评审 |
+| [`arch-design`](../../../worklog/worklog-2026-07-14-refactor-simplify-arch-design/arch-design-modernization/review.md) | Auriga 插件 | Claude Code / Codex | 精简；实现已落地 PR #183；强化架构与领域模型触发、人工评审门禁、技术质量目标和条件式工具箱；模型评测未执行 |
 | `code-simplify` | Auriga 插件 | Claude Code / Codex | 待评审 |
-| `deep-review` | Auriga 插件 | Claude Code / Codex | 待评审 |
+| `deep-review` | Auriga 插件 | Claude Code / Codex | 待评审；PR #183 评审暴露出平台清单规则、迁移方法和领域模型检查项可能漂移，进入本技能轮次时核对 |
 | `docent` | Auriga 插件 | Claude Code / Codex | 待评审 |
 | `documentation-and-adrs` | Auriga 插件 | Claude Code / Codex | 待评审 |
 | `git-workflow` | Auriga 插件 | Claude Code / Codex | 待评审 |
@@ -46,7 +46,7 @@
 | `incremental-impl` | Auriga 插件 | Claude Code / Codex | 待评审 |
 | `reviewer-creator` | Auriga 插件 | Claude Code / Codex | 待评审 |
 | `session-compound` | Auriga 插件 | Claude Code / Codex | 待评审 |
-| `spec-design` | Auriga 插件 | Claude Code / Codex | 待评审 |
+| `spec-design` | Auriga 插件 | Claude Code / Codex | 待评审；PR #183 已修复交接绕过 `arch-design`，现有长程子规范拆分树与“规格 / 架构 / 实施计划”三阶段边界仍需在本技能轮次单独澄清 |
 | [`systematic-debugging`](../../../worklog/worklog-2026-07-14-feat-model-generation-workflow-upgrade/systematic-debugging/review.md) | Auriga 插件；内化自 `obra/superpowers` | Claude Code / Codex | 内化结论暂定；实现已合入 PR #177；PR #178 取消自动迁移并采用团队人工清理；模型评测未执行且不在 PR #178 范围内 |
 | [`test-driven-development`](../../../worklog/worklog-2026-07-14-refactor-simplify-tdd-skill/unified-tdd-skill/review.md) | Auriga 插件；精简自 `obra/superpowers` 并合并原 `test-designer` | Claude Code / Codex | 精简、内化并合并；模型评测未执行 |
 

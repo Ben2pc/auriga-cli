@@ -13,7 +13,8 @@
 | 7 | [外部核心技能保留决定](reviews/README.md#外部核心技能) | — | `planning-with-files` 与 `playwright-cli` 保留；两者默认安装但非默认执行，跳过深入评审，不构成模型能力结论 |
 | 8 | [外部推荐技能保留决定](reviews/README.md#外部推荐技能) | — | 6 项推荐技能全部保留；均为选装能力且不进入主工作流，跳过深入评审，不构成模型能力结论 |
 | 9 | `external-plugins/` | — | 本轮范围外；保持现状 |
-| 10 | `workflow-consolidation/` | VAL-MIG-001..005 | 等待前序结论 |
+| 10 | [`arch-design` 精简](../../worklog/worklog-2026-07-14-refactor-simplify-arch-design/arch-design-modernization/) | VAL-ARCH-001..007 | PR #183 已完成实现并归档子规范；强化架构与领域模型触发、人工评审门禁、视觉对照、技术质量目标和条件式工具箱；模型评测未执行 |
+| 11 | `workflow-consolidation/` | VAL-MIG-001..005 | 等待前序结论 |
 
 ## Parent coverage map (父级验收覆盖映射)
 
@@ -23,7 +24,7 @@
 | VAL-INV-002 | 待定 | 待定 | 等待后续资产清单子规范覆盖 |
 | VAL-REV-001 | 待定 | 待定 | 等待仍需深入评审的技能与模型评测基线覆盖；第 7–8 项是用户确认的范围处置，不属于暂定模型结论 |
 | VAL-REV-002 | 待定 | 待定 | 等待仍需深入评审的强制约束验证目标模型原生能力边界；工具型技能的范围处置不替代模型证据 |
-| VAL-REV-003 | [统一测试驱动开发](../../worklog/worklog-2026-07-14-refactor-simplify-tdd-skill/unified-tdd-skill/validation-contract.md)、[删除完成前验证技能](../../worklog/worklog-2026-07-14-refactor-remove-verification-skill/verification-before-completion/validation-contract.md) | VAL-RISK-001、VAL-VRSK-001 | 已记录精简、合并与删除后的兼容风险和恢复条件 |
+| VAL-REV-003 | [统一测试驱动开发](../../worklog/worklog-2026-07-14-refactor-simplify-tdd-skill/unified-tdd-skill/validation-contract.md)、[删除完成前验证技能](../../worklog/worklog-2026-07-14-refactor-remove-verification-skill/verification-before-completion/validation-contract.md) | VAL-RISK-001、VAL-VRSK-001 | 已记录精简、合并与删除后的兼容风险和恢复条件；`arch-design` 的恢复条件保留在其正式评审记录中，待父级契约新增对应验收项后再映射 |
 | VAL-MIG-001 | [统一测试驱动开发](../../worklog/worklog-2026-07-14-refactor-simplify-tdd-skill/unified-tdd-skill/validation-contract.md)、[删除完成前验证技能](../../worklog/worklog-2026-07-14-refactor-remove-verification-skill/verification-before-completion/validation-contract.md) | VAL-ASSET-001、VAL-FLOW-002、VAL-VAST-001、VAL-VREF-001 | 重复测试入口与独立完成验证入口已收敛 |
 | VAL-MIG-002 | [`systematic-debugging`](../../worklog/worklog-2026-07-14-feat-model-generation-workflow-upgrade/systematic-debugging/validation-contract.md)、[取消自动技能迁移](../../worklog/worklog-2026-07-14-fix-migrated-skill-cleanup/validation-contract.md)、[统一测试驱动开发](../../worklog/worklog-2026-07-14-refactor-simplify-tdd-skill/unified-tdd-skill/validation-contract.md)、[删除完成前验证技能](../../worklog/worklog-2026-07-14-refactor-remove-verification-skill/verification-before-completion/validation-contract.md) | VAL-PUBL-001..002、VAL-REMOVE-001、VAL-NOMUTATE-001、VAL-FLOW-002、VAL-REL-002、VAL-VRUL-001、VAL-VMIG-001 | 工程边界、双运行时规则与人工清理已统一；父级真实双运行时安装证据仍待后续补全 |
 | VAL-MIG-003 | [`systematic-debugging`](../../worklog/worklog-2026-07-14-feat-model-generation-workflow-upgrade/systematic-debugging/validation-contract.md)、[取消自动技能迁移](../../worklog/worklog-2026-07-14-fix-migrated-skill-cleanup/validation-contract.md)、[统一测试驱动开发](../../worklog/worklog-2026-07-14-refactor-simplify-tdd-skill/unified-tdd-skill/validation-contract.md)、[删除完成前验证技能](../../worklog/worklog-2026-07-14-refactor-remove-verification-skill/verification-before-completion/validation-contract.md) | VAL-PUBL-001、VAL-MANUAL-001、VAL-RELEASE-001、VAL-REL-001、VAL-VREL-001 | 双语说明、技能清单与发布版本同步当前处置 |

@@ -123,8 +123,9 @@ A. 调研   →  B. 定方向、定切分  →  C. 落到文件   →  D. 闸门
 **D2. 明确同意闸门。** 把 spec 文件路径打印回给用户，等明确批准。不要因为沉默就开始 plan 或编码前准备。
 
 **D3. 交接。** 套用 `CLAUDE.md` / `AGENTS.md` 里的规模判定。长期总规范只负责跨 PR 的共同契约和状态；执行任一子 PR 前，先从总规范切出当前 PR 的 `docs/specs/<child-topic>/spec.md` 与 `validation-contract.md`，复制或派生所有适用于该子 PR 的长期 VAL。长期总规范不能替代或绕过当前子 PR 的 `docs/specs/<child-topic>/` Ready 契约：
-- QDF 三条谓词全部成立（单模块、验收标准 ≤ 5、无跨边界接口）→ 跳过 plan，直接进编码前准备 / 建分支
-- 否则 → 交接给用户选定的 plan 阶段工具（内置 Plan、`planning-with-files`、或用户选的任何下游规划 skill）。不要写死某个具体的 plan 阶段 skill 名；那个决定归工作流 CLAUDE.md / AGENTS.md 管。
+- 若新功能跨模块、需要重划边界、技术方案不显然，或用户要求优化架构与领域模型 → 先交给 `arch-design` 澄清结构并取得人工确认；需求规格不能直接绕过这一阶段。
+- 不需要架构澄清且 QDF 三条谓词全部成立（单模块、验收标准 ≤ 5、无跨边界接口）→ 跳过实施计划，直接进编码前准备 / 建分支。
+- 其余情况 → 交接给用户选定的计划阶段工具（内置 Plan、`planning-with-files`、或用户选的任何下游规划技能）。不要写死某个具体工具；那个决定归工作流 CLAUDE.md / AGENTS.md 管。
 
 ## 用户自带 spec 审计
 
