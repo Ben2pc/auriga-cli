@@ -41,20 +41,24 @@ describe("auriga-workflow skill contracts", () => {
     ]) {
       assert.ok(text.includes(anchor), `unified TDD must keep the ${anchor} contract`);
     }
+    assert.match(text, /每条验收断言[^。\n]*不等于单个验证用例/);
+    assert.match(text, /按 `?Tool`? 选择验证方式/);
+    assert.match(text, /按风险[^；。\n]*一个或多个必要用例/);
+    assert.match(
+      text,
+      /测试类断言[^。\n]*多个测试用例/,
+      "one test-oriented validation assertion may require multiple test cases",
+    );
+    assert.doesNotMatch(
+      text,
+      /^## 边界$/m,
+      "the unified TDD skill must not carry a separate boundary section",
+    );
     assert.ok(
       text.split("\n").length <= 80,
       "the unified TDD skill must stay within an 80-line context budget",
     );
-    assert.match(
-      text,
-      /当前实现代理[^。\n]{0,20}(?:完成|负责)[^。\n]{0,20}测试设计|测试设计[^。\n]{0,20}(?:由|归)[^。\n]{0,12}当前实现代理/,
-      "the current implementation agent must own test design",
-    );
-    assert.match(
-      text,
-      /不[^。\n]{0,8}(?:另派|派发)[^。\n]{0,8}(?:独立)?测试代理/,
-      "the skill must reject a separate test agent",
-    );
+    assert.doesNotMatch(text, /独立测试代理|另派[^。\n]*测试代理|separate test agent/i);
     assert.doesNotMatch(text, /xhigh|最强模型|全新会话|fresh context/i);
     assert.match(
       text,
@@ -88,7 +92,7 @@ describe("auriga-workflow skill contracts", () => {
     assert.equal(fs.existsSync(path.join(repoRoot, ".claude/skills/test-driven-development")), false);
   });
 
-  test("active workflow surfaces contain no retired test-designer reference", () => {
+  test("active workflow surfaces omit retired entries and default test-agent behavior", () => {
     for (const rel of [
       "AGENTS.md",
       "AGENTS.template.zh-CN.md",
@@ -100,9 +104,17 @@ describe("auriga-workflow skill contracts", () => {
       "plugins/auriga-workflow/skills/session-compound/SKILL.md",
       "plugins/auriga-workflow/skills/session-compound/references/eval-dispatch.md",
       "plugins/auriga-workflow/skills/spec-design/SKILL.md",
+      "plugins/auriga-workflow/skills/spec-design/references/validation-contract-template.md",
+      "plugins/auriga-workflow/skills/test-driven-development/SKILL.md",
       "plugins/auriga-workflow/skills/deep-review/references/reviewers/test-quality.md",
     ]) {
-      assert.doesNotMatch(read(rel), /test-designer/, `${rel} must not reference the retired skill`);
+      const text = read(rel);
+      assert.doesNotMatch(text, /test-designer/, `${rel} must not reference the retired skill`);
+      assert.doesNotMatch(
+        text,
+        /不另派[^。\n]*测试|不再派遣[^。\n]*测试|当前(?:实现)?代理[^。\n]*(?:测试|失败证据|保护网|建立证据)|实现代理[^。\n]*(?:测试设计|红绿循环|运行器|驱动)|current (?:implementation )?agent[^.\n]*test|separate test agent/i,
+        `${rel} must not spend context restating default test-agent behavior`,
+      );
     }
   });
 

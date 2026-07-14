@@ -248,5 +248,5 @@ A. 调研        →  B. 设计候选        →  C. 选型与记录        → 
 
 - `spec-design`——新功能入口的上游,提供 `spec.md` + `validation-contract.md`。它故意挡在 spec 外的"怎么做",是这个 skill 的输入。
 - `incremental-impl`——下游消费者,拿这个 skill 的设计,负责规模分诊、切片、分发、实施顺序、单切片循环。
-- `test-driven-development`——当前实现代理按验证契约设计失败测试,或为既有系统补行为保护网。
+- `test-driven-development`——按验证契约设计失败测试,或为既有系统补行为保护网。
 - `playground:playground`(Anthropic 官方,软依赖)——D2 架构总览的辅助选项之一;没装就只提供静态 HTML 总览。

@@ -1,5 +1,5 @@
 <!-- AURIGA:WORKFLOW:v1 START — Managed block, maintained by auriga-cli. Do not edit by hand; upgrades replace it wholesale. Put project-specific instructions after the END marker below. -->
-# auriga Workflow (v1.14.0)
+# auriga Workflow (v1.15.0)
 
 1. Requirement Clarification: Clarify new requirements with `spec-design` first. **spec = why + what; plan = how** — requirements state "what to do" and acceptance criteria, not technical paths; for product features, lead with the "Why". Skip spec and go straight to plan when a change doesn't move the external behavior contract.
 
@@ -11,7 +11,7 @@
 
 5. Root-cause before bugfixes: Follow `systematic-debugging` before deciding on a fix.
 
-6. TDD: Code changes that alter observable behavior follow `test-driven-development`; pure documentation, pure configuration, generated code, and changes without a useful automated seam are exempt. Define testable acceptance criteria before each task and read `docs/rules/test/` before writing tests. The current implementation Agent owns test design and the red-green loop; do not dispatch a separate test Agent.
+6. TDD: Code changes that alter observable behavior follow `test-driven-development`; pure documentation, pure configuration, generated code, and changes without a useful automated seam are exempt. Define testable acceptance criteria before each task and read `docs/rules/test/` before writing tests.
 
 7. Incremental implementation: Invoke `incremental-impl` for non-trivial work (multi-file changes, cross-file refactors, executing a planned task, ~100+ lines expected) — size triage, slicing, and dispatch belong to the skill; skip when it rates the work XS or the change is pure docs/config.
 
@@ -48,7 +48,7 @@ Repo documentation lives under `docs/`, one directory per purpose:
 
 - **Enforce constraints via mechanisms, not prompts**: core rules belong in linters / CI / type systems / hooks.
 - **The repo is the single source of truth**: what Agents can't access doesn't exist; plans, design decisions, and tech debt live in the repo as versioned artifacts.
-- **Independent Evaluation**: the current implementation Agent owns test design; independent Agents assess test quality and the other formal-review dimensions, so the implementer never makes the final judgment on its own work.
+- **Independent Evaluation**: independent Agents assess test quality and the other formal-review dimensions, so the implementer never makes the final judgment on its own work.
 - **Continuously fight entropy**: pay down tech debt in small, steady increments.
 - **Components are detachable**: each workflow step encodes a "the model isn't good at this" assumption; reassess as models improve, one variable at a time.
 - **Instruction files are directories, not encyclopedias**: keep AGENTS.md lean (~200 lines) as entry and navigation; details go to `docs/`. Use AGENTS.md as the primary file with a `CLAUDE.md -> AGENTS.md` compatibility symlink (`ln -s AGENTS.md CLAUDE.md`).

@@ -166,33 +166,15 @@ describe("spec-design skill — repo-check VALs", () => {
     }
   });
 
-  test("workflow templates keep the unified TDD ownership and refactor boundary", () => {
+  test("workflow templates keep the unified TDD trigger and refactor boundary", () => {
     for (const f of ["AGENTS.md", "AGENTS.template.zh-CN.md", "AGENTS.template.en.md"]) {
       const text = read(f);
-      assert.match(text, /v1\.14\.0/, `${f} must advance the workflow contract version`);
-      if (f.endsWith("en.md")) {
-        assert.match(
-          text,
-          /current implementation Agent[^.\n]{0,25}(?:owns|handles|performs)[^.\n]{0,25}test design|test design[^.\n]{0,25}(?:owned|handled|performed)[^.\n]{0,25}current implementation Agent/i,
-          `${f} must keep test design with the implementation agent`,
-        );
-        assert.match(
-          text,
-          /(?:do not|must not|without)[^.\n]{0,20}(?:dispatch|use|create)[^.\n]{0,20}(?:separate|independent)[^.\n]{0,10}test Agent/i,
-          `${f} must reject a separate test agent`,
-        );
-      } else {
-        assert.match(
-          text,
-          /测试设计和红绿循环[^。\n]{0,20}(?:由|归)[^。\n]{0,10}当前实现 Agent[^。\n]{0,10}(?:完成|负责)/,
-          `${f} must keep test design with the implementation agent`,
-        );
-        assert.match(
-          text,
-          /不[^。\n]{0,8}(?:另派|派发)[^。\n]{0,8}(?:独立)?测试 Agent/,
-          `${f} must reject a separate test agent`,
-        );
-      }
+      assert.match(text, /v1\.15\.0/, `${f} must advance the workflow contract version`);
+      assert.doesNotMatch(
+        text,
+        /不另派[^。\n]*测试|测试设计由当前实现|current implementation Agent owns test design|separate test Agent/i,
+        `${f} must not spend workflow context restating the default test-agent behavior`,
+      );
       assert.match(
         text,
         /(?:重构[^\n]*保护网|refactor[^\n]*protection)/i,
@@ -309,7 +291,7 @@ describe("spec-design skill — repo-check VALs", () => {
       "VAL-REV-001": "待定",
       "VAL-REV-002": "待定",
       "VAL-REV-003": "VAL-RISK-001",
-      "VAL-MIG-001": "VAL-ASSET-001、VAL-FLOW-001..002",
+      "VAL-MIG-001": "VAL-ASSET-001、VAL-FLOW-002",
       "VAL-MIG-002": "VAL-PUBL-001..002、VAL-REMOVE-001、VAL-NOMUTATE-001、VAL-FLOW-002、VAL-REL-002",
       "VAL-MIG-003": "VAL-PUBL-001、VAL-MANUAL-001、VAL-RELEASE-001、VAL-REL-001",
       "VAL-DOC-001": "VAL-LIFE-001",
@@ -410,7 +392,13 @@ describe("spec-design skill — repo-check VALs", () => {
     assert.equal(new Set(childIds).size, childIds.length, "child VAL ids must be unique across archived contracts");
     const tddCoverage = markdownSection(unifiedTdd, "## Parent coverage map");
     assert.match(tddCoverage, /\| VAL-REV-003 \| VAL-RISK-001 \|/);
-    assert.match(tddCoverage, /\| VAL-MIG-001 \| VAL-ASSET-001、VAL-FLOW-001\.\.002 \|/);
+    assert.match(tddCoverage, /\| VAL-MIG-001 \| VAL-ASSET-001、VAL-FLOW-002 \|/);
+    assert.doesNotMatch(tddCoverage, /VAL-FLOW-001/);
+    const tddActiveCoverage = markdownSection(unifiedTdd, "## Coverage map");
+    assert.doesNotMatch(tddActiveCoverage, /VAL-FLOW-001/);
+    const tddAssertions = markdownSection(unifiedTdd, "## Assertions");
+    assert.doesNotMatch(tddAssertions, /### VAL-FLOW-001/);
+    assert.match(unifiedTdd, /## Withdrawn assertion history[\s\S]*`VAL-FLOW-001`[^\n]*不再属于[^\n]*最终验收/);
     const repairCoverage = markdownSection(repair, "## Parent coverage map");
     for (const row of [
       ["VAL-MIG-002", "VAL-REMOVE-001", "VAL-NOMUTATE-001"],

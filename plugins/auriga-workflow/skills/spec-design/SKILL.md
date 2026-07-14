@@ -189,7 +189,7 @@ VAL 的 `Tool` 字段必须从下面的**类别**里选——绝不写具体工�
 | `build` | 构建产物正确性（tsc / npm pack / 产物形态） |
 | `manual` | 仅人工验证；必须写明"什么算通过" |
 
-单条 VAL 的 `Tool` 字段保持是**类别**——这让它可 grep，也让断言与实现无关。每个类别对应的仓库**具体**工具（用哪个测试运行器、哪个浏览器驱动、哪条构建命令）是 A1 调研所得的事实，不是本功能的实现决策——在 `validation-contract.md` 的 `## Toolchain` 表里记**一次**，不要逐条 VAL 重复。这把工具链调研结论往下游传递，让实现代理按 `test-driven-development` 瞄准正确的运行器 / 驱动（仍要扫描既有测试来摸清 fixture 和命名约定），也解决类别内部的真实歧义（例：`e2e-browser` → Browser Use vs Playwright vs Chrome MCP，三者的证据形态不同）。只为契约里 VAL 实际用到的类别填 Toolchain 行。
+单条 VAL 的 `Tool` 字段保持是**类别**——这让它可 grep，也让断言与实现无关。每个类别对应的仓库**具体**工具（用哪个测试运行器、哪个浏览器驱动、哪条构建命令）是 A1 调研所得的事实，不是本功能的实现决策——在 `validation-contract.md` 的 `## Toolchain` 表里记**一次**，不要逐条 VAL 重复。这把工具链调研结论往下游传递，让 `test-driven-development` 瞄准正确的运行器 / 驱动（仍要扫描既有测试来摸清 fixture 和命名约定），也解决类别内部的真实歧义（例：`e2e-browser` → Browser Use vs Playwright vs Chrome MCP，三者的证据形态不同）。只为契约里 VAL 实际用到的类别填 Toolchain 行。
 
 ## 交接审查清单（D1）
 
@@ -224,7 +224,7 @@ VAL 的 `Tool` 字段必须从下面的**类别**里选——绝不写具体工�
 
 ## 和其他 skill 的关系
 
-- `test-driven-development` — 当前实现代理消费 `validation-contract.md`（`spec.md` 正文作为兜底上下文），建立最小失败证据
+- `test-driven-development` — 消费 `validation-contract.md`（`spec.md` 正文作为兜底上下文），建立最小失败证据
 - `incremental-impl` — 沿用 B0 选定的同一套切分轴词汇；把 spec + plan 带进逐切片执行
 - plan 阶段工具（内置 Plan、`planning-with-files`、或工作流 CLAUDE.md 点名的任何规划 skill）——当规模判定走完整 plan 路径时，是 D3 的下游
 - `deep-review` 的 `spec-conformance` 审查者 — 拿 PR diff 对照 VAL 列表验证；finding 标注 `VAL-XXX-NNN`
