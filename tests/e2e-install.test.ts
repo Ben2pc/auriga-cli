@@ -313,37 +313,23 @@ describe(
     });
 
     test(
-      "install plugins --plugin auriga-workflow → plugin registered in .claude/settings.json",
+      "install plugins --plugin auriga-workflow → plugin registered without modifying standalone skills",
       { skip: CLAUDE_AVAILABLE ? undefined : "requires 'claude' CLI", timeout: TIMEOUT },
-      (t) => {
+      () => {
         const proj = setupProject(tarballPath!);
-        const legacyDir = path.join(proj, ".claude", "skills", "systematic-debugging");
+        const legacyDir = path.join(proj, ".agents", "skills", "systematic-debugging");
         fs.mkdirSync(legacyDir, { recursive: true });
-        fs.writeFileSync(path.join(legacyDir, "SKILL.md"), "# legacy systematic-debugging\n");
-        fs.writeFileSync(
-          path.join(proj, "skills-lock.json"),
-          JSON.stringify({
-            version: 1,
-            skills: {
-              "systematic-debugging": {
-                source: "obra/superpowers",
-                sourceType: "github",
-                computedHash: "legacy",
-              },
-            },
-          }, null, 2) + "\n",
-        );
+        fs.writeFileSync(path.join(legacyDir, "SKILL.md"), "# team-managed legacy copy\n");
+        const lockPath = path.join(proj, "skills-lock.json");
+        fs.writeFileSync(lockPath, JSON.stringify({
+          version: 1,
+          skills: {
+            "systematic-debugging": { source: "obra/superpowers" },
+          },
+        }, null, 2) + "\n");
+        const lockBefore = fs.readFileSync(lockPath, "utf-8");
+
         const r = runCli(proj, ["install", "plugins", "--plugin", "auriga-workflow"]);
-        // A freshly renamed/added plugin is not in the Claude marketplace
-        // default branch until this PR merges; `claude plugins marketplace
-        // add` always pulls from the repo's default branch. Skip rather than
-        // fail in that pre-merge window.
-        if (isClaudeMarketplaceMissingPlugin(r.stderr, "auriga-workflow")) {
-          t.skip(
-            "auriga-workflow is present on this PR branch but not yet in the Claude marketplace default branch",
-          );
-          return;
-        }
         assert.equal(
           r.status,
           0,
@@ -351,17 +337,16 @@ describe(
         );
         const settings = path.join(proj, ".claude", "settings.json");
         assert.ok(fs.existsSync(settings), `.claude/settings.json missing at ${settings}`);
-        const content = fs.readFileSync(settings, "utf-8");
-        assert.match(content, /auriga-workflow/, "auriga-workflow not mentioned in .claude/settings.json");
-        assert.equal(
-          fs.existsSync(legacyDir),
-          false,
-          "legacy standalone systematic-debugging copy should not shadow the plugin skill",
+        assert.match(
+          fs.readFileSync(settings, "utf-8"),
+          /auriga-workflow/,
+          "auriga-workflow not mentioned in .claude/settings.json",
         );
-        const lock = JSON.parse(fs.readFileSync(path.join(proj, "skills-lock.json"), "utf-8")) as {
-          skills: Record<string, unknown>;
-        };
-        assert.equal("systematic-debugging" in lock.skills, false);
+        assert.equal(
+          fs.readFileSync(path.join(legacyDir, "SKILL.md"), "utf-8"),
+          "# team-managed legacy copy\n",
+        );
+        assert.equal(fs.readFileSync(lockPath, "utf-8"), lockBefore);
       },
     );
 

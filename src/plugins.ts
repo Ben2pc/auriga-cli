@@ -23,17 +23,7 @@ import type { InstallOpts, PluginAgent, PluginsConfig, PluginDef } from "./utils
 const PLUGIN_NAME_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
 const PLUGIN_PACKAGE_RE = /^[A-Za-z0-9][A-Za-z0-9._@/-]{0,255}$/;
 const LOCAL_MARKETPLACE_SOURCE = "Ben2pc/auriga-cli";
-const MIGRATED_WORKFLOW_SKILL_SOURCES = {
-  "incremental-impl": "Ben2pc/auriga-cli",
-  "test-designer": "Ben2pc/auriga-cli",
-  "session-compound": "Ben2pc/auriga-cli",
-  "systematic-debugging": "obra/superpowers",
-} as const;
-const MIGRATED_WORKFLOW_SKILLS = Object.keys(MIGRATED_WORKFLOW_SKILL_SOURCES) as Array<
-  keyof typeof MIGRATED_WORKFLOW_SKILL_SOURCES
->;
 const NOTIFY_PLUGIN_NAME = "auriga-notify";
-const WORKFLOW_SKILLS_PLUGIN_NAME = "auriga-workflow";
 const LEGACY_NOTIFY_MARKER = "auriga:notify";
 export type PluginRuntime = "claude" | "codex";
 
@@ -392,143 +382,6 @@ function emitMigrationLog(opts: InstallOpts, line: string): void {
   opts.onLog?.(line, "stdout");
 }
 
-function runtimeSkillRoot(runtime: PluginRuntime): ".claude" | ".agents" {
-  return runtime === "claude" ? ".claude" : ".agents";
-}
-
-function legacySkillDirAt(
-  baseDir: string,
-  runtime: PluginRuntime,
-  name: string,
-): string {
-  return path.join(baseDir, runtimeSkillRoot(runtime), "skills", name);
-}
-
-function isWorkflowPluginDevSymlink(skillPath: string, cwd: string, name: string): boolean {
-  const stat = fs.lstatSync(skillPath, { throwIfNoEntry: false });
-  if (!stat?.isSymbolicLink()) return false;
-  const target = fs.readlinkSync(skillPath);
-  const resolved = path.resolve(path.dirname(skillPath), target);
-  const expected = path.resolve(cwd, "plugins", "auriga-workflow", "skills", name);
-  return resolved === expected;
-}
-
-interface SkillLockFile {
-  skills?: Record<string, { source?: unknown; [key: string]: unknown }>;
-  [key: string]: unknown;
-}
-
-function readSkillLock(lockPath: string): SkillLockFile | null {
-  if (!fs.existsSync(lockPath)) return null;
-  try {
-    return JSON.parse(fs.readFileSync(lockPath, "utf-8")) as SkillLockFile;
-  } catch {
-    return null;
-  }
-}
-
-function lockHasExpectedSource(
-  lock: SkillLockFile | null,
-  name: keyof typeof MIGRATED_WORKFLOW_SKILL_SOURCES,
-): boolean {
-  return lock?.skills?.[name]?.source === MIGRATED_WORKFLOW_SKILL_SOURCES[name];
-}
-
-function removeMigratedSkillFromLock(
-  lockPath: string,
-  name: keyof typeof MIGRATED_WORKFLOW_SKILL_SOURCES,
-  opts: InstallOpts,
-): void {
-  const raw = readSkillLock(lockPath);
-  if (!raw?.skills || typeof raw.skills !== "object" || !(name in raw.skills)) return;
-  const nextSkills = { ...raw.skills };
-  delete nextSkills[name];
-  atomicWriteFile(lockPath, JSON.stringify({ ...raw, skills: nextSkills }, null, 2) + "\n");
-  emitMigrationLog(opts, `removed ${name} from ${lockPath}`);
-}
-
-interface MigratedSkillCleanupTarget {
-  baseDir: string;
-  lockPath: string;
-  preserveDevelopmentSymlinks: boolean;
-}
-
-function hasLegacySkillCopy(
-  target: MigratedSkillCleanupTarget,
-  cwd: string,
-  name: keyof typeof MIGRATED_WORKFLOW_SKILL_SOURCES,
-): boolean {
-  return (["claude", "codex"] as const).some((runtime) => {
-    const dir = legacySkillDirAt(target.baseDir, runtime, name);
-    const stat = fs.lstatSync(dir, { throwIfNoEntry: false });
-    if (!stat) return false;
-    return !(
-      target.preserveDevelopmentSymlinks &&
-      isWorkflowPluginDevSymlink(dir, cwd, name)
-    );
-  });
-}
-
-function cleanupMigratedWorkflowSkillInstalls(
-  opts: InstallOpts,
-  runtimes: PluginRuntime[],
-): void {
-  const cwd = installTargetCwd(opts);
-  const scope = opts.scope ?? "project";
-  const projectTarget: MigratedSkillCleanupTarget = {
-    baseDir: cwd,
-    lockPath: path.join(cwd, "skills-lock.json"),
-    preserveDevelopmentSymlinks: true,
-  };
-  const targets = scope === "user"
-    ? [
-        {
-          baseDir: os.homedir(),
-          lockPath: path.join(os.homedir(), ".agents", ".skill-lock.json"),
-          preserveDevelopmentSymlinks: false,
-        },
-        projectTarget,
-      ]
-    : [projectTarget];
-
-  for (const name of MIGRATED_WORKFLOW_SKILLS) {
-    for (const target of targets) {
-      const lock = readSkillLock(target.lockPath);
-      if (!lockHasExpectedSource(lock, name)) {
-        const hasCopy = (["claude", "codex"] as const).some((runtime) =>
-          fs.existsSync(legacySkillDirAt(target.baseDir, runtime, name))
-        );
-        if (hasCopy) {
-          emitMigrationLog(
-            opts,
-            `preserved ${name} under ${target.baseDir}: lock provenance does not match the migrated source`,
-          );
-        }
-        continue;
-      }
-
-      for (const runtime of runtimes) {
-        const dir = legacySkillDirAt(target.baseDir, runtime, name);
-        const stat = fs.lstatSync(dir, { throwIfNoEntry: false });
-        if (!stat) continue;
-        if (
-          target.preserveDevelopmentSymlinks &&
-          isWorkflowPluginDevSymlink(dir, cwd, name)
-        ) {
-          emitMigrationLog(opts, `preserved ${runtimeSkillRoot(runtime)}/skills/${name} development symlink`);
-          continue;
-        }
-        fs.rmSync(dir, { recursive: true, force: true });
-        emitMigrationLog(opts, `removed ${dir}`);
-      }
-
-      if (!hasLegacySkillCopy(target, cwd, name)) {
-        removeMigratedSkillFromLock(target.lockPath, name, opts);
-      }
-    }
-  }
-}
-
 function copyIfPresentWithoutOverwrite(src: string, dest: string): boolean {
   if (!fs.existsSync(src) || fs.existsSync(dest)) return false;
   fs.mkdirSync(path.dirname(dest), { recursive: true });
@@ -629,11 +482,7 @@ function migrateLegacyNotifyConfig(opts: InstallOpts): void {
 function runPostInstallMigration(
   pluginName: string,
   opts: InstallOpts,
-  runtimes: PluginRuntime[],
 ): void {
-  if (pluginName === WORKFLOW_SKILLS_PLUGIN_NAME) {
-    cleanupMigratedWorkflowSkillInstalls(opts, runtimes);
-  }
   if (pluginName === NOTIFY_PLUGIN_NAME) {
     migrateLegacyNotifyConfig(opts);
   }
@@ -986,7 +835,7 @@ async function installCodexPlugins(
       try {
         exec(codexPluginAddCommand(entry.key, entry.hasHooks), marketplaceExecOpts);
         log.ok(`Codex plugin ${entry.key} added`);
-        runPostInstallMigration(entry.name, opts, ["codex"]);
+        runPostInstallMigration(entry.name, opts);
       } catch (e) {
         log.error(`Failed to add Codex plugin ${entry.key}\n${commandErrorText(e)}`);
         failures.push(`codex plugin ${entry.key}`);
@@ -1182,7 +1031,7 @@ export async function installPlugins(
             exec(cmd, { ...cmdOpts, inherit: true });
           }
           log.ok(`${plugin.name} ${isUpdate ? "updated" : "installed"}`);
-          runPostInstallMigration(plugin.name, { ...opts, scope }, ["claude"]);
+          runPostInstallMigration(plugin.name, { ...opts, scope });
         } catch (e) {
           log.error(`Failed to ${action}: ${plugin.name}\n${commandErrorText(e)}`);
           failures.push(plugin.name);

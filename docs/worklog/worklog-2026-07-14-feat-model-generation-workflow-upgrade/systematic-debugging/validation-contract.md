@@ -10,7 +10,16 @@
 |---|---|
 | 调试行为 | VAL-DIAG-001 ~ VAL-DIAG-003 |
 | 线上问题 | VAL-PROD-001 ~ VAL-PROD-002 |
-| 迁移与发布 | VAL-MIG-001 ~ VAL-MIG-002 |
+| 迁移与发布 | VAL-PUBL-001 ~ VAL-PUBL-002 |
+
+## Parent coverage map (父级验收覆盖映射)
+
+| Parent VAL (父级验收项) | Child VAL (子验收项) | Status (状态) |
+|---|---|---|
+| VAL-MIG-002 | VAL-PUBL-001..002 | 实现已合入 PR #177；PR #178 取消自动迁移并采用团队人工清理 |
+| VAL-MIG-003 | VAL-PUBL-001 | PR #177 已同步技能清单和文档；PR #178 同步人工清理说明与 CLI 版本 |
+
+`VAL-REV-001` 与 `VAL-REV-002` 仍等待后续模型评测与正式处置子规范覆盖；本子规范的调试行为验收不能替代目标模型证据，因此不把两项父级验收映射到 `VAL-DIAG-*` 或 `VAL-PROD-*`。
 
 ## Toolchain (本仓库验证栈)
 
@@ -49,12 +58,12 @@
 - **Tool (工具)**: manual
 - **Evidence (判据)**: 技能正文同时包含先恢复服务的例外和事故恢复后继续诊断的要求。
 
-### VAL-MIG-001
+### VAL-PUBL-001
 - **Behavior (行为)**: `systematic-debugging` 只通过 Auriga 工作流插件发布，不再同时作为外部锁定技能安装。
 - **Tool (工具)**: e2e-cli
 - **Evidence (判据)**: 安装预设后只能发现插件提供的同名技能，外部技能锁定清单和外部安装批次中不存在该名称。
 
-### VAL-MIG-002
-- **Behavior (行为)**: 已安装旧外部版本的项目在安装 Auriga 工作流插件后不会保留重复或遮蔽插件技能的旧副本。
+### VAL-PUBL-002
+- **Behavior (行为)**: 安装 Auriga 工作流插件不会擅自修改旧外部技能；团队升级说明明确要求确认插件生效后人工清理重复副本。
 - **Tool (工具)**: repo-check
-- **Evidence (判据)**: 迁移契约测试证明旧的项目级和用户级技能副本会按既有迁移策略清理。
+- **Evidence (判据)**: 安装回归测试证明旧技能正文与锁文件保持不变；双语说明给出 `npx skills remove <skill-name>` 的人工清理路径。

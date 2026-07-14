@@ -41,7 +41,7 @@
 | `reviewer-creator` | Auriga 插件 | Claude Code / Codex | 待评审 |
 | `session-compound` | Auriga 插件 | Claude Code / Codex | 待评审 |
 | `spec-design` | Auriga 插件 | Claude Code / Codex | 待评审 |
-| [`systematic-debugging`](../../../worklog/worklog-2026-07-14-feat-model-generation-workflow-upgrade/systematic-debugging/review.md) | Auriga 插件；内化自 `obra/superpowers` | Claude Code / Codex | 内化；实现与迁移已完成，目标模型受控评测待补；PR #177 |
+| [`systematic-debugging`](../../../worklog/worklog-2026-07-14-feat-model-generation-workflow-upgrade/systematic-debugging/review.md) | Auriga 插件；内化自 `obra/superpowers` | Claude Code / Codex | 内化结论暂定；实现已合入 PR #177；PR #178 取消自动迁移并采用团队人工清理；模型评测未执行且不在 PR #178 范围内 |
 | `test-designer` | Auriga 插件 | Claude Code / Codex | 待评审 |
 
 ### Auriga 自有质量门禁技能
@@ -87,7 +87,7 @@
 
 ## 单项记录模板
 
-新增 `reviews/<asset-name>.md`，正文使用以下结构：
+评审进行时先新增 `docs/specs/<asset-name>/review.md`，并在同目录维护当前子 PR 的规范与验收契约。正式评审记录是长期总规范的验收证据，PR Ready 时必须归档到 `docs/worklog/` 或晋升到稳定文档，不能删除；临时规范与计划仍按工作流规则选择归档或删除。本索引只链接归档或晋升后的正式记录，不在长期规范里绕过子 PR 的生命周期门禁。正文使用以下结构：
 
 ```markdown
 # <asset-name> 评审

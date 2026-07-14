@@ -14,6 +14,14 @@ function read(rel: string): string {
   return fs.readFileSync(path.join(repoRoot, rel), "utf-8");
 }
 
+function markdownSection(text: string, heading: string): string {
+  const start = text.indexOf(heading);
+  assert.notEqual(start, -1, `missing markdown heading: ${heading}`);
+  const bodyStart = start + heading.length;
+  const nextHeading = text.indexOf("\n## ", bodyStart);
+  return text.slice(start, nextHeading === -1 ? text.length : nextHeading);
+}
+
 describe("spec-design skill — repo-check VALs", () => {
   test("VAL-DEP-003: SKILL.md exists at plugin-bundled path", () => {
     const p = path.join(
@@ -216,6 +224,161 @@ describe("spec-design skill — repo-check VALs", () => {
         /docs\/long-running-specs\/[\s\S]*(?:人工|manual)/i,
         `${f} must make long-running spec archival a manual lifecycle decision`,
       );
+    }
+  });
+
+  test("long-running umbrella template requires parent-to-child VAL traceability", () => {
+    const template = read(
+      "plugins/auriga-workflow/skills/spec-design/references/umbrella-template.md",
+    );
+    assert.ok(
+      template.includes("## Parent coverage map"),
+      "umbrella template must include a parent coverage map",
+    );
+    const coverage = markdownSection(template, "## Parent coverage map");
+    assert.match(
+      coverage,
+      /\| Parent VAL[^|]*\| Child spec[^|]*\| Child VAL[^|]*\| Status[^|]*\|/,
+      "umbrella parent coverage map must provide one structured four-column header",
+    );
+    assert.match(
+      coverage,
+      /docs\/worklog\//,
+      "umbrella template must require final worklog links after child-spec archival",
+    );
+  });
+
+  test("systematic-debugging records map parent VALs and separate implementation from model evaluation", () => {
+    const parentContract = read(
+      "docs/long-running-specs/model-generation-workflow-upgrade/validation-contract.md",
+    );
+    const umbrella = read(
+      "docs/long-running-specs/model-generation-workflow-upgrade/umbrella.md",
+    );
+    const reviewIndex = read(
+      "docs/long-running-specs/model-generation-workflow-upgrade/reviews/README.md",
+    );
+    const childReview = read(
+      "docs/worklog/worklog-2026-07-14-feat-model-generation-workflow-upgrade/systematic-debugging/review.md",
+    );
+
+    const parentCoverage = markdownSection(umbrella, "## Parent coverage map");
+    const parentIds = parentContract.match(/### (VAL-[A-Z]+-\d+)/g)?.map((line) => line.slice(4)) ?? [];
+    const expectedChildren: Record<string, string> = {
+      "VAL-INV-001": "待定",
+      "VAL-INV-002": "待定",
+      "VAL-REV-001": "待定",
+      "VAL-REV-002": "待定",
+      "VAL-REV-003": "待定",
+      "VAL-MIG-001": "待定",
+      "VAL-MIG-002": "VAL-PUBL-001..002、VAL-REMOVE-001、VAL-NOMUTATE-001",
+      "VAL-MIG-003": "VAL-PUBL-001、VAL-MANUAL-001、VAL-RELEASE-001",
+      "VAL-DOC-001": "VAL-LIFE-001",
+      "VAL-DOC-002": "VAL-LIFE-001",
+    };
+    assert.deepEqual(Object.keys(expectedChildren).sort(), [...parentIds].sort());
+    for (const parentVal of parentIds) {
+      const rows = parentCoverage.split("\n").filter((line) => line.startsWith(`| ${parentVal} |`));
+      assert.equal(rows.length, 1, `umbrella must contain exactly one coverage row for ${parentVal}`);
+      assert.match(
+        rows[0],
+        /\| (?:\[[^\]]+\]\([^\)]+validation-contract\.md\)|待定)(?:、\[[^\]]+\]\([^\)]+validation-contract\.md\))* \| (?:VAL-[A-Z]+-\d+(?:\.\.\d+)?(?:、VAL-[A-Z]+-\d+(?:\.\.\d+)?)*|待定) \| [^|]+ \|$/,
+        `${parentVal} must map to exact child contracts and child VALs, or be explicitly pending`,
+      );
+      const cells = rows[0].split("|").map((cell) => cell.trim());
+      assert.equal(cells[3], expectedChildren[parentVal], `${parentVal} must map to the intended child VALs`);
+      if (cells[3] !== "待定") {
+        const linkedContracts = [...cells[2].matchAll(/\(([^)]+validation-contract\.md)\)/g)]
+          .map((match) => fs.readFileSync(path.resolve(
+            repoRoot,
+            "docs/long-running-specs/model-generation-workflow-upgrade",
+            match[1],
+          ), "utf-8"));
+        assert.ok(linkedContracts.length > 0, `${parentVal} must link its child contracts`);
+        for (const range of cells[3].matchAll(/VAL-([A-Z]+)-(\d+)(?:\.\.(\d+))?/g)) {
+          const [, family, startRaw, endRaw] = range;
+          const start = Number(startRaw);
+          const end = endRaw ? Number(endRaw) : start;
+          for (let value = start; value <= end; value += 1) {
+            const childVal = `VAL-${family}-${String(value).padStart(startRaw.length, "0")}`;
+            assert.ok(
+              linkedContracts.some((contract) => contract.includes(`### ${childVal}`)),
+              `${parentVal} references missing child assertion ${childVal}`,
+            );
+          }
+        }
+      }
+    }
+    assert.ok(
+      umbrella.includes("## Parent coverage map"),
+      "active long-running umbrella must carry the parent coverage map",
+    );
+    const systematicRow = markdownSection(umbrella, "## Sub-specs")
+      .split("\n")
+      .find((line) => line.includes("systematic-debugging"));
+    assert.ok(systematicRow, "umbrella must keep the systematic-debugging child row");
+    assert.match(systematicRow, /实现[^|]*(?:完成|已合入).*PR #177/);
+    assert.match(systematicRow, /PR #178[^|]*(?:取消自动迁移|人工清理)/);
+    assert.match(systematicRow, /模型评测[^|]*(?:未执行|不在[^|]*范围)/);
+    for (const text of [reviewIndex, childReview]) {
+      assert.match(text, /实现[^\n]*(?:完成|已合入)/, "must state implementation status");
+      assert.match(text, /PR #178[^\n]*(?:取消自动迁移|人工清理)/, "must state manual cleanup decision");
+      assert.match(text, /模型评测[^\n]*(?:未执行|不在[^\n]*范围)/, "must state model evaluation status");
+    }
+    assert.match(
+      reviewIndex,
+      /docs\/specs\/<asset-name>\/review\.md[\s\S]*docs\/worklog\//,
+      "review index must route child records through PR-scoped specs and Ready archival",
+    );
+    assert.match(
+      reviewIndex,
+      /正式评审记录[^\n]*(?:不能删除|不得删除)/,
+      "formal child review evidence must survive the Ready transition",
+    );
+  });
+
+  test("archived child contract uses unique VAL ids and maps them to parent assertions", () => {
+    const parent = read(
+      "docs/long-running-specs/model-generation-workflow-upgrade/validation-contract.md",
+    );
+    const child = read(
+      "docs/worklog/worklog-2026-07-14-feat-model-generation-workflow-upgrade/systematic-debugging/validation-contract.md",
+    );
+    const parentIds = new Set(parent.match(/### (VAL-[A-Z]+-\d+)/g)?.map((line) => line.slice(4)) ?? []);
+    const repair = read(
+      "docs/worklog/worklog-2026-07-14-fix-migrated-skill-cleanup/validation-contract.md",
+    );
+    const childIds = [child, repair]
+      .flatMap((text) => text.match(/### (VAL-[A-Z]+-\d+)/g)?.map((line) => line.slice(4)) ?? []);
+
+    assert.equal(
+      childIds.some((id) => parentIds.has(id)),
+      false,
+      "child VAL ids must not collide with parent VAL ids",
+    );
+    const childCoverage = markdownSection(child, "## Parent coverage map");
+    assert.ok(
+      childCoverage.includes("## Parent coverage map"),
+      "archived child contract must preserve its mapping to the parent contract",
+    );
+    assert.ok(childCoverage.includes("VAL-PUBL-001..002"), "parent coverage map must reference both publish VALs");
+    assert.equal(childCoverage.includes("VAL-DIAG-001"), false, "behavior VALs must not stand in for model evidence");
+    assert.equal(childCoverage.includes("VAL-PROD-001"), false, "production VALs must not stand in for model evidence");
+
+    assert.equal(new Set(childIds).size, childIds.length, "child VAL ids must be unique across archived contracts");
+    const repairCoverage = markdownSection(repair, "## Parent coverage map");
+    for (const row of [
+      ["VAL-MIG-002", "VAL-REMOVE-001", "VAL-NOMUTATE-001"],
+      ["VAL-MIG-003", "VAL-MANUAL-001", "VAL-RELEASE-001"],
+      ["VAL-DOC-001", "VAL-LIFE-001"],
+      ["VAL-DOC-002", "VAL-LIFE-001"],
+    ]) {
+      const [parentVal, ...childVals] = row;
+      const line = repairCoverage.split("\n").find((candidate) => candidate.startsWith(`| ${parentVal} |`));
+      assert.ok(line, `repair child contract must map ${parentVal}`);
+      for (const childVal of childVals) {
+        assert.ok(line.includes(childVal), `${parentVal} row must map ${childVal}`);
+      }
     }
   });
 
