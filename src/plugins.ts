@@ -159,10 +159,13 @@ interface PluginInfo {
   scope: string;
   projectPath?: string;
   installPath?: string;
+  enabled?: unknown;
 }
 
 interface CodexPluginInfo {
   pluginId?: unknown;
+  installed?: unknown;
+  enabled?: unknown;
   source?: { path?: unknown };
 }
 
@@ -185,7 +188,11 @@ function getInstalledPluginInfos(cwd: string = process.cwd()): PluginInfo[] {
   try {
     const output = exec("claude plugins list --json");
     const plugins: PluginInfo[] = JSON.parse(output);
-    return plugins.filter((p) => p.scope !== "project" || p.projectPath === cwd);
+    return plugins.filter(
+      (p) => p.scope !== "project" || (
+        typeof p.projectPath === "string" && sameFilesystemPath(p.projectPath, cwd)
+      ),
+    );
   } catch {
     return [];
   }
@@ -207,7 +214,7 @@ function findClaudeInstalledPluginRoot(
   cwd: string,
 ): string | undefined {
   const info = getInstalledPluginInfos(cwd).find(
-    (plugin) => plugin.id === pluginPackage && plugin.scope === scope,
+    (plugin) => plugin.id === pluginPackage && plugin.scope === scope && plugin.enabled !== false,
   );
   return typeof info?.installPath === "string" ? info.installPath : undefined;
 }
@@ -215,7 +222,9 @@ function findClaudeInstalledPluginRoot(
 function findCodexInstalledPluginRoot(pluginKey: string): string | undefined {
   try {
     const raw = JSON.parse(exec("codex plugin list --json")) as { installed?: CodexPluginInfo[] };
-    const info = raw.installed?.find((plugin) => plugin.pluginId === pluginKey);
+    const info = raw.installed?.find(
+      (plugin) => plugin.pluginId === pluginKey && plugin.installed !== false && plugin.enabled !== false,
+    );
     return typeof info?.source?.path === "string" ? info.source.path : undefined;
   } catch {
     return undefined;
@@ -415,7 +424,8 @@ function installTargetCwd(opts: InstallOpts): string {
 }
 
 function emitMigrationLog(opts: InstallOpts, line: string): void {
-  opts.onLog?.(line, "stdout");
+  if (opts.onLog) opts.onLog(line, "stdout");
+  else log.ok(line);
 }
 
 function emitMigrationWarning(opts: InstallOpts, line: string): void {
@@ -435,13 +445,38 @@ function legacySkillDirAt(
   return path.join(baseDir, runtimeSkillRoot(runtime), "skills", name);
 }
 
+function pathEntryExists(targetPath: string): boolean {
+  return fs.lstatSync(targetPath, { throwIfNoEntry: false }) !== undefined;
+}
+
+function canonicalFilesystemPath(targetPath: string): string {
+  try {
+    return fs.realpathSync.native(targetPath);
+  } catch {
+    return path.resolve(targetPath);
+  }
+}
+
+function sameFilesystemPath(a: string, b: string): boolean {
+  return canonicalFilesystemPath(a) === canonicalFilesystemPath(b);
+}
+
+function hasReadableSkillFile(skillDir: string): boolean {
+  try {
+    const skillFile = path.join(skillDir, "SKILL.md");
+    return fs.statSync(skillFile).isFile() && fs.readFileSync(skillFile, "utf-8").trim().length > 0;
+  } catch {
+    return false;
+  }
+}
+
 function isWorkflowPluginDevSymlink(skillPath: string, cwd: string, name: string): boolean {
   const stat = fs.lstatSync(skillPath, { throwIfNoEntry: false });
   if (!stat?.isSymbolicLink()) return false;
   const target = fs.readlinkSync(skillPath);
   const resolved = path.resolve(path.dirname(skillPath), target);
   const expected = path.resolve(cwd, "plugins", "auriga-workflow", "skills", name);
-  return resolved === expected;
+  return sameFilesystemPath(resolved, expected) && hasReadableSkillFile(skillPath);
 }
 
 interface SkillLockFile {
@@ -483,7 +518,7 @@ function removeMigratedSkillFromLock(
 
 interface MigratedSkillCleanupTarget {
   baseDir: string;
-  lockPath: string;
+  lockPaths: string[];
   preserveDevelopmentSymlinks: boolean;
 }
 
@@ -494,7 +529,7 @@ function migratedSkillCleanupTargets(
   const cwd = installTargetCwd(opts);
   const projectTarget: MigratedSkillCleanupTarget = {
     baseDir: cwd,
-    lockPath: path.join(cwd, "skills-lock.json"),
+    lockPaths: [path.join(cwd, "skills-lock.json")],
     preserveDevelopmentSymlinks: true,
   };
   const includeUserTarget = (opts.scope ?? "project") === "user" || runtimes.includes("codex");
@@ -503,10 +538,45 @@ function migratedSkillCleanupTargets(
   const home = os.homedir();
   const userTarget: MigratedSkillCleanupTarget = {
     baseDir: home,
-    lockPath: path.join(home, ".agents", ".skill-lock.json"),
+    lockPaths: [path.join(home, ".agents", ".skill-lock.json")],
     preserveDevelopmentSymlinks: false,
   };
-  return path.resolve(home) === path.resolve(cwd) ? [userTarget] : [userTarget, projectTarget];
+  if (!sameFilesystemPath(home, cwd)) return [userTarget, projectTarget];
+  return [{
+    baseDir: cwd,
+    lockPaths: [...userTarget.lockPaths, ...projectTarget.lockPaths],
+    preserveDevelopmentSymlinks: true,
+  }];
+}
+
+function managedLockPathsForSkill(
+  target: MigratedSkillCleanupTarget,
+  name: keyof typeof MIGRATED_WORKFLOW_SKILL_SOURCES,
+): { managedLockPaths: string[]; preservationReason?: string } {
+  const managedLockPaths: string[] = [];
+  for (const lockPath of target.lockPaths) {
+    const exists = fs.existsSync(lockPath);
+    const lock = readSkillLock(lockPath);
+    if (exists && lock === null) {
+      return { managedLockPaths: [], preservationReason: `lock file is unreadable: ${lockPath}` };
+    }
+    const entry = lock?.skills?.[name];
+    if (!entry) continue;
+    if (!lockHasManagedSource(lock, name)) {
+      return {
+        managedLockPaths: [],
+        preservationReason: `lock provenance does not match the migrated source: ${lockPath}`,
+      };
+    }
+    managedLockPaths.push(lockPath);
+  }
+  if (managedLockPaths.length === 0) {
+    return {
+      managedLockPaths,
+      preservationReason: "lock provenance does not match the migrated source",
+    };
+  }
+  return { managedLockPaths };
 }
 
 function hasLegacySkillCopy(
@@ -516,8 +586,7 @@ function hasLegacySkillCopy(
 ): boolean {
   return (["claude", "codex"] as const).some((runtime) => {
     const dir = legacySkillDirAt(target.baseDir, runtime, name);
-    const stat = fs.lstatSync(dir, { throwIfNoEntry: false });
-    if (!stat) return false;
+    if (!hasReadableSkillFile(dir)) return false;
     return !(
       target.preserveDevelopmentSymlinks &&
       isWorkflowPluginDevSymlink(dir, cwd, name)
@@ -543,15 +612,23 @@ function materializeUnselectedClaudeCopy(
   }
 
   const resolved = path.resolve(path.dirname(claudeDir), fs.readlinkSync(claudeDir));
-  if (resolved !== path.resolve(codexDir) || !fs.existsSync(codexDir)) return;
+  if (!sameFilesystemPath(resolved, codexDir) || !hasReadableSkillFile(codexDir)) return;
 
   const staged = `${claudeDir}.auriga-migration-${process.pid}`;
+  const originalLink = `${claudeDir}.auriga-original-${process.pid}`;
   fs.cpSync(codexDir, staged, { recursive: true, dereference: true });
+  fs.renameSync(claudeDir, originalLink);
   try {
-    fs.rmSync(claudeDir, { force: true });
     fs.renameSync(staged, claudeDir);
+    fs.rmSync(originalLink, { force: true });
+  } catch (error) {
+    if (!pathEntryExists(claudeDir) && pathEntryExists(originalLink)) {
+      fs.renameSync(originalLink, claudeDir);
+    }
+    throw error;
   } finally {
     fs.rmSync(staged, { recursive: true, force: true });
+    if (pathEntryExists(claudeDir)) fs.rmSync(originalLink, { force: true });
   }
   emitMigrationLog(opts, `materialized ${claudeDir} before removing its shared Codex target`);
 }
@@ -561,10 +638,10 @@ function hasManagedLegacySkillCandidate(
   runtimes: PluginRuntime[],
 ): boolean {
   for (const target of migratedSkillCleanupTargets(opts, runtimes)) {
-    const lock = readSkillLock(target.lockPath);
     for (const name of MIGRATED_WORKFLOW_SKILLS) {
-      if (!lockHasManagedSource(lock, name)) continue;
-      if (runtimes.some((runtime) => fs.existsSync(legacySkillDirAt(target.baseDir, runtime, name)))) {
+      const { managedLockPaths } = managedLockPathsForSkill(target, name);
+      if (managedLockPaths.length === 0) continue;
+      if (runtimes.some((runtime) => pathEntryExists(legacySkillDirAt(target.baseDir, runtime, name)))) {
         return true;
       }
     }
@@ -574,7 +651,7 @@ function hasManagedLegacySkillCandidate(
 
 function assertWorkflowPluginProvidesMigratedSkills(pluginRoot: string | undefined): void {
   const missing = MIGRATED_WORKFLOW_SKILLS.filter(
-    (name) => !pluginRoot || !fs.existsSync(path.join(pluginRoot, "skills", name, "SKILL.md")),
+    (name) => !pluginRoot || !hasReadableSkillFile(path.join(pluginRoot, "skills", name)),
   );
   if (missing.length > 0) {
     throw new Error(
@@ -592,21 +669,30 @@ function cleanupMigratedWorkflowSkillInstalls(
 
   for (const name of MIGRATED_WORKFLOW_SKILLS) {
     for (const target of targets) {
-      const lock = readSkillLock(target.lockPath);
-      if (!lockHasManagedSource(lock, name)) {
+      const { managedLockPaths, preservationReason } = managedLockPathsForSkill(target, name);
+      if (managedLockPaths.length === 0) {
         const hasCopy = (["claude", "codex"] as const).some((runtime) =>
-          fs.existsSync(legacySkillDirAt(target.baseDir, runtime, name))
+          pathEntryExists(legacySkillDirAt(target.baseDir, runtime, name))
         );
         if (hasCopy) {
-          const reason = fs.existsSync(target.lockPath) && lock === null
-            ? `lock file is unreadable: ${target.lockPath}`
-            : `lock provenance does not match the migrated source`;
-          emitMigrationWarning(opts, `preserved ${name} under ${target.baseDir}: ${reason}`);
+          emitMigrationWarning(
+            opts,
+            `preserved ${name} under ${target.baseDir}: ${preservationReason}`,
+          );
         }
         continue;
       }
 
       materializeUnselectedClaudeCopy(target, cwd, name, runtimes, opts);
+
+      for (const runtime of ["claude", "codex"] as const) {
+        const dir = legacySkillDirAt(target.baseDir, runtime, name);
+        const stat = fs.lstatSync(dir, { throwIfNoEntry: false });
+        if (stat?.isSymbolicLink() && !hasReadableSkillFile(dir)) {
+          fs.rmSync(dir, { force: true });
+          emitMigrationLog(opts, `removed dangling ${dir}`);
+        }
+      }
 
       for (const runtime of runtimes) {
         const dir = legacySkillDirAt(target.baseDir, runtime, name);
@@ -624,7 +710,9 @@ function cleanupMigratedWorkflowSkillInstalls(
       }
 
       if (!hasLegacySkillCopy(target, cwd, name)) {
-        removeMigratedSkillFromLock(target.lockPath, name, opts);
+        for (const lockPath of managedLockPaths) {
+          removeMigratedSkillFromLock(lockPath, name, opts);
+        }
       }
     }
   }

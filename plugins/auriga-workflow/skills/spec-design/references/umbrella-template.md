@@ -23,6 +23,8 @@
 |---|---|---|---|
 | VAL-PARENT-001 | `docs/specs/<feature-1>/validation-contract.md` | VAL-CHILD-001 | planned / passed / not run / out of scope |
 
+子 PR Ready 时若子规范从 `docs/specs/` 归档到 `docs/worklog/` 或晋升为稳定文档，必须在同一 PR 中把本表链接更新为最终路径，长期总览不得保留失效的开发期链接。
+
 ## Slicing axis (拆分轴)
 <Walking Skeleton / By risk / Horizontal sweep / Branch by Abstraction / Vertical slice>。<为何选这条轴。>
 ```

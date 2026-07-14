@@ -14,6 +14,14 @@ function read(rel: string): string {
   return fs.readFileSync(path.join(repoRoot, rel), "utf-8");
 }
 
+function markdownSection(text: string, heading: string): string {
+  const start = text.indexOf(heading);
+  assert.notEqual(start, -1, `missing markdown heading: ${heading}`);
+  const bodyStart = start + heading.length;
+  const nextHeading = text.indexOf("\n## ", bodyStart);
+  return text.slice(start, nextHeading === -1 ? text.length : nextHeading);
+}
+
 describe("spec-design skill — repo-check VALs", () => {
   test("VAL-DEP-003: SKILL.md exists at plugin-bundled path", () => {
     const p = path.join(
@@ -227,12 +235,17 @@ describe("spec-design skill — repo-check VALs", () => {
       template.includes("## Parent coverage map"),
       "umbrella template must include a parent coverage map",
     );
-    for (const column of ["Parent VAL", "Child spec", "Child VAL", "Status"]) {
-      assert.ok(
-        template.includes(column),
-        `umbrella parent coverage map must include ${column}`,
-      );
-    }
+    const coverage = markdownSection(template, "## Parent coverage map");
+    assert.match(
+      coverage,
+      /\| Parent VAL[^|]*\| Child spec[^|]*\| Child VAL[^|]*\| Status[^|]*\|/,
+      "umbrella parent coverage map must provide one structured four-column header",
+    );
+    assert.match(
+      coverage,
+      /docs\/worklog\//,
+      "umbrella template must require final worklog links after child-spec archival",
+    );
   });
 
   test("systematic-debugging records map parent VALs and separate implementation from model evaluation", () => {
@@ -246,14 +259,18 @@ describe("spec-design skill — repo-check VALs", () => {
       "docs/worklog/worklog-2026-07-14-feat-model-generation-workflow-upgrade/systematic-debugging/review.md",
     );
 
+    const parentCoverage = markdownSection(umbrella, "## Parent coverage map");
     for (const parentVal of [
       "VAL-REV-001",
       "VAL-REV-002",
       "VAL-MIG-002",
       "VAL-MIG-003",
+      "VAL-DOC-001",
+      "VAL-DOC-002",
     ]) {
-      assert.ok(
-        umbrella.includes(parentVal),
+      assert.match(
+        parentCoverage,
+        new RegExp(`\\| ${parentVal} \\|[^\\n]*validation-contract\\.md[^\\n]*\\|[^\\n]*VAL-`),
         `umbrella must map ${parentVal} to the systematic-debugging child contract`,
       );
     }
@@ -279,6 +296,11 @@ describe("spec-design skill — repo-check VALs", () => {
       /docs\/specs\/<asset-name>\/review\.md[\s\S]*docs\/worklog\//,
       "review index must route child records through PR-scoped specs and Ready archival",
     );
+    assert.match(
+      reviewIndex,
+      /正式评审记录[^\n]*(?:不能删除|不得删除)/,
+      "formal child review evidence must survive the Ready transition",
+    );
   });
 
   test("archived child contract uses unique VAL ids and maps them to parent assertions", () => {
@@ -296,12 +318,31 @@ describe("spec-design skill — repo-check VALs", () => {
       false,
       "child VAL ids must not collide with parent VAL ids",
     );
+    const childCoverage = markdownSection(child, "## Parent coverage map");
     assert.ok(
-      child.includes("## Parent coverage map"),
+      childCoverage.includes("## Parent coverage map"),
       "archived child contract must preserve its mapping to the parent contract",
     );
     for (const childVal of ["VAL-DIAG-001", "VAL-PROD-001", "VAL-PUBL-001"]) {
-      assert.ok(child.includes(childVal), `parent coverage map must reference ${childVal}`);
+      assert.ok(childCoverage.includes(childVal), `parent coverage map must reference ${childVal}`);
+    }
+
+    const repair = read(
+      "docs/worklog/worklog-2026-07-14-fix-migrated-skill-cleanup/validation-contract.md",
+    );
+    const repairCoverage = markdownSection(repair, "## Parent coverage map");
+    for (const row of [
+      ["VAL-MIG-002", "VAL-SAFE-001", "VAL-INST-001"],
+      ["VAL-MIG-003", "VAL-SAFE-002", "VAL-SAFE-004"],
+      ["VAL-DOC-001", "VAL-TRACE-001"],
+      ["VAL-DOC-002", "VAL-TRACE-001"],
+    ]) {
+      const [parentVal, ...childVals] = row;
+      const line = repairCoverage.split("\n").find((candidate) => candidate.startsWith(`| ${parentVal} |`));
+      assert.ok(line, `repair child contract must map ${parentVal}`);
+      for (const childVal of childVals) {
+        assert.ok(line.includes(childVal), `${parentVal} row must map ${childVal}`);
+      }
     }
   });
 

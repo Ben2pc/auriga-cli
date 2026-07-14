@@ -318,7 +318,7 @@ describe(
     });
 
     test(
-      "install plugins --agent both --plugin auriga-workflow → historical shared skill copy is safely migrated",
+      "preset plugins + skills for both runtimes → plugin skill is discoverable and historical shared copy is migrated",
       {
         skip: CLAUDE_AVAILABLE && CODEX_AVAILABLE
           ? undefined
@@ -351,7 +351,7 @@ describe(
         );
         const r = runCli(
           proj,
-          ["install", "plugins", "--agent", "both", "--plugin", "auriga-workflow"],
+          ["install", "--preset-plugins-skills", "--scope", "project", "--agent", "both"],
           { HOME: runtimeHome, CODEX_HOME: codexHome },
         );
         // A freshly renamed/added plugin is not in the Claude marketplace
@@ -373,10 +373,56 @@ describe(
         assert.ok(fs.existsSync(settings), `.claude/settings.json missing at ${settings}`);
         const content = fs.readFileSync(settings, "utf-8");
         assert.match(content, /auriga-workflow/, "auriga-workflow not mentioned in .claude/settings.json");
+
+        const runtimeEnv: NodeJS.ProcessEnv = {
+          ...process.env,
+          HOME: runtimeHome,
+          CODEX_HOME: codexHome,
+        };
+        const claudeList = run("claude", ["plugins", "list", "--json"], { cwd: proj, env: runtimeEnv });
+        assert.equal(
+          claudeList.status,
+          0,
+          `claude plugins list failed: ${claudeList.stderr || claudeList.stdout}`,
+        );
+        const claudePlugin = (JSON.parse(claudeList.stdout) as Array<{
+          id?: string;
+          enabled?: boolean;
+          installPath?: string;
+        }>).find((plugin) => plugin.id === "auriga-workflow@auriga-cli" && plugin.enabled !== false);
+        assert.ok(claudePlugin?.installPath, "Claude must report the enabled auriga-workflow install root");
+        assert.ok(
+          fs.existsSync(path.join(claudePlugin.installPath, "skills", "systematic-debugging", "SKILL.md")),
+          "Claude must discover systematic-debugging from the installed plugin payload",
+        );
+
+        const codexList = run("codex", ["plugin", "list", "--json"], { cwd: proj, env: runtimeEnv });
+        assert.equal(
+          codexList.status,
+          0,
+          `codex plugin list failed: ${codexList.stderr || codexList.stdout}`,
+        );
+        const codexPlugin = (JSON.parse(codexList.stdout) as {
+          installed?: Array<{
+            pluginId?: string;
+            installed?: boolean;
+            enabled?: boolean;
+            source?: { path?: string };
+          }>;
+        }).installed?.find(
+          (plugin) => plugin.pluginId === "auriga-workflow@auriga-cli"
+            && plugin.installed !== false
+            && plugin.enabled !== false,
+        );
+        assert.ok(codexPlugin?.source?.path, "Codex must report the enabled auriga-workflow install root");
+        assert.ok(
+          fs.existsSync(path.join(codexPlugin.source.path, "skills", "systematic-debugging", "SKILL.md")),
+          "Codex must discover systematic-debugging from the installed plugin payload",
+        );
         assert.equal(
           fs.existsSync(claudeLegacyDir),
           false,
-          "legacy Claude compatibility symlink should not shadow the plugin skill",
+          "legacy Claude compatibility symlink should not shadow the preset plugin skill",
         );
         assert.equal(
           fs.existsSync(codexLegacyDir),
