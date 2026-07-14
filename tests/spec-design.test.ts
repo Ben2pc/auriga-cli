@@ -393,6 +393,9 @@ describe("spec-design skill — repo-check VALs", () => {
     const tddCoverage = markdownSection(unifiedTdd, "## Parent coverage map");
     assert.match(tddCoverage, /\| VAL-REV-003 \| VAL-RISK-001 \|/);
     assert.match(tddCoverage, /\| VAL-MIG-001 \| VAL-ASSET-001、VAL-FLOW-002 \|/);
+    assert.doesNotMatch(tddCoverage, /VAL-FLOW-001/);
+    const tddActiveCoverage = markdownSection(unifiedTdd, "## Coverage map");
+    assert.doesNotMatch(tddActiveCoverage, /VAL-FLOW-001/);
     const tddAssertions = markdownSection(unifiedTdd, "## Assertions");
     assert.doesNotMatch(tddAssertions, /### VAL-FLOW-001/);
     assert.match(unifiedTdd, /## Withdrawn assertion history[\s\S]*`VAL-FLOW-001`[^\n]*不再属于[^\n]*最终验收/);
