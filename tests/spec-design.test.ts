@@ -119,7 +119,7 @@ describe("spec-design skill — repo-check VALs", () => {
     );
   });
 
-  test("VAL-DEP-001: product workflow templates (both languages) reference spec-design and not brainstorming", () => {
+  test("VAL-DEP-001: product workflow templates keep the three-stage clarification boundary", () => {
     for (const f of ["AGENTS.template.zh-CN.md", "AGENTS.template.en.md"]) {
       const text = read(f);
       assert.ok(
@@ -133,8 +133,18 @@ describe("spec-design skill — repo-check VALs", () => {
       );
       assert.match(
         text,
-        /spec\s*=\s*why\s*\+\s*what/i,
-        `${f} must include the spec/plan boundary rule`,
+        /spec\s*=\s*why\s*\+\s*(?:用户可观察的\s*)?(?:observable\s*)?what/i,
+        `${f} must define the observable spec boundary`,
+      );
+      assert.match(
+        text,
+        /arch design\s*=\s*(?:系统结构的|structural)\s*how/i,
+        `${f} must define architecture design as structural clarification`,
+      );
+      assert.match(
+        text,
+        /plan\s*=\s*(?:实施步骤|implementation steps)/i,
+        `${f} must reserve implementation steps for planning`,
       );
       assert.equal(
         /ln -s CLAUDE\.md AGENTS\.md|AGENTS\.md (?:的)?软链接.*CLAUDE\.md|AGENTS\.md symlink to CLAUDE\.md/i.test(text),
@@ -169,7 +179,13 @@ describe("spec-design skill — repo-check VALs", () => {
   test("workflow templates keep the unified TDD trigger and refactor boundary", () => {
     for (const f of ["AGENTS.md", "AGENTS.template.zh-CN.md", "AGENTS.template.en.md"]) {
       const text = read(f);
-      assert.match(text, /v1\.16\.0/, `${f} must advance the workflow contract version`);
+      const version = text.match(/v(\d+)\.(\d+)\.(\d+)/);
+      assert.ok(version, `${f} must declare the workflow contract version`);
+      assert.ok(
+        Number(version[1]) > 1 ||
+          (Number(version[1]) === 1 && Number(version[2]) >= 16),
+        `${f} must preserve at least the unified-TDD workflow contract version`,
+      );
       assert.doesNotMatch(
         text,
         /不另派[^。\n]*测试|测试设计由当前实现|current implementation Agent owns test design|separate test Agent/i,

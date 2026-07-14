@@ -1,9 +1,9 @@
 <!-- AURIGA:WORKFLOW:v1 START — 受管区块,由 auriga-cli 维护,请勿手改;升级会整块覆盖。工程专属规则写在下方 END 标记之后。 -->
-# auriga 工作流 (v1.16.0)
+# auriga 工作流 (v1.17.0)
 
-1. 需求澄清：新需求先用 `spec-design` 澄清。**spec = why + what; plan = how**——requirement 只写"做什么"和验收标准，不写技术路径；产品功能优先讲清"Why"。改动不影响外部行为契约时跳过 spec 直进 plan。
+1. 需求澄清：新需求先用 `spec-design` 澄清。**spec = why + 用户可观察的 what；arch design = 系统结构的 how；plan = 实施步骤**——需求规格不写技术路径；产品功能优先讲清“为什么做”。改动不影响外部行为契约时可以跳过需求规格，但技术方案仍可能需要架构澄清。
 
-2. 方案计划：先做规模判定——三条谓词（见「快速开发流程」）全部成立走快速流程，否则走完整路径：架构吃重（跨模块、重划边界、"怎么做"不显然）先跑 `arch-design`；再用 `AskUserQuestion` / `request_user_input` 摆全菜单选执行跟踪方式——内置 Plan（中等复杂度）、`planning-with-files`（长程持久跟踪）、`goalify`（自驱 `/goal`）。
+2. 方案计划：先做规模判定——三条谓词（见「快速开发流程」）全部成立走快速流程，否则走完整路径。新功能跨模块、需要重划边界、“怎么做”不显然，或用户要求优化既有架构、澄清领域模型和职责时，先跑 `arch-design`；存在实质性设计决策时先形成便于人工评审的 `arch_design.md`，取得用户确认后再规划实施。然后用 `AskUserQuestion` / `request_user_input` 摆全菜单选执行跟踪方式——内置 Plan（中等复杂度）、`planning-with-files`（长程持久跟踪）、`goalify`（自驱 `/goal`）。
 
 3. 分支先行：写码前从 main 建分支，禁止直接提交 main。命名前缀：`feat/`、`fix/`、`docs/`、`refactor/`、`chore/`。所有 git/gh 操作走 `git-workflow`。
 

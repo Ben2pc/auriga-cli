@@ -1,9 +1,9 @@
 <!-- AURIGA:WORKFLOW:v1 START — Managed block, maintained by auriga-cli. Do not edit by hand; upgrades replace it wholesale. Put project-specific instructions after the END marker below. -->
-# auriga Workflow (v1.16.0)
+# auriga Workflow (v1.17.0)
 
-1. Requirement Clarification: Clarify new requirements with `spec-design` first. **spec = why + what; plan = how** — requirements state "what to do" and acceptance criteria, not technical paths; for product features, lead with the "Why". Skip spec and go straight to plan when a change doesn't move the external behavior contract.
+1. Requirement Clarification: Clarify new requirements with `spec-design` first. **spec = why + observable what; arch design = structural how; plan = implementation steps** — requirements do not prescribe technical paths; for product features, lead with the Why. A change that does not move the external behavior contract may skip the spec, but its technical design may still need architecture clarification.
 
-2. Planning: Run scope triage first — when all three predicates hold (see "Quick Development Flow"), take the quick flow; otherwise take the full path: if the work is architecture-heavy (spans modules, redraws boundaries, or the *how* is non-obvious), run `arch-design` first; then use `AskUserQuestion` / `request_user_input` to present the full execution-tracking menu — built-in Plan (medium complexity), `planning-with-files` (long-running, persistent tracking), `goalify` (autonomous `/goal`).
+2. Planning: Run scope triage first — when all three predicates hold (see "Quick Development Flow"), take the quick flow; otherwise take the full path. Run `arch-design` first when a new feature spans modules, redraws boundaries, or has a non-obvious approach, and when the user asks to improve an existing architecture or clarify a domain model and its responsibilities. When substantive design decisions exist, produce a human-reviewable `arch_design.md` and obtain user approval before implementation planning. Then use `AskUserQuestion` / `request_user_input` to present the full execution-tracking menu — built-in Plan (medium complexity), `planning-with-files` (long-running, persistent tracking), `goalify` (autonomous `/goal`).
 
 3. Branch first: Create a branch from main before writing code; never commit directly to main. Prefixes: `feat/`, `fix/`, `docs/`, `refactor/`, `chore/`. All git/gh operations go through `git-workflow`.
 
