@@ -41,10 +41,13 @@ describe("auriga-workflow skill contracts", () => {
     ]) {
       assert.ok(text.includes(anchor), `unified TDD must keep the ${anchor} contract`);
     }
+    assert.match(text, /每条验收断言[^。\n]*不等于单个验证用例/);
+    assert.match(text, /按 `?Tool`? 选择验证方式/);
+    assert.match(text, /按风险[^；。\n]*一个或多个必要用例/);
     assert.match(
       text,
-      /每条验收断言[^。\n]*不等于一个测试用例[^。\n]*一个或多个必要用例/,
-      "one validation assertion may require multiple risk-driven test cases",
+      /测试类断言[^。\n]*多个测试用例/,
+      "one test-oriented validation assertion may require multiple test cases",
     );
     assert.doesNotMatch(
       text,
@@ -54,6 +57,16 @@ describe("auriga-workflow skill contracts", () => {
     assert.ok(
       text.split("\n").length <= 80,
       "the unified TDD skill must stay within an 80-line context budget",
+    );
+    assert.match(
+      text,
+      /测试设计和实现[^。\n]{0,16}(?:由|归)[^。\n]{0,12}当前实现代理[^。\n]{0,12}(?:完成|负责)/,
+      "the independently installable skill must keep test design with the implementation agent",
+    );
+    assert.match(
+      text,
+      /不[^。\n]{0,8}(?:另派|派发)[^。\n]{0,8}(?:独立)?测试代理/,
+      "the independently installable skill must reject a separate test agent",
     );
     assert.doesNotMatch(text, /xhigh|最强模型|全新会话|fresh context/i);
     assert.match(
