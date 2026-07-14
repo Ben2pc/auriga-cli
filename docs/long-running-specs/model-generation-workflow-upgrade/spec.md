@@ -13,9 +13,9 @@ Auriga 同时包含自有工作流技能、锁定版本的外部技能和不受�
 ## Findings (调研发现)
 
 - 当前仓库维护 18 个自有技能：`plugins/auriga-workflow/skills/` 中有 13 个工作流技能，`plugins/quality-gate-scaffolder/skills/` 中有 5 个质量门禁脚手架技能；它们都通过双运行时插件发布。
-- 当前仓库在 `skills-lock.json` 中锁定 10 个外部技能，其中 `test-driven-development`、`verification-before-completion` 来自 `obra/superpowers`，并作为预设工作流的一部分安装；`systematic-debugging` 已在 PR #177 内化到 `auriga-workflow`。
+- 当前仓库在 `skills-lock.json` 中锁定 9 个外部技能；`verification-before-completion` 仍来自 `obra/superpowers`，`systematic-debugging` 已在 PR #177 内化到 `auriga-workflow`，外部 `test-driven-development` 则在当前子项中由精简自有版本替代。
 - `extra_plugin_configs.json` 还声明了 5 个具有外部升级边界或可选策略的插件；这些插件的正文与发布节奏不完全由 Auriga 控制。
-- `docs/architecture/auriga-cli-dev-guide.md` 规定，自有技能的输出契约形成 `spec-design`、`test-designer`、`deep-review`、`incremental-impl` 之间的消费链，不能孤立修改。
+- `docs/architecture/auriga-cli-dev-guide.md` 规定，自有技能的输出契约形成 `spec-design`、`test-driven-development`、`deep-review`、`incremental-impl` 之间的消费链，不能孤立修改。
 - `README.zh-CN.md` 明确列出 `obra/superpowers` 与 `mattpocock/skills` 是当前工作流的灵感来源；后续评审需要区分“理念参考”与“运行时依赖”。
 - 用户在 2026-07-14 提供的 X 搜索快照显示，社区对新模型是否仍需要复杂工作流存在明显分歧；这些帖子可以提供假设，但不能替代可复现的模型行为证据。
 - 仓库不存在 `docs/rules/spec/`，本规范没有额外的项目专属规范规则。

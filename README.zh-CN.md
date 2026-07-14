@@ -106,7 +106,6 @@ npx auriga-cli
 
 | Skill | 来源 | 说明 |
 |---|---|---|
-| test-driven-development | [obra/superpowers](https://github.com/obra/superpowers) | 测试驱动开发流程 |
 | verification-before-completion | [obra/superpowers](https://github.com/obra/superpowers) | 完成前验证，用证据说话 |
 | planning-with-files | [OthmanAdi/planning-with-files](https://github.com/OthmanAdi/planning-with-files) | 文件化任务计划与进度跟踪 |
 | playwright-cli | [microsoft/playwright-cli](https://github.com/microsoft/playwright-cli) | 浏览器自动化与测试 |
@@ -144,7 +143,7 @@ npx -y auriga-cli install plugins --agent codex --plugin session-instructions-lo
 | claude-md-management | Claude Code / Codex | 审计和改进 AGENTS.md / CLAUDE.md |
 | playground | Claude Code / Codex | 构建交互式 HTML playground |
 | codex | Claude Code | Codex 跨模型协作 |
-| auriga-workflow | Claude Code / Codex | auriga 工作流插件 —— 工作流 skill 加上强制执行工作流的 git 生命周期 hook。Skills：`systematic-debugging`（证据优先的调试与线上证据采集）、`incremental-impl`、`test-designer`、`spec-design`、`arch-design`、`code-simplify`、`session-compound`、`goalify`（把已明确目标整理成结构化 `/goal` 文本，并在运行环境支持时直接启动）、`deep-review`（多维度 PR review 编排器——并行派发各维度 reviewer，汇总成可执行的 punch list）、`reviewer-creator`（在仓库根的 `docs/rules/review/` 下生成项目级自定义 reviewer）、`git-workflow`（git 生命周期 skill）、`documentation-and-adrs`（架构决策记录与项目文档规范，ADR 归档到 `docs/architecture/`）、`docent`（显式调用的代码讲解技能，由一个专职子代理生成交互式讲解报告）。Hooks：`commit-reminder`（文件编辑的 PostToolUse —— Claude Code 匹配 `Edit` / `Write` / `MultiEdit`，Codex 匹配 `apply_patch` —— 未提交 diff 对比 `HEAD` 超过 200 行或 8 个文件时，提醒在下一个语义边界 commit）、`pr-create-guard`（`gh pr create` 的 PostToolUse —— 注入 PR body 快照供五要素自检，并对不符合 Conventional Commits 的标题提示）、`pr-ready-guard`（`gh pr ready` 与非 draft `gh pr create` 的 PreToolUse —— 拦截游离规划文档、`docs/specs/` 内未结案的活跃 spec、未 push commits）、`pr-merge-guard`（`gh pr merge` 的 PreToolUse —— PR body 的验收标准或测试计划章节仍有未勾选清单项时拦截合并）。两个 PostToolUse hook 在 Claude Code / Codex 上完全对齐；Codex 仅对 `pr-ready-guard` 的 PreToolUse `additionalContext` 信息路径 fail-open（block 路径两边一致）。默认通过插件路径安装。 |
+| auriga-workflow | Claude Code / Codex | auriga 工作流插件 —— 工作流技能加上强制执行工作流的 git 生命周期钩子。技能包括：`systematic-debugging`（证据优先的调试与线上证据采集）、`test-driven-development`（不另派测试代理的精简行为测试流程）、`incremental-impl`、`spec-design`、`arch-design`、`code-simplify`、`session-compound`、`goalify`（把已明确目标整理成结构化 `/goal` 文本，并在运行环境支持时直接启动）、`deep-review`（多维度拉取请求评审编排器）、`reviewer-creator`、`git-workflow`、`documentation-and-adrs` 和 `docent`。钩子包括 `commit-reminder`、`pr-create-guard`、`pr-ready-guard` 与 `pr-merge-guard`。默认通过插件路径安装。安装器不会自动迁移或删除已有的 Superpowers 测试驱动开发副本；小团队在确认插件技能生效后人工清理。 |
 | auriga-notify *(opt-in)* | Claude Code | Claude Code `Notification` 事件的 macOS 原生通知插件。支持焦点感知仅提示音、点击唤起终端、按项目分组通知，并迁移旧 `config.json` / `icon.png`。不随 `install --all` 默认安装，需要显式执行 `install plugins --plugin auriga-notify`。 |
 | session-instructions-loader | Codex | Codex-only SessionStart 插件，注入上层目录的 `AGENTS.md` 和仓库配置的额外 instruction 文件。 |
 

@@ -11,7 +11,7 @@
 
 5. Root-cause before bugfixes: Follow `systematic-debugging` before deciding on a fix.
 
-6. TDD: All code changes follow `test-driven-development` (sole exception: pure docs / pure config). Define testable acceptance criteria before each task. Check `docs/rules/test/` for relevant rules before writing tests; record explicitly if none apply. Invoke `test-designer` when a requirement spans modules with non-obvious interactions, edge cases are hard to self-test fairly, or you're tempted to skip TDD.
+6. TDD: Code changes that alter observable behavior follow `test-driven-development`; pure documentation, pure configuration, generated code, and changes without a useful automated seam are exempt. Define testable acceptance criteria before each task and read `docs/rules/test/` before writing tests. The current implementation Agent owns test design and the red-green loop; do not dispatch a separate test Agent.
 
 7. Incremental implementation: Invoke `incremental-impl` for non-trivial work (multi-file changes, cross-file refactors, executing a planned task, ~100+ lines expected) — size triage, slicing, and dispatch belong to the skill; skip when it rates the work XS or the change is pure docs/config.
 
@@ -36,7 +36,7 @@ Repo documentation lives under `docs/`, one directory per purpose:
 | `docs/worklog/worklog-<YYYY-MM-DD>-<branch-name>/` | Archived spec / planning / architecture artifacts; one subdirectory per PR | Permanent |
 | `docs/rules/` | Coding conventions, review checklists, naming decisions | Long-lived |
 | `docs/rules/review/` | Project custom reviewers; created by `reviewer-creator`, auto-discovered by `deep-review` | Long-lived |
-| `docs/rules/test/` | Project test rules; `test-designer` or the main Agent must consult before writing tests | Long-lived |
+| `docs/rules/test/` | Project test rules; `test-driven-development` reads them before tests are written | Long-lived |
 | `docs/rules/spec/` | Project spec rules; `spec-design` must consult during research | Long-lived |
 | `docs/rules/arch/` | Project architecture rules; `arch-design` treats them as hard constraints | Long-lived |
 | `docs/specs/` | Default destination for `spec-design` / `arch-design` outputs; ephemeral dev workspace. **Must be empty by PR Ready**: promote to `docs/architecture/`, archive to worklog, or delete | Dev-only |

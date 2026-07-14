@@ -11,7 +11,7 @@
 
 5. bugfix 前先查根因：按 `systematic-debugging`，再决定怎么修。
 
-6. TDD：所有代码改动遵循 `test-driven-development`（唯一例外：纯文档、纯配置）。每个 task 开始前明确可测试的验收标准。写测试前先查 `docs/rules/test/` 相关规则，无则明确记录。需求跨模块且交互非显然、边界场景难自测、或你正想跳过 TDD 时，调用 `test-designer`。
+6. TDD：会改变可观察行为的代码改动遵循 `test-driven-development`；纯文档、纯配置、生成代码或没有有效自动化接缝的改动除外。每个 task 开始前明确可测试的验收标准，写测试前先查 `docs/rules/test/`。测试设计和红绿循环由当前实现 Agent 完成，不另派独立测试 Agent。
 
 7. 增量实现：非平凡实现（多文件、跨文件重构、落地已规划 task、预计写超 ~100 行）调用 `incremental-impl`——规模判定、切片、派遣由 skill 自身负责；判定 XS 或纯文档/配置时跳过。
 
@@ -36,7 +36,7 @@
 | `docs/worklog/worklog-<YYYY-MM-DD>-<branch-name>/` | 已归档的 spec / planning / 架构产物；一个 PR 一个子目录 | 永久 |
 | `docs/rules/` | 编码规范、review checklist、命名约定 | 长期 |
 | `docs/rules/review/` | 项目自定义 reviewer；`reviewer-creator` 创建，`deep-review` 自动发现分派 | 长期 |
-| `docs/rules/test/` | 项目测试规则；`test-designer` 或主 Agent 写测试前必读 | 长期 |
+| `docs/rules/test/` | 项目测试规则；`test-driven-development` 在写测试前读取 | 长期 |
 | `docs/rules/spec/` | 项目 spec 规则；`spec-design` 调研阶段必读 | 长期 |
 | `docs/rules/arch/` | 项目架构设计规范；`arch-design` 作为设计硬约束 | 长期 |
 | `docs/specs/` | `spec-design` / `arch-design` 输出默认归宿，开发期临时工作区。**PR Ready 前必须清空**：晋升到 `docs/architecture/`、归档到 worklog、或删除 | 开发期 |
