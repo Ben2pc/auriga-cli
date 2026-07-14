@@ -1,6 +1,6 @@
 # validation-contract.md 模板
 
-将本模板复制到 `docs/specs/<topic>/validation-contract.md` 并填充每个 `<占位>`。与 `spec-template.md` 配套使用。
+默认将本模板复制到 `docs/specs/<topic>/validation-contract.md`。仅当用户明确批准跨多个 PR 的长期生命周期时，总规范的全局验收契约才复制到 `docs/long-running-specs/<topic>/validation-contract.md`；当前子 PR 的独立验收契约仍使用 `docs/specs/`。填充每个 `<占位>`，并与 `spec-template.md` 配套使用。
 
 **语言规则**：结构关键字（`VAL-XXX-NNN`、`Behavior`、`Tool`、`Evidence`、Tool 类别名）是全局锚点，必须保持英文——`test-designer` 和 `deep-review` 的 `spec-conformance` 审查者会原样 grep 它们。**Behavior 描述和 Evidence 散文跟随用户的对话语言。** 中文对话→Behavior / Evidence 写中文；英文对话→英文。不要混写。
 

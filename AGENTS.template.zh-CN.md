@@ -1,5 +1,5 @@
 <!-- AURIGA:WORKFLOW:v1 START — 受管区块,由 auriga-cli 维护,请勿手改;升级会整块覆盖。工程专属规则写在下方 END 标记之后。 -->
-# auriga 工作流 (v1.12.0)
+# auriga 工作流 (v1.13.0)
 
 1. 需求澄清：新需求先用 `spec-design` 澄清。**spec = why + what; plan = how**——requirement 只写"做什么"和验收标准，不写技术路径；产品功能优先讲清"Why"。改动不影响外部行为契约时跳过 spec 直进 plan。
 
@@ -17,7 +17,7 @@
 
 8. 验证后再说完成：任何"已完成 / 已修复 / 可评审"判断前，先按 `verification-before-completion` 跑完整验证（自动化测试 + 必要的界面交互检查），不要只靠读实现判断。
 
-9. PR 就绪：验证完成、基准分支无误、PR 描述五要素（范围 / 验收 / 决策 / 风险 / TODO，规范见 `git-workflow`）补全后才标 Ready。设计产物（spec.md、task_plan.md 等）用 `AskUserQuestion` / `request_user_input` 问用户：删除还是归档到 `docs/worklog/worklog-<YYYY-MM-DD>-<分支名>/`。
+9. PR 就绪：验证完成、基准分支无误、PR 描述五要素（范围 / 验收 / 决策 / 风险 / TODO，规范见 `git-workflow`）补全后才标 Ready。当前 PR 的设计产物（spec.md、task_plan.md 等）用 `AskUserQuestion` / `request_user_input` 问用户：删除还是归档到 `docs/worklog/worklog-<YYYY-MM-DD>-<分支名>/`。跨多个 PR 的总规范可保留在 `docs/long-running-specs/`，不受 Ready 清理门禁影响；全部子 PR 结束后由人工决定归档。
 
 10. PR 评审：Ready 后正式 review 必须走 `deep-review`（`/review` 为轻量 fallback）。**评审 Agent 报告所有 finding 并附 severity + confidence，不预过滤**——过滤交给人做。
 
@@ -40,6 +40,7 @@
 | `docs/rules/spec/` | 项目 spec 规则；`spec-design` 调研阶段必读 | 长期 |
 | `docs/rules/arch/` | 项目架构设计规范；`arch-design` 作为设计硬约束 | 长期 |
 | `docs/specs/` | `spec-design` / `arch-design` 输出默认归宿，开发期临时工作区。**PR Ready 前必须清空**：晋升到 `docs/architecture/`、归档到 worklog、或删除 | 开发期 |
+| `docs/long-running-specs/` | 跨多个 PR 的总规范、共同约束、切片顺序和状态矩阵；当前 PR 的独立验收契约仍放 `docs/specs/` | 跨 PR；全部子 PR 结束后人工归档 |
 | `docs/architecture/` | 稳定设计文档 + ADR（`ADR-<序号>-<标题>.md`） | 长期 |
 | `docs/` 其他 | 一类文档一个目录，按需新增，不混放 | 因类而异 |
 

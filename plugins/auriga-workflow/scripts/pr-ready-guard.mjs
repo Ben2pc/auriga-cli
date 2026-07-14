@@ -15,7 +15,9 @@
 //   B3  active specs left under docs/specs/ — that directory is a
 //       dev-only temporary workspace and must be empty by PR Ready
 //       (promote to docs/architecture/, archive to docs/worklog/, or
-//       delete; per CLAUDE.md Document Conventions)
+//       delete; per CLAUDE.md Document Conventions). Cross-PR program
+//       specs live under docs/long-running-specs/ and intentionally stay
+//       outside this per-PR cleanup gate.
 //
 // Filter-only (Route A): we fetch the real PR body via gh pr view,
 // list ^## / ^### headings, count TODO checkboxes, and inject as

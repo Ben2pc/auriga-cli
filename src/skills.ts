@@ -11,7 +11,6 @@ import type { InstallOpts, SkillEntry, SkillsLock } from "./utils.js";
 export const WORKFLOW_SKILLS = [
   "planning-with-files",
   "playwright-cli",
-  "systematic-debugging",
   "test-driven-development",
   "verification-before-completion",
 ];

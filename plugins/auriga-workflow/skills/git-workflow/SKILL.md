@@ -184,7 +184,7 @@ PR 描述必须覆盖全部五个元素：
 gh pr create --draft --title "<type>: <subject>" --body-file <body.md>
 ```
 
-`--draft` 要求由机制强制执行：`pr-ready-guard` 也会在 `gh pr create` 的 `PreToolUse` 触发；当缺少 `--draft` 时，它会运行 Ready PR 的结构性文档检查，例如 repo root 的 stray planning docs 和 `docs/specs/` 未收尾 active specs。`--draft` 和短写 `-d` 都会跳过这条路径；显式 `--draft=<value>` 形式中的 truthy 值（`=1` / `=t` / `=true`，大小写不敏感）也会跳过。Falsy 值（`=false` / `=0`）会被视为创建 Ready PR，并按同样的结构性文档检查阻塞。`gh pr ready` 还会额外检查当前 branch 是否有 unpushed commits；`gh pr create` 路径不会做这项检查。
+`--draft` 要求由机制强制执行：`pr-ready-guard` 也会在 `gh pr create` 的 `PreToolUse` 触发；当缺少 `--draft` 时，它会运行 Ready PR 的结构性文档检查，例如 repo root 的 stray planning docs 和 `docs/specs/` 未收尾 active specs。经用户明确确认、跨多个 PR 维护的总规范可保留在 `docs/long-running-specs/`，不属于当前 PR 的清理范围；当前 PR 独有的验收契约仍必须从 `docs/specs/` 归档或晋升。`--draft` 和短写 `-d` 都会跳过这条路径；显式 `--draft=<value>` 形式中的 truthy 值（`=1` / `=t` / `=true`，大小写不敏感）也会跳过。Falsy 值（`=false` / `=0`）会被视为创建 Ready PR，并按同样的结构性文档检查阻塞。`gh pr ready` 还会额外检查当前 branch 是否有 unpushed commits；`gh pr create` 路径不会做这项检查。
 
 ---
 

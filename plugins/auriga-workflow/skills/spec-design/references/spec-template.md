@@ -1,6 +1,6 @@
 # spec.md 模板
 
-将本模板复制到 `docs/specs/<topic>/spec.md` 并填充每个 `<占位>`。与 `validation-contract-template.md` 配套使用（拆分时还配套 `umbrella-template.md`）。
+默认将本模板复制到 `docs/specs/<topic>/spec.md`。仅当用户明确批准跨多个 PR 的长期生命周期时，总规范才复制到 `docs/long-running-specs/<topic>/spec.md`；当前子 PR 的独立规范仍使用 `docs/specs/`。填充每个 `<占位>`，并与 `validation-contract-template.md` 配套使用（拆分时还配套 `umbrella-template.md`）。
 
 **语言规则**：下面的 section 标题是双语的（英文锚点 + 中文提示），必须逐字保留——工具和审查者会 grep 英文锚点。**正文内容（每个标题下的散文）必须用用户的对话语言来写。** 对话是中文，就把 Why / Findings / What 各节写成中文；是英文就写英文。不要混写。
 

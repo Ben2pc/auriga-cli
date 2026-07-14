@@ -451,7 +451,12 @@ function validateFilterAgainstCatalog(type: CategoryName, filter: string[]): voi
 function migratedPluginHint(type: CategoryName, name: string): string | undefined {
   if (
     type === "skills" &&
-    ["incremental-impl", "test-designer", "session-compound"].includes(name)
+    [
+      "incremental-impl",
+      "test-designer",
+      "session-compound",
+      "systematic-debugging",
+    ].includes(name)
   ) {
     return "This skill moved to the auriga-workflow plugin; install it with `install plugins --plugin auriga-workflow`.";
   }

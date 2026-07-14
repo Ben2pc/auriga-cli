@@ -1,5 +1,5 @@
 <!-- AURIGA:WORKFLOW:v1 START — Managed block, maintained by auriga-cli. Do not edit by hand; upgrades replace it wholesale. Put project-specific instructions after the END marker below. -->
-# auriga Workflow (v1.12.0)
+# auriga Workflow (v1.13.0)
 
 1. Requirement Clarification: Clarify new requirements with `spec-design` first. **spec = why + what; plan = how** — requirements state "what to do" and acceptance criteria, not technical paths; for product features, lead with the "Why". Skip spec and go straight to plan when a change doesn't move the external behavior contract.
 
@@ -17,7 +17,7 @@
 
 8. Verify before claiming done: Before any "done / fixed / ready for review" judgment, run full verification per `verification-before-completion` (automated tests plus any needed UI interaction checks); don't judge by reading the implementation alone.
 
-9. PR readiness: Mark Ready only after verification passes, the base branch is confirmed, and the PR body covers the five elements (scope / acceptance criteria / design decisions / risks / TODOs — see `git-workflow`). For design artifacts (spec.md, task_plan.md, etc.), use `AskUserQuestion` / `request_user_input` to ask the user: delete or archive to `docs/worklog/worklog-<YYYY-MM-DD>-<branch-name>/`.
+9. PR readiness: Mark Ready only after verification passes, the base branch is confirmed, and the PR body covers the five elements (scope / acceptance criteria / design decisions / risks / TODOs — see `git-workflow`). For design artifacts scoped to the current PR (spec.md, task_plan.md, etc.), use `AskUserQuestion` / `request_user_input` to ask the user: delete or archive to `docs/worklog/worklog-<YYYY-MM-DD>-<branch-name>/`. A program spec spanning multiple PRs may remain under `docs/long-running-specs/` and does not participate in the Ready cleanup gate; a human decides when to archive it after all child PRs finish.
 
 10. PR Review: After Ready, formal review must go through `deep-review` (`/review` remains a lightweight fallback). **Reviewer Agents report every finding with severity + confidence, no pre-filtering** — humans do the filtering.
 
@@ -40,6 +40,7 @@ Repo documentation lives under `docs/`, one directory per purpose:
 | `docs/rules/spec/` | Project spec rules; `spec-design` must consult during research | Long-lived |
 | `docs/rules/arch/` | Project architecture rules; `arch-design` treats them as hard constraints | Long-lived |
 | `docs/specs/` | Default destination for `spec-design` / `arch-design` outputs; ephemeral dev workspace. **Must be empty by PR Ready**: promote to `docs/architecture/`, archive to worklog, or delete | Dev-only |
+| `docs/long-running-specs/` | Program specs, shared constraints, slice order, and status matrices spanning multiple PRs; acceptance contracts unique to the current PR still belong in `docs/specs/` | Cross-PR; archived manually after all child PRs finish |
 | `docs/architecture/` | Stable design docs + ADRs (`ADR-<n>-<title>.md`) | Long-lived |
 | `docs/` (other) | One directory per new category on demand; don't mix | Varies |
 

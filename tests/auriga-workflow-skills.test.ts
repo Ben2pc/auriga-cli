@@ -15,6 +15,50 @@ const deepReview = (): string =>
   read("plugins/auriga-workflow/skills/deep-review/SKILL.md");
 
 describe("auriga-workflow skill contracts", () => {
+  test("systematic-debugging keeps diagnosis evidence-first without a fixed ritual", () => {
+    const text = read(
+      "plugins/auriga-workflow/skills/systematic-debugging/SKILL.md",
+    );
+    const parsed = matter(text);
+
+    assert.equal(parsed.data.name, "systematic-debugging");
+    for (const anchor of [
+      "可重复的问题验证路径",
+      "证据采集路径",
+      "根因尚未确认",
+      "临时缓解",
+      "按需",
+    ]) {
+      assert.ok(
+        text.includes(anchor),
+        `systematic-debugging must keep the ${anchor} behavior anchor`,
+      );
+    }
+    for (const method of [
+      "临时日志",
+      "断点",
+      "git bisect",
+      "重放",
+      "性能",
+      "监控",
+      "报警",
+    ]) {
+      assert.ok(
+        text.toLowerCase().includes(method),
+        `systematic-debugging must mention ${method} in its optional diagnostic toolbox`,
+      );
+    }
+    assert.match(text, /只诊断[^\n]{0,40}不(?:实施|修改)/);
+    assert.match(text, /仅在用户授权修复后执行/);
+    assert.match(text, /不得记录密钥、令牌、个人信息或完整敏感载荷/);
+    assert.match(text, /重新运行最初的问题验证路径/);
+    assert.match(text, /删除临时日志、脚本和诊断代码/);
+    assert.ok(
+      !text.includes("superpowers:test-driven-development"),
+      "systematic-debugging must not force a chained vendor skill invocation",
+    );
+  });
+
   test("test-designer consumes project test rules", () => {
     const text = read(
       "plugins/auriga-workflow/skills/test-designer/SKILL.md",

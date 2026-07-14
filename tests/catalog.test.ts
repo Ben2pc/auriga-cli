@@ -51,12 +51,11 @@ describe("generateCatalog (build-time)", () => {
   });
 
   test("workflow skills exclude repo-owned skills migrated into auriga-workflow (and dropped retired brainstorming)", () => {
-    assert.equal(catalog.workflowSkills.length, 5);
+    assert.equal(catalog.workflowSkills.length, 4);
     const names = catalog.workflowSkills.map((e) => e.name).sort();
     assert.deepEqual(names, [
       "planning-with-files",
       "playwright-cli",
-      "systematic-debugging",
       "test-driven-development",
       "verification-before-completion",
     ]);
@@ -181,7 +180,12 @@ describe("generateCatalog (build-time)", () => {
     // rationale: install help is rendered from the generated catalog, so this
     // pins the user-visible CLI surface as well as dist/catalog.json.
     const skillHelp = renderTypeHelp(catalog, "skills", "0.0.0-test");
-    for (const name of ["incremental-impl", "test-designer", "session-compound"]) {
+    for (const name of [
+      "incremental-impl",
+      "test-designer",
+      "session-compound",
+      "systematic-debugging",
+    ]) {
       assert.doesNotMatch(skillHelp, new RegExp(`\\b${name}\\b`));
     }
 

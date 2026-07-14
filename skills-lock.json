@@ -49,12 +49,6 @@
       "skillPath": "skills/playwright-cli/SKILL.md",
       "computedHash": "84495cfda62b6c012afc4cc34a0c35bfc7923ba35983b8c04ce4cace0f35a5d8"
     },
-    "systematic-debugging": {
-      "source": "obra/superpowers",
-      "sourceType": "github",
-      "skillPath": "skills/systematic-debugging/SKILL.md",
-      "computedHash": "7246fdd3a795fc3daff0af72044ca99bf836e4e6a46844742858786fdfb86488"
-    },
     "test-driven-development": {
       "source": "obra/superpowers",
       "sourceType": "github",
