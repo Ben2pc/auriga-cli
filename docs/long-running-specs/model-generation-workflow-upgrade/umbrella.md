@@ -13,7 +13,7 @@
 | 7 | [外部核心技能保留决定](reviews/README.md#外部核心技能) | — | `planning-with-files` 与 `playwright-cli` 保留；两者默认安装但非默认执行，跳过深入评审，不构成模型能力结论 |
 | 8 | [外部推荐技能保留决定](reviews/README.md#外部推荐技能) | — | 6 项推荐技能全部保留；均为选装能力且不进入主工作流，跳过深入评审，不构成模型能力结论 |
 | 9 | `external-plugins/` | — | 本轮范围外；保持现状 |
-| 10 | [`arch-design` 精简](../../worklog/worklog-2026-07-14-refactor-simplify-arch-design/arch-design-modernization/) | VAL-ARCH-001..005 | PR #183 已完成实现并归档子规范；强化架构与领域模型触发、人工评审门禁和条件式工具箱；模型评测未执行 |
+| 10 | [`arch-design` 精简](../../worklog/worklog-2026-07-14-refactor-simplify-arch-design/arch-design-modernization/) | VAL-ARCH-001..006 | PR #183 已完成实现并归档子规范；强化架构与领域模型触发、人工评审门禁、视觉对照和条件式工具箱；模型评测未执行 |
 | 11 | `workflow-consolidation/` | VAL-MIG-001..005 | 等待前序结论 |
 
 ## Parent coverage map (父级验收覆盖映射)

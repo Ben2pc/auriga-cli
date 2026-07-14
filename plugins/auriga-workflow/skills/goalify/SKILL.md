@@ -23,7 +23,13 @@ goalify 是**需求已经明确之后**用来驱动长程任务的工具——�
 
 ## 选了 goalify 不等于跳过 plan
 
-用户在规划阶段选择 goalify，不代表跳过 plan。启动 `/goal` 前，若任务需要架构设计，必须先完成 `arch-design` 并取得用户确认；自驱运行不能自行批准或绕过 `arch-design` 的人工确认门禁。确认后的设计与其他已确认资料一起交给 `/goal`，运行期再由 agent 自行选择内置 Plan 或 `planning-with-files`，并在进入实现阶段时按需调用 `incremental-impl`。若运行中才发现新的实质性架构决定，停止在设计评审门禁并交回用户，不用自主目标替人批准。
+用户在规划阶段选择 goalify，不代表跳过 plan。
+
+启动 `/goal` 前，若任务需要架构设计，必须先完成 `arch-design` 并取得用户确认。自驱运行不能自行批准或绕过 `arch-design` 的人工确认门禁。
+
+确认后的设计与其他已确认资料一起交给 `/goal`。运行期再由 agent 自行选择内置 Plan 或 `planning-with-files`，并在进入实现阶段时按需调用 `incremental-impl`。
+
+若运行中才发现新的实质性架构决定，停止在设计评审门禁并交回用户，不用自主目标替人批准。
 
 ## 输入来源
 

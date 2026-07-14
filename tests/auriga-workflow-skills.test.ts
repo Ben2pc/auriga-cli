@@ -229,6 +229,26 @@ describe("auriga-workflow skill contracts", () => {
     }
   });
 
+  test("arch-design template makes current and target architecture easy to compare", () => {
+    const template = read(
+      "plugins/auriga-workflow/skills/arch-design/references/arch-design-template.md",
+    );
+
+    for (const section of [
+      "Current Architecture / 当前架构现状",
+      "Current Directory Structure / 当前目录结构",
+      "Target Architecture / 目标整体架构",
+      "Target Directory Structure / 目标目录结构",
+    ]) {
+      assert.ok(template.includes(section), `arch-design template must preserve ${section}`);
+    }
+    assert.match(template, /同一抽象层级/);
+    assert.match(template, /改变前后|前后对照/);
+    for (const diagram of ["C4", "sequenceDiagram", "stateDiagram-v2", "erDiagram", "classDiagram"]) {
+      assert.ok(template.includes(diagram), `arch-design template must cue ${diagram}`);
+    }
+  });
+
   test("arch-design resolves target-local rules and degrades safely without a writable project", () => {
     const text = read("plugins/auriga-workflow/skills/arch-design/SKILL.md");
 
