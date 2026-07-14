@@ -446,10 +446,11 @@ describe(
           "legacy Codex skill directory should not shadow the plugin skill",
         );
         assert.equal(
-          fs.lstatSync(userClaudeLegacyDir, { throwIfNoEntry: false }),
-          undefined,
-          "legacy user-level Claude compatibility symlink should be removed",
+          fs.lstatSync(userClaudeLegacyDir).isDirectory(),
+          true,
+          "project-scoped Claude install must retain a durable user-level Claude fallback",
         );
+        assert.ok(fs.existsSync(path.join(userClaudeLegacyDir, "SKILL.md")));
         assert.equal(
           fs.lstatSync(userCodexLegacyDir, { throwIfNoEntry: false }),
           undefined,
@@ -462,7 +463,11 @@ describe(
         const userLock = JSON.parse(
           fs.readFileSync(path.join(runtimeHome, ".agents", ".skill-lock.json"), "utf-8"),
         ) as { skills: Record<string, unknown> };
-        assert.equal("systematic-debugging" in userLock.skills, false);
+        assert.equal(
+          "systematic-debugging" in userLock.skills,
+          true,
+          "the user lock remains while the project-scoped Claude plugin does not replace the user fallback",
+        );
       },
     );
 
