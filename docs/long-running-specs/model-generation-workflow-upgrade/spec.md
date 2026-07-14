@@ -64,5 +64,5 @@ Auriga 同时包含自有工作流技能、锁定版本的外部技能和不受�
 - 用户于 2026-07-14 提供的 X 搜索快照：用于提出“复杂技能可能干扰新模型”的待验证假设。
 - `README.zh-CN.md`：当前工作流灵感来源与安装分类。
 - `docs/architecture/auriga-cli-dev-guide.md`：自有技能、外部技能、插件的维护与发布边界。
-- [obra/superpowers](https://github.com/obra/superpowers)：当前两个核心外部技能的上游来源，以及已内化 `systematic-debugging` 的历史来源。
+- [obra/superpowers](https://github.com/obra/superpowers)：当前外部 `verification-before-completion` 的上游来源，也是已内化 `systematic-debugging` 与 `test-driven-development` 的历史来源。
 - [mattpocock/skills](https://github.com/mattpocock/skills)：用户将逐步提供的对照技能来源之一。

@@ -26,7 +26,7 @@ import { parseArgs } from "../src/cli.js";
 // 假设 3:`--preset` 的三个默认值按 spec §1:scope=user、agent=both、lang=zh-CN。
 //         分发层测试断言这三个默认值最终出现在传给 installer 的 opts 上。
 // 假设 4:`--preset` 安装覆盖三类成员:workflow 文档、`auriga-workflow` 插件、
-//         4 个外部 WORKFLOW_SKILLS。分发层以「这三个 installer 各被调用恰一次、
+//         3 个外部 WORKFLOW_SKILLS。分发层以「这三个 installer 各被调用恰一次、
 //         且未触达 recommended installer」断言成员集合。
 // 假设 5:`--preset` 与 `--all` 一样具备分级退出码:全成功 exit 0、致命
 //         错误 exit 1、部分类别失败 exit 2 且 stderr 列出失败类别。
@@ -490,7 +490,7 @@ afterEach(() => {
 describe("main --preset 安装分发", () => {
   // VAL-CLI-001
   // rationale: `--preset` 必须安装且仅安装三类成员 —— workflow 文档、
-  // auriga-workflow 插件、4 个外部 WORKFLOW_SKILLS。这条用集合断言:被触达的
+  // auriga-workflow 插件、3 个外部 WORKFLOW_SKILLS。这条用集合断言:被触达的
   // installer 类目集合 === {workflow, skills, plugins},且 recommended
   // installer 未被触达(否则就成了 `--all` 的语义)。
   test("install --preset 触达 workflow / skills / plugins 三类 installer", async () => {

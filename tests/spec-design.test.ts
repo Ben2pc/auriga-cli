@@ -167,14 +167,22 @@ describe("spec-design skill — repo-check VALs", () => {
   });
 
   test("workflow templates keep the unified TDD ownership and refactor boundary", () => {
-    for (const f of ["AGENTS.template.zh-CN.md", "AGENTS.template.en.md"]) {
+    for (const f of ["AGENTS.md", "AGENTS.template.zh-CN.md", "AGENTS.template.en.md"]) {
       const text = read(f);
       assert.match(text, /v1\.14\.0/, `${f} must advance the workflow contract version`);
-      assert.doesNotMatch(
-        text,
-        /复杂功能的测试设计[^\n]*独立|test design for complex features[^\n]*independent/i,
-        `${f} must not restore an independent test-design agent`,
-      );
+      if (f.endsWith("en.md")) {
+        assert.match(
+          text,
+          /current implementation Agent owns test design[^\n]*do not dispatch a separate test Agent/i,
+          `${f} must keep test design with the implementation agent`,
+        );
+      } else {
+        assert.match(
+          text,
+          /测试设计和红绿循环由当前实现 Agent 完成[^\n]*不另派独立测试 Agent/,
+          `${f} must keep test design with the implementation agent`,
+        );
+      }
       assert.match(
         text,
         /(?:重构[^\n]*保护网|refactor[^\n]*protection)/i,

@@ -24,6 +24,11 @@ describe("auriga-workflow skill contracts", () => {
     const parsed = matter(text);
 
     assert.equal(parsed.data.name, "test-driven-development");
+    assert.match(
+      parsed.data.description,
+      /功能.*缺陷修复.*重构.*纯文档.*纯配置.*生成代码.*没有有效自动化接缝/,
+      "frontmatter must preserve activation and exemption boundaries",
+    );
     for (const anchor of [
       "validation-contract.md",
       "公共接口",
@@ -39,10 +44,20 @@ describe("auriga-workflow skill contracts", () => {
       text.split("\n").length <= 80,
       "the unified TDD skill must stay within an 80-line context budget",
     );
+    assert.ok(
+      text.includes("由当前实现代理完成测试设计和实现，不另派独立测试代理"),
+      "the current implementation agent must own test design",
+    );
+    assert.doesNotMatch(text, /xhigh|最强模型|全新会话|fresh context/i);
     assert.doesNotMatch(
       text,
-      /xhigh|最强模型|全新会话|fresh context|派发.{0,12}(?:独立|测试).{0,4}代理|delete means delete/i,
-      "the unified TDD skill must not orchestrate an independent test agent or force destructive restart rituals",
+      /(?:必须|要求|应当).{0,20}(?:独立测试代理|测试代理)|(?:must|should|required).{0,30}(?:separate|independent).{0,20}test agent/i,
+      "the unified TDD skill must not require an independent test agent",
+    );
+    assert.doesNotMatch(
+      text,
+      /(?:必须|应当|直接)删除.{0,20}(?:实现|代码)|delete (?:the )?(?:implementation|code)/i,
+      "the unified TDD skill must not force destructive restart rituals",
     );
   });
 
@@ -79,6 +94,8 @@ describe("auriga-workflow skill contracts", () => {
       "plugins/auriga-workflow/skills/code-simplify/SKILL.md",
       "plugins/auriga-workflow/skills/deep-review/SKILL.md",
       "plugins/auriga-workflow/skills/incremental-impl/SKILL.md",
+      "plugins/auriga-workflow/skills/session-compound/SKILL.md",
+      "plugins/auriga-workflow/skills/session-compound/references/eval-dispatch.md",
       "plugins/auriga-workflow/skills/spec-design/SKILL.md",
       "plugins/auriga-workflow/skills/deep-review/references/reviewers/test-quality.md",
     ]) {

@@ -17,7 +17,7 @@ Auriga's harness design is inspired by several open-source skill and agent-workf
 | Module | Description |
 |---|---|
 | **Workflow** | `AGENTS.md` auriga workflow: requirement clarification -> TDD -> Review, Harness principles, Subagent usage guide |
-| **Skills** | External development process skills — TDD, verification, planning, playwright (`systematic-debugging`, spec authoring, and architecture design ship inside the `auriga-workflow` plugin) |
+| **Skills** | External development process skills — verification, planning, playwright (`systematic-debugging`, TDD, spec authoring, and architecture design ship inside the `auriga-workflow` plugin) |
 | **Recommended Skills** | Optional utility skills (e.g. `codex-agent`, `claude-code-agent`) you can add on top of the workflow skills |
 | **Plugins** | Recommended Claude Code and Codex plugins — skill-creator, claude-md-management, playground, codex, auriga-workflow, auriga-notify, session-instructions-loader |
 

@@ -441,16 +441,16 @@ function validateFilterAgainstCatalog(type: CategoryName, filter: string[]): voi
   const singular = categorySingular(type);
   for (const name of filter) {
     if (!available.includes(name)) {
-      const hint = migratedPluginHint(type, name);
+      const hint = pluginReplacementHint(type, name);
       const hintText = hint ? ` ${hint}` : "";
       parseErr(`unknown ${singular} '${name}';${hintText} available: ${available.join(", ")}`);
     }
   }
 }
 
-function migratedPluginHint(type: CategoryName, name: string): string | undefined {
+function pluginReplacementHint(type: CategoryName, name: string): string | undefined {
   if (type === "skills" && name === "test-designer") {
-    return "This skill was retired and merged into test-driven-development in the auriga-workflow plugin; install it with `install plugins --plugin auriga-workflow`.";
+    return "This skill was retired and merged into test-driven-development in the auriga-workflow plugin; install it for both runtimes with `install plugins --agent both --plugin auriga-workflow`, then remove old standalone copies manually.";
   }
   if (
     type === "skills" &&
@@ -461,7 +461,10 @@ function migratedPluginHint(type: CategoryName, name: string): string | undefine
       "test-driven-development",
     ].includes(name)
   ) {
-    return "This skill moved to the auriga-workflow plugin; install it with `install plugins --plugin auriga-workflow`.";
+    const cleanup = name === "test-driven-development"
+      ? " Old standalone copies are not removed automatically; remove them manually after confirming the plugin skill is active."
+      : "";
+    return `This skill moved to the auriga-workflow plugin; install it for both runtimes with \`install plugins --agent both --plugin auriga-workflow\`.${cleanup}`;
   }
   return undefined;
 }

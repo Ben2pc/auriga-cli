@@ -26,11 +26,11 @@ const LOCK: SkillsLock["skills"] = {
 };
 
 describe("planSkillInstallCommands", () => {
-  test("repo-owned migrated workflow skills are not standalone workflow-skill defaults", () => {
-    // rationale: these skills now ship through the auriga-workflow
-    // plugin, so bare `install skills` must not ask the skills CLI to add
-    // them as standalone workflow skills.
-    const migrated = [
+  test("repo-owned plugin skills and retired entries are not standalone workflow-skill defaults", () => {
+    // rationale: these names either ship through auriga-workflow or were
+    // retired into it, so bare `install skills` must not ask the skills CLI
+    // to add them as standalone workflow skills.
+    const pluginOwnedOrRetired = [
       "incremental-impl",
       "test-designer",
       "session-compound",
@@ -38,7 +38,7 @@ describe("planSkillInstallCommands", () => {
       "test-driven-development",
     ];
     assert.deepEqual(
-      migrated.filter((name) => WORKFLOW_SKILLS.includes(name)),
+      pluginOwnedOrRetired.filter((name) => WORKFLOW_SKILLS.includes(name)),
       [],
     );
     assert.equal(WORKFLOW_SKILLS.includes("test-driven-development"), false);

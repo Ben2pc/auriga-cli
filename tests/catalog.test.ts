@@ -192,6 +192,10 @@ describe("generateCatalog (build-time)", () => {
     const pluginHelp = renderTypeHelp(catalog, "plugins", "0.0.0-test");
     assert.match(pluginHelp, /\bauriga-workflow\b/);
     assert.match(pluginHelp, /\bauriga-notify\b/);
+    const workflowPlugin = catalog.plugins.find((entry) => entry.name === "auriga-workflow");
+    assert.ok(workflowPlugin, "auriga-workflow must remain in the plugin catalog");
+    assert.match(workflowPlugin.description, /test-driven-development/);
+    assert.doesNotMatch(workflowPlugin.description, /test-designer/);
   });
 
   // VAL-HELP-001: top-level `--help` advertises the `install --preset` entry

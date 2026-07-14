@@ -192,10 +192,13 @@ describe("parseArgs", () => {
     expectParseError(["install", "recommended", "--recommended-skill", "foo"], /available: .*codex-agent/i);
     expectParseError(["install", "plugins", "--plugin", "foo"], /available: .*auriga-workflow/i);
     expectParseError(["install", "skills", "--skill", "incremental-impl"], /auriga-workflow/i);
-    expectParseError(["install", "skills", "--skill", "test-driven-development"], /auriga-workflow/i);
+    expectParseError(
+      ["install", "skills", "--skill", "test-driven-development"],
+      /--agent both.*auriga-workflow.*not removed automatically.*manually/i,
+    );
     expectParseError(
       ["install", "skills", "--skill", "test-designer"],
-      /retired.*test-driven-development.*auriga-workflow/i,
+      /retired.*test-driven-development.*--agent both.*auriga-workflow.*old standalone copies manually/i,
     );
     expectParseError(["install", "skills", "--skill", "session-compound"], /auriga-workflow/i);
     expectParseError(
