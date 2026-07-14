@@ -11,7 +11,7 @@
 - 不要跳号（`VAL-WORK-001`、`VAL-WORK-002`、`VAL-WORK-004` 是 bug——跳号意味着删除过 VAL，会破坏基于 grep 的可追溯性）。
 - 每条 VAL 只说"什么算通过"（Behavior / Tool / Evidence），不说"怎么测"（fixture / mock / 测试函数结构由测试驱动开发阶段决定）。
 - `Tool` 字段必须来自 `SKILL.md` §工具词汇表 的类别词表（`unit-test` / `integration-test` / `e2e-browser` / `e2e-mobile` / `e2e-cli` / `http-probe` / `repo-check` / `git-state` / `gh-state` / `lint` / `build` / `manual`）。单条 VAL 的 `Tool` 字段不写具体工具名，以保持可 grep、不锁实现。
-- 每个类别对应的**具体**工具（A1 调研所得）只在下方 `## Toolchain` 表里记**一次**，不在每条 VAL 重复。它把 A1 的验证栈调研结论带给下游，让实现代理无需重新推断该用哪个测试运行器 / 驱动。只填本契约 VAL 实际用到的类别。
+- 每个类别对应的**具体**工具（A1 调研所得）只在下方 `## Toolchain` 表里记**一次**，不在每条 VAL 重复。它把 A1 的验证栈调研结论带给下游，避免重新推断该用哪个测试运行器 / 驱动。只填本契约 VAL 实际用到的类别。
 - 若某类别在仓库中尚无现成工具，那是一个真正的 plan 阶段决策——记入 `spec.md` 的 Open questions 一节，不要在此猜测。
 
 ## 模板

@@ -23,7 +23,7 @@
 | VAL-REV-001 | 待定 | 待定 | 等待模型评测基线与后续正式处置子规范覆盖；当前结论仅为暂定 |
 | VAL-REV-002 | 待定 | 待定 | 等待模型评测基线验证目标模型原生能力边界；当前工程证据不能替代模型证据 |
 | VAL-REV-003 | [统一测试驱动开发](../../worklog/worklog-2026-07-14-refactor-simplify-tdd-skill/unified-tdd-skill/validation-contract.md) | VAL-RISK-001 | 已记录精简与合并后的兼容风险和恢复条件 |
-| VAL-MIG-001 | [统一测试驱动开发](../../worklog/worklog-2026-07-14-refactor-simplify-tdd-skill/unified-tdd-skill/validation-contract.md) | VAL-ASSET-001、VAL-FLOW-001..002 | 两个测试入口收敛为一个统一技能 |
+| VAL-MIG-001 | [统一测试驱动开发](../../worklog/worklog-2026-07-14-refactor-simplify-tdd-skill/unified-tdd-skill/validation-contract.md) | VAL-ASSET-001、VAL-FLOW-002 | 两个测试入口收敛为一个统一技能 |
 | VAL-MIG-002 | [`systematic-debugging`](../../worklog/worklog-2026-07-14-feat-model-generation-workflow-upgrade/systematic-debugging/validation-contract.md)、[取消自动技能迁移](../../worklog/worklog-2026-07-14-fix-migrated-skill-cleanup/validation-contract.md)、[统一测试驱动开发](../../worklog/worklog-2026-07-14-refactor-simplify-tdd-skill/unified-tdd-skill/validation-contract.md) | VAL-PUBL-001..002、VAL-REMOVE-001、VAL-NOMUTATE-001、VAL-FLOW-002、VAL-REL-002 | 工程边界与人工清理已统一；父级双运行时真实安装证据仍待后续补全 |
 | VAL-MIG-003 | [`systematic-debugging`](../../worklog/worklog-2026-07-14-feat-model-generation-workflow-upgrade/systematic-debugging/validation-contract.md)、[取消自动技能迁移](../../worklog/worklog-2026-07-14-fix-migrated-skill-cleanup/validation-contract.md)、[统一测试驱动开发](../../worklog/worklog-2026-07-14-refactor-simplify-tdd-skill/unified-tdd-skill/validation-contract.md) | VAL-PUBL-001、VAL-MANUAL-001、VAL-RELEASE-001、VAL-REL-001 | 双语说明、技能清单与发布版本同步当前处置 |
 | VAL-DOC-001 | [取消自动技能迁移](../../worklog/worklog-2026-07-14-fix-migrated-skill-cleanup/validation-contract.md) | VAL-LIFE-001 | 长期总规范继续保留；PR #178 子规范已归档到 worklog |

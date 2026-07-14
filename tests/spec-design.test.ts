@@ -291,7 +291,7 @@ describe("spec-design skill — repo-check VALs", () => {
       "VAL-REV-001": "待定",
       "VAL-REV-002": "待定",
       "VAL-REV-003": "VAL-RISK-001",
-      "VAL-MIG-001": "VAL-ASSET-001、VAL-FLOW-001..002",
+      "VAL-MIG-001": "VAL-ASSET-001、VAL-FLOW-002",
       "VAL-MIG-002": "VAL-PUBL-001..002、VAL-REMOVE-001、VAL-NOMUTATE-001、VAL-FLOW-002、VAL-REL-002",
       "VAL-MIG-003": "VAL-PUBL-001、VAL-MANUAL-001、VAL-RELEASE-001、VAL-REL-001",
       "VAL-DOC-001": "VAL-LIFE-001",
@@ -392,7 +392,7 @@ describe("spec-design skill — repo-check VALs", () => {
     assert.equal(new Set(childIds).size, childIds.length, "child VAL ids must be unique across archived contracts");
     const tddCoverage = markdownSection(unifiedTdd, "## Parent coverage map");
     assert.match(tddCoverage, /\| VAL-REV-003 \| VAL-RISK-001 \|/);
-    assert.match(tddCoverage, /\| VAL-MIG-001 \| VAL-ASSET-001、VAL-FLOW-001\.\.002 \|/);
+    assert.match(tddCoverage, /\| VAL-MIG-001 \| VAL-ASSET-001、VAL-FLOW-002 \|/);
     const repairCoverage = markdownSection(repair, "## Parent coverage map");
     for (const row of [
       ["VAL-MIG-002", "VAL-REMOVE-001", "VAL-NOMUTATE-001"],

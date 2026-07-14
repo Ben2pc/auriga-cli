@@ -92,7 +92,7 @@ describe("auriga-workflow skill contracts", () => {
     assert.equal(fs.existsSync(path.join(repoRoot, ".claude/skills/test-driven-development")), false);
   });
 
-  test("active workflow surfaces contain no retired test-designer reference", () => {
+  test("active workflow surfaces omit retired entries and default test-agent behavior", () => {
     for (const rel of [
       "AGENTS.md",
       "AGENTS.template.zh-CN.md",
@@ -106,7 +106,13 @@ describe("auriga-workflow skill contracts", () => {
       "plugins/auriga-workflow/skills/spec-design/SKILL.md",
       "plugins/auriga-workflow/skills/deep-review/references/reviewers/test-quality.md",
     ]) {
-      assert.doesNotMatch(read(rel), /test-designer/, `${rel} must not reference the retired skill`);
+      const text = read(rel);
+      assert.doesNotMatch(text, /test-designer/, `${rel} must not reference the retired skill`);
+      assert.doesNotMatch(
+        text,
+        /不另派[^。\n]*测试|不再派遣[^。\n]*测试|当前实现代理[^。\n]*(?:测试|失败证据|保护网)|实现代理[^。\n]*(?:测试设计|红绿循环)|current implementation agent[^.\n]*test|separate test agent/i,
+        `${rel} must not spend context restating default test-agent behavior`,
+      );
     }
   });
 
