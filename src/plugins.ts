@@ -158,6 +158,12 @@ interface PluginInfo {
   id: string;
   scope: string;
   projectPath?: string;
+  installPath?: string;
+}
+
+interface CodexPluginInfo {
+  pluginId?: unknown;
+  source?: { path?: unknown };
 }
 
 interface SettingsHookAction {
@@ -175,24 +181,44 @@ interface SettingsFile {
   [key: string]: unknown;
 }
 
-function getInstalledPlugins(cwd: string = process.cwd()): Map<string, string[]> {
+function getInstalledPluginInfos(cwd: string = process.cwd()): PluginInfo[] {
   try {
     const output = exec("claude plugins list --json");
     const plugins: PluginInfo[] = JSON.parse(output);
-    const installed = new Map<string, string[]>();
-
-    for (const p of plugins) {
-      // project scope 只匹配目标目录
-      if (p.scope === "project" && p.projectPath !== cwd) continue;
-
-      const scopes = installed.get(p.id) || [];
-      scopes.push(p.scope);
-      installed.set(p.id, scopes);
-    }
-
-    return installed;
+    return plugins.filter((p) => p.scope !== "project" || p.projectPath === cwd);
   } catch {
-    return new Map();
+    return [];
+  }
+}
+
+function getInstalledPlugins(cwd: string = process.cwd()): Map<string, string[]> {
+  const installed = new Map<string, string[]>();
+  for (const p of getInstalledPluginInfos(cwd)) {
+    const scopes = installed.get(p.id) || [];
+    scopes.push(p.scope);
+    installed.set(p.id, scopes);
+  }
+  return installed;
+}
+
+function findClaudeInstalledPluginRoot(
+  pluginPackage: string,
+  scope: "project" | "user",
+  cwd: string,
+): string | undefined {
+  const info = getInstalledPluginInfos(cwd).find(
+    (plugin) => plugin.id === pluginPackage && plugin.scope === scope,
+  );
+  return typeof info?.installPath === "string" ? info.installPath : undefined;
+}
+
+function findCodexInstalledPluginRoot(pluginKey: string): string | undefined {
+  try {
+    const raw = JSON.parse(exec("codex plugin list --json")) as { installed?: CodexPluginInfo[] };
+    const info = raw.installed?.find((plugin) => plugin.pluginId === pluginKey);
+    return typeof info?.source?.path === "string" ? info.source.path : undefined;
+  } catch {
+    return undefined;
   }
 }
 
@@ -461,6 +487,28 @@ interface MigratedSkillCleanupTarget {
   preserveDevelopmentSymlinks: boolean;
 }
 
+function migratedSkillCleanupTargets(
+  opts: InstallOpts,
+  runtimes: PluginRuntime[],
+): MigratedSkillCleanupTarget[] {
+  const cwd = installTargetCwd(opts);
+  const projectTarget: MigratedSkillCleanupTarget = {
+    baseDir: cwd,
+    lockPath: path.join(cwd, "skills-lock.json"),
+    preserveDevelopmentSymlinks: true,
+  };
+  const includeUserTarget = (opts.scope ?? "project") === "user" || runtimes.includes("codex");
+  if (!includeUserTarget) return [projectTarget];
+
+  const home = os.homedir();
+  const userTarget: MigratedSkillCleanupTarget = {
+    baseDir: home,
+    lockPath: path.join(home, ".agents", ".skill-lock.json"),
+    preserveDevelopmentSymlinks: false,
+  };
+  return path.resolve(home) === path.resolve(cwd) ? [userTarget] : [userTarget, projectTarget];
+}
+
 function hasLegacySkillCopy(
   target: MigratedSkillCleanupTarget,
   cwd: string,
@@ -508,27 +556,39 @@ function materializeUnselectedClaudeCopy(
   emitMigrationLog(opts, `materialized ${claudeDir} before removing its shared Codex target`);
 }
 
+function hasManagedLegacySkillCandidate(
+  opts: InstallOpts,
+  runtimes: PluginRuntime[],
+): boolean {
+  for (const target of migratedSkillCleanupTargets(opts, runtimes)) {
+    const lock = readSkillLock(target.lockPath);
+    for (const name of MIGRATED_WORKFLOW_SKILLS) {
+      if (!lockHasManagedSource(lock, name)) continue;
+      if (runtimes.some((runtime) => fs.existsSync(legacySkillDirAt(target.baseDir, runtime, name)))) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+function assertWorkflowPluginProvidesMigratedSkills(pluginRoot: string | undefined): void {
+  const missing = MIGRATED_WORKFLOW_SKILLS.filter(
+    (name) => !pluginRoot || !fs.existsSync(path.join(pluginRoot, "skills", name, "SKILL.md")),
+  );
+  if (missing.length > 0) {
+    throw new Error(
+      `installed auriga-workflow payload could not be verified; missing skills: ${missing.join(", ")}`,
+    );
+  }
+}
+
 function cleanupMigratedWorkflowSkillInstalls(
   opts: InstallOpts,
   runtimes: PluginRuntime[],
 ): void {
   const cwd = installTargetCwd(opts);
-  const scope = opts.scope ?? "project";
-  const projectTarget: MigratedSkillCleanupTarget = {
-    baseDir: cwd,
-    lockPath: path.join(cwd, "skills-lock.json"),
-    preserveDevelopmentSymlinks: true,
-  };
-  const targets = scope === "user"
-    ? [
-        {
-          baseDir: os.homedir(),
-          lockPath: path.join(os.homedir(), ".agents", ".skill-lock.json"),
-          preserveDevelopmentSymlinks: false,
-        },
-        projectTarget,
-      ]
-    : [projectTarget];
+  const targets = migratedSkillCleanupTargets(opts, runtimes);
 
   for (const name of MIGRATED_WORKFLOW_SKILLS) {
     for (const target of targets) {
@@ -538,10 +598,10 @@ function cleanupMigratedWorkflowSkillInstalls(
           fs.existsSync(legacySkillDirAt(target.baseDir, runtime, name))
         );
         if (hasCopy) {
-          emitMigrationWarning(
-            opts,
-            `preserved ${name} under ${target.baseDir}: lock provenance does not match the migrated source`,
-          );
+          const reason = fs.existsSync(target.lockPath) && lock === null
+            ? `lock file is unreadable: ${target.lockPath}`
+            : `lock provenance does not match the migrated source`;
+          emitMigrationWarning(opts, `preserved ${name} under ${target.baseDir}: ${reason}`);
         }
         continue;
       }
@@ -671,8 +731,12 @@ function runPostInstallMigration(
   pluginName: string,
   opts: InstallOpts,
   runtimes: PluginRuntime[],
+  pluginRoot?: string,
 ): void {
   if (pluginName === WORKFLOW_SKILLS_PLUGIN_NAME) {
+    if (hasManagedLegacySkillCandidate(opts, runtimes)) {
+      assertWorkflowPluginProvidesMigratedSkills(pluginRoot);
+    }
     cleanupMigratedWorkflowSkillInstalls(opts, runtimes);
   }
   if (pluginName === NOTIFY_PLUGIN_NAME) {
@@ -1024,13 +1088,24 @@ async function installCodexPlugins(
       externalSelected,
     );
     for (const entry of pluginAdds) {
+      let installed = false;
       try {
         exec(codexPluginAddCommand(entry.key, entry.hasHooks), marketplaceExecOpts);
         log.ok(`Codex plugin ${entry.key} added`);
-        runPostInstallMigration(entry.name, opts, ["codex"]);
+        installed = true;
       } catch (e) {
         log.error(`Failed to add Codex plugin ${entry.key}\n${commandErrorText(e)}`);
         failures.push(`codex plugin ${entry.key}`);
+      }
+      if (!installed) continue;
+      try {
+        const pluginRoot = entry.name === WORKFLOW_SKILLS_PLUGIN_NAME
+          ? findCodexInstalledPluginRoot(entry.key)
+          : undefined;
+        runPostInstallMigration(entry.name, opts, ["codex"], pluginRoot);
+      } catch (e) {
+        log.error(`Codex plugin ${entry.key} installed but migration failed\n${commandErrorText(e)}`);
+        failures.push(`migration for Codex plugin ${entry.key}`);
       }
     }
   }
@@ -1216,6 +1291,7 @@ export async function installPlugins(
         const isUpdate = installed.get(plugin.package)?.includes(scope) ?? false;
         const action = isUpdate ? "update" : "install";
         console.log(`\n${isUpdate ? "Updating" : "Installing"} ${plugin.name}...`);
+        let installedPlugin = false;
         try {
           const cmd = `claude plugins ${action} ${plugin.package} --scope ${scope}`;
           const cmdOpts = { cwd: targetCwd };
@@ -1226,17 +1302,27 @@ export async function installPlugins(
             exec(cmd, { ...cmdOpts, inherit: true });
           }
           log.ok(`${plugin.name} ${isUpdate ? "updated" : "installed"}`);
-          if (plugin.marketplace && unavailableMarketplaces.has(plugin.marketplace.name)) {
-            emitMigrationWarning(
-              opts,
-              `preserved legacy assets for ${plugin.name}: marketplace ${plugin.marketplace.name} did not refresh`,
-            );
-          } else {
-            runPostInstallMigration(plugin.name, { ...opts, scope }, ["claude"]);
-          }
+          installedPlugin = true;
         } catch (e) {
           log.error(`Failed to ${action}: ${plugin.name}\n${commandErrorText(e)}`);
           failures.push(plugin.name);
+        }
+        if (!installedPlugin) continue;
+        if (plugin.marketplace && unavailableMarketplaces.has(plugin.marketplace.name)) {
+          emitMigrationWarning(
+            opts,
+            `preserved legacy assets for ${plugin.name}: marketplace ${plugin.marketplace.name} did not refresh`,
+          );
+          continue;
+        }
+        try {
+          const pluginRoot = plugin.name === WORKFLOW_SKILLS_PLUGIN_NAME
+            ? findClaudeInstalledPluginRoot(plugin.package, scope, targetCwd)
+            : undefined;
+          runPostInstallMigration(plugin.name, { ...opts, scope }, ["claude"], pluginRoot);
+        } catch (e) {
+          log.error(`${plugin.name} installed but migration failed\n${commandErrorText(e)}`);
+          failures.push(`migration for ${plugin.name}`);
         }
       }
     }
