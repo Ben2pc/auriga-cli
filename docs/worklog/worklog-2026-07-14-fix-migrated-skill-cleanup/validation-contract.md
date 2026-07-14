@@ -53,5 +53,5 @@
 - `npm test`：483 项通过，0 项失败。
 - `npm run test:session-instructions-loader`：20 项通过，0 项失败。
 - `npm run test:git-guards`：28 项通过，0 项失败。
-- `npm run test:e2e`：待当前提交推送后执行。
+- `npm_config_offline=true npm run test:e2e`：8 项通过，0 项失败；覆盖真实 tarball 安装、插件注册及旧技能和锁文件不变。标准命令首次停在临时项目的 npm 依赖下载，改用本机缓存后完整用例通过。
 - 本次不执行 GPT 5.6 Sol 或 Fable 5 模型评测。
