@@ -57,7 +57,7 @@
 
 | Asset (资产) | Source (来源) | Runtime (运行时) | Status (状态) |
 |---|---|---|---|
-| [`systematic-debugging`](systematic-debugging.md) | `obra/superpowers` → Auriga 插件 | Claude Code / Codex | 内化；已实现，待端到端验证 |
+| [`systematic-debugging`](systematic-debugging.md) | `obra/superpowers` → Auriga 插件 | Claude Code / Codex | 内化；已完成 |
 | `test-driven-development` | `obra/superpowers` | Claude Code / Codex | 待评审 |
 | `verification-before-completion` | `obra/superpowers` | Claude Code / Codex | 待评审 |
 

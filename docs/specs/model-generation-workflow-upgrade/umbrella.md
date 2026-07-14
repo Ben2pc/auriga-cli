@@ -6,7 +6,7 @@
 |---|---|---|---|
 | 1 | `model-evaluation-baseline/` | VAL-EVAL-001..005 | 待创建 |
 | 2 | `auriga-owned-skills/` | VAL-AURI-001..017 | 待逐项评审 |
-| 3 | `vendor-core-skills/systematic-debugging/` | VAL-DIAG-001..VAL-MIG-002 | 已实现，待端到端验证 |
+| 3 | `vendor-core-skills/systematic-debugging/` | VAL-DIAG-001..VAL-MIG-002 | 已完成 |
 | 4 | `vendor-core-skills/` 其余技能 | VAL-CORE-001..003 | 待逐项评审 |
 | 5 | `vendor-recommended-skills/` | VAL-RECO-001..008 | 待逐项评审 |
 | 6 | `external-plugins/` | VAL-PLUG-001..005 | 待逐项评审 |
