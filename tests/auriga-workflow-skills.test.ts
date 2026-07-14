@@ -104,13 +104,14 @@ describe("auriga-workflow skill contracts", () => {
       "plugins/auriga-workflow/skills/session-compound/SKILL.md",
       "plugins/auriga-workflow/skills/session-compound/references/eval-dispatch.md",
       "plugins/auriga-workflow/skills/spec-design/SKILL.md",
+      "plugins/auriga-workflow/skills/spec-design/references/validation-contract-template.md",
       "plugins/auriga-workflow/skills/deep-review/references/reviewers/test-quality.md",
     ]) {
       const text = read(rel);
       assert.doesNotMatch(text, /test-designer/, `${rel} must not reference the retired skill`);
       assert.doesNotMatch(
         text,
-        /不另派[^。\n]*测试|不再派遣[^。\n]*测试|当前实现代理[^。\n]*(?:测试|失败证据|保护网)|实现代理[^。\n]*(?:测试设计|红绿循环)|current implementation agent[^.\n]*test|separate test agent/i,
+        /不另派[^。\n]*测试|不再派遣[^。\n]*测试|当前(?:实现)?代理[^。\n]*(?:测试|失败证据|保护网|建立证据)|实现代理[^。\n]*(?:测试设计|红绿循环|运行器|驱动)|current (?:implementation )?agent[^.\n]*test|separate test agent/i,
         `${rel} must not spend context restating default test-agent behavior`,
       );
     }
