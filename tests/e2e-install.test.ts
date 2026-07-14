@@ -298,7 +298,7 @@ describe(
         0,
         `install skills exited ${r.status}.\nstdout: ${r.stdout}\nstderr: ${r.stderr}`,
       );
-      assert.ok(findSkillFile(proj, "verification-before-completion"), "verification-before-completion SKILL.md missing");
+      assert.ok(findSkillFile(proj, "planning-with-files"), "planning-with-files SKILL.md missing");
     });
 
     test("install recommended --recommended-skill codex-agent → only codex-agent lands", { timeout: TIMEOUT }, () => {
@@ -420,18 +420,18 @@ describe(
       },
     );
 
-    test("install skills --skill verification-before-completion → filter actually filters (other skills absent)", { timeout: TIMEOUT }, () => {
+    test("install skills --skill playwright-cli → filter actually filters (other skills absent)", { timeout: TIMEOUT }, () => {
       const proj = setupProject(tarballPath!);
-      const r = runCli(proj, ["install", "skills", "--skill", "verification-before-completion"]);
+      const r = runCli(proj, ["install", "skills", "--skill", "playwright-cli"]);
       assert.equal(
         r.status,
         0,
-        `install skills --skill verification-before-completion exited ${r.status}.\nstdout: ${r.stdout}\nstderr: ${r.stderr}`,
+        `install skills --skill playwright-cli exited ${r.status}.\nstdout: ${r.stdout}\nstderr: ${r.stderr}`,
       );
-      // verification-before-completion must be present — otherwise the filter-leak
+      // playwright-cli must be present — otherwise the filter-leak
       // check below would pass vacuously if the whole install silently
       // errored out and produced no skills dir at all.
-      assert.ok(findSkillDir(proj, "verification-before-completion"), "verification-before-completion dir missing (filter test would be vacuous)");
+      assert.ok(findSkillDir(proj, "playwright-cli"), "playwright-cli dir missing (filter test would be vacuous)");
       // A random non-selected workflow skill must NOT be present —
       // proves the filter isn't a silent no-op that installs everything.
       assert.ok(
@@ -458,7 +458,7 @@ describe(
         const agentsMd = path.join(proj, "AGENTS.md");
         assert.ok(fs.existsSync(agentsMd) && fs.statSync(agentsMd).size > 0, "AGENTS.md missing/empty (workflow category)");
 
-        assert.ok(findSkillFile(proj, "verification-before-completion"), "verification-before-completion SKILL.md missing (skills category)");
+        assert.ok(findSkillFile(proj, "planning-with-files"), "planning-with-files SKILL.md missing (skills category)");
 
         // Plugins category: `.claude/settings.json` exists AND mentions
         // every default-on plugin. Gated above by CLAUDE_AVAILABLE so

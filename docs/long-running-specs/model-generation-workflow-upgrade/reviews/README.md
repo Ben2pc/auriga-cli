@@ -61,7 +61,7 @@
 | `planning-with-files` | `OthmanAdi/planning-with-files` | Claude Code / Codex | 待评审 |
 | `playwright-cli` | `microsoft/playwright-cli` | Claude Code / Codex | 待评审 |
 | [`test-driven-development`](../../../worklog/worklog-2026-07-14-refactor-simplify-tdd-skill/unified-tdd-skill/review.md) | `obra/superpowers` | Claude Code / Codex | 外部版本退出锁定与预设，由 Auriga 精简版本替代；模型评测未执行 |
-| `verification-before-completion` | `obra/superpowers` | Claude Code / Codex | 待评审 |
+| `verification-before-completion` | `obra/superpowers` | Claude Code / Codex | 删除并由工作流规则与确定性机制替代；实现中；模型评测未执行 |
 
 ### 外部推荐技能
 

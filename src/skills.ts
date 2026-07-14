@@ -12,7 +12,6 @@ import type { InstallOpts, SkillEntry, SkillsLock } from "./utils.js";
 export const WORKFLOW_SKILLS = [
   "planning-with-files",
   "playwright-cli",
-  "verification-before-completion",
 ];
 
 // Skill names and npm-style sources are interpolated into the shell

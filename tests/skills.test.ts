@@ -18,7 +18,6 @@ const stub = (source: string) => ({
 // a plugin, not a skill, and lives in this repo). When in doubt, keep
 // names + sources aligned with skills-lock.json.
 const LOCK: SkillsLock["skills"] = {
-  "verification-before-completion": stub("obra/superpowers"),
   "claude-code-agent": stub("Ben2pc/g-claude-code-plugins"),
   "codex-agent": stub("Ben2pc/g-claude-code-plugins"),
   "planning-with-files": stub("OthmanAdi/planning-with-files"),
@@ -45,12 +44,12 @@ describe("planSkillInstallCommands", () => {
   });
 
   test("single source, single skill → one command with npx -y", () => {
-    const batches = planSkillInstallCommands(["verification-before-completion"], LOCK, "");
+    const batches = planSkillInstallCommands(["planning-with-files"], LOCK, "");
     assert.equal(batches.length, 1);
-    assert.equal(batches[0].source, "obra/superpowers");
-    assert.deepEqual(batches[0].skills, ["verification-before-completion"]);
+    assert.equal(batches[0].source, "OthmanAdi/planning-with-files");
+    assert.deepEqual(batches[0].skills, ["planning-with-files"]);
     assert.match(batches[0].command, /^npx -y skills add /);
-    assert.match(batches[0].command, / --skill verification-before-completion /);
+    assert.match(batches[0].command, / --skill planning-with-files /);
     assert.match(batches[0].command, / --agent claude-code codex /);
     assert.match(batches[0].command, / --yes$/);
   });
@@ -75,47 +74,45 @@ describe("planSkillInstallCommands", () => {
 
   test("duplicate selections are preserved for the caller to diagnose", () => {
     const batches = planSkillInstallCommands(
-      ["verification-before-completion", "verification-before-completion"],
+      ["planning-with-files", "planning-with-files"],
       LOCK,
       "",
     );
     assert.deepEqual(batches[0].skills, [
-      "verification-before-completion",
-      "verification-before-completion",
+      "planning-with-files",
+      "planning-with-files",
     ]);
   });
 
   test("multiple sources → one batch per source, grouping is stable", () => {
     const batches = planSkillInstallCommands(
       [
-        "verification-before-completion",
+        "planning-with-files",
         "claude-code-agent",
         "codex-agent",
-        "planning-with-files",
+        "playwright-cli",
       ],
       LOCK,
       "",
     );
     assert.equal(batches.length, 3);
     const bySource = Object.fromEntries(batches.map((b) => [b.source, b.skills]));
-    assert.deepEqual(bySource["obra/superpowers"], ["verification-before-completion"]);
     assert.deepEqual(bySource["Ben2pc/g-claude-code-plugins"], [
       "claude-code-agent",
       "codex-agent",
     ]);
-    assert.deepEqual(bySource["OthmanAdi/planning-with-files"], [
-      "planning-with-files",
-    ]);
+    assert.deepEqual(bySource["OthmanAdi/planning-with-files"], ["planning-with-files"]);
+    assert.deepEqual(bySource["microsoft/playwright-cli"], ["playwright-cli"]);
   });
 
   test("every distinct source yields one batch", () => {
     const batches = planSkillInstallCommands(Object.keys(LOCK), LOCK, "");
-    assert.equal(batches.length, 4); // 4 distinct sources in the real lock fixture
+    assert.equal(batches.length, 3); // 3 distinct sources in the real lock fixture
   });
 
   test("globalFlag threads into every command", () => {
     const batches = planSkillInstallCommands(
-      ["verification-before-completion", "claude-code-agent"],
+      ["planning-with-files", "claude-code-agent"],
       LOCK,
       " -g",
     );
@@ -125,19 +122,19 @@ describe("planSkillInstallCommands", () => {
   });
 
   test("no globalFlag → no trailing -g in the source slot", () => {
-    const batches = planSkillInstallCommands(["verification-before-completion"], LOCK, "");
+    const batches = planSkillInstallCommands(["planning-with-files"], LOCK, "");
     assert.doesNotMatch(batches[0].command, / -g /);
   });
 
   test("unknown skill name is ignored (defensive — caller filters first, but planner must not crash)", () => {
     const batches = planSkillInstallCommands(
-      ["verification-before-completion", "not-a-real-skill"],
+      ["planning-with-files", "not-a-real-skill"],
       LOCK,
       "",
     );
     // Only the known skill survives; no throw.
     assert.equal(batches.length, 1);
-    assert.deepEqual(batches[0].skills, ["verification-before-completion"]);
+    assert.deepEqual(batches[0].skills, ["planning-with-files"]);
   });
 
   test("empty selection → empty plan", () => {

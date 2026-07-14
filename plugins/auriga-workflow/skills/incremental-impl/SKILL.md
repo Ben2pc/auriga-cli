@@ -274,7 +274,7 @@ Risk-first 是**执行顺序**，不是 slicing axis。它可以和 Vertical sli
 
 上面的执行纪律从正面描述规则。这里是每个 worker（subagent 或 main-Agent inline）执行单个 slice 时对应的负面规则。
 
-- **Worker 不能宣称“feature done”。** Slice 级别的“done”只表示这个 slice 的 diff 能编译、tests 通过、handoff 填好了。整个 feature 是否满足 Acceptance criteria，由 `verification-before-completion` 判断；PR Ready 之后还要由 `deep-review` 判断，而不是由 worker 自我认证。worker 自己宣布“done”会触发这个 workflow 要避免的 Self-Evaluation Bias。
+- **Worker 不能宣称“feature done”。** Slice 级别的“done”只表示这个 slice 的 diff 能编译、tests 通过、handoff 填好了。整个 feature 是否满足 Acceptance criteria，由 main Agent 在所有 slices 合并后按工作流完成声明规则核对；PR Ready 之后还要由 `deep-review` 判断，而不是由 worker 自我认证。worker 自己宣布“done”会触发这个 workflow 要避免的 Self-Evaluation Bias。
 - **Worker 不能重构 assigned slice 范围外的相邻代码。** 即使相邻代码明显可改，也要通过 Scope Discipline 里的 `NOTICED BUT NOT TOUCHING` pattern 暴露出来，不要静默扩大 slice。slice 内 scope creep 会同时破坏 Rollback-Friendly 契约（同一个 commit 里的 delete-and-replace 会难以 revert）和 Parallel Dispatch Iron Law（一个 slice 改了声明范围外的文件，就可能与并行 slice 碰撞）。
 
 ## 反模式 / Anti-patterns
@@ -296,5 +296,5 @@ Risk-first 是**执行顺序**，不是 slicing axis。它可以和 Vertical sli
 - 上游 planning sources（任意一种）：内置 Plan、`planning-with-files`、`spec-design`，或用户直接给出的任务；本 skill 不依赖来源
 - `test-driven-development`：管理 Step 4.1 中的 red→green cycle
 - `systematic-debugging`：当任意 slice 的结果破坏 regression 时运行
-- `verification-before-completion`：所有 slices 合并后的最终 gate
+- 工作流完成声明规则：约束所有 slices 合并后的最终状态判断
 - `git-workflow`（auriga-workflow plugin）：4.5 引用的 atomic commit rules

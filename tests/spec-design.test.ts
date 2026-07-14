@@ -169,7 +169,7 @@ describe("spec-design skill — repo-check VALs", () => {
   test("workflow templates keep the unified TDD trigger and refactor boundary", () => {
     for (const f of ["AGENTS.md", "AGENTS.template.zh-CN.md", "AGENTS.template.en.md"]) {
       const text = read(f);
-      assert.match(text, /v1\.15\.0/, `${f} must advance the workflow contract version`);
+      assert.match(text, /v1\.16\.0/, `${f} must advance the workflow contract version`);
       assert.doesNotMatch(
         text,
         /不另派[^。\n]*测试|测试设计由当前实现|current implementation Agent owns test design|separate test Agent/i,
@@ -180,6 +180,37 @@ describe("spec-design skill — repo-check VALs", () => {
         /(?:重构[^\n]*保护网|refactor[^\n]*protection)/i,
         `${f} must preserve the green characterization-test path for refactors`,
       );
+    }
+  });
+
+  test("completion evidence is a workflow rule, not an installable skill", () => {
+    const lock = JSON.parse(read("skills-lock.json"));
+    assert.equal(lock.skills["verification-before-completion"], undefined);
+
+    for (const f of ["src/skills.ts", "README.md", "README.zh-CN.md"]) {
+      assert.doesNotMatch(
+        read(f),
+        /verification-before-completion/,
+        `${f} must not publish the retired skill`,
+      );
+    }
+
+    assert.ok(
+      read("AGENTS.template.zh-CN.md").includes(
+        "任何“已完成、已修复、通过或可评审”的判断，都必须基于最后一次相关修改之后、与该判断匹配的验证结果；证据不足时如实说明缺口。",
+      ),
+    );
+    assert.ok(
+      read("AGENTS.template.en.md").includes(
+        'Any "done, fixed, passing, or ready for review" judgment must be based on verification results that match the claim and were obtained after the last relevant change; when evidence is insufficient, state the gap.',
+      ),
+    );
+
+    for (const f of [
+      "plugins/auriga-workflow/skills/incremental-impl/SKILL.md",
+      "plugins/auriga-workflow/skills/test-driven-development/SKILL.md",
+    ]) {
+      assert.doesNotMatch(read(f), /verification-before-completion/);
     }
   });
 
@@ -290,10 +321,10 @@ describe("spec-design skill — repo-check VALs", () => {
       "VAL-INV-002": "待定",
       "VAL-REV-001": "待定",
       "VAL-REV-002": "待定",
-      "VAL-REV-003": "VAL-RISK-001",
-      "VAL-MIG-001": "VAL-ASSET-001、VAL-FLOW-002",
-      "VAL-MIG-002": "VAL-PUBL-001..002、VAL-REMOVE-001、VAL-NOMUTATE-001、VAL-FLOW-002、VAL-REL-002",
-      "VAL-MIG-003": "VAL-PUBL-001、VAL-MANUAL-001、VAL-RELEASE-001、VAL-REL-001",
+      "VAL-REV-003": "VAL-RISK-001、VAL-VRSK-001",
+      "VAL-MIG-001": "VAL-ASSET-001、VAL-FLOW-002、VAL-VAST-001、VAL-VREF-001",
+      "VAL-MIG-002": "VAL-PUBL-001..002、VAL-REMOVE-001、VAL-NOMUTATE-001、VAL-FLOW-002、VAL-REL-002、VAL-VRUL-001、VAL-VMIG-001",
+      "VAL-MIG-003": "VAL-PUBL-001、VAL-MANUAL-001、VAL-RELEASE-001、VAL-REL-001、VAL-VREL-001",
       "VAL-DOC-001": "VAL-LIFE-001",
       "VAL-DOC-002": "VAL-LIFE-001",
     };
@@ -372,7 +403,10 @@ describe("spec-design skill — repo-check VALs", () => {
     const unifiedTdd = read(
       "docs/worklog/worklog-2026-07-14-refactor-simplify-tdd-skill/unified-tdd-skill/validation-contract.md",
     );
-    const childIds = [child, repair, unifiedTdd]
+    const verificationRule = read(
+      "docs/specs/verification-before-completion/validation-contract.md",
+    );
+    const childIds = [child, repair, unifiedTdd, verificationRule]
       .flatMap((text) => text.match(/### (VAL-[A-Z]+-\d+)/g)?.map((line) => line.slice(4)) ?? []);
 
     assert.equal(
