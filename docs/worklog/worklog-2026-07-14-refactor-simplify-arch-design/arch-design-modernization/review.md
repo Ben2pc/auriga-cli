@@ -1,5 +1,12 @@
 # arch-design 评审
 
+## 当前状态
+
+- 精简方案已在 PR #183 落地。
+- 仓库测试、会话指令加载测试、Git 生命周期守卫测试和技能结构校验均通过。
+- 端到端安装测试共 8 项，6 项通过；`install skills` 与 `install --all` 均因外部仓库 `OthmanAdi/planning-with-files` 浅克隆超过 300 秒而失败。相关的工作流模板、当前插件和筛选安装场景均已通过。
+- 本轮未执行 GPT 5.6 Sol 或 Fable 5 的受控模型评测。
+
 ## 当前职责
 
 在实现前澄清并记录领域模型、模块边界、职责分配、依赖方向、关键接口、数据流和迁移约束，让技术方案先经过人工评审，再成为计划和实现的输入。
@@ -41,4 +48,4 @@
 
 - [子规范](spec.md)
 - [验收契约](validation-contract.md)
-- [当前技能](../../../plugins/auriga-workflow/skills/arch-design/SKILL.md)
+- [当前技能](../../../../plugins/auriga-workflow/skills/arch-design/SKILL.md)

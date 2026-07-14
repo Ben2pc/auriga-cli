@@ -36,7 +36,7 @@
 
 | Asset (资产) | Source (来源) | Runtime (运行时) | Status (状态) |
 |---|---|---|---|
-| `arch-design` | Auriga 插件 | Claude Code / Codex | 精简落地中；强化架构与领域模型触发、人工评审门禁和条件式工具箱；模型评测未执行 |
+| [`arch-design`](../../../worklog/worklog-2026-07-14-refactor-simplify-arch-design/arch-design-modernization/review.md) | Auriga 插件 | Claude Code / Codex | 精简；实现已落地 PR #183；强化架构与领域模型触发、人工评审门禁和条件式工具箱；模型评测未执行 |
 | `code-simplify` | Auriga 插件 | Claude Code / Codex | 待评审 |
 | `deep-review` | Auriga 插件 | Claude Code / Codex | 待评审 |
 | `docent` | Auriga 插件 | Claude Code / Codex | 待评审 |
