@@ -173,14 +173,24 @@ describe("spec-design skill — repo-check VALs", () => {
       if (f.endsWith("en.md")) {
         assert.match(
           text,
-          /current implementation Agent owns test design[^\n]*do not dispatch a separate test Agent/i,
+          /current implementation Agent[^.\n]{0,25}(?:owns|handles|performs)[^.\n]{0,25}test design|test design[^.\n]{0,25}(?:owned|handled|performed)[^.\n]{0,25}current implementation Agent/i,
           `${f} must keep test design with the implementation agent`,
+        );
+        assert.match(
+          text,
+          /(?:do not|must not|without)[^.\n]{0,20}(?:dispatch|use|create)[^.\n]{0,20}(?:separate|independent)[^.\n]{0,10}test Agent/i,
+          `${f} must reject a separate test agent`,
         );
       } else {
         assert.match(
           text,
-          /测试设计和红绿循环由当前实现 Agent 完成[^\n]*不另派独立测试 Agent/,
+          /测试设计和红绿循环[^。\n]{0,20}(?:由|归)[^。\n]{0,10}当前实现 Agent[^。\n]{0,10}(?:完成|负责)/,
           `${f} must keep test design with the implementation agent`,
+        );
+        assert.match(
+          text,
+          /不[^。\n]{0,8}(?:另派|派发)[^。\n]{0,8}(?:独立)?测试 Agent/,
+          `${f} must reject a separate test agent`,
         );
       }
       assert.match(

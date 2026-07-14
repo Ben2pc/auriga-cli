@@ -24,10 +24,11 @@ describe("auriga-workflow skill contracts", () => {
     const parsed = matter(text);
 
     assert.equal(parsed.data.name, "test-driven-development");
+    assert.match(parsed.data.description, /功能.*缺陷修复.*重构/);
     assert.match(
       parsed.data.description,
-      /功能.*缺陷修复.*重构.*纯文档.*纯配置.*生成代码.*没有有效自动化接缝/,
-      "frontmatter must preserve activation and exemption boundaries",
+      /纯文档.*纯配置.*生成代码.*没有有效自动化接缝.*不触发/,
+      "frontmatter must preserve the exemption semantics",
     );
     for (const anchor of [
       "validation-contract.md",
@@ -44,21 +45,23 @@ describe("auriga-workflow skill contracts", () => {
       text.split("\n").length <= 80,
       "the unified TDD skill must stay within an 80-line context budget",
     );
-    assert.ok(
-      text.includes("由当前实现代理完成测试设计和实现，不另派独立测试代理"),
+    assert.match(
+      text,
+      /当前实现代理[^。\n]{0,20}(?:完成|负责)[^。\n]{0,20}测试设计|测试设计[^。\n]{0,20}(?:由|归)[^。\n]{0,12}当前实现代理/,
       "the current implementation agent must own test design",
     );
+    assert.match(
+      text,
+      /不[^。\n]{0,8}(?:另派|派发)[^。\n]{0,8}(?:独立)?测试代理/,
+      "the skill must reject a separate test agent",
+    );
     assert.doesNotMatch(text, /xhigh|最强模型|全新会话|fresh context/i);
-    assert.doesNotMatch(
+    assert.match(
       text,
-      /(?:必须|要求|应当).{0,20}(?:独立测试代理|测试代理)|(?:must|should|required).{0,30}(?:separate|independent).{0,20}test agent/i,
-      "the unified TDD skill must not require an independent test agent",
+      /不因[^。\n]{0,30}删除[^。\n]{0,12}(?:实现|代码)|不因[^。\n]{0,20}(?:实现|代码)[^。\n]{0,20}删除/,
+      "the skill must reject deleting usable implementation only to restart the ritual",
     );
-    assert.doesNotMatch(
-      text,
-      /(?:必须|应当|直接)删除.{0,20}(?:实现|代码)|delete (?:the )?(?:implementation|code)/i,
-      "the unified TDD skill must not force destructive restart rituals",
-    );
+    assert.doesNotMatch(text, /delete means delete/i);
   });
 
   test("auriga-workflow publishes the exact owned skill inventory", () => {

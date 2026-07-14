@@ -175,7 +175,7 @@ describe("generateCatalog (build-time)", () => {
     }
   });
 
-  test("install help reflects migrated plugin surfaces instead of standalone entries", () => {
+  test("install surfaces reflect plugin-owned skills instead of standalone entries", () => {
     // rationale: install help is rendered from the generated catalog, so this
     // pins the user-visible CLI surface as well as dist/catalog.json.
     const skillHelp = renderTypeHelp(catalog, "skills", "0.0.0-test");
