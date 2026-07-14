@@ -24,10 +24,10 @@ const PLUGIN_NAME_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
 const PLUGIN_PACKAGE_RE = /^[A-Za-z0-9][A-Za-z0-9._@/-]{0,255}$/;
 const LOCAL_MARKETPLACE_SOURCE = "Ben2pc/auriga-cli";
 const MIGRATED_WORKFLOW_SKILL_SOURCES = {
-  "incremental-impl": "Ben2pc/auriga-cli",
-  "test-designer": "Ben2pc/auriga-cli",
-  "session-compound": "Ben2pc/auriga-cli",
-  "systematic-debugging": "obra/superpowers",
+  "incremental-impl": ["Ben2pc/auriga-cli"],
+  "test-designer": ["Ben2pc/auriga-cli", "Ben2pc/g-claude-code-plugins"],
+  "session-compound": ["Ben2pc/auriga-cli", "Ben2pc/g-claude-code-plugins"],
+  "systematic-debugging": ["obra/superpowers"],
 } as const;
 const MIGRATED_WORKFLOW_SKILLS = Object.keys(MIGRATED_WORKFLOW_SKILL_SOURCES) as Array<
   keyof typeof MIGRATED_WORKFLOW_SKILL_SOURCES
@@ -392,6 +392,11 @@ function emitMigrationLog(opts: InstallOpts, line: string): void {
   opts.onLog?.(line, "stdout");
 }
 
+function emitMigrationWarning(opts: InstallOpts, line: string): void {
+  if (opts.onLog) opts.onLog(line, "stderr");
+  else log.warn(line);
+}
+
 function runtimeSkillRoot(runtime: PluginRuntime): ".claude" | ".agents" {
   return runtime === "claude" ? ".claude" : ".agents";
 }
@@ -427,11 +432,14 @@ function readSkillLock(lockPath: string): SkillLockFile | null {
   }
 }
 
-function lockHasExpectedSource(
+function lockHasManagedSource(
   lock: SkillLockFile | null,
   name: keyof typeof MIGRATED_WORKFLOW_SKILL_SOURCES,
 ): boolean {
-  return lock?.skills?.[name]?.source === MIGRATED_WORKFLOW_SKILL_SOURCES[name];
+  const source = lock?.skills?.[name]?.source;
+  return typeof source === "string" && MIGRATED_WORKFLOW_SKILL_SOURCES[name].some(
+    (managedSource) => managedSource === source,
+  );
 }
 
 function removeMigratedSkillFromLock(
@@ -469,6 +477,37 @@ function hasLegacySkillCopy(
   });
 }
 
+function materializeUnselectedClaudeCopy(
+  target: MigratedSkillCleanupTarget,
+  cwd: string,
+  name: keyof typeof MIGRATED_WORKFLOW_SKILL_SOURCES,
+  runtimes: PluginRuntime[],
+  opts: InstallOpts,
+): void {
+  if (!runtimes.includes("codex") || runtimes.includes("claude")) return;
+
+  const claudeDir = legacySkillDirAt(target.baseDir, "claude", name);
+  const codexDir = legacySkillDirAt(target.baseDir, "codex", name);
+  const stat = fs.lstatSync(claudeDir, { throwIfNoEntry: false });
+  if (!stat?.isSymbolicLink()) return;
+  if (target.preserveDevelopmentSymlinks && isWorkflowPluginDevSymlink(claudeDir, cwd, name)) {
+    return;
+  }
+
+  const resolved = path.resolve(path.dirname(claudeDir), fs.readlinkSync(claudeDir));
+  if (resolved !== path.resolve(codexDir) || !fs.existsSync(codexDir)) return;
+
+  const staged = `${claudeDir}.auriga-migration-${process.pid}`;
+  fs.cpSync(codexDir, staged, { recursive: true, dereference: true });
+  try {
+    fs.rmSync(claudeDir, { force: true });
+    fs.renameSync(staged, claudeDir);
+  } finally {
+    fs.rmSync(staged, { recursive: true, force: true });
+  }
+  emitMigrationLog(opts, `materialized ${claudeDir} before removing its shared Codex target`);
+}
+
 function cleanupMigratedWorkflowSkillInstalls(
   opts: InstallOpts,
   runtimes: PluginRuntime[],
@@ -494,18 +533,20 @@ function cleanupMigratedWorkflowSkillInstalls(
   for (const name of MIGRATED_WORKFLOW_SKILLS) {
     for (const target of targets) {
       const lock = readSkillLock(target.lockPath);
-      if (!lockHasExpectedSource(lock, name)) {
+      if (!lockHasManagedSource(lock, name)) {
         const hasCopy = (["claude", "codex"] as const).some((runtime) =>
           fs.existsSync(legacySkillDirAt(target.baseDir, runtime, name))
         );
         if (hasCopy) {
-          emitMigrationLog(
+          emitMigrationWarning(
             opts,
             `preserved ${name} under ${target.baseDir}: lock provenance does not match the migrated source`,
           );
         }
         continue;
       }
+
+      materializeUnselectedClaudeCopy(target, cwd, name, runtimes, opts);
 
       for (const runtime of runtimes) {
         const dir = legacySkillDirAt(target.baseDir, runtime, name);
@@ -1114,6 +1155,7 @@ export async function installPlugins(
       const existingMarketplaces = getInstalledMarketplaces();
       const marketplacesToAdd = new Map<string, string>();
       const marketplacesToUpdate = new Set<string>();
+      const unavailableMarketplaces = new Set<string>();
 
       for (const plugin of selected) {
         if (!plugin.marketplace) continue;
@@ -1138,6 +1180,7 @@ export async function installPlugins(
         } catch {
           log.error(`Failed to add marketplace: ${name}`);
           failures.push(`marketplace ${name}`);
+          unavailableMarketplaces.add(name);
         }
       }
 
@@ -1158,6 +1201,7 @@ export async function installPlugins(
           // Codex side's commandErrorText usage in addCodexMarketplaceWithRetry.
           log.error(`Failed to update marketplace: ${name}\n${commandErrorText(e)}`);
           failures.push(`marketplace ${name}`);
+          unavailableMarketplaces.add(name);
         }
       }
 
@@ -1182,7 +1226,14 @@ export async function installPlugins(
             exec(cmd, { ...cmdOpts, inherit: true });
           }
           log.ok(`${plugin.name} ${isUpdate ? "updated" : "installed"}`);
-          runPostInstallMigration(plugin.name, { ...opts, scope }, ["claude"]);
+          if (plugin.marketplace && unavailableMarketplaces.has(plugin.marketplace.name)) {
+            emitMigrationWarning(
+              opts,
+              `preserved legacy assets for ${plugin.name}: marketplace ${plugin.marketplace.name} did not refresh`,
+            );
+          } else {
+            runPostInstallMigration(plugin.name, { ...opts, scope }, ["claude"]);
+          }
         } catch (e) {
           log.error(`Failed to ${action}: ${plugin.name}\n${commandErrorText(e)}`);
           failures.push(plugin.name);

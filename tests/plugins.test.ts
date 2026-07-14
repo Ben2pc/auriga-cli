@@ -176,6 +176,16 @@ function seedLegacySkill(cwd: string, name: string): void {
   }
 }
 
+function seedHistoricallyLinkedSkill(cwd: string, name: string): void {
+  const agentsDir = path.join(cwd, ".agents", "skills", name);
+  fs.mkdirSync(agentsDir, { recursive: true });
+  fs.writeFileSync(path.join(agentsDir, "SKILL.md"), `# ${name}\n`);
+
+  const claudeLink = path.join(cwd, ".claude", "skills", name);
+  fs.mkdirSync(path.dirname(claudeLink), { recursive: true });
+  fs.symlinkSync(path.join("..", "..", ".agents", "skills", name), claudeLink);
+}
+
 const MIGRATED_SKILL_SOURCES: Record<string, string> = {
   "incremental-impl": "Ben2pc/auriga-cli",
   "test-designer": "Ben2pc/auriga-cli",
@@ -1444,7 +1454,7 @@ describe("installPlugins — Claude target", () => {
       "systematic-debugging",
     ];
     for (const name of migratedNames) {
-      seedLegacySkill(cwd, name);
+      seedHistoricallyLinkedSkill(cwd, name);
     }
     writeJson(path.join(cwd, "skills-lock.json"), {
       version: 1,
@@ -1471,11 +1481,146 @@ describe("installPlugins — Claude target", () => {
         true,
         `${name} must remain available to Claude when only the Codex plugin was enabled`,
       );
+      assert.equal(
+        fs.lstatSync(path.join(cwd, ".claude", "skills", name)).isSymbolicLink(),
+        false,
+        `${name} must be materialized for Claude before the shared Codex target is removed`,
+      );
     }
     const lock = JSON.parse(fs.readFileSync(path.join(cwd, "skills-lock.json"), "utf-8")) as {
       skills: Record<string, unknown>;
     };
     assert.deepEqual(Object.keys(lock.skills).sort(), [...migratedNames].sort());
+  });
+
+  test("auriga-workflow Claude-only install preserves the historical Codex skill target", async () => {
+    const packageRoot = makeMigratedAssetsPluginPackage();
+    const cwd = fs.mkdtempSync(path.join(os.tmpdir(), "auriga-migrated-skills-claude-only-"));
+    const codexHome = fs.mkdtempSync(path.join(os.tmpdir(), "auriga-codex-home-"));
+    process.env.CODEX_HOME = codexHome;
+    seedHistoricallyLinkedSkill(cwd, "systematic-debugging");
+    writeJson(path.join(cwd, "skills-lock.json"), {
+      version: 1,
+      skills: migratedSkillLock(["systematic-debugging"]),
+    });
+    const { installPlugins } = await importPlugins((cmd) => {
+      if (cmd === "claude plugins list --json") return "[]";
+      if (cmd === "claude plugins marketplace list") return "";
+      return "";
+    });
+
+    await installPlugins(packageRoot, {
+      interactive: false,
+      agent: "claude",
+      selected: ["auriga-workflow"],
+      cwd,
+      scope: "project",
+    });
+
+    assert.equal(fs.existsSync(path.join(cwd, ".claude", "skills", "systematic-debugging")), false);
+    assert.equal(
+      fs.existsSync(path.join(cwd, ".agents", "skills", "systematic-debugging", "SKILL.md")),
+      true,
+      "Codex must keep the shared target when only the Claude plugin was enabled",
+    );
+    const lock = JSON.parse(fs.readFileSync(path.join(cwd, "skills-lock.json"), "utf-8")) as {
+      skills: Record<string, unknown>;
+    };
+    assert.ok("systematic-debugging" in lock.skills);
+  });
+
+  test("auriga-workflow cleanup recognizes the original g-claude-code-plugins provenance", async () => {
+    const packageRoot = makeMigratedAssetsPluginPackage();
+    const cwd = fs.mkdtempSync(path.join(os.tmpdir(), "auriga-migrated-skills-original-source-"));
+    const codexHome = fs.mkdtempSync(path.join(os.tmpdir(), "auriga-codex-home-"));
+    process.env.CODEX_HOME = codexHome;
+    for (const name of ["test-designer", "session-compound"]) seedLegacySkill(cwd, name);
+    writeJson(path.join(cwd, "skills-lock.json"), {
+      version: 1,
+      skills: {
+        "test-designer": {
+          source: "Ben2pc/g-claude-code-plugins",
+          sourceType: "github",
+          computedHash: "legacy",
+        },
+        "session-compound": {
+          source: "Ben2pc/g-claude-code-plugins",
+          sourceType: "github",
+          computedHash: "legacy",
+        },
+      },
+    });
+    const { installPlugins } = await importPlugins((cmd) => {
+      if (cmd === "claude plugins list --json") return "[]";
+      if (cmd === "claude plugins marketplace list") return "";
+      return "";
+    });
+
+    await installPlugins(packageRoot, {
+      interactive: false,
+      agent: "both",
+      selected: ["auriga-workflow"],
+      cwd,
+      scope: "project",
+    });
+
+    for (const name of ["test-designer", "session-compound"]) {
+      assert.equal(fs.existsSync(path.join(cwd, ".claude", "skills", name)), false);
+      assert.equal(fs.existsSync(path.join(cwd, ".agents", "skills", name)), false);
+    }
+    const lock = JSON.parse(fs.readFileSync(path.join(cwd, "skills-lock.json"), "utf-8")) as {
+      skills: Record<string, unknown>;
+    };
+    assert.equal("test-designer" in lock.skills, false);
+    assert.equal("session-compound" in lock.skills, false);
+  });
+
+  test("auriga-workflow keeps standalone skills when the Claude marketplace refresh fails", async () => {
+    const packageRoot = makeMigratedAssetsPluginPackage();
+    const cwd = fs.mkdtempSync(path.join(os.tmpdir(), "auriga-migrated-skills-stale-cache-"));
+    seedHistoricallyLinkedSkill(cwd, "systematic-debugging");
+    writeJson(path.join(cwd, "skills-lock.json"), {
+      version: 1,
+      skills: migratedSkillLock(["systematic-debugging"]),
+    });
+    const commands: string[] = [];
+    const { installPlugins } = await importPlugins((cmd) => {
+      commands.push(cmd);
+      if (cmd === "claude plugins list --json") {
+        return JSON.stringify([{
+          id: "auriga-workflow@auriga-cli",
+          version: "3.12.1",
+          scope: "project",
+          projectPath: cwd,
+        }]);
+      }
+      if (cmd === "claude plugins marketplace list") return "❯ auriga-cli\n";
+      if (cmd === "claude plugins marketplace update auriga-cli") {
+        throw new Error("marketplace unavailable");
+      }
+      return "";
+    });
+
+    await assert.rejects(
+      () => installPlugins(packageRoot, {
+        interactive: false,
+        agent: "claude",
+        selected: ["auriga-workflow"],
+        cwd,
+        scope: "project",
+      }),
+      /plugin operation/i,
+    );
+
+    assert.ok(
+      commands.includes("claude plugins update auriga-workflow@auriga-cli --scope project"),
+      "the cached plugin update attempt remains independent from migration eligibility",
+    );
+    assert.equal(
+      fs.existsSync(path.join(cwd, ".claude", "skills", "systematic-debugging", "SKILL.md")),
+      true,
+      "failed marketplace refresh must preserve Claude's only known-good standalone skill",
+    );
   });
 
   test("auriga-workflow cleanup preserves repo development symlinks", async () => {
