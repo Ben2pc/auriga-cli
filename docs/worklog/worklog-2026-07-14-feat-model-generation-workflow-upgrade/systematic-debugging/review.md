@@ -43,6 +43,6 @@
 
 ## 参考资料
 
-- [子规范](../vendor-core-skills/systematic-debugging/spec.md)
-- [验收契约](../vendor-core-skills/systematic-debugging/validation-contract.md)
+- [子规范](spec.md)
+- [验收契约](validation-contract.md)
 - [ADR-002](../../../architecture/ADR-002-internalize-systematic-debugging.md)

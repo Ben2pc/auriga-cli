@@ -198,6 +198,22 @@ const cases = [
     expect: { status: 0, stderrNotIncludes: "stray" },
   },
   {
+    name: "cross-PR spec under docs/long-running-specs/ does NOT block",
+    setup: () => {
+      const dir = makeRepo();
+      const programDir = path.join(
+        dir,
+        "docs",
+        "long-running-specs",
+        "model-generation-workflow-upgrade",
+      );
+      fs.mkdirSync(programDir, { recursive: true });
+      fs.writeFileSync(path.join(programDir, "spec.md"), "# cross-PR spec\n");
+      return { cwd: dir, cmd: "gh pr ready" };
+    },
+    expect: { status: 0, stderrNotIncludes: "active specs" },
+  },
+  {
     name: "clean repo passes stray checks (may still fail filter if no gh)",
     setup: () => ({ cwd: makeRepo(), cmd: "gh pr ready" }),
     expect: { status: 0, stderrNotIncludes: "stray" },

@@ -65,4 +65,4 @@ Auriga 需要掌握核心调试契约的维护权，同时让调试投入与问�
 
 - [obra/superpowers systematic-debugging](https://github.com/obra/superpowers/tree/main/skills/systematic-debugging)：当前外部技能来源与待迁移基线。
 - [mattpocock/skills diagnosing-bugs](https://github.com/mattpocock/skills/blob/main/skills/engineering/diagnosing-bugs/SKILL.md)：问题验证路径、最小复现与诊断工具箱的对照来源。
-- `docs/specs/model-generation-workflow-upgrade/spec.md`：新一代模型工作流升级的总规范。
+- [新一代模型工作流升级总规范](../../../long-running-specs/model-generation-workflow-upgrade/spec.md)：跨 PR 持续维护的总体目标与约束。

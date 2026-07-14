@@ -5,11 +5,13 @@ description: 当 feat/ 或 fix/ 会新增或改变外部可见行为时使用；
 
 # Spec Design
 
-需求澄清调度器。把模糊的诉求（一句话、一张 HTML 原型、一份 PRD、一个 Figma 链接，甚至用户自己写的"spec"）转化成两份下游流程可以机械消费的文件：
+需求澄清调度器。把模糊的诉求（一句话、一张 HTML 原型、一份 PRD、一个 Figma 链接，甚至用户自己写的"spec"）转化成两份下游流程可以机械消费的文件。默认输出到当前 PR 的临时工作区：
 
 - `docs/specs/<topic>/spec.md` — Why + Findings + What + Out of scope + Open questions（+ References）
 - `docs/specs/<topic>/validation-contract.md` — `VAL-XXX-NNN` 断言，每条含 `Behavior + Tool + Evidence`
 - `docs/specs/<topic>/umbrella.md` — 仅当规模闸门触发拆分时生成
+
+当用户明确确认一项工作会跨多个 PR 持续推进时，总规范、共同约束、切片顺序和状态矩阵改放 `docs/long-running-specs/<topic>/`。它不会被单个 PR 的 Ready 门禁清理；每个子 PR 独有的 `spec.md` 与 `validation-contract.md` 仍必须放在 `docs/specs/<child-topic>/`，完成后归档到该 PR 的 worklog。全部子 PR 结束后，长期规范由人工决定归档或提炼为稳定文档。
 
 Validation Contract 是承重产物。`test-designer` 把 VAL 作为主输入；`deep-review` 的 `spec-conformance` 审查者读 VAL 来确认一个 PR 的 diff 满足每一条断言。
 
@@ -52,7 +54,7 @@ Validation Contract 是承重产物。`test-designer` 把 VAL 作为主输入；
 | 4. Figma 链接 | URL | 请用户附上关键页面截图或 PNG 导出；**不要**尝试直接抓取 Figma |
 | 5. 用户自带 spec | 用户以为已经写好了 | **必须**按 `## 用户自带 spec 审计` 审一遍——绝不照单全收 |
 
-五种模式共享同一份下游契约：`docs/specs/<topic>/` 下的 `spec.md` + `validation-contract.md` 一对文件。
+五种模式共享同一份下游契约：当前 PR 默认使用 `docs/specs/<topic>/` 下的 `spec.md` + `validation-contract.md`；只有用户明确确认跨 PR 生命周期时，总规范才使用 `docs/long-running-specs/<topic>/`。
 
 ## 流程
 
@@ -87,7 +89,7 @@ A. 调研   →  B. 定方向、定切分  →  C. 落到文件   →  D. 闸门
 
 ### Phase B — 定方向、定切分
 
-**B0. 拆分（仅当 A1.5 触发）。** 用下面的决策树选一条切分轴，产出子规范列表和一份 `umbrella.md`。
+**B0. 拆分（仅当 A1.5 触发）。** 用下面的决策树选一条切分轴，产出子规范列表和一份 `umbrella.md`。如果各子规范会通过不同 PR 独立合入，把“是否采用跨 PR 长期规范”作为本轮唯一生命周期问题交给用户确认；不要仅凭规模自动进入长期目录。
 
 **B1. 给 2–3 个候选方案。** 说清权衡并推荐一个。推荐项放最前；备选项是留给用户改方向用的。
 
@@ -97,11 +99,13 @@ A. 调研   →  B. 定方向、定切分  →  C. 落到文件   →  D. 闸门
 
 **语言规则（适用于 C1/C2/C2.5 全部）**：每个模板里的 **section 标题**都是双语的（英文锚点 + 中文提示），必须逐字保留——`test-designer` 和 `deep-review` 的 `spec-conformance` 审查者会 grep 英文锚点，所以不能把它们翻译掉。`validation-contract.md` 里的**结构关键字**（`VAL-XXX-NNN`、`Behavior`、`Tool`、`Evidence`、Tool 类别名）同样保持英文。**所有正文内容**——Why / Findings / What 正文、VAL 的 Behavior + Evidence 描述、切分轴理由、Open questions 等——必须用本次对话所用的语言来写。中文对话→正文写中文；英文对话→英文。同一段落里不要中英文混写。
 
-**C1.** 按 `references/spec-template.md` 撰写 `docs/specs/<topic>/spec.md`。
+**C0. 选择规范根目录。** 默认 `<spec-root>` 为 `docs/specs/`。只有 B0 已确认各子项跨多个 PR 独立合入、且用户明确批准长期生命周期时，才把总规范的 `<spec-root>` 设为 `docs/long-running-specs/`。长期总规范不能替代任何当前子 PR 的独立规范；开始子 PR 时仍在 `docs/specs/<child-topic>/` 建立对应文件。
 
-**C2.** 按 `references/validation-contract-template.md` 撰写 `docs/specs/<topic>/validation-contract.md`。反模式检查：每条 VAL 只说*什么*算通过，不说*怎么*测——后者是 `test-designer` 的活。用 A1 调研结果填 `## Toolchain` 表（仓库里每个类别对应的具体工具），把工具链调研结论往下游传递，省得下游重新发现。
+**C1.** 按 `references/spec-template.md` 撰写 `<spec-root>/<topic>/spec.md`。
 
-**C2.5.** 若 B0 触发了拆分，按 `references/umbrella-template.md` 撰写 `docs/specs/<topic>/umbrella.md`。
+**C2.** 按 `references/validation-contract-template.md` 撰写 `<spec-root>/<topic>/validation-contract.md`。反模式检查：每条 VAL 只说*什么*算通过，不说*怎么*测——后者是 `test-designer` 的活。用 A1 调研结果填 `## Toolchain` 表（仓库里每个类别对应的具体工具），把工具链调研结论往下游传递，省得下游重新发现。
+
+**C2.5.** 若 B0 触发了拆分，按 `references/umbrella-template.md` 撰写 `<spec-root>/<topic>/umbrella.md`。
 
 ### Phase D — 闸门与交接
 
@@ -110,7 +114,7 @@ A. 调研   →  B. 定方向、定切分  →  C. 落到文件   →  D. 闸门
 **D1.5. 提供审查辅助（三选一）。** 用 `AskUserQuestion` / `request_user_input` 给出：
 - (c) **跳过** — 直接进 D2。小规模 spec（≤ 5 条 VAL、单文件）的默认项。
 - (a) **Playground** — 用 `document-critique` 模板派遣 `playground:playground`（Anthropic 官方插件）；把 spec.md + validation-contract.md（有 umbrella.md 也一并）作为输入传入。playground 插件没装就隐藏这一项。
-- (b) **静态 HTML** — 生成一份自包含的 `docs/specs/<topic>/review.html`，渲染两份文档并带锚点 + 一张 VAL 表。执行 `open <file>.html`。无交互，不依赖 playground。
+- (b) **静态 HTML** — 生成一份自包含的 `<spec-root>/<topic>/review.html`，渲染两份文档并带锚点 + 一张 VAL 表。执行 `open <file>.html`。无交互，不依赖 playground。
 
 选项顺序必须是 `skip → playground → static HTML`。skip 故意放第一；小 spec 不该被推进工具化的繁文缛节。
 
@@ -118,7 +122,7 @@ A. 调研   →  B. 定方向、定切分  →  C. 落到文件   →  D. 闸门
 
 **D2. 明确同意闸门。** 把 spec 文件路径打印回给用户，等明确批准。不要因为沉默就开始 plan 或编码前准备。
 
-**D3. 交接。** 套用 `CLAUDE.md` / `AGENTS.md` 里的规模判定：
+**D3. 交接。** 套用 `CLAUDE.md` / `AGENTS.md` 里的规模判定。长期总规范只负责跨 PR 的共同契约和状态；执行任一子 PR 前，先从总规范切出当前 PR 的 `docs/specs/<child-topic>/spec.md` 与 `validation-contract.md`：
 - QDF 三条谓词全部成立（单模块、验收标准 ≤ 5、无跨边界接口）→ 跳过 plan，直接进编码前准备 / 建分支
 - 否则 → 交接给用户选定的 plan 阶段工具（内置 Plan、`planning-with-files`、或用户选的任何下游规划 skill）。不要写死某个具体的 plan 阶段 skill 名；那个决定归工作流 CLAUDE.md / AGENTS.md 管。
 
@@ -138,11 +142,11 @@ A. 调研   →  B. 定方向、定切分  →  C. 落到文件   →  D. 闸门
 
 | 输出文件 | 模板 | 何时用 |
 |---|---|---|
-| `docs/specs/<topic>/spec.md` | `references/spec-template.md` | 总是（Phase C1） |
-| `docs/specs/<topic>/validation-contract.md` | `references/validation-contract-template.md` | 总是（Phase C2） |
-| `docs/specs/<topic>/umbrella.md` | `references/umbrella-template.md` | 仅当 B0 触发拆分（Phase C2.5） |
+| `<spec-root>/<topic>/spec.md` | `references/spec-template.md` | 总是（Phase C1） |
+| `<spec-root>/<topic>/validation-contract.md` | `references/validation-contract-template.md` | 总是（Phase C2） |
+| `<spec-root>/<topic>/umbrella.md` | `references/umbrella-template.md` | 仅当 B0 触发拆分（Phase C2.5） |
 
-写对应的 Phase-C 输出前，先读相关的模板文件。skill 正文保留*意图*（每一节是干什么的）；*形态*（确切的标题、占位符、表格布局、编号约定）以模板文件为准。把模板块复制进 `docs/specs/<topic>/<file>.md`，替换每个 `<占位符>`。
+写对应的 Phase-C 输出前，先读相关的模板文件。skill 正文保留*意图*（每一节是干什么的）；*形态*（确切的标题、占位符、表格布局、编号约定）以模板文件为准。把模板块复制进 `<spec-root>/<topic>/<file>.md`，替换每个 `<占位符>`。
 
 VAL 编号约定适用于所有写 VAL 的地方：`VAL-<CATEGORY>-<NNN>`。`CATEGORY` 是 3–5 个字母的大写标签（`WORK` / `DEP` / `UI` / `CLI` / …）。`NNN` 零填充。多条 VAL 共享同一领域时复用同一类别；不要跳号（跳号意味着删过断言，会破坏基于 grep 的可追溯性）。
 
@@ -215,6 +219,7 @@ VAL 的 `Tool` 字段必须从下面的**类别**里选——绝不写具体工�
 - ❌ 不跑审计就接受用户自带的 spec
 - ❌ 静默跳过 D1.5——审查选项必须呈现出来；之后用户可以自己选跳过
 - ❌ 为显得有条理而把小 spec 拆成子规范——规模闸门才是闸门
+- ❌ 把当前 PR 独有的验收契约只写进 `docs/long-running-specs/`——长期总规范不能成为绕过 `docs/specs/` Ready 门禁的出口
 - ❌ 把 Figma URL 当成可直接读取的；永远要导出的 PNG / 截图
 
 ## 和其他 skill 的关系

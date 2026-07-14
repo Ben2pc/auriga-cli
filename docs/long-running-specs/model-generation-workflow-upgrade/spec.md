@@ -12,8 +12,8 @@ Auriga 同时包含自有工作流技能、锁定版本的外部技能和不受�
 
 ## Findings (调研发现)
 
-- 当前仓库维护 17 个自有技能：`plugins/auriga-workflow/skills/` 中有 12 个工作流技能，`plugins/quality-gate-scaffolder/skills/` 中有 5 个质量门禁脚手架技能；它们都通过双运行时插件发布。
-- 当前仓库在 `skills-lock.json` 中锁定 11 个外部技能，其中 `systematic-debugging`、`test-driven-development`、`verification-before-completion` 来自 `obra/superpowers`，并作为预设工作流的一部分安装。
+- 当前仓库维护 18 个自有技能：`plugins/auriga-workflow/skills/` 中有 13 个工作流技能，`plugins/quality-gate-scaffolder/skills/` 中有 5 个质量门禁脚手架技能；它们都通过双运行时插件发布。
+- 当前仓库在 `skills-lock.json` 中锁定 10 个外部技能，其中 `test-driven-development`、`verification-before-completion` 来自 `obra/superpowers`，并作为预设工作流的一部分安装；`systematic-debugging` 已在 PR #177 内化到 `auriga-workflow`。
 - `extra_plugin_configs.json` 还声明了 5 个具有外部升级边界或可选策略的插件；这些插件的正文与发布节奏不完全由 Auriga 控制。
 - `docs/architecture/auriga-cli-dev-guide.md` 规定，自有技能的输出契约形成 `spec-design`、`test-designer`、`deep-review`、`incremental-impl` 之间的消费链，不能孤立修改。
 - `README.zh-CN.md` 明确列出 `obra/superpowers` 与 `mattpocock/skills` 是当前工作流的灵感来源；后续评审需要区分“理念参考”与“运行时依赖”。
@@ -42,6 +42,10 @@ Auriga 同时包含自有工作流技能、锁定版本的外部技能和不受�
 
 保留下来的核心工作流必须分别说明在 Claude Code 与 Codex 中的触发和执行边界。运行时原生能力不对称时，允许使用最小的适配层，但不能把某一运行时的限制扩散成所有运行时的通用负担。
 
+### 6. 支持跨 PR 的逐项交付
+
+本总规范跨多个 PR 持续维护，只保存共同目标、全局约束、切片顺序和状态矩阵。每项技能开始实现前仍需在 `docs/specs/` 建立当前 PR 独有的子规范与验收契约；子 PR 完成后将这些产物归档到对应 worklog，并更新本总规范的状态和归档链接。全部子 PR 结束后，由人工决定将本总规范归档或提炼为稳定文档。
+
 ## Out of scope (本次不做)
 
 - 不在单项评审完成前批量重写所有技能。
@@ -60,5 +64,5 @@ Auriga 同时包含自有工作流技能、锁定版本的外部技能和不受�
 - 用户于 2026-07-14 提供的 X 搜索快照：用于提出“复杂技能可能干扰新模型”的待验证假设。
 - `README.zh-CN.md`：当前工作流灵感来源与安装分类。
 - `docs/architecture/auriga-cli-dev-guide.md`：自有技能、外部技能、插件的维护与发布边界。
-- [obra/superpowers](https://github.com/obra/superpowers)：当前三个核心外部技能的上游来源。
+- [obra/superpowers](https://github.com/obra/superpowers)：当前两个核心外部技能的上游来源，以及已内化 `systematic-debugging` 的历史来源。
 - [mattpocock/skills](https://github.com/mattpocock/skills)：用户将逐步提供的对照技能来源之一。

@@ -176,6 +176,34 @@ describe("spec-design skill — repo-check VALs", () => {
     }
   });
 
+  test("workflow docs and spec-design distinguish PR-scoped specs from cross-PR long-running specs", () => {
+    const skill = read(
+      "plugins/auriga-workflow/skills/spec-design/SKILL.md",
+    );
+    assert.ok(
+      skill.includes("docs/long-running-specs/"),
+      "spec-design must document the cross-PR long-running spec destination",
+    );
+    assert.match(
+      skill,
+      /docs\/long-running-specs\/[\s\S]*跨[^\n]*PR|跨[^\n]*PR[\s\S]*docs\/long-running-specs\//,
+      "spec-design must reserve long-running specs for cross-PR work",
+    );
+
+    for (const f of ["AGENTS.template.zh-CN.md", "AGENTS.template.en.md"]) {
+      const text = read(f);
+      assert.ok(
+        text.includes("docs/long-running-specs/"),
+        `${f} must document the long-running spec directory`,
+      );
+      assert.match(
+        text,
+        /docs\/long-running-specs\/[\s\S]*(?:人工|manual)/i,
+        `${f} must make long-running spec archival a manual lifecycle decision`,
+      );
+    }
+  });
+
   test("VAL-DEP-002: skills-lock.json no longer contains brainstorming entry; .agents/skills/brainstorming/ is gone", () => {
     const lock = JSON.parse(read("skills-lock.json"));
     assert.equal(

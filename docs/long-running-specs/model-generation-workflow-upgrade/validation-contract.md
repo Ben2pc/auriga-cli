@@ -10,6 +10,7 @@
 | 资产覆盖 | VAL-INV-001 ~ VAL-INV-002 |
 | 单项评审 | VAL-REV-001 ~ VAL-REV-003 |
 | 组合与迁移 | VAL-MIG-001 ~ VAL-MIG-003 |
+| 跨 PR 生命周期 | VAL-DOC-001 ~ VAL-DOC-002 |
 
 ## Toolchain (本仓库验证栈)
 
@@ -62,3 +63,13 @@
 - **Behavior (行为)**: 对用户可见的技能集合或安装行为发生变化时，发布版本与用户文档同步反映该变化。
 - **Tool (工具)**: repo-check
 - **Evidence (判据)**: 发布版本、双语说明、目录清单和安装行为不存在相互矛盾。
+
+### VAL-DOC-001
+- **Behavior (行为)**: 跨多个 PR 的总规范可以在单个子 PR 标记 Ready 时继续保留，不会被当前 PR 的临时规范清理门禁阻塞。
+- **Tool (工具)**: repo-check
+- **Evidence (判据)**: 工作流文档与门禁测试都明确区分 `docs/specs/` 和 `docs/long-running-specs/` 的生命周期。
+
+### VAL-DOC-002
+- **Behavior (行为)**: 长期总规范不能替代当前子 PR 的独立验收契约，全部子 PR 结束后由人工决定归档。
+- **Tool (工具)**: manual
+- **Evidence (判据)**: 工作流与 `spec-design` 同时要求当前子 PR 使用 `docs/specs/`，并将长期规范的最终归档保留为人工决策。

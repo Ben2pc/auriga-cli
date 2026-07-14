@@ -1,6 +1,6 @@
 # umbrella.md 模板（仅拆分时使用）
 
-仅在 A1.5 size gate 触发、B0 拆分实际发生时，才生成 `docs/specs/<topic>/umbrella.md`。未拆分则不应存在此文件。
+仅在 A1.5 size gate 触发、B0 拆分实际发生时才生成。默认路径是 `docs/specs/<topic>/umbrella.md`；若用户明确批准跨多个 PR 的长期生命周期，则总览改放 `docs/long-running-specs/<topic>/umbrella.md`。未拆分则不应存在此文件。
 
 **语言规则**：section 标题里的英文锚点（`## Sub-specs`、`## Slicing axis`）和轴名（`Walking Skeleton`、`By risk`、`Horizontal sweep`、`Branch by Abstraction`、`Vertical slice`）保持英文不动。**散文解释跟随用户的对话语言。**
 
