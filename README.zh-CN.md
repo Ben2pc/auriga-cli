@@ -17,7 +17,7 @@ Auriga 的 harness 设计受以下几个开源 skill 与 Agent 工作流项目�
 | 模块 | 说明 |
 |---|---|
 | **Workflow** | `AGENTS.md` 里的 auriga 工作流：需求澄清 → TDD → Review，Harness 原则，Subagent 使用指南 |
-| **Skills** | 外部开发流程 skills —— verification、planning、playwright（`systematic-debugging`、TDD、spec 撰写与架构设计由 `auriga-workflow` 插件提供）|
+| **Skills** | 外部开发流程 skills —— planning 与 playwright（`systematic-debugging`、TDD、spec 撰写、架构设计与完成声明纪律由工作流或 `auriga-workflow` 插件提供）|
 | **Recommended Skills** | 可选的工具类 skills（如 `codex-agent`、`claude-code-agent`），在 workflow skills 之外按需追加 |
 | **Plugins** | 推荐的 Claude Code 和 Codex 插件 —— skill-creator、claude-md-management、playground、codex、auriga-workflow、auriga-notify、session-instructions-loader |
 

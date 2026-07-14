@@ -290,8 +290,17 @@ describe(
       assert.equal(fs.readlinkSync(claudeMd), "AGENTS.md");
     });
 
-    test("install skills → WORKFLOW_SKILLS materialize under .agents/skills/", { timeout: TIMEOUT }, () => {
+    test("install skills → WORKFLOW_SKILLS land without modifying a retired user copy", { timeout: TIMEOUT }, () => {
       const proj = setupProject(tarballPath!);
+      const retiredSkill = path.join(
+        proj,
+        ".agents",
+        "skills",
+        "verification-before-completion",
+        "SKILL.md",
+      );
+      fs.mkdirSync(path.dirname(retiredSkill), { recursive: true });
+      fs.writeFileSync(retiredSkill, "# team-managed retired copy\n");
       const r = runCli(proj, ["install", "skills"]);
       assert.equal(
         r.status,
@@ -299,6 +308,11 @@ describe(
         `install skills exited ${r.status}.\nstdout: ${r.stdout}\nstderr: ${r.stderr}`,
       );
       assert.ok(findSkillFile(proj, "planning-with-files"), "planning-with-files SKILL.md missing");
+      assert.equal(
+        fs.readFileSync(retiredSkill, "utf-8"),
+        "# team-managed retired copy\n",
+        "installing the remaining workflow skills must not modify a retired user-managed copy",
+      );
     });
 
     test("install recommended --recommended-skill codex-agent → only codex-agent lands", { timeout: TIMEOUT }, () => {

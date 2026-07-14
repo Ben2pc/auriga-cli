@@ -186,6 +186,14 @@ describe("spec-design skill — repo-check VALs", () => {
   test("completion evidence is a workflow rule, not an installable skill", () => {
     const lock = JSON.parse(read("skills-lock.json"));
     assert.equal(lock.skills["verification-before-completion"], undefined);
+    assert.equal(
+      fs.existsSync(path.join(repoRoot, ".agents/skills/verification-before-completion")),
+      false,
+    );
+    assert.equal(
+      fs.existsSync(path.join(repoRoot, ".claude/skills/verification-before-completion")),
+      false,
+    );
 
     for (const f of ["src/skills.ts", "README.md", "README.zh-CN.md"]) {
       assert.doesNotMatch(
@@ -194,6 +202,8 @@ describe("spec-design skill — repo-check VALs", () => {
         `${f} must not publish the retired skill`,
       );
     }
+    assert.doesNotMatch(read("README.md"), /External development process skills — verification/);
+    assert.doesNotMatch(read("README.zh-CN.md"), /外部开发流程 skills —— verification/);
 
     assert.ok(
       read("AGENTS.template.zh-CN.md").includes(
@@ -212,6 +222,12 @@ describe("spec-design skill — repo-check VALs", () => {
     ]) {
       assert.doesNotMatch(read(f), /verification-before-completion/);
     }
+
+    const reviewIndex = read(
+      "docs/long-running-specs/model-generation-workflow-upgrade/reviews/README.md",
+    );
+    assert.match(reviewIndex, /verification-before-completion[^\n]*主结论：删除/);
+    assert.doesNotMatch(reviewIndex, /verification-before-completion[^\n]*删除并由[^\n]*替代/);
   });
 
   test("workflow docs define spec/arch rule subdirectories and consumers", () => {

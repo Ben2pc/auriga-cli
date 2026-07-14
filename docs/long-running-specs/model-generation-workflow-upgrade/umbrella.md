@@ -9,7 +9,7 @@
 | 3 | [`systematic-debugging`](../../worklog/worklog-2026-07-14-feat-model-generation-workflow-upgrade/systematic-debugging/) | VAL-DIAG-001..VAL-PUBL-002 | 实现已合入 PR #177；PR #178 取消自动迁移并改为团队人工清理；模型评测未执行且不在 PR #178 范围内 |
 | 4 | [取消自动技能迁移](../../worklog/worklog-2026-07-14-fix-migrated-skill-cleanup/) | VAL-REMOVE-001..VAL-LIFE-001 | PR #178 已合并：删除高复杂度自动迁移状态机；不包含模型评测 |
 | 5 | [统一测试驱动开发](../../worklog/worklog-2026-07-14-refactor-simplify-tdd-skill/unified-tdd-skill/) | VAL-ASSET-001..VAL-STATE-001 | PR #179 精简并内化外部 TDD、合并原 test-designer；模型评测未执行 |
-| 6 | [删除完成前验证技能](../../worklog/worklog-2026-07-14-refactor-remove-verification-skill/verification-before-completion/) | VAL-VAST-001..VAL-VSTA-001 | PR #181 已完成实现并归档子规范；删除独立技能，以常驻规则与现有机制替代；模型评测未执行 |
+| 6 | [删除完成前验证技能](../../worklog/worklog-2026-07-14-refactor-remove-verification-skill/verification-before-completion/) | VAL-VAST-001..VAL-VSTA-001 | PR #181 已完成实现并归档子规范；主结论为删除，完成声明职责由常驻规则与现有机制承担；模型评测未执行 |
 | 7 | `vendor-core-skills/` 其余技能 | VAL-CORE-001..003 | 待逐项评审 |
 | 8 | `vendor-recommended-skills/` | VAL-RECO-001..008 | 待逐项评审 |
 | 9 | `external-plugins/` | VAL-PLUG-001..005 | 待逐项评审 |

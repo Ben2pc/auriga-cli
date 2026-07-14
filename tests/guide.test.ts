@@ -60,6 +60,8 @@ describe("renderGuide", () => {
     assert.match(out, /npx -y auriga-cli install --preset-plugins-skills/);
     assert.match(out, /npx -y auriga-cli install --all/);
     assert.match(out, /npx -y auriga-cli install recommended/);
+    assert.match(out, /npx -y auriga-cli install skills --skill planning-with-files/);
+    assert.doesNotMatch(out, /verification-before-completion/);
     // VAL-GUIDE-002: the removed `install hooks` surface must not resurface
     // anywhere in the SOP body.
     assert.doesNotMatch(out, /install hooks/);
