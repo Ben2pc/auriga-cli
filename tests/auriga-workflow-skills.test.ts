@@ -79,16 +79,6 @@ describe("auriga-workflow skill contracts", () => {
     );
   });
 
-  test("test-designer consumes project test rules", () => {
-    const text = read(
-      "plugins/auriga-workflow/skills/test-designer/SKILL.md",
-    );
-    assert.ok(
-      text.includes("docs/rules/test/"),
-      "test-designer must consult project test rules under docs/rules/test/",
-    );
-  });
-
   test("deep-review test-quality reviewer consumes project test rules", () => {
     const text = read(
       "plugins/auriga-workflow/skills/deep-review/references/reviewers/test-quality.md",
@@ -98,8 +88,8 @@ describe("auriga-workflow skill contracts", () => {
       "test-quality reviewer must consult project test rules under docs/rules/test/",
     );
     assert.ok(
-      /test-designer/.test(text),
-      "test-quality reviewer must stay aligned with test-designer",
+      /test-driven-development/.test(text),
+      "test-quality reviewer must stay aligned with test-driven-development",
     );
   });
 
@@ -165,9 +155,9 @@ describe("project rule discovery anchors to the repo root", () => {
       label: "deep-review",
     },
     {
-      rel: "plugins/auriga-workflow/skills/test-designer/SKILL.md",
+      rel: "plugins/auriga-workflow/skills/test-driven-development/SKILL.md",
       area: "docs/rules/test/",
-      label: "test-designer",
+      label: "test-driven-development",
     },
     {
       rel: "plugins/auriga-workflow/skills/deep-review/references/reviewers/test-quality.md",

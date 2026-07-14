@@ -10,7 +10,7 @@ description: 在实现会改变可观察行为的功能、缺陷修复或重构�
 ## 开始前
 
 1. 读取验收标准或 `validation-contract.md`；缺陷修复以问题事实和复现路径为准。
-2. 从仓库根检查 `docs/rules/test/`，并遵守更近的子包规则。仓库根用 `git rev-parse --show-toplevel` 确认；非 Git 仓库回退到当前目录。
+2. 从仓库根检查 `docs/rules/test/`，子包级规则优先。仓库根用 `git rev-parse --show-toplevel` 确认；非 git 仓库时回退到当前目录。
 3. 扫描相邻测试，沿用现有测试框架、命名和夹具。
 
 ## 最小循环

@@ -14,8 +14,8 @@ describe("validateSkillsLock (codex deep-review #3)", () => {
     assert.doesNotThrow(() =>
       validateSkillsLock({
         skills: {
-          "systematic-debugging": { source: "obra/superpowers", sourceType: "github", computedHash: "x" },
-          "test-designer": { source: "Ben2pc/g-claude-code-plugins" },
+          "verification-before-completion": { source: "obra/superpowers", sourceType: "github", computedHash: "x" },
+          "codex-agent": { source: "Ben2pc/g-claude-code-plugins" },
         },
       }),
     );

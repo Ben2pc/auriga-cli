@@ -156,7 +156,7 @@ describe("spec-design skill — repo-check VALs", () => {
         `${f} must connect docs/rules/review/ with deep-review custom reviewers`,
       );
       assert.ok(
-        /test-designer/.test(text) && /docs\/rules\/test\//.test(text),
+        /test-driven-development/.test(text) && /docs\/rules\/test\//.test(text),
         `${f} must require test writers to consult docs/rules/test/`,
       );
     }
@@ -455,17 +455,17 @@ describe("spec-design skill — repo-check VALs", () => {
     );
   });
 
-  test("VAL-DEP-004: test-designer SKILL.md mentions validation-contract.md as input", () => {
+  test("VAL-DEP-004: unified TDD skill consumes the validation contract", () => {
     const text = read(
-      "plugins/auriga-workflow/skills/test-designer/SKILL.md",
+      "plugins/auriga-workflow/skills/test-driven-development/SKILL.md",
     );
     assert.ok(
       text.includes("validation-contract.md"),
-      "test-designer must reference validation-contract.md",
+      "test-driven-development must reference validation-contract.md",
     );
     assert.ok(
-      text.includes("VAL-XXX-NNN") || /VAL-/.test(text),
-      "test-designer must reference VAL ids",
+      text.includes("docs/rules/test/"),
+      "test-driven-development must consume project test rules",
     );
   });
 

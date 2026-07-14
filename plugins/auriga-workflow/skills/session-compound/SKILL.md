@@ -111,7 +111,7 @@ npx skills find "<query>" 2>&1 | head -30
 
 产出 `eval-findings`（指令遵循 / 召回 / 逐 skill 执行评估）→ 步骤 5e 注入报告、并可喂 5d 的 skill-body 候选。**完整派遣协议（输入清单、输出 schema、skill-body 落点规则）见 `references/eval-dispatch.md`——派遣前读它。** 这里只列不可省的硬约束：
 
-- **必须用独立、零上下文继承（fresh context）的 subagent**：被评估的会话正是主 Agent 自己跑的，自评有系统性偏差（纪律同 `deep-review` / `test-designer`：新会话、不 resume、不把当前对话历史复制进子代理）。
+- **必须用独立、零上下文继承（fresh context）的 subagent**：被评估的会话正是主 Agent 自己跑的，自评有系统性偏差（纪律同 `deep-review`：新会话、不 resume、不把当前对话历史复制进子代理）。
 - **范围**：召回 / 指令遵循覆盖 `skill_catalog` 里**全部已安装 skill** 与全部 `workflow_rules`；逐 skill 执行 eval **仅覆盖本会话真正调用过 / 跑过的 skill**（`health.skills` 里的）。机械层只给 `workflow_signals` 中性事实（分支 / 是否在 main / 有无编辑 / PR / skill 调用数），**所有判断由 subagent 做**——包括"在 main 上编辑了"这类原来机械层下的判决。
 - **输出**：finding 数组 `{kind, polarity, severity?, confidence, text, skill?}`——`polarity` 区分正向（positive）与缺口（gap），`severity` 仅缺口必填（正向省略），`confidence` 是证据强度（详见 `references/eval-dispatch.md` 的输出契约）。**不按重要性预过滤**（全部 in-scope finding 都报告，过滤交给人）。
 
@@ -206,7 +206,7 @@ Schema：
   选 target 前**先勘察当前工程已有的指令组织规范**——别套用通用默认：
   1. 读根 `AGENTS.md` / `CLAUDE.md`：它通常是**入口 + 索引**，靠多级文件做渐进式披露（根文件保持精简、详细规范拆到 `docs/` 专题文件 / 子目录指令文件）。**不要往根 AGENTS.md 堆内容**——顺着它已有的分层结构走。
   2. 看 `docs/rules/` 等是否已有覆盖该领域的专题文件；有就**在那份文件里扩写**，而不是新建一份平行的。
-  3. 判断经验是否**绑定某个工作流阶段**——`docs/rules/` 下有四个**消费方绑定**目录，由对应 skill 在固定阶段机械读取：`docs/rules/spec/`（`spec-design` 调研阶段收集）、`docs/rules/arch/`（`arch-design` 作为设计硬约束）、`docs/rules/test/`（`test-designer` 派发包 + `deep-review` 的 test-quality 审查者）、`docs/rules/review/`（`deep-review` 自动发现并分派的自定义审查者）。落进这些目录的经验会在**犯错的那个阶段**被自动注入对应 agent 的上下文，而根 AGENTS.md 只能指望被想起——能归类到阶段的经验优先归到对应目录。
+  3. 判断经验是否**绑定某个工作流阶段**——`docs/rules/` 下有四个**消费方绑定**目录，由对应 skill 在固定阶段机械读取：`docs/rules/spec/`（`spec-design` 调研阶段收集）、`docs/rules/arch/`（`arch-design` 作为设计硬约束）、`docs/rules/test/`（`test-driven-development` + `deep-review` 的 test-quality 审查者）、`docs/rules/review/`（`deep-review` 自动发现并分派的自定义审查者）。落进这些目录的经验会在**犯错的那个阶段**被自动注入对应 agent 的上下文，而根 AGENTS.md 只能指望被想起——能归类到阶段的经验优先归到对应目录。
   4. 看工程**现有 skill** 是否已经覆盖这个模式——若只是某个 skill 的指引不到位 / 缺一条规则，**首选在那个 skill 的 `SKILL.md` 里就地优化**（target 指向该 skill 文件），比新增 AGENTS.md 段落或新建 skill 都更轻、更聚合。
 
   按下表选 target（优先复用 / 扩写既有文件，最后才考虑新建）：
@@ -214,7 +214,7 @@ Schema：
   | 经验范围 | target | 何时选 |
   |---|---|---|
   | **某个现有 skill 的指引可改进** | 那个 skill 的 `SKILL.md`（就地优化） | 模式已被某 skill 覆盖，只是规则缺一条 / 触发不准——最聚合，优先选 |
-  | **绑定工作流阶段的经验**（spec 澄清遗漏 / 架构约束 / 测试约定） | `docs/rules/spec/`、`docs/rules/arch/`、`docs/rules/test/` 下的专题文件（扩写已有或新建；无需根 AGENTS.md 索引行——消费方按目录自动发现） | 经验对应 `spec-design` / `arch-design` / `test-designer` / test-quality 的固定消费点，在下次同阶段工作时自动生效 |
+  | **绑定工作流阶段的经验**（spec 澄清遗漏 / 架构约束 / 测试约定） | `docs/rules/spec/`、`docs/rules/arch/`、`docs/rules/test/` 下的专题文件（扩写已有或新建；无需根 AGENTS.md 索引行——消费方按目录自动发现） | 经验对应 `spec-design` / `arch-design` / `test-driven-development` / test-quality 的固定消费点，在下次同阶段工作时自动生效 |
   | **审查维度类经验**（评审本该拦住的问题模式） | 扩写现有 `docs/rules/review/<name>.md` 的 Checklist / worked scenarios；**全新维度则建议运行 `reviewer-creator`**，不要徒手新建 | `docs/rules/review/` 文件承载 frontmatter 编排契约且被 `deep-review` 自动发现分派——徒手文件缺编排元数据时只能走降级路径靠语义猜测 |
   | 现有 `docs/rules/<topic>.md` 已覆盖该领域 | 在那份文件里扩写（不新建平行文件） | 已有专题文件，顺着它加 |
   | 跨整个仓库 / 跨语言 / 工作流级（短规则） | 根 `AGENTS.md`（`CLAUDE.md` 是软链则只写一处） | 短、所有未来会话都该看，且根文件没有更合适的下级归宿 |

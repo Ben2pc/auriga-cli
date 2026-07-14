@@ -453,9 +453,9 @@ function migratedPluginHint(type: CategoryName, name: string): string | undefine
     type === "skills" &&
     [
       "incremental-impl",
-      "test-designer",
       "session-compound",
       "systematic-debugging",
+      "test-driven-development",
     ].includes(name)
   ) {
     return "This skill moved to the auriga-workflow plugin; install it with `install plugins --plugin auriga-workflow`.";

@@ -167,9 +167,9 @@ function makeMigratedAssetsPluginPackage(): string {
   });
   for (const name of [
     "incremental-impl",
-    "test-designer",
     "session-compound",
     "systematic-debugging",
+    "test-driven-development",
   ]) {
     const skillDir = path.join(root, "plugins", "auriga-workflow", "skills", name);
     fs.mkdirSync(skillDir, { recursive: true });

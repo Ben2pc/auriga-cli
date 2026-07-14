@@ -13,7 +13,7 @@ description: 当 feat/ 或 fix/ 会新增或改变外部可见行为时使用；
 
 当用户明确确认一项工作会跨多个 PR 持续推进时，总规范、共同约束、切片顺序和状态矩阵改放 `docs/long-running-specs/<topic>/`。它不会被单个 PR 的 Ready 门禁清理；每个子 PR 独有的 `spec.md` 与 `validation-contract.md` 仍必须放在 `docs/specs/<child-topic>/`，完成后归档到该 PR 的 worklog。全部子 PR 结束后，长期规范由人工决定归档或提炼为稳定文档。
 
-Validation Contract 是承重产物。`test-designer` 把 VAL 作为主输入；`deep-review` 的 `spec-conformance` 审查者读 VAL 来确认一个 PR 的 diff 满足每一条断言。
+Validation Contract 是承重产物。`test-driven-development` 把 VAL 作为测试设计输入；`deep-review` 的 `spec-conformance` 审查者读 VAL 来确认一个 PR 的 diff 满足每一条断言。
 
 ## 什么时候用
 
@@ -97,19 +97,19 @@ A. 调研   →  B. 定方向、定切分  →  C. 落到文件   →  D. 闸门
 
 ### Phase C — 落到文件
 
-**语言规则（适用于 C1/C2/C2.5 全部）**：每个模板里的 **section 标题**都是双语的（英文锚点 + 中文提示），必须逐字保留——`test-designer` 和 `deep-review` 的 `spec-conformance` 审查者会 grep 英文锚点，所以不能把它们翻译掉。`validation-contract.md` 里的**结构关键字**（`VAL-XXX-NNN`、`Behavior`、`Tool`、`Evidence`、Tool 类别名）同样保持英文。**所有正文内容**——Why / Findings / What 正文、VAL 的 Behavior + Evidence 描述、切分轴理由、Open questions 等——必须用本次对话所用的语言来写。中文对话→正文写中文；英文对话→英文。同一段落里不要中英文混写。
+**语言规则（适用于 C1/C2/C2.5 全部）**：每个模板里的 **section 标题**都是双语的（英文锚点 + 中文提示），必须逐字保留——下游技能和 `deep-review` 的 `spec-conformance` 审查者会 grep 英文锚点，所以不能把它们翻译掉。`validation-contract.md` 里的**结构关键字**（`VAL-XXX-NNN`、`Behavior`、`Tool`、`Evidence`、Tool 类别名）同样保持英文。**所有正文内容**——Why / Findings / What 正文、VAL 的 Behavior + Evidence 描述、切分轴理由、Open questions 等——必须用本次对话所用的语言来写。中文对话→正文写中文；英文对话→英文。同一段落里不要中英文混写。
 
 **C0. 选择规范根目录。** 默认 `<spec-root>` 为 `docs/specs/`。只有 B0 已确认各子项跨多个 PR 独立合入、且用户明确批准长期生命周期时，才把总规范的 `<spec-root>` 设为 `docs/long-running-specs/`。长期总规范不能替代任何当前子 PR 的独立规范；开始子 PR 时仍在 `docs/specs/<child-topic>/` 建立对应文件。
 
 **C1.** 按 `references/spec-template.md` 撰写 `<spec-root>/<topic>/spec.md`。
 
-**C2.** 按 `references/validation-contract-template.md` 撰写 `<spec-root>/<topic>/validation-contract.md`。反模式检查：每条 VAL 只说*什么*算通过，不说*怎么*测——后者是 `test-designer` 的活。用 A1 调研结果填 `## Toolchain` 表（仓库里每个类别对应的具体工具），把工具链调研结论往下游传递，省得下游重新发现。
+**C2.** 按 `references/validation-contract-template.md` 撰写 `<spec-root>/<topic>/validation-contract.md`。反模式检查：每条 VAL 只说*什么*算通过，不说*怎么*测——后者由实现阶段按 `test-driven-development` 决定。用 A1 调研结果填 `## Toolchain` 表（仓库里每个类别对应的具体工具），把工具链调研结论往下游传递，省得下游重新发现。
 
 **C2.5.** 若 B0 触发了拆分，按 `references/umbrella-template.md` 撰写 `<spec-root>/<topic>/umbrella.md`。长期总规范的验收契约是整个计划完成时的总闸门，不要求每个子 PR 单独满足全部断言；但每个子规范必须复制或派生所有适用的长期 VAL，并在 `umbrella.md` 中记录父级 VAL 到子规范的覆盖关系与待补项。
 
 ### Phase D — 闸门与交接
 
-**D1. 交接审查。** 从消费方（test-designer / 规划者 / 一个月后的你）视角套用 `## 交接审查清单（D1）`。当场修问题——不要重跑前面的阶段。
+**D1. 交接审查。** 从消费方（测试驱动开发 / 规划者 / 一个月后的你）视角套用 `## 交接审查清单（D1）`。当场修问题——不要重跑前面的阶段。
 
 **D1.5. 提供审查辅助（三选一）。** 用 `AskUserQuestion` / `request_user_input` 给出：
 - (c) **跳过** — 直接进 D2。小规模 spec（≤ 5 条 VAL、单文件）的默认项。
@@ -189,11 +189,11 @@ VAL 的 `Tool` 字段必须从下面的**类别**里选——绝不写具体工�
 | `build` | 构建产物正确性（tsc / npm pack / 产物形态） |
 | `manual` | 仅人工验证；必须写明"什么算通过" |
 
-单条 VAL 的 `Tool` 字段保持是**类别**——这让它可 grep，也让断言与实现无关。每个类别对应的仓库**具体**工具（用哪个测试运行器、哪个浏览器驱动、哪条构建命令）是 A1 调研所得的事实，不是本功能的实现决策——在 `validation-contract.md` 的 `## Toolchain` 表里记**一次**，不要逐条 VAL 重复。这把工具链调研结论往下游传递，`test-designer` 无需重新推断就能瞄准正确的运行器 / 驱动（它仍会扫描既有测试来摸清 fixture 和命名约定），也解决类别内部的真实歧义（例：`e2e-browser` → Browser Use vs Playwright vs Chrome MCP，三者的证据形态不同）。只为契约里 VAL 实际用到的类别填 Toolchain 行。
+单条 VAL 的 `Tool` 字段保持是**类别**——这让它可 grep，也让断言与实现无关。每个类别对应的仓库**具体**工具（用哪个测试运行器、哪个浏览器驱动、哪条构建命令）是 A1 调研所得的事实，不是本功能的实现决策——在 `validation-contract.md` 的 `## Toolchain` 表里记**一次**，不要逐条 VAL 重复。这把工具链调研结论往下游传递，让实现代理按 `test-driven-development` 瞄准正确的运行器 / 驱动（仍要扫描既有测试来摸清 fixture 和命名约定），也解决类别内部的真实歧义（例：`e2e-browser` → Browser Use vs Playwright vs Chrome MCP，三者的证据形态不同）。只为契约里 VAL 实际用到的类别填 Toolchain 行。
 
 ## 交接审查清单（D1）
 
-从下游消费方的位置看（test-designer、规划者、一个月后的你）。当场修——不要重做。
+从下游消费方的位置看（测试驱动开发、规划者、一个月后的你）。当场修——不要重做。
 
 - [ ] 没有 TBD / TODO / 占位符
 - [ ] Why 对一个零上下文的 agent 也读得懂
@@ -211,7 +211,7 @@ VAL 的 `Tool` 字段必须从下面的**类别**里选——绝不写具体工�
 - ❌ 一轮问多个问题——消耗用户耐心，还把不同维度搅在一起
 - ❌ 冲过 95% 置信度——边际上的那个问题会过度规定
 - ❌ 把实现提示写进 `spec.md`（"我们会在 `utils.ts` 加一个 `validateX` 函数"）
-- ❌ 描述测试机制的 VAL（"调用 `assertEquals(parse(s), …)`"）——那属于 test-designer
+- ❌ 描述测试机制的 VAL（"调用 `assertEquals(parse(s), …)`"）——那属于测试驱动开发阶段
 - ❌ 为显得周全而凑 VAL 数量——少而规整的 VAL 胜过多而含糊的
 - ❌ 在单条 VAL 的 `Tool` 字段里写具体工具名——具体工具只在 `## Toolchain` 表里记一次
 - ❌ 为填满章节而编造假的 Open questions——对一份澄清充分的 spec 来说，"无"是合法且常见的结果
@@ -224,7 +224,7 @@ VAL 的 `Tool` 字段必须从下面的**类别**里选——绝不写具体工�
 
 ## 和其他 skill 的关系
 
-- `test-designer` — 把 `validation-contract.md` 作为主输入消费（`spec.md` 正文作为兜底上下文）；写失败测试
+- `test-driven-development` — 当前实现代理消费 `validation-contract.md`（`spec.md` 正文作为兜底上下文），建立最小失败证据
 - `incremental-impl` — 沿用 B0 选定的同一套切分轴词汇；把 spec + plan 带进逐切片执行
 - plan 阶段工具（内置 Plan、`planning-with-files`、或工作流 CLAUDE.md 点名的任何规划 skill）——当规模判定走完整 plan 路径时，是 D3 的下游
 - `deep-review` 的 `spec-conformance` 审查者 — 拿 PR diff 对照 VAL 列表验证；finding 标注 `VAL-XXX-NNN`

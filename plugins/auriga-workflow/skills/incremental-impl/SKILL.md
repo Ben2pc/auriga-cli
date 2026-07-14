@@ -294,7 +294,6 @@ Risk-first 是**执行顺序**，不是 slicing axis。它可以和 Vertical sli
 
 - 上游 planning sources（任意一种）：内置 Plan、`planning-with-files`、`spec-design`，或用户直接给出的任务；本 skill 不依赖来源
 - `test-driven-development`：管理 Step 4.1 中的 red→green cycle
-- `test-designer`：可能产出本 skill green phase 要满足的 failing tests
 - `systematic-debugging`：当任意 slice 的结果破坏 regression 时运行
 - `verification-before-completion`：所有 slices 合并后的最终 gate
 - `git-workflow`（auriga-workflow plugin）：4.5 引用的 atomic commit rules
