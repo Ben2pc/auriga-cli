@@ -10,9 +10,9 @@
 | 4 | [取消自动技能迁移](../../worklog/worklog-2026-07-14-fix-migrated-skill-cleanup/) | VAL-REMOVE-001..VAL-LIFE-001 | PR #178 已合并：删除高复杂度自动迁移状态机；不包含模型评测 |
 | 5 | [统一测试驱动开发](../../worklog/worklog-2026-07-14-refactor-simplify-tdd-skill/unified-tdd-skill/) | VAL-ASSET-001..VAL-STATE-001 | PR #179 精简并内化外部 TDD、合并原 test-designer；模型评测未执行 |
 | 6 | [删除完成前验证技能](../../worklog/worklog-2026-07-14-refactor-remove-verification-skill/verification-before-completion/) | VAL-VAST-001..VAL-VSTA-001 | PR #181 已完成实现并归档子规范；主结论为删除，完成声明职责由常驻规则与现有机制承担；模型评测未执行 |
-| 7 | `vendor-core-skills/` 其余技能 | VAL-CORE-001..003 | 待逐项评审 |
-| 8 | `vendor-recommended-skills/` | VAL-RECO-001..008 | 待逐项评审 |
-| 9 | `external-plugins/` | VAL-PLUG-001..005 | 待逐项评审 |
+| 7 | `vendor-core-skills/` 其余技能 | VAL-CORE-001..003 | `planning-with-files` 与 `playwright-cli` 保留；均为用户显式选择的可选能力，跳过深入评审 |
+| 8 | `vendor-recommended-skills/` | VAL-RECO-001..008 | 6 项推荐技能全部保留；均不进入主工作流，跳过深入评审 |
+| 9 | `external-plugins/` | — | 本轮范围外；保持现状 |
 | 10 | `workflow-consolidation/` | VAL-MIG-001..005 | 等待前序结论 |
 
 ## Parent coverage map (父级验收覆盖映射)
