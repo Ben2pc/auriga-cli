@@ -105,6 +105,7 @@ describe("auriga-workflow skill contracts", () => {
       "plugins/auriga-workflow/skills/session-compound/references/eval-dispatch.md",
       "plugins/auriga-workflow/skills/spec-design/SKILL.md",
       "plugins/auriga-workflow/skills/spec-design/references/validation-contract-template.md",
+      "plugins/auriga-workflow/skills/test-driven-development/SKILL.md",
       "plugins/auriga-workflow/skills/deep-review/references/reviewers/test-quality.md",
     ]) {
       const text = read(rel);
