@@ -90,12 +90,12 @@ flowchart LR
 
 ### Target Directory Structure / 目标目录结构
 
-> 目录布局发生变化时保留，并与当前目录结构使用相同展开深度。
+> 目录布局发生变化时保留，并与当前目录结构使用相同展开深度；用 `（新增）`、`（改）` 标出变化。
 
 ```text
 <repo>/
-├── <target-module-a>/
-└── <target-module-b>/
+├── <new-module>/       （新增）
+└── <existing-module>/  （改）
 ```
 
 ### Responsibilities & Boundaries / 职责与边界
