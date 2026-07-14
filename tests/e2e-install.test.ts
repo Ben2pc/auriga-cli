@@ -82,6 +82,11 @@ const CLAUDE_AVAILABLE = (() => {
   return r.status === 0 && r.stdout.trim().length > 0;
 })();
 
+const CODEX_AVAILABLE = (() => {
+  const r = spawnSync("which", ["codex"], { encoding: "utf-8" });
+  return r.status === 0 && r.stdout.trim().length > 0;
+})();
+
 describe(
   "e2e install — tarball → npm install → auriga-cli install",
   { skip: gitState().skipReason },
@@ -313,13 +318,22 @@ describe(
     });
 
     test(
-      "install plugins --plugin auriga-workflow → plugin registered in .claude/settings.json",
-      { skip: CLAUDE_AVAILABLE ? undefined : "requires 'claude' CLI", timeout: TIMEOUT },
+      "install plugins --agent both --plugin auriga-workflow → historical shared skill copy is safely migrated",
+      {
+        skip: CLAUDE_AVAILABLE && CODEX_AVAILABLE
+          ? undefined
+          : "requires both 'claude' and 'codex' CLIs",
+        timeout: TIMEOUT,
+      },
       (t) => {
         const proj = setupProject(tarballPath!);
-        const legacyDir = path.join(proj, ".claude", "skills", "systematic-debugging");
-        fs.mkdirSync(legacyDir, { recursive: true });
-        fs.writeFileSync(path.join(legacyDir, "SKILL.md"), "# legacy systematic-debugging\n");
+        const runtimeHome = makeScratch("runtime-home");
+        const codexLegacyDir = path.join(proj, ".agents", "skills", "systematic-debugging");
+        const claudeLegacyDir = path.join(proj, ".claude", "skills", "systematic-debugging");
+        fs.mkdirSync(codexLegacyDir, { recursive: true });
+        fs.mkdirSync(path.dirname(claudeLegacyDir), { recursive: true });
+        fs.writeFileSync(path.join(codexLegacyDir, "SKILL.md"), "# legacy systematic-debugging\n");
+        fs.symlinkSync("../../.agents/skills/systematic-debugging", claudeLegacyDir);
         fs.writeFileSync(
           path.join(proj, "skills-lock.json"),
           JSON.stringify({
@@ -333,7 +347,11 @@ describe(
             },
           }, null, 2) + "\n",
         );
-        const r = runCli(proj, ["install", "plugins", "--plugin", "auriga-workflow"]);
+        const r = runCli(
+          proj,
+          ["install", "plugins", "--agent", "both", "--plugin", "auriga-workflow"],
+          { HOME: runtimeHome, CODEX_HOME: path.join(runtimeHome, ".codex") },
+        );
         // A freshly renamed/added plugin is not in the Claude marketplace
         // default branch until this PR merges; `claude plugins marketplace
         // add` always pulls from the repo's default branch. Skip rather than
@@ -354,9 +372,14 @@ describe(
         const content = fs.readFileSync(settings, "utf-8");
         assert.match(content, /auriga-workflow/, "auriga-workflow not mentioned in .claude/settings.json");
         assert.equal(
-          fs.existsSync(legacyDir),
+          fs.existsSync(claudeLegacyDir),
           false,
-          "legacy standalone systematic-debugging copy should not shadow the plugin skill",
+          "legacy Claude compatibility symlink should not shadow the plugin skill",
+        );
+        assert.equal(
+          fs.existsSync(codexLegacyDir),
+          false,
+          "legacy Codex skill directory should not shadow the plugin skill",
         );
         const lock = JSON.parse(fs.readFileSync(path.join(proj, "skills-lock.json"), "utf-8")) as {
           skills: Record<string, unknown>;

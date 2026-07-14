@@ -219,6 +219,92 @@ describe("spec-design skill — repo-check VALs", () => {
     }
   });
 
+  test("long-running umbrella template requires parent-to-child VAL traceability", () => {
+    const template = read(
+      "plugins/auriga-workflow/skills/spec-design/references/umbrella-template.md",
+    );
+    assert.ok(
+      template.includes("## Parent coverage map"),
+      "umbrella template must include a parent coverage map",
+    );
+    for (const column of ["Parent VAL", "Child spec", "Child VAL", "Status"]) {
+      assert.ok(
+        template.includes(column),
+        `umbrella parent coverage map must include ${column}`,
+      );
+    }
+  });
+
+  test("systematic-debugging records map parent VALs and separate implementation from model evaluation", () => {
+    const umbrella = read(
+      "docs/long-running-specs/model-generation-workflow-upgrade/umbrella.md",
+    );
+    const reviewIndex = read(
+      "docs/long-running-specs/model-generation-workflow-upgrade/reviews/README.md",
+    );
+    const childReview = read(
+      "docs/worklog/worklog-2026-07-14-feat-model-generation-workflow-upgrade/systematic-debugging/review.md",
+    );
+
+    for (const parentVal of [
+      "VAL-REV-001",
+      "VAL-REV-002",
+      "VAL-MIG-002",
+      "VAL-MIG-003",
+    ]) {
+      assert.ok(
+        umbrella.includes(parentVal),
+        `umbrella must map ${parentVal} to the systematic-debugging child contract`,
+      );
+    }
+    assert.ok(
+      umbrella.includes("## Parent coverage map"),
+      "active long-running umbrella must carry the parent coverage map",
+    );
+    for (const text of [umbrella, reviewIndex, childReview]) {
+      assert.match(text, /实现[^\n]*(?:完成|已合入)/, "must state implementation status");
+      assert.match(
+        text,
+        /迁移安全[^\n]*(?:修复|加固)/,
+        "must state migration-safety follow-up status",
+      );
+      assert.match(
+        text,
+        /模型评测[^\n]*(?:未执行|不在[^\n]*范围)/,
+        "must explicitly state that model evaluation was not executed",
+      );
+    }
+    assert.match(
+      reviewIndex,
+      /docs\/specs\/<asset-name>\/review\.md[\s\S]*docs\/worklog\//,
+      "review index must route child records through PR-scoped specs and Ready archival",
+    );
+  });
+
+  test("archived child contract uses unique VAL ids and maps them to parent assertions", () => {
+    const parent = read(
+      "docs/long-running-specs/model-generation-workflow-upgrade/validation-contract.md",
+    );
+    const child = read(
+      "docs/worklog/worklog-2026-07-14-feat-model-generation-workflow-upgrade/systematic-debugging/validation-contract.md",
+    );
+    const parentIds = new Set(parent.match(/### (VAL-[A-Z]+-\d+)/g)?.map((line) => line.slice(4)) ?? []);
+    const childIds = child.match(/### (VAL-[A-Z]+-\d+)/g)?.map((line) => line.slice(4)) ?? [];
+
+    assert.equal(
+      childIds.some((id) => parentIds.has(id)),
+      false,
+      "child VAL ids must not collide with parent VAL ids",
+    );
+    assert.ok(
+      child.includes("## Parent coverage map"),
+      "archived child contract must preserve its mapping to the parent contract",
+    );
+    for (const childVal of ["VAL-DIAG-001", "VAL-PROD-001", "VAL-PUBL-001"]) {
+      assert.ok(child.includes(childVal), `parent coverage map must reference ${childVal}`);
+    }
+  });
+
   test("VAL-DEP-002: skills-lock.json no longer contains brainstorming entry; .agents/skills/brainstorming/ is gone", () => {
     const lock = JSON.parse(read("skills-lock.json"));
     assert.equal(

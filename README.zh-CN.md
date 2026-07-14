@@ -128,6 +128,8 @@ npx auriga-cli
 
 可以把选中的插件安装到 Claude Code、Codex 或两者都装。Claude Code 路径使用 `claude plugins install`，并遵守 `--scope project|user`；Codex 路径根据 `~/.codex/config.toml` 中是否已注册同名 marketplace 自动选择 `codex plugin marketplace add` 或 `upgrade` 注册 marketplace，再用原生的 `codex plugin add <plugin>@<marketplace>` 命令安装每个选中的插件。Codex 路径要求 Codex CLI 版本新到支持 `codex plugin add`；旧版本会中止 Codex 侧安装并提示升级。
 
+当 `auriga-workflow` 替代原先独立安装的工作流技能时，安全清理只会通过 `auriga-cli` 执行。直接运行 `claude plugins install` 或 `codex plugin add` 会绕过来源校验、替代插件内容验证和跨运行时保留逻辑；迁移已有环境时，至少执行一次上面的 `auriga-cli install plugins` 命令。
+
 示例：
 
 ```bash

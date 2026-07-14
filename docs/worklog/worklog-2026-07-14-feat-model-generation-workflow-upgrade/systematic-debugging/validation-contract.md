@@ -10,7 +10,16 @@
 |---|---|
 | 调试行为 | VAL-DIAG-001 ~ VAL-DIAG-003 |
 | 线上问题 | VAL-PROD-001 ~ VAL-PROD-002 |
-| 迁移与发布 | VAL-MIG-001 ~ VAL-MIG-002 |
+| 迁移与发布 | VAL-PUBL-001 ~ VAL-PUBL-002 |
+
+## Parent coverage map (父级验收覆盖映射)
+
+| Parent VAL (父级验收项) | Child VAL (子验收项) | Status (状态) |
+|---|---|---|
+| VAL-REV-001 | VAL-DIAG-001..003、VAL-PROD-001..002 | 模型评测未执行；本轮人工评审不宣称父级验收通过 |
+| VAL-REV-002 | VAL-DIAG-001..003、VAL-PROD-001..002 | 工程失效模式已有人工证据；模型评测未执行，不宣称父级验收通过 |
+| VAL-MIG-002 | VAL-PUBL-001..002 | 实现已合入 PR #177；迁移安全由 PR #178 加固并验证 |
+| VAL-MIG-003 | VAL-PUBL-001 | PR #177 已同步技能清单和文档；PR #178 同步迁移行为与版本 |
 
 ## Toolchain (本仓库验证栈)
 
@@ -49,12 +58,12 @@
 - **Tool (工具)**: manual
 - **Evidence (判据)**: 技能正文同时包含先恢复服务的例外和事故恢复后继续诊断的要求。
 
-### VAL-MIG-001
+### VAL-PUBL-001
 - **Behavior (行为)**: `systematic-debugging` 只通过 Auriga 工作流插件发布，不再同时作为外部锁定技能安装。
 - **Tool (工具)**: e2e-cli
 - **Evidence (判据)**: 安装预设后只能发现插件提供的同名技能，外部技能锁定清单和外部安装批次中不存在该名称。
 
-### VAL-MIG-002
+### VAL-PUBL-002
 - **Behavior (行为)**: 已安装旧外部版本的项目在安装 Auriga 工作流插件后不会保留重复或遮蔽插件技能的旧副本。
 - **Tool (工具)**: repo-check
 - **Evidence (判据)**: 迁移契约测试证明旧的项目级和用户级技能副本会按既有迁移策略清理。

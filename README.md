@@ -128,6 +128,8 @@ Supports both project and global installation scopes.
 
 Installs selected plugins for Claude Code, Codex, or both. Claude Code uses `claude plugins install` and honors `--scope project|user`; Codex registers the marketplace via `codex plugin marketplace add/upgrade` (the right one is picked by reading `~/.codex/config.toml`), then installs each selected plugin with the native `codex plugin add <plugin>@<marketplace>` command. The Codex path requires a Codex CLI new enough to expose `codex plugin add`; on older versions the Codex-side install aborts with an upgrade hint.
 
+When `auriga-workflow` replaces a formerly standalone workflow skill, safe legacy cleanup runs only through `auriga-cli`. Installing the plugin directly with `claude plugins install` or `codex plugin add` bypasses provenance checks, replacement-payload verification, and cross-runtime preservation; run the `auriga-cli install plugins` command above at least once when migrating an existing setup.
+
 Examples:
 
 ```bash

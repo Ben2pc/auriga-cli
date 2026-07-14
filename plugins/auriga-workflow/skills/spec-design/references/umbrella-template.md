@@ -18,6 +18,11 @@
 |---|---|---|---|
 | 1 | `docs/specs/<feature-1>/` | VAL-X-001..NNN | spec / impl / merged |
 
+## Parent coverage map (父级验收覆盖映射)
+| Parent VAL (父级验收项) | Child spec (子规范) | Child VAL (子验收项) | Status (状态) |
+|---|---|---|---|
+| VAL-PARENT-001 | `docs/specs/<feature-1>/validation-contract.md` | VAL-CHILD-001 | planned / passed / not run / out of scope |
+
 ## Slicing axis (拆分轴)
 <Walking Skeleton / By risk / Horizontal sweep / Branch by Abstraction / Vertical slice>。<为何选这条轴。>
 ```

@@ -6,11 +6,20 @@
 |---|---|---|---|
 | 1 | `model-evaluation-baseline/` | VAL-EVAL-001..005 | 待创建 |
 | 2 | `auriga-owned-skills/` | VAL-AURI-001..017 | 待逐项评审 |
-| 3 | [`systematic-debugging`](../../worklog/worklog-2026-07-14-feat-model-generation-workflow-upgrade/systematic-debugging/) | VAL-DIAG-001..VAL-MIG-002 | 实现与迁移已完成；目标模型受控评测待基线补充；PR #177 |
+| 3 | [`systematic-debugging`](../../worklog/worklog-2026-07-14-feat-model-generation-workflow-upgrade/systematic-debugging/) | VAL-DIAG-001..VAL-PUBL-002 | 实现已合入 PR #177；迁移安全由 PR #178 加固；模型评测未执行且不在 PR #178 范围内 |
 | 4 | `vendor-core-skills/` 其余技能 | VAL-CORE-001..003 | 待逐项评审 |
 | 5 | `vendor-recommended-skills/` | VAL-RECO-001..008 | 待逐项评审 |
 | 6 | `external-plugins/` | VAL-PLUG-001..005 | 待逐项评审 |
 | 7 | `workflow-consolidation/` | VAL-MIG-001..005 | 等待前序结论 |
+
+## Parent coverage map (父级验收覆盖映射)
+
+| Parent VAL (父级验收项) | Child spec (子规范) | Child VAL (子验收项) | Status (状态) |
+|---|---|---|---|
+| VAL-REV-001 | [`systematic-debugging`](../../worklog/worklog-2026-07-14-feat-model-generation-workflow-upgrade/systematic-debugging/validation-contract.md) | VAL-DIAG-001..003、VAL-PROD-001..002 | 模型评测未执行；处置结论暂定，不宣称父级验收通过 |
+| VAL-REV-002 | [`systematic-debugging`](../../worklog/worklog-2026-07-14-feat-model-generation-workflow-upgrade/systematic-debugging/validation-contract.md) | VAL-DIAG-001..003、VAL-PROD-001..002 | 工程失效模式已有人工证据；模型评测未执行，不宣称父级验收通过 |
+| VAL-MIG-002 | [`systematic-debugging`](../../worklog/worklog-2026-07-14-feat-model-generation-workflow-upgrade/systematic-debugging/validation-contract.md) | VAL-PUBL-001..002 | 实现已合入 PR #177；迁移安全由 PR #178 加固并验证 |
+| VAL-MIG-003 | [`systematic-debugging`](../../worklog/worklog-2026-07-14-feat-model-generation-workflow-upgrade/systematic-debugging/validation-contract.md) | VAL-PUBL-001 | PR #177 已同步技能清单和文档；PR #178 同步迁移行为与版本 |
 
 ## Slicing axis (拆分轴)
 
