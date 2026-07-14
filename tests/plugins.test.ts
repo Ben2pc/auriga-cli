@@ -1304,11 +1304,16 @@ describe("installPlugins — Claude target", () => {
       scope: "project",
     });
 
-    for (const name of ["incremental-impl", "test-designer", "session-compound"]) {
+    for (const name of [
+      "incremental-impl",
+      "test-designer",
+      "session-compound",
+      "systematic-debugging",
+    ]) {
       assert.equal(fs.existsSync(path.join(cwd, ".claude", "skills", name)), false);
       assert.equal(fs.existsSync(path.join(cwd, ".agents", "skills", name)), false);
     }
-    for (const name of ["systematic-debugging", "planning-with-files"]) {
+    for (const name of ["planning-with-files"]) {
       assert.equal(
         fs.existsSync(path.join(cwd, ".claude", "skills", name)),
         true,
@@ -1319,7 +1324,7 @@ describe("installPlugins — Claude target", () => {
     const lock = JSON.parse(fs.readFileSync(path.join(cwd, "skills-lock.json"), "utf-8")) as {
       skills: Record<string, unknown>;
     };
-    assert.deepEqual(Object.keys(lock.skills).sort(), ["planning-with-files", "systematic-debugging"]);
+    assert.deepEqual(Object.keys(lock.skills).sort(), ["planning-with-files"]);
   });
 
   test("auriga-workflow Codex-only install preserves Claude legacy fallback", async () => {

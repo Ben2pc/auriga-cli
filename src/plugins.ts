@@ -27,6 +27,7 @@ const MIGRATED_WORKFLOW_SKILLS = [
   "incremental-impl",
   "test-designer",
   "session-compound",
+  "systematic-debugging",
 ];
 const NOTIFY_PLUGIN_NAME = "auriga-notify";
 const WORKFLOW_SKILLS_PLUGIN_NAME = "auriga-workflow";
