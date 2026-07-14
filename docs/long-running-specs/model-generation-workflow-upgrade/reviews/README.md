@@ -2,9 +2,9 @@
 
 本目录用于逐项记录本轮技能评审。每次只评审一个技能；参考技能可以先加入“对照材料”，不必自动成为安装资产。外部与可选插件仅保留清单，不计入本轮评审完成度。
 
-## 评审结论
+## 深入评审结论
 
-每项资产只能选择一个主结论：
+每项进入深入评审的技能只能选择一个主结论：
 
 - 删除：目标模型原生能力已稳定覆盖，且约束的净影响为负。
 - 保留：仍有独立职责，当前形态没有明显冗余。
@@ -13,7 +13,7 @@
 - 合并：与另一项资产职责重叠，应收敛为一个入口或契约。
 - 机制替代：应由测试、类型系统、钩子或持续集成等确定性机制执行。
 
-## 必答维度
+## 深入评审必答维度
 
 1. 它针对什么可复现失效模式？
 2. GPT 5.6 Sol 与 Fable 5 是否仍会出现该失效？
@@ -23,6 +23,12 @@
 6. 它增加多少交互轮次、令牌、延迟与维护成本？
 7. Auriga 是否必须拥有其维护权？
 8. 删除或精简后，出现什么信号才应恢复？
+
+## 跳过深入评审的保留决定
+
+用户可以明确按分发与触发边界保留一个非强制工具型技能，并跳过目标模型深入评审。记录必须区分“是否默认安装”和“是否默认执行”，说明它为何不会成为每个任务的强制步骤，并保留共同风险与重新评估条件。这类决定是范围处置，不构成 GPT 5.6 Sol 或 Fable 5 的模型能力证据。
+
+共同风险：上游技能可能扩大触发条件、增加常驻上下文，或从可选工具演变为默认流程约束。出现以下任一信号时重新评估：技能开始自动触发、成为每个任务的强制步骤、明显增加无关上下文，或上游职责发生实质变化。
 
 ## 当前清单
 
@@ -58,8 +64,8 @@
 
 | Asset (资产) | Source (来源) | Runtime (运行时) | Status (状态) |
 |---|---|---|---|
-| `planning-with-files` | `OthmanAdi/planning-with-files` | Claude Code / Codex | 保留；仅由用户显式选择，文件化计划对跨会话长程任务有独立价值；跳过深入评审 |
-| `playwright-cli` | `microsoft/playwright-cli` | Claude Code / Codex | 保留；仅在浏览器自动化任务中显式调用，不形成主工作流负担；跳过深入评审 |
+| `planning-with-files` | `OthmanAdi/planning-with-files` | Claude Code / Codex | 保留；随推荐预设默认安装，但只有用户在计划菜单选择长程持久跟踪时才执行；文件化计划对跨会话任务有独立价值；跳过深入评审，不构成模型能力结论 |
+| `playwright-cli` | `microsoft/playwright-cli` | Claude Code / Codex | 保留；随推荐预设默认安装，但只在浏览器自动化任务中触发，不是每个任务的强制步骤；跳过深入评审，不构成模型能力结论 |
 | [`test-driven-development`](../../../worklog/worklog-2026-07-14-refactor-simplify-tdd-skill/unified-tdd-skill/review.md) | `obra/superpowers` | Claude Code / Codex | 外部版本退出锁定与预设，由 Auriga 精简版本替代；模型评测未执行 |
 | [`verification-before-completion`](../../../worklog/worklog-2026-07-14-refactor-remove-verification-skill/verification-before-completion/review.md) | `obra/superpowers` | Claude Code / Codex | PR #181 已完成实现并归档子规范；主结论：删除；完成声明职责由工作流规则与确定性机制承担；模型评测未执行 |
 
@@ -74,7 +80,7 @@
 | `frontend-design` | `anthropics/skills` | Claude Code / Codex | 保留；主工作流外的可选前端实现能力；跳过深入评审 |
 | `make-interfaces-feel-better` | `jakubkrehel/make-interfaces-feel-better` | Claude Code / Codex | 保留；主工作流外的可选界面打磨能力；跳过深入评审 |
 
-### 范围外：外部或可选插件
+### 范围外：所有插件
 
 | Asset (资产) | Source (来源) | Runtime (运行时) | Status (状态) |
 |---|---|---|---|
