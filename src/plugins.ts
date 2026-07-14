@@ -494,13 +494,20 @@ function computeSkillFolderHash(skillDir: string): string | null {
       for (const entry of fs.readdirSync(currentDir, { withFileTypes: true })) {
         const fullPath = path.join(currentDir, entry.name);
         if (entry.isDirectory()) {
-          if (entry.name === ".git" || entry.name === "node_modules") continue;
+          // The upstream lock hash excludes these directories and all
+          // symlinks. Their presence therefore makes local integrity
+          // unverifiable; fail closed instead of deleting possible user data.
+          if (entry.name === ".git" || entry.name === "node_modules") {
+            throw new Error(`unverifiable skill entry: ${fullPath}`);
+          }
           collect(fullPath);
         } else if (entry.isFile()) {
           files.push({
             relativePath: path.relative(skillDir, fullPath).split(path.sep).join("/"),
             content: fs.readFileSync(fullPath),
           });
+        } else {
+          throw new Error(`unverifiable skill entry: ${fullPath}`);
         }
       }
     };
@@ -625,11 +632,26 @@ function managedLockPathsForSkill(
     const checkedPaths = new Set<string>();
     for (const runtime of ["claude", "codex"] as const) {
       const skillDir = legacySkillDirAt(target.baseDir, runtime, name);
-      if (!hasReadableSkillFile(skillDir)) continue;
+      const skillStat = fs.lstatSync(skillDir, { throwIfNoEntry: false });
+      if (!skillStat) continue;
+      if (!hasReadableSkillFile(skillDir)) {
+        if (skillStat.isSymbolicLink()) continue;
+        return {
+          managedLockPaths: [],
+          preservationReason: `skill content is incomplete or unreadable: ${skillDir}`,
+        };
+      }
       const canonical = canonicalFilesystemPath(skillDir);
       if (checkedPaths.has(canonical)) continue;
       checkedPaths.add(canonical);
-      if (computeSkillFolderHash(skillDir) !== expectedHash) {
+      const actualHash = computeSkillFolderHash(skillDir);
+      if (actualHash === null) {
+        return {
+          managedLockPaths: [],
+          preservationReason: `skill content contains entries excluded from the managed hash: ${skillDir}`,
+        };
+      }
+      if (actualHash !== expectedHash) {
         return {
           managedLockPaths: [],
           preservationReason: `skill content changed since the managed install: ${skillDir}`,
@@ -645,6 +667,64 @@ function managedLockPathsForSkill(
     };
   }
   return { managedLockPaths };
+}
+
+interface MaterializationJournal {
+  version: 1;
+  token: string;
+  skillName: string;
+}
+
+function materializationArtifacts(claudeDir: string, token: string): {
+  staged: string;
+  originalLink: string;
+  journal: string;
+} {
+  const prefix = path.join(path.dirname(claudeDir), `.${path.basename(claudeDir)}.auriga-${token}`);
+  return {
+    staged: `${prefix}.staged`,
+    originalLink: `${prefix}.original`,
+    journal: `${prefix}.journal`,
+  };
+}
+
+function recoverInterruptedMaterialization(claudeDir: string, skillName: string): void {
+  const parent = path.dirname(claudeDir);
+  if (!fs.existsSync(parent)) return;
+  const prefix = `.${path.basename(claudeDir)}.auriga-`;
+  const journals = fs.readdirSync(parent)
+    .filter((entry) => entry.startsWith(prefix) && entry.endsWith(".journal"));
+  for (const fileName of journals) {
+    const journalPath = path.join(parent, fileName);
+    let journal: MaterializationJournal;
+    try {
+      journal = JSON.parse(fs.readFileSync(journalPath, "utf-8")) as MaterializationJournal;
+    } catch {
+      throw new Error(`migration journal is unreadable: ${journalPath}`);
+    }
+    if (
+      journal.version !== 1
+      || journal.skillName !== skillName
+      || !/^[a-f0-9]{16}$/.test(journal.token)
+      || materializationArtifacts(claudeDir, journal.token).journal !== journalPath
+    ) {
+      throw new Error(`migration journal is invalid: ${journalPath}`);
+    }
+    const { staged, originalLink } = materializationArtifacts(claudeDir, journal.token);
+    if (pathEntryExists(originalLink)) {
+      if (!pathEntryExists(claudeDir)) {
+        fs.renameSync(originalLink, claudeDir);
+      } else if (hasReadableSkillFile(claudeDir)) {
+        fs.rmSync(originalLink, { force: true });
+      } else {
+        throw new Error(`cannot safely recover migration while ${claudeDir} is incomplete`);
+      }
+    } else if (!pathEntryExists(claudeDir)) {
+      throw new Error(`cannot safely recover migration because both original and replacement are missing: ${claudeDir}`);
+    }
+    fs.rmSync(staged, { recursive: true, force: true });
+    fs.rmSync(journalPath, { force: true });
+  }
 }
 
 function hasLegacySkillCopy(
@@ -673,19 +753,7 @@ function materializeUnselectedClaudeCopy(
 
   const claudeDir = legacySkillDirAt(target.baseDir, "claude", name);
   const codexDir = legacySkillDirAt(target.baseDir, "codex", name);
-  const staged = `${claudeDir}.auriga-migration`;
-  const originalLink = `${claudeDir}.auriga-original`;
-  if (pathEntryExists(originalLink)) {
-    if (!pathEntryExists(claudeDir)) {
-      fs.renameSync(originalLink, claudeDir);
-    } else if (hasReadableSkillFile(claudeDir)) {
-      fs.rmSync(originalLink, { recursive: true, force: true });
-    } else {
-      fs.rmSync(claudeDir, { recursive: true, force: true });
-      fs.renameSync(originalLink, claudeDir);
-    }
-  }
-  fs.rmSync(staged, { recursive: true, force: true });
+  recoverInterruptedMaterialization(claudeDir, name);
 
   const stat = fs.lstatSync(claudeDir, { throwIfNoEntry: false });
   if (!stat?.isSymbolicLink()) return;
@@ -696,62 +764,65 @@ function materializeUnselectedClaudeCopy(
   const resolved = path.resolve(path.dirname(claudeDir), fs.readlinkSync(claudeDir));
   if (!sameFilesystemPath(resolved, codexDir) || !hasReadableSkillFile(codexDir)) return;
 
+  const token = crypto.randomBytes(8).toString("hex");
+  const { staged, originalLink, journal } = materializationArtifacts(claudeDir, token);
+  fs.writeFileSync(
+    journal,
+    JSON.stringify({ version: 1, token, skillName: name } satisfies MaterializationJournal) + "\n",
+    { flag: "wx" },
+  );
   try {
     const sourceRoot = fs.realpathSync.native(codexDir);
-    fs.cpSync(sourceRoot, staged, { recursive: true, dereference: false });
+    fs.cpSync(sourceRoot, staged, {
+      recursive: true,
+      dereference: false,
+      verbatimSymlinks: true,
+    });
     fs.renameSync(claudeDir, originalLink);
     fs.renameSync(staged, claudeDir);
     fs.rmSync(originalLink, { force: true });
+    fs.rmSync(journal, { force: true });
   } catch (error) {
     if (!pathEntryExists(claudeDir) && pathEntryExists(originalLink)) {
       fs.renameSync(originalLink, claudeDir);
     }
-    throw error;
-  } finally {
     fs.rmSync(staged, { recursive: true, force: true });
-    if (pathEntryExists(claudeDir)) fs.rmSync(originalLink, { force: true });
+    if (pathEntryExists(claudeDir) && !pathEntryExists(originalLink)) {
+      fs.rmSync(journal, { force: true });
+    }
+    throw error;
   }
   emitMigrationLog(opts, `materialized ${claudeDir} before removing its shared Codex target`);
 }
 
-function processIsRunning(pid: number): boolean {
-  try {
-    process.kill(pid, 0);
-    return true;
-  } catch (error) {
-    return (error as NodeJS.ErrnoException).code !== "ESRCH";
-  }
-}
-
 function withMigrationLock(target: MigratedSkillCleanupTarget, action: () => void): void {
   const lockPath = path.join(target.baseDir, ".auriga-plugin-migration.lock");
-  const acquire = (): number => fs.openSync(lockPath, "wx");
   let fd: number;
   try {
-    fd = acquire();
+    fd = fs.openSync(lockPath, "wx");
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
-    let ownerPid: number | null = null;
-    try {
-      const raw = fs.readFileSync(lockPath, "utf-8").trim();
-      const parsed = Number.parseInt(raw, 10);
-      if (Number.isSafeInteger(parsed) && parsed > 0) ownerPid = parsed;
-    } catch {
-      // An unreadable lock cannot be proven stale, so preserve all legacy state.
-    }
-    if (ownerPid === null || processIsRunning(ownerPid)) {
-      throw new Error(`another auriga skill migration is active for ${target.baseDir}`);
-    }
-    fs.rmSync(lockPath, { force: true });
-    fd = acquire();
+    throw new Error(
+      `migration lock already exists for ${target.baseDir}; remove ${lockPath} only after confirming no migration is active`,
+    );
   }
+  const lockIdentity = fs.fstatSync(fd);
   try {
     fs.writeFileSync(fd, `${process.pid}\n`);
     action();
   } finally {
     fs.closeSync(fd);
-    fs.rmSync(lockPath, { force: true });
+    const current = fs.lstatSync(lockPath, { throwIfNoEntry: false });
+    if (current && current.dev === lockIdentity.dev && current.ino === lockIdentity.ino) {
+      fs.rmSync(lockPath, { force: true });
+    }
   }
+}
+
+function removeLegacySkillAtomically(dir: string): void {
+  const trash = `${dir}.auriga-remove-${crypto.randomBytes(8).toString("hex")}`;
+  fs.renameSync(dir, trash);
+  fs.rmSync(trash, { recursive: true, force: true });
 }
 
 function hasManagedLegacySkillCandidate(
@@ -827,7 +898,7 @@ function cleanupMigratedWorkflowSkillInstalls(
             emitMigrationLog(opts, `preserved ${runtimeSkillRoot(runtime)}/skills/${name} development symlink`);
             continue;
           }
-          fs.rmSync(dir, { recursive: true, force: true });
+          removeLegacySkillAtomically(dir);
           emitMigrationLog(opts, `removed ${dir}`);
         }
 

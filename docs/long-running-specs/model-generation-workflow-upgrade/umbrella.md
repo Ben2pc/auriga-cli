@@ -19,8 +19,8 @@
 |---|---|---|---|
 | VAL-INV-001 | 待定 | 待定 | 等待后续资产清单子规范覆盖 |
 | VAL-INV-002 | 待定 | 待定 | 等待后续资产清单子规范覆盖 |
-| VAL-REV-001 | [`systematic-debugging`](../../worklog/worklog-2026-07-14-feat-model-generation-workflow-upgrade/systematic-debugging/validation-contract.md) | VAL-DIAG-001..003、VAL-PROD-001..002 | 模型评测未执行；处置结论暂定，不宣称父级验收通过 |
-| VAL-REV-002 | [`systematic-debugging`](../../worklog/worklog-2026-07-14-feat-model-generation-workflow-upgrade/systematic-debugging/validation-contract.md) | VAL-DIAG-001..003、VAL-PROD-001..002 | 工程失效模式已有人工证据；模型评测未执行，不宣称父级验收通过 |
+| VAL-REV-001 | 待定 | 待定 | 等待模型评测基线与后续正式处置子规范覆盖；当前结论仅为暂定 |
+| VAL-REV-002 | 待定 | 待定 | 等待模型评测基线验证目标模型原生能力边界；当前工程证据不能替代模型证据 |
 | VAL-REV-003 | 待定 | 待定 | 等待后续删除或精简约束的子规范覆盖 |
 | VAL-MIG-001 | 待定 | 待定 | 等待 workflow-consolidation 子规范覆盖 |
 | VAL-MIG-002 | [`systematic-debugging`](../../worklog/worklog-2026-07-14-feat-model-generation-workflow-upgrade/systematic-debugging/validation-contract.md)、[迁移安全修复](../../worklog/worklog-2026-07-14-fix-migrated-skill-cleanup/validation-contract.md) | VAL-PUBL-001..002、VAL-SAFE-001、VAL-SAFE-003、VAL-INST-001 | 实现已合入 PR #177；迁移安全由 PR #178 加固并验证 |

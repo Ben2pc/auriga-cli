@@ -325,18 +325,29 @@ describe(
           : "requires both 'claude' and 'codex' CLIs",
         timeout: TIMEOUT,
       },
-      (t) => {
+      () => {
         const proj = setupProject(tarballPath!);
         const runtimeHome = makeScratch("runtime-home");
         const codexHome = path.join(runtimeHome, ".codex");
         fs.mkdirSync(codexHome, { recursive: true });
         const codexLegacyDir = path.join(proj, ".agents", "skills", "systematic-debugging");
         const claudeLegacyDir = path.join(proj, ".claude", "skills", "systematic-debugging");
+        const userCodexLegacyDir = path.join(runtimeHome, ".agents", "skills", "systematic-debugging");
+        const userClaudeLegacyDir = path.join(runtimeHome, ".claude", "skills", "systematic-debugging");
         const legacySkill = "# legacy systematic-debugging\n";
-        fs.mkdirSync(codexLegacyDir, { recursive: true });
-        fs.mkdirSync(path.dirname(claudeLegacyDir), { recursive: true });
-        fs.writeFileSync(path.join(codexLegacyDir, "SKILL.md"), legacySkill);
-        fs.symlinkSync("../../.agents/skills/systematic-debugging", claudeLegacyDir);
+        for (const [codexDir, claudeDir] of [
+          [codexLegacyDir, claudeLegacyDir],
+          [userCodexLegacyDir, userClaudeLegacyDir],
+        ]) {
+          fs.mkdirSync(codexDir, { recursive: true });
+          fs.mkdirSync(path.dirname(claudeDir), { recursive: true });
+          fs.writeFileSync(path.join(codexDir, "SKILL.md"), legacySkill);
+          fs.symlinkSync("../../.agents/skills/systematic-debugging", claudeDir);
+        }
+        const legacyHash = crypto.createHash("sha256")
+          .update("SKILL.md")
+          .update(legacySkill)
+          .digest("hex");
         fs.writeFileSync(
           path.join(proj, "skills-lock.json"),
           JSON.stringify({
@@ -345,10 +356,21 @@ describe(
               "systematic-debugging": {
                 source: "obra/superpowers",
                 sourceType: "github",
-                computedHash: crypto.createHash("sha256")
-                  .update("SKILL.md")
-                  .update(legacySkill)
-                  .digest("hex"),
+                computedHash: legacyHash,
+              },
+            },
+          }, null, 2) + "\n",
+        );
+        fs.mkdirSync(path.join(runtimeHome, ".agents"), { recursive: true });
+        fs.writeFileSync(
+          path.join(runtimeHome, ".agents", ".skill-lock.json"),
+          JSON.stringify({
+            version: 3,
+            skills: {
+              "systematic-debugging": {
+                source: "obra/superpowers",
+                sourceType: "github",
+                computedHash: legacyHash,
               },
             },
           }, null, 2) + "\n",
@@ -358,16 +380,6 @@ describe(
           ["install", "--preset-plugins-skills", "--scope", "project", "--agent", "both"],
           { HOME: runtimeHome, CODEX_HOME: codexHome },
         );
-        // A freshly renamed/added plugin is not in the Claude marketplace
-        // default branch until this PR merges; `claude plugins marketplace
-        // add` always pulls from the repo's default branch. Skip rather than
-        // fail in that pre-merge window.
-        if (isClaudeMarketplaceMissingPlugin(r.stderr, "auriga-workflow")) {
-          t.skip(
-            "auriga-workflow is present on this PR branch but not yet in the Claude marketplace default branch",
-          );
-          return;
-        }
         assert.equal(
           r.status,
           0,
@@ -433,10 +445,24 @@ describe(
           undefined,
           "legacy Codex skill directory should not shadow the plugin skill",
         );
+        assert.equal(
+          fs.lstatSync(userClaudeLegacyDir, { throwIfNoEntry: false }),
+          undefined,
+          "legacy user-level Claude compatibility symlink should be removed",
+        );
+        assert.equal(
+          fs.lstatSync(userCodexLegacyDir, { throwIfNoEntry: false }),
+          undefined,
+          "legacy user-level Codex skill directory should be removed",
+        );
         const lock = JSON.parse(fs.readFileSync(path.join(proj, "skills-lock.json"), "utf-8")) as {
           skills: Record<string, unknown>;
         };
         assert.equal("systematic-debugging" in lock.skills, false);
+        const userLock = JSON.parse(
+          fs.readFileSync(path.join(runtimeHome, ".agents", ".skill-lock.json"), "utf-8"),
+        ) as { skills: Record<string, unknown> };
+        assert.equal("systematic-debugging" in userLock.skills, false);
       },
     );
 

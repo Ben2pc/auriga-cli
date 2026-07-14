@@ -18,8 +18,6 @@
 
 | Parent VAL (父级验收项) | Child VAL (当前子项) | Status (状态) |
 |---|---|---|
-| VAL-REV-001 | VAL-TRACE-002 | 仅修正状态表达；目标模型评测明确排除在本次范围外 |
-| VAL-REV-002 | VAL-TRACE-002 | 目标模型评测仍待后续人工决定，不在本次宣称通过 |
 | VAL-MIG-002 | VAL-SAFE-001、VAL-SAFE-003、VAL-INST-001 | 本次修复并验证双运行时安装与迁移边界 |
 | VAL-MIG-003 | VAL-SAFE-002、VAL-SAFE-004、VAL-RELEASE-001 | 本次同步发布行为、双语迁移说明和版本 |
 | VAL-DOC-001 | VAL-LIFE-001 | 本次继续保留长期总规范，并验证当前子规范独立存在 |
@@ -70,7 +68,7 @@
 ### VAL-INST-001
 - **Behavior (行为)**: 使用不改写工作流文档的预设安装后，Claude Code 与 Codex 都从 `auriga-workflow` 获得 `systematic-debugging`，且受管旧独立副本与锁记录不再遮蔽插件技能。
 - **Tool (工具)**: e2e-cli
-- **Evidence (判据)**: 真实安装包在两个运行时完成预设安装，插件技能可发现，历史真实布局中的受管旧副本和对应锁记录均按迁移边界处理。
+- **Evidence (判据)**: 真实安装包在两个运行时完成预设安装，插件技能可发现；项目级与用户级历史真实布局中的受管旧副本和对应锁记录均按迁移边界处理，包括 Codex 项目范围安装仍检查用户级受管副本的边界。
 
 ### VAL-RELEASE-001
 - **Behavior (行为)**: 迁移行为的用户说明、命令行包版本与双运行时插件版本同步更新。
@@ -85,6 +83,6 @@
 ## Verification record (验证记录)
 
 - 2026-07-14，提交 `fd3d9e0`：`npm test` 通过 512/512。
-- 2026-07-14，提交 `fd3d9e0`：`npm run test:e2e` 通过 8/8；双运行时预设安装场景实际执行且未跳过，确认 Claude Code 与 Codex 都能发现插件技能，并清除历史共享副本及锁记录。
+- 2026-07-14，提交 `fd3d9e0`：`npm run test:e2e` 通过 8/8；双运行时预设安装场景实际执行且未跳过，确认 Claude Code 与 Codex 都能发现插件技能，并清除项目级历史共享副本及锁记录。用户级边界在后续加固提交中加入同一端到端场景后重新验证。
 - 2026-07-14：`npm run test:session-instructions-loader` 通过 20/20；`npm run test:git-guards` 全部通过。
 - 本次未执行 GPT 5.6 Sol 或 Fable 5 模型评测；该项不属于 PR #178 的完成证据。

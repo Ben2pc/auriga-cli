@@ -264,6 +264,19 @@ describe("spec-design skill — repo-check VALs", () => {
 
     const parentCoverage = markdownSection(umbrella, "## Parent coverage map");
     const parentIds = parentContract.match(/### (VAL-[A-Z]+-\d+)/g)?.map((line) => line.slice(4)) ?? [];
+    const expectedChildren: Record<string, string> = {
+      "VAL-INV-001": "待定",
+      "VAL-INV-002": "待定",
+      "VAL-REV-001": "待定",
+      "VAL-REV-002": "待定",
+      "VAL-REV-003": "待定",
+      "VAL-MIG-001": "待定",
+      "VAL-MIG-002": "VAL-PUBL-001..002、VAL-SAFE-001、VAL-SAFE-003、VAL-INST-001",
+      "VAL-MIG-003": "VAL-PUBL-001、VAL-SAFE-002、VAL-SAFE-004、VAL-RELEASE-001",
+      "VAL-DOC-001": "VAL-LIFE-001",
+      "VAL-DOC-002": "VAL-LIFE-001",
+    };
+    assert.deepEqual(Object.keys(expectedChildren).sort(), [...parentIds].sort());
     for (const parentVal of parentIds) {
       const rows = parentCoverage.split("\n").filter((line) => line.startsWith(`| ${parentVal} |`));
       assert.equal(rows.length, 1, `umbrella must contain exactly one coverage row for ${parentVal}`);
@@ -272,6 +285,29 @@ describe("spec-design skill — repo-check VALs", () => {
         /\| (?:\[[^\]]+\]\([^\)]+validation-contract\.md\)|待定)(?:、\[[^\]]+\]\([^\)]+validation-contract\.md\))* \| (?:VAL-[A-Z]+-\d+(?:\.\.\d+)?(?:、VAL-[A-Z]+-\d+(?:\.\.\d+)?)*|待定) \| [^|]+ \|$/,
         `${parentVal} must map to exact child contracts and child VALs, or be explicitly pending`,
       );
+      const cells = rows[0].split("|").map((cell) => cell.trim());
+      assert.equal(cells[3], expectedChildren[parentVal], `${parentVal} must map to the intended child VALs`);
+      if (cells[3] !== "待定") {
+        const linkedContracts = [...cells[2].matchAll(/\(([^)]+validation-contract\.md)\)/g)]
+          .map((match) => fs.readFileSync(path.resolve(
+            repoRoot,
+            "docs/long-running-specs/model-generation-workflow-upgrade",
+            match[1],
+          ), "utf-8"));
+        assert.ok(linkedContracts.length > 0, `${parentVal} must link its child contracts`);
+        for (const range of cells[3].matchAll(/VAL-([A-Z]+)-(\d+)(?:\.\.(\d+))?/g)) {
+          const [, family, startRaw, endRaw] = range;
+          const start = Number(startRaw);
+          const end = endRaw ? Number(endRaw) : start;
+          for (let value = start; value <= end; value += 1) {
+            const childVal = `VAL-${family}-${String(value).padStart(startRaw.length, "0")}`;
+            assert.ok(
+              linkedContracts.some((contract) => contract.includes(`### ${childVal}`)),
+              `${parentVal} references missing child assertion ${childVal}`,
+            );
+          }
+        }
+      }
     }
     assert.ok(
       umbrella.includes("## Parent coverage map"),
@@ -325,9 +361,9 @@ describe("spec-design skill — repo-check VALs", () => {
       childCoverage.includes("## Parent coverage map"),
       "archived child contract must preserve its mapping to the parent contract",
     );
-    for (const childVal of ["VAL-DIAG-001", "VAL-PROD-001", "VAL-PUBL-001"]) {
-      assert.ok(childCoverage.includes(childVal), `parent coverage map must reference ${childVal}`);
-    }
+    assert.ok(childCoverage.includes("VAL-PUBL-001..002"), "parent coverage map must reference both publish VALs");
+    assert.equal(childCoverage.includes("VAL-DIAG-001"), false, "behavior VALs must not stand in for model evidence");
+    assert.equal(childCoverage.includes("VAL-PROD-001"), false, "production VALs must not stand in for model evidence");
 
     assert.equal(new Set(childIds).size, childIds.length, "child VAL ids must be unique across archived contracts");
     const repairCoverage = markdownSection(repair, "## Parent coverage map");
