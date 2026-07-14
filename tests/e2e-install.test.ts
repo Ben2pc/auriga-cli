@@ -328,6 +328,8 @@ describe(
       (t) => {
         const proj = setupProject(tarballPath!);
         const runtimeHome = makeScratch("runtime-home");
+        const codexHome = path.join(runtimeHome, ".codex");
+        fs.mkdirSync(codexHome, { recursive: true });
         const codexLegacyDir = path.join(proj, ".agents", "skills", "systematic-debugging");
         const claudeLegacyDir = path.join(proj, ".claude", "skills", "systematic-debugging");
         fs.mkdirSync(codexLegacyDir, { recursive: true });
@@ -350,7 +352,7 @@ describe(
         const r = runCli(
           proj,
           ["install", "plugins", "--agent", "both", "--plugin", "auriga-workflow"],
-          { HOME: runtimeHome, CODEX_HOME: path.join(runtimeHome, ".codex") },
+          { HOME: runtimeHome, CODEX_HOME: codexHome },
         );
         // A freshly renamed/added plugin is not in the Claude marketplace
         // default branch until this PR merges; `claude plugins marketplace
