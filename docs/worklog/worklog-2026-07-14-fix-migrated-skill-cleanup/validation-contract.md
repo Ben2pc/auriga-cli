@@ -81,3 +81,10 @@
 - **Behavior (行为)**: 当前子 PR 的规范在 Ready 前归档，跨 PR 总规范继续保留，并在全部子 PR 完成后由人工决定最终归档。
 - **Tool (工具)**: repo-check
 - **Evidence (判据)**: `docs/specs/` 不保留当前子 PR 产物；本契约位于当前 PR 的 worklog；长期总规范与模板明确记录人工归档边界。
+
+## Verification record (验证记录)
+
+- 2026-07-14，提交 `fd3d9e0`：`npm test` 通过 512/512。
+- 2026-07-14，提交 `fd3d9e0`：`npm run test:e2e` 通过 8/8；双运行时预设安装场景实际执行且未跳过，确认 Claude Code 与 Codex 都能发现插件技能，并清除历史共享副本及锁记录。
+- 2026-07-14：`npm run test:session-instructions-loader` 通过 20/20；`npm run test:git-guards` 全部通过。
+- 本次未执行 GPT 5.6 Sol 或 Fable 5 模型评测；该项不属于 PR #178 的完成证据。
