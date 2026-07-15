@@ -51,20 +51,29 @@ describe("docent skill assets", () => {
     );
   });
 
-  // VAL-DCNT-002 — no fixed HTML template asset; quality is constrained by
-  // purpose + palette + hard constraints in prose
-  test("skill ships no fixed HTML template; hard constraints live in SKILL.md", () => {
+  // VAL-DOCNT-002..005 — keep the comprehension contract, but make history,
+  // hands-on verification, search methods, and visual customization conditional.
+  test("skill separates core report content from conditional tools and presentation", () => {
     const htmlAssets = listFilesRecursive(SKILL_DIR).filter((f) => f.endsWith(".html"));
     assert.deepEqual(htmlAssets, [], "docent must not ship a fixed HTML template asset");
     const text = read(`${SKILL_DIR}/SKILL.md`);
-    assert.ok(text.includes("必答"), "SKILL.md must carry the mandatory-answers checklist");
+    assert.ok(text.includes("核心内容"), "SKILL.md must define the core report contract");
+    for (const item of [
+      "为什么存在",
+      "入口与主流程",
+      "代码地图",
+      "数据或状态",
+      "相邻契约",
+      "阅读足迹",
+    ]) {
+      assert.ok(text.includes(item), `SKILL.md must retain core report item: ${item}`);
+    }
     assert.ok(
       /文件:行号/.test(text),
       "SKILL.md must require file:line anchors for code conclusions",
     );
     assert.ok(text.includes("自包含"), "SKILL.md must require a self-contained offline HTML");
     assert.ok(text.includes("阅读足迹"), "SKILL.md must require the reading-footprint section");
-    assert.ok(text.includes("不适用"), "SKILL.md must allow explicit N/A but forbid silent omission");
     assert.ok(
       /至少一张/.test(text) && /时序图|流程图|状态图/.test(text),
       "SKILL.md must hard-require at least one standard software-engineering diagram for the main flow",
@@ -73,13 +82,28 @@ describe("docent skill assets", () => {
       text.includes("架构总览"),
       "SKILL.md must require an architecture overview diagram on the first screen",
     );
-    assert.ok(
-      text.includes("端到端"),
-      "SKILL.md must center the verify-understanding item on human end-to-end acceptance",
+    assert.match(text, /历史演化[\s\S]{0,120}(按需|条件)/, "git history must be conditional");
+    assert.match(
+      text,
+      /(可运行|可操作)[\s\S]{0,180}端到端/,
+      "hands-on verification must require a runnable or operable entry point",
     );
+    assert.match(text, /按问题从定位工具箱/, "search methods must be selected as needed");
     assert.ok(
       text.includes("references/components.md"),
       "SKILL.md must direct the report generator to the bundled component library",
+    );
+
+    const design = read(`${SKILL_DIR}/references/design-guidelines.md`);
+    assert.doesNotMatch(
+      design,
+      /两份不同主题的报告不应该长得一样|每份报告.*不同/,
+      "visual variety must not be a quality target",
+    );
+    assert.match(
+      design,
+      /默认.*(基线|组件|token)/,
+      "design guidance must provide a stable default visual baseline",
     );
   });
 
@@ -398,14 +422,16 @@ describe("docent skill assets", () => {
 });
 
 describe("docent release sync", () => {
-  // VAL-DCNT-004 — plugin manifests bumped past 3.9.0 and kept in lockstep.
-  test("plugin manifests are bumped past 3.9.0 and stay in lockstep", () => {
+  test("plugin manifests include the docent modernization release and stay in lockstep", () => {
     const claude = JSON.parse(read("plugins/auriga-workflow/.claude-plugin/plugin.json"));
     const codex = JSON.parse(read("plugins/auriga-workflow/.codex-plugin/plugin.json"));
-    const [maj, min] = String(claude.version).split(".").map(Number);
+    const parts = String(claude.version).split(".").map(Number);
+    const meetsMinimum =
+      parts[0] > 4 ||
+      (parts[0] === 4 && (parts[1] > 0 || (parts[1] === 0 && parts[2] >= 6)));
     assert.ok(
-      maj > 3 || (maj === 3 && min >= 10),
-      `plugin version must be bumped past 3.9.0, got ${claude.version}`,
+      meetsMinimum,
+      `plugin version must include the docent modernization release (>= 4.0.6), got ${claude.version}`,
     );
     assert.equal(
       codex.version,
