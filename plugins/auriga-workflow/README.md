@@ -14,7 +14,7 @@ travel together so they share one distribution model and one install step.
 | `test-driven-development` | Minimal behavior-first TDD — consumes acceptance contracts and project test rules. |
 | `spec-design` | Requirement clarification — produces PR-scoped contracts under `docs/specs/<topic>/`, or an explicitly approved cross-PR program contract under `docs/long-running-specs/<topic>/`. |
 | `arch-design` | Technical design clarification — domain models, module boundaries, dependency direction, human-reviewed design records, and migration constraints. |
-| `code-simplify` | Code-level simplification — identifies code smells and reduces maintenance cost. |
+| `code-simplify` | Authorized code-level simplification — protects behavior, targets concrete maintenance cost, and supports user-approved code-smell scans. |
 | `session-compound` | Compounds a session into a self-contained interactive HTML report. |
 | `goalify` | Plans an autonomous goal from a spec or work-in-progress and dispatches it via the built-in `/goal` command. |
 | `deep-review` | Multi-dimensional PR review orchestrator — dispatches parallel fresh-context reviewers per dimension and synthesizes findings into a Blocking / Non-blocking / Architectural punch list. |
