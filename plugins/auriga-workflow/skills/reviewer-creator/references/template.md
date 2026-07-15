@@ -1,58 +1,48 @@
 ---
 name: <NAME>
 best_for: "<BEST_FOR>"
-extends: <EXTENDS>  # 内置审查者名（如 performance / ux / security / architecture）= 作为该维度补充被 deep-review 吸收；standalone = 内置维度都不覆盖的全新维度，强制独立分派
+extends: <EXTENDS>  # 内置审查者名，或 standalone
 trigger: <TRIGGER>
 reasoning: <REASONING>
-tools: [Read, Grep, Glob]  # 只读
-value: ""  # TODO: 一句话价值陈述——这位审查者能防住什么内置审查者会漏掉的问题？
-# effort: xhigh  # 可选；仅在向下覆盖为简单检查、或向上覆盖为 max 时填
+tools: [Read, Grep, Glob]
+value: "<这个项目规则比宿主通用检查多防住什么风险>"
+# effort: <EFFORT>  # 可选；仅在项目确需覆盖默认投入时填写
 ---
 
 # <TITLE>
 
 ## Scope
 
-以下检查清单是**起点，而非边界**。它涵盖常见的 <DOMAIN> 模式——但请报告你在这一维度上会向同事指出的任何问题，包括未在此列举的类别。这些模式是帮助你不遗漏的入门脚手架；目标是判断力。
+<说明项目背景、适用路径、与宿主维度的边界。若 extends: standalone，说明为什么十个内置维度都不覆盖。>
+
+## Rule sources
+
+- `<项目规则或代码路径>` — <它约束什么>
 
 ## Checklist
 
-<TODO: 用 5–10 条具体、可操作的审查问题替换本章节。
+<写 5–10 条具体、可操作的问题。每条说明要找的证据和产生的项目影响；不要用固定数量或个人风格替代判断。>
 
-参考 plugins/auriga-workflow/skills/deep-review/references/reviewers/ 下的内置审查者，
-了解恰当的具体程度。好的检查清单点名具体要找的东西；差的检查清单是抽象的
-（"代码设计得好吗？"）。
+1. **<类别>**：<审查问题、证据和影响>
+2. **<类别>**：<审查问题、证据和影响>
+3. **<类别>**：<审查问题、证据和影响>
 
-如果你的审查者有多个视角，把条目归在子标题下（见 robustness.md 的双视角示例：
-安全性 + 边缘用例）。>
+## Detection table
 
-1. **<类别>**：<具体检查——要找什么>
-2. **<类别>**：<具体检查>
-3. ...
-
-## When to invoke
-
-按 frontmatter 的 `trigger` 字段触发。下方的 Detection 表指出分派后应聚焦哪些信号。
-
-| Recommend focus on | Detection |
+| 信号 | 重点检查 |
 |---|---|
-<DETECTION_ROWS>
+| <差异信号> | <项目专属风险> |
 
-Worked scenarios:
+## Worked scenarios
 
-1. **<WORKED_SCENARIO_1>**
-2. <TODO: 补第 2 个 Worked scenario——审查者会标记什么、为什么，给出具体的 file:line 式示例>
-3. <TODO: 补第 3 个 Worked scenario——最好是边缘用例或险些漏过的情形>
+1. **应报告**：<具体差异与 finding 格式>。
+2. **应报告**：<边界或容易遗漏的项目场景>。
+3. **不应报告**：<看似命中但不违反项目规则的场景，以及原因>。
 
 ## Output contract
 
-将此轮视为**全覆盖，不是筛选**。报告你发现的所有问题，包括你不确定的或认为低严重度的——综合步骤稍后会排序或筛除它们。让一个发现被筛掉，也好过悄悄漏掉一个真实关切。
+这是全覆盖审查，不是预过滤。返回至多 300 字摘要，随后逐条输出：
 
-返回：
+`<file>:<line> — <项目规则、证据和影响> — [severity: blocking | non-blocking] — [confidence: high | medium | low]`
 
-- **至多 300 字**的摘要
-- 紧跟一个条目列表，每条格式为：`<file>:<line> — <一句话描述> — [severity: blocking | non-blocking] — [confidence: high | medium | low]`
-
-<TODO: 如果你的审查者有多个视角或子类别，给每条发现额外加一个标签（见 robustness.md 的 `[lens: security | edge-cases]` 示例，或 security.md 的 `[category: auth | authz | secret | crypto | injection | other]`）。否则本段保持原样。>
-
-不要包含超过 5 行的代码摘录。不要复述差异。只有在真的没有发现任何问题时才返回 `"No findings."`。
+只有没有发现时返回 `No findings.`。

@@ -5,116 +5,140 @@ description: "当用户要求审查拉取请求、执行 /deep-review、将拉�
 
 # Deep Review
 
-多维度拉取请求审查调度器。每位审查者的检查清单、检测表、示例场景和输出契约保存在 `references/reviewers/<name>.md` 中。**主 agent 只读其 YAML frontmatter（文件头部 `---` 之间的元数据）做编排**，并把该文件的**绝对路径**交给子代理，由子代理在自身全新上下文中**自读**正文——避免正文经主 agent 上下文转发、空耗 token。
+多维度拉取请求审查调度器。主代理负责收集原始材料、按风险路由和综合结果；每个审查维度在彼此隔离的全新上下文中独立判断。
 
-## When to use
-
-调用 `/deep-review`、使用"正式审查"/"全面审查"/"深度审查"等表述、Draft 转 Ready 时、需要独立验证的高风险变更。**跳过情形：** 拼写错误修复、单行调整、快速健全性检查。
+每个拉取请求的**第一次**正式深度审查直接执行。此后只有两种入口：用户明确要求再次审查时直接执行；代理主动建议重跑时，先询问用户是否触发。不要因为修复了上一轮发现就自动开始下一轮深度审查。
 
 ## Prerequisites
 
-`gh auth status` 正常，已确定目标拉取请求，具有仓库读取权限。
+- 已确定目标拉取请求和基准分支，`gh auth status` 正常。
+- 正式审查面向 Ready 拉取请求；Draft 只做用户明确要求的早期反馈。
+- 找到本轮权威需求来源；缺失时仍可审查其他维度，但必须把需求符合性标记为不完整。
 
-## Steps
+## 1. 收集审查数据包
 
-### 1. Fetch + classify
+运行 `gh pr view --json number,title,body,baseRefName,headRefName` 与 `gh pr diff`，并读取：
 
-运行 `gh pr view --json number,title,body,baseRefName,headRefName` 和 `gh pr diff`。然后打标签（可多选）：
+- 当前对话里用户对本任务的原始要求和最新明确决定；
+- 与本分支相关的 `docs/specs/`、`docs/long-running-specs/`、`docs/worklog/`、任务或问题；
+- 仓库指令以及本次涉及的 `docs/rules/`；
+- 原始差异与必要的未改动上下文。
 
-- **`logic`** — 代码逻辑变更（函数、控制流、数据处理）
-- **`auth-sensitive`** — `logic` 的子标签；认证 / 加密 / 密钥 / 支付
-- **`ui`** — 命令行 / 终端界面 / Web / 移动端界面
-- **`perf`** — 前端 / 移动端 / 后端性能敏感变更
-- **`arch`** — 新增文件、模块重组、依赖图变更，或包含 `arch-design` 设计文档（`arch_design.md`）的差异
+提交信息、拉取请求里的实现理由和实现代理的自主决定可以帮助定位，但不是需求权威来源，不能覆盖用户或已确认契约。
 
-同时判断是否为 **trivial**（单行、纯配置/文档）还是 **non-trivial**（任何代码逻辑变更）。
+## 2. 按事实与风险表面分类
 
-### 2. Dispatch reviewers (4 categories, all in parallel)
+标签可以多选，不使用统一的“平凡 / 非平凡”二分替代判断：
 
-对每位分派的审查者，**只读 `references/reviewers/<name>.md` 的 YAML frontmatter** 决定编排：`reasoning` 档位（在分派时按平台当前模型梯队解析，不要写死模型名：`flagship` → 平台当前最强推理模型；`workhorse` → 比 flagship 低一档、性价比更高的模型）、`tools`，以及可选的 `effort`（未指定时默认为 `xhigh`——当前 Claude / Codex 推荐值；仅在向下覆盖为简单检查或向上覆盖为 `max` 时才指定）。**正文（检查清单、检测表、输出契约）不读进主 agent 上下文**——把该文件的绝对路径交给子代理，指示其自读并遵循。
-
-**项目级自定义审查者**：同时检索 `docs/rules/review/*.md`（目录不存在则静默跳过）。目录以仓库根为锚：用 `git rev-parse --show-toplevel` 解析仓库根，检索 `<仓库根>/docs/rules/review/`；当 cwd 不在仓库根、且 cwd 到仓库根之间存在更近的 `docs/rules/review/`（monorepo 子包）时，两层都收集——子包级审查者视为对仓库级的补充/收窄，重名时以子包级为准；非 git 仓库时回退为相对 cwd 检索。对每个自定义文件，先做**范围重叠判定**，再决定分派方式。
-
-**降级（旧版兼容）**：built-in reviewer 一律带 YAML frontmatter；但旧版项目自定义 reviewer 可能没有 YAML frontmatter（仍是正文的 `## Metadata` 项目列表）。读取编排字段（`name` / `best_for` / `trigger` / `reasoning` / `tools` / `extends`）时：优先读 frontmatter；文件没有 frontmatter 时回退读取正文的 `## Metadata` 段；两者都缺时按语义判断（见下方重叠判定），并把缺失记为「无项目专属元数据」。
-
-- **重叠判定**：对照上述 11 位内置审查者，判断该自定义审查者的关切是否落在某位内置审查者的维度范围之内。判定优先级如下：
-  - **显式 `extends` 字段优先**：若 frontmatter 写了 `extends: <内置审查者名>`，直接吸收进该 host，不再做语义猜测；若写了 `extends: standalone`，则**强制独立分派**——跳过重叠判定，即使语义上与某内置维度重叠也保持独立。`extends` 值既不是 11 位内置审查者之一、也不是 `standalone` 时忽略它，回退到下面的语义判断。
-  - **缺省偏向吸收**：未写 `extends`（或值非法）时以**语义判断**为主——比较自定义文件的 `Best for`、`Scope` 段与 `Checklist` 跟各内置维度的覆盖面，并**默认偏向吸收**：只要能找到一个语义最接近的内置 host，就吸收进它；只有当它确实是任何内置维度都不覆盖的全新维度（哪个 host 都套不上）时，才独立分派。这样可以最小化子代理数量。
-  - **重名即吸收**：与内置审查者**重名**视为必然重叠，host 即同名内置审查者。
-- **重叠 → 吸收**：判定为与某位内置审查者（host）重叠时，不再为该自定义审查者分派独立子代理；改为把该自定义文件的绝对路径连同 host 内置文件的路径一起交给 host 子代理，指示其自读、把该文件的 `Checklist` 与 worked scenarios（示例场景）作为「项目专属补充」一并审查。若 host 内置审查者本次未被触发（例如自定义审查者重叠 `performance`，但本次 PR 无 `perf` 标签），被吸收的内容随 host 一并不运行——重叠自定义审查者自身的 `Trigger` 不再独立生效。
-  - 吸收示例（自定义审查者 → host 内置维度）：可访问性类 `accessibility` / `a11y` → `ux`；`swiftui-performance` / `compose-performance` → `performance`；`security-privacy` → `security`；模块 / 分层 / 依赖方向类 `android-boundaries` → `architecture`；构建配置、SDK 接入边界等没有同名内置维度但落在既有维度内的，也并入语义最接近的 host。这些都是某个内置维度的项目专属收窄，吸收后由 host 一并审查，不额外占用子代理。
-- **不重叠 → 独立分派**：判定为引入一个**全新维度**（不落在任何内置维度范围内）时，或显式声明了 `extends: standalone` 时，解析其 frontmatter 中的 `trigger` 字段，路由到对应的分派类别（A/B/C/D），作为独立审查者分派；其正文同样由该独立子代理按绝对路径自读。
-
-使用 `reviewer-creator` 技能来创建新的审查者。
-
-**A. Required (always fire):** `spec-conformance`、`correctness`、`docs-sync`
-
-**B. Conditional by tag:**
-
-| Tag | Reviewer |
+| 标签 | 命中条件 |
 |---|---|
-| `logic` | `robustness` |
-| `logic` + `auth-sensitive` | `security`（Robustness 仅保留边缘用例视角） |
-| `ui` | `ux` |
-| `perf` | `performance` |
-| `arch` | `architecture` |
+| `executable-behavior` | 生产代码、运行时配置、schema、数据转换、命令或其他会改变执行结果的差异 |
+| `tests` | 新增或修改测试、测试工具、夹具或测试规则 |
+| `maintained-code` | 需要长期维护且存在实质逻辑、结构或接口变化的代码；机械生成物和纯格式不算 |
+| `security-sensitive` | 信任边界、身份与权限、秘密、外部输入、文件或网络、支付、隐私数据、代理工具执行能力 |
+| `ui` | Web、移动端、桌面端、终端交互或命令行用户体验 |
+| `performance-sensitive` | 热路径、大数据量、高频或并发路径、资源预算、第三方或模型调用成本 |
+| `architecture` | 模块或组件边界、依赖方向、公共接口、领域职责、持久化模型或迁移方式发生实质变化 |
+| `agent-extension` | 技能、插件清单、市场清单、代理、钩子、模型上下文协议配置、`AGENTS.md` 或 `CLAUDE.md` |
 
-**C. Non-trivial conditional (any non-trivial change):** `test-quality`、`code-quality`
+一行修复仍可能命中正确性、测试或安全；新增普通文件本身不等于架构变化；纯文档也可能改变权威契约并触发需求与文档审查。
 
-**D. Detection-driven conditional:** `skill-plugin-quality`——当差异中包含以下任意内容时触发：`.claude-plugin/` 或 `.codex-plugin/` 路径、`**/marketplace.json`、`**/SKILL.md`、`**/agents/*.md`（含 YAML 前置元数据）、`**/hooks/hooks.json` / `**/hooks.toml`、`.mcp.json` 或 `mcpServers`、`CLAUDE.md`、`AGENTS.md`。
+## 3. 发现并校验审查者
 
-规范合规性的输入必须排除写代码的 Agent 自身的提交信息、拉取请求正文的理由说明、"自主决策"备注——这些内容会使审查偏向确认写代码的 Agent 的解读。只输入规范源文件和差异内容。
+内置审查者位于 `references/reviewers/`。主代理只读取每个文件的 YAML frontmatter 做编排，把文件**绝对路径**交给审查代理，由审查代理自读正文。若执行环境无法解析仓库绝对路径，才内联该文件正文。
 
-**全新上下文审查者隔离是强制要求。** 每位分派的审查者必须从全新的上下文开始，以便从对抗式、独立视角审查拉取请求。绝不要把上下文复制（继承）进审查者子代理，绝不传递当前会话记录，也绝不为新审查者复用之前的审查会话。在 Codex 原生子代理中，当工具支持时请明确设置 `fork_context: false`。在基于命令行的委派中，启动新会话而非 `resume` / `continue`。审查者提示词只能包含审查数据包：目标拉取请求元数据、差异、相关源文件/规范文件、必要的项目指令、审查者参考文件的**绝对路径**（子代理自读其检查清单、检测表与输出契约），以及下方的 Reviewer Must-Not Preamble。
+项目审查者位于 `docs/rules/review/*.md`。用 `git rev-parse --show-toplevel` 定位仓库根，同时从受影响路径向上查找更近的 `docs/rules/review/`；两层都读取，冲突时子包级优先。非 git 仓库时回退到当前目录。
 
-**Output contract:** 由子代理从其自读的参考文件中获取 `Output contract` 章节并严格遵循——不要依赖默认值。`Reviewer Must-Not Preamble`（见下方章节）不在参考文件中，必须由主 agent 原文附在每个子代理提示词开头——这些角色级约束统一适用于所有维度，集中在此处以便单次修改即可传达至每位审查者。**路径兜底**：若 delegate 运行在无法解析仓库绝对路径的环境（如无仓库挂载的远程沙箱），改为把参考文件正文内联进提示词。
+项目审查者必须有合法 YAML frontmatter，并明确声明：
 
-**运行时：** 并行分派只读审查者，但每位审查者必须使用全新上下文。在平台支持的情况下使用独立代理；若使用会话内子代理，它们仍必须接收全新的提示词数据包，且不得把上下文复制（继承）进来。在需要 xhigh 投入的权衡场景或高风险拉取请求时，优先采用跨模型覆盖（Codex ↔ Claude）。
+- `extends: <内置审查者名>`：作为宿主维度的项目专属补充；或
+- `extends: standalone`：作为内置维度没有覆盖的独立维度。
 
-### 3. Synthesize into a punch list
+缺失、非法或指向不存在宿主的 `extends` 不做正文语义猜测，也不回退读取旧 `## Metadata`；将该文件列入“审查缺口”。与内置审查者重名时仍必须显式声明宿主或 `standalone`。
 
-```
+被吸收的项目审查者与宿主组成一个数据包。**宿主默认条件或任一项目扩展的 `trigger` 命中时，都运行宿主**，避免项目规则因宿主默认条件未命中而静默失效。输出来源保留为 `(宿主 / 项目审查者)`；仅来自宿主时写 `(宿主)`。
+
+使用 `reviewer-creator` 创建或修正项目审查者。
+
+## 4. 路由
+
+| 审查者 | 触发条件 |
+|---|---|
+| `spec-conformance` | 始终执行 |
+| `docs-sync` | 始终执行 |
+| `correctness` | `executable-behavior` |
+| `test-quality` | `executable-behavior` 或 `tests` |
+| `code-quality` | `maintained-code` |
+| `security` | `security-sensitive` |
+| `ux` | `ui` |
+| `performance` | `performance-sensitive` |
+| `architecture` | `architecture` |
+| `skill-plugin-quality` | `agent-extension` |
+
+`correctness` 同时覆盖正常、边界和失败路径，不再单独分派鲁棒性审查者。项目独立审查者按自己的合法 `trigger` 路由。
+
+## 5. 独立执行
+
+每个维度必须在**全新、干净的上下文**中运行：
+
+- 不继承实现会话、当前对话历史或先前审查会话；
+- 不使用 `resume` / `continue`，也不复制父上下文；
+- 只接收目标元数据、原始差异、权威需求、适用项目规则、审查者文件路径和下面的统一约束；
+- 优先使用平台内置的干净上下文子代理；只有用户明确要求跨模型覆盖或平台能力确有需要时才调用外部代理；
+- `reasoning: flagship` 用当前平台最强推理档，`workhorse` 用下一档；尊重审查者显式 `effort`，没有时不额外写死投入档位。
+
+并行执行彼此独立的只读审查。某维度失败时，用新的干净上下文重试一次；仍失败则保留为审查缺口，不能宣称完整通过。
+
+### Reviewer Must-Not Preamble
+
+把以下约束原文放在每个审查数据包开头：
+
+- 不按严重度或置信度预过滤；报告范围内所有发现，由综合阶段排序。
+- 不修改代码、创建问题、提交评论、批准设计或执行其他外部写入。
+- 可以给出具体修复方向和验证方式，但不要编写补丁或自主展开完整替代设计。
+- 必须重新检查本次差异，即使相同行以前通过过审查。
+- 只对本维度有证据的问题下结论；缺少运行、视觉、负载或权威来源时明确写为需要验证。
+
+## 6. 综合
+
+按同一根因合并重复发现，同时保留所有来源。不要仅因置信度低就把条目移动到架构维度；它仍属于原审查维度，只是进入“需要验证”。
+
+```markdown
 ## Deep Review: PR #<n> — <title>
-**Tags**: <...>  |  **Reviewers**: <list>
+**Signals**: <标签>  |  **Reviewers**: <已完成列表>
+
 ### Blocking issues
-- [ ] <file:line> — <finding> — [confidence: high|med|low] (<reviewer>)
+- [ ] <file:line> — <问题与影响> — [confidence: high|medium|low] (<来源>)
+
 ### Non-blocking suggestions
-- [ ] <file:line> — <finding> — [confidence: high|med|low] (<reviewer>)
+- [ ] <file:line> — <问题与影响> — [confidence: high|medium|low] (<来源>)
+
+### Needs validation
+- [ ] <file:line或证据源> — <缺少什么证据、如何确认> (<来源>)
+
 ### Architectural observations
-- <observation and recommended tracking action>
-### Strengths (≤2 bullets)
-- <one-line credit, e.g. "ACs #1–13 fully traced to file:line by spec-conformance">
+- <不阻塞当前合并、但值得进入架构设计或长期治理的观察>
+
+### Review gaps
+- <失败的维度、缺失的权威来源或不可用证据；没有则写 None>
+
+### Strengths
+- <至多两条有证据的亮点>
 ```
 
-**分类：** Blocking = 正确性缺陷 / 安全问题 / 测试或契约损坏 / 未满足的规范验收条件 / 无正当理由的范围蔓延 / 对仍有效设计文档的未记录偏差。Non-blocking = 可维护性 / 风格 / 轻微性能问题 / 已记录的歧义 / 通过更新设计文档解决的设计偏差。Architectural = 值得单独跟踪的腐化问题——关于在本拉取请求中修复还是创建跟踪 issue 的分析，请见后续章节。
+Blocking 包括会造成错误行为、安全问题、契约或测试破坏、未满足权威要求、实质性未授权范围扩张，以及对仍有效设计的高风险偏离。Non-blocking 是有具体维护成本但不阻止合并的问题。Needs validation 是证据不足而不能确认的风险，不是假装发现已成立。
 
-**置信度：** 在相同 `file:line` 处去重（保留置信度更高的表述）。在各类别内按置信度（high → low）再按严重度排序。低置信度条目保留在报告中——这是给人工审查者的信号；若过于推测性，移入 Architectural 而非删除。
+## 7. 交回用户决定
 
-**被吸收内容的归属：** 由「项目专属补充」（重叠后吸收进 host 的自定义审查者内容）产生的发现，其 `(<reviewer>)` 一律按 host 内置审查者名标注（如 `(performance)`），不附加自定义审查者来源——它已是该维度审查的一部分。
-
-## Reviewer Must-Not Preamble
-
-这些角色级约束适用于每位分派的审查者（内置及 `docs/rules/review/` 下的项目级自定义审查者）。请将以下内容原文附在每位审查者子代理提示词的开头——不要在各审查者参考文件中重复。单次修改即可传达至每位审查者。
-
-- **不要按严重度预先过滤。** 这一遍是为了全覆盖，不是为了筛选——综合步骤会在下游排序和筛除发现。报告所有在范围内的问题，包括低置信度和 non-blocking 的。强推理模型倾向于字面执行"只报告高严重度"此类表述，会漏掉综合步骤本会标记的真实缺陷。
-- **不要提出替代实现方案。** 指出缺陷加上一句修复方向在范围之内。设计替代代码、重构周边模块或编写补丁是独立任务。
-- **不要对已审查过的代码不加重新检查就直接放行。** 本次差异所涉及的代码均在范围之内，即使同一行代码曾通过之前的审查——上游契约变更可以悄悄使昨天的正确性结论失效。
-
-## Follow-up
-
-**在本拉取请求中修复 vs 创建跟踪 issue。** Blocking 发现必须在合并前修复，所有维度均无例外。其余情况：能够在当前拉取请求中就地修复且不破坏测试的发现，直接在本次合并——局部结构性修复（放错层、重复实现、孤立的浅层转手包装）或任何 non-blocking 的代码质量/可维护性问题。需要重新划定模块边界的发现，创建跟踪 issue 并路由到 `arch-design`，绝不捆绑进审查周期的拉取请求——上帝模块、发散式变化、霰弹式修改、跨多个模块的循环依赖。设计合规性偏差的处理方式相同：设计文档仍有效 → 将代码拉回正轨；实现证明设计有误 → 创建 issue 修订设计文档。
-
-**`test-driven-development` 边界**：编码阶段按该技能建立测试证据；本技能的 `test-quality` 审查者只做**事后**独立审查，检查已写测试的质量与遗漏。不要把正式评审复制到实现阶段。
+正式审查到报告为止。是否修复、如何分组、是否创建跟踪事项、是否重新设计和何时再次深度审查，均由用户决定。修复后的定向验证不等于自动触发第二次完整审查。
 
 ## Anti-patterns
 
-- ❌ 分派子代理时未告知去哪取输出格式 → 上下文泛滥（参考文件中已含格式；交绝对路径让子代理自读，仅在路径不可解析时才内联）
-- ❌ 主 agent 把参考文件正文整段读进自己上下文再原样转发 → 纯 pass-through 空耗 token；编排只需 frontmatter，正文交子代理自读
-- ❌ 将上下文复制（继承）进审查者子代理、复用之前的审查者会话，或将会话历史作为审查输入——污染的上下文会削弱对抗式审查
-- ❌ 串行化彼此独立的审查者 → 浪费时间
-- ❌ 正式审查 Draft 拉取请求——Draft 用于非正式早期反馈；等到 Ready 后再审
-- ❌ 将写代码的 Agent 自身的提交信息、拉取请求正文理由说明、"自主决策"内容输入规范合规性审查——会偏向确认写代码的 Agent 的解读
-- ❌ 告诉审查者"只报告高严重度"、"保守一点"或"不要吹毛求疵"——较新的推理模型会静默丢弃真实发现；在综合阶段筛选，而非在每位审查者处筛选
-- ❌ 拆分已合并的维度（代码质量的 Consistency+Maintainability、Robustness 的 Security+Edge-cases），除非 `auth-sensitive` 触发——合并是有意为之的令牌成本优化，保留了所有检查项
-- ❌ 将 `test-quality` 合并回 `correctness`——拆分正是让"测试应该存在但不存在"的发现变得可见的关键
-- ❌ 把范围重叠的自定义审查者当作又一个并行审查者分派——它会与 host 内置审查者对同一 `file:line` 重复报告、空耗 token，且两个审查者各自只看到一半上下文。重叠（含与内置重名）的自定义审查者吸收进 host；只有引入全新维度的自定义审查者才独立分派
+- 复用实现上下文或上一轮审查会话，削弱独立判断。
+- 主代理读取全部审查者正文再转发，浪费主上下文。
+- 因差异很小就跳过正确性或测试审查，或因新增文件就触发架构审查。
+- 让实现者理由覆盖用户原始要求，或在缺少需求来源时输出“符合规格”。
+- 猜测无合法 frontmatter 的项目审查者属于哪个宿主。
+- 被吸收扩展命中、宿主未命中时直接跳过整个维度。
+- 把低置信度问题塞进架构观察，隐藏其真实维度。
+- 审查过程中顺手改代码、评论拉取请求或创建问题。

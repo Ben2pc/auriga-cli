@@ -5,133 +5,109 @@ description: "当用户要求创建自定义审查者、添加项目专属审查
 
 # Reviewer Creator
 
-为 `deep-review` 技能脚手架一个项目级自定义审查者文件。生成的文件位于 `docs/rules/review/<name>.md`，会在分派时被调度器自动发现（依据 `deep-review/SKILL.md` 第 2 步的发现规则）。
+为 `deep-review` 创建项目级审查者。产物写入 `<仓库根>/docs/rules/review/<name>.md`，由 `deep-review` 自动发现。
 
-## When to use
+## 什么时候使用
 
-- 用户想新增一个 11 位内置审查者未覆盖的项目专属审查关切（例如"迁移安全"、"特性标志清理"、"国际化键一致性"、"schema 版本兼容性"、"遥测命名"）
-- 用户调用 `/reviewer-creator`
-- 团队正在引入一项新约定，希望在拉取请求阶段强制执行
+- 项目有内置审查维度未表达的专属规则；
+- 某个内置维度需要结合项目架构、平台或业务进一步收窄；
+- 用户显式调用 `/reviewer-creator`。
 
-**两种定位（由 `extends` 字段声明）：** 自定义审查者要么是 (a) **某个内置维度的项目专属补充 / 收窄**（`extends: <内置名>`，由 `deep-review` 吸收进同一 host 一并审查），要么是 (b) **一个全新独立维度**（`extends: standalone`）。多数项目专属关切属于 (a)，优先用吸收以控制子代理数量。
+通用检查已经被内置审查者覆盖、且没有项目专属判断时不要创建文件。
 
-**Skip for:** 内置审查者已覆盖、且无需任何项目专属补充的通用关切。
+## 先确定定位
 
-## Prerequisites
+每个项目审查者必须明确选择一种定位：
 
-- 已安装 `auriga-workflow` 插件（本技能与 `deep-review` 技能一同随该插件分发）
-- `docs/rules/review/` 目录不存在时会按需创建
-- `references/template.md`（位于本技能目录下）是规范模板
+1. **补充内置维度**：写 `extends: <内置名>`，与宿主在同一干净上下文内执行，不额外占用审查代理。
+2. **全新独立维度**：写 `extends: standalone`，仅当以下十个内置维度确实都不覆盖时使用。
+
+内置名称：`spec-conformance`、`correctness`、`test-quality`、`docs-sync`、`security`、`ux`、`performance`、`architecture`、`code-quality`、`skill-plugin-quality`。
+
+不要省略 `extends` 让调度器猜测正文语义。自定义 `name` 也不要与内置名称重名，避免来源标注含糊。
 
 ## Frontmatter schema
 
-生成文件以文件头部 YAML frontmatter 承载机器可读的编排元数据。字段契约：
+**必填：**
 
-**必填（所有 reviewer）：**
-
-- `name` — kebab-case，等于文件名 stem
-- `best_for` — 一句话职责；缺 `extends` 时还用于语义重叠判定
-- `trigger` — `always` | `tag:<logic|auth-sensitive|ui|perf|arch>` | `non-trivial` | `detection-driven`
-- `reasoning` — `flagship` | `workhorse`
-- `tools` — 流式列表；只读默认 `[Read, Grep, Glob]`，需要跑测试再加 `Bash`
-- `value` — 价值陈述：这个维度能防住什么内置审查者会漏掉的问题
+- `name`：kebab-case，必须等于文件名；
+- `best_for`：一句话说明此项目规则最适合发现什么；
+- `extends`：一个内置名称或 `standalone`；
+- `trigger`：见下方触发条件；
+- `reasoning`：`flagship` 或 `workhorse`；
+- `tools`：默认 `[Read, Grep, Glob]`，确需运行只读验证再加 `Bash`；
+- `value`：说明它比宿主通用检查多防住什么项目风险。
 
 **可选：**
 
-- `extends` — `<内置审查者名>`（吸收进该 host）| `standalone`（强制独立分派）。**仅自定义 reviewer 使用**；缺省时 `deep-review` 按语义判断并偏向吸收。built-in 是 host，绝不设 `extends`。
-- `effort` — `xhigh`（缺省）| `high` | `medium` | `max`；仅在需要覆盖默认时才填。
+- `effort`：只有项目规则确实需要覆盖默认投入时设置，不把模型名写死。
 
-旧版没有 frontmatter 的 reviewer 仍能被 `deep-review` 降级读取（回退到正文 `## Metadata` 段），但新建文件一律用 frontmatter。
+合法 `trigger`：
 
-## Steps
+- `always`
+- `tag:executable-behavior`
+- `tag:executable-behavior-or-tests`
+- `tag:maintained-code`
+- `tag:security-sensitive`
+- `tag:ui`
+- `tag:performance-sensitive`
+- `tag:architecture`
+- `tag:agent-extension`
+- `detection-driven`（正文必须给出可机械识别的检测条件）
 
-### 1. Gather metadata via `AskUserQuestion` / `request_user_input`
+补充型审查者的 trigger 与宿主 trigger 取并集：任一命中都会运行宿主与项目补充。
 
-依次收集（顺序可调整——第 8 项 dispatch 模式决定整份文件的定位，建议最先确认）：
+## 流程
 
-1. **Name** — kebab-case（例如 `migration-safety`、`i18n-keys`）。校验：
-   - 全小写 / 连字符分隔 / 无空格或特殊字符
-   - **拒绝与内置审查者重名**：`spec-conformance`、`correctness`、`test-quality`、`docs-sync`、`robustness`、`security`、`ux`、`performance`、`architecture`、`code-quality`、`skill-plugin-quality` — 与内置重名会被 `deep-review` 视为必然重叠，直接吸收进同名内置审查者；自定义审查者应取一个区别于内置的名字，避免被意外吸收
-2. **One-line "Best for"** — 简短的职责描述（12–25 字）
-3. **Domain** — 用于范围前言的一个短语（例如"迁移安全"、"特性标志清理"）
-4. **Trigger category** — 恰好选一项：
-   - `always` — 每个拉取请求都触发（慎用；成本会累积）
-   - `tag:<name>` — 仅当某个既有标签被设置时触发（`logic` / `auth-sensitive` / `ui` / `perf` / `arch`）
-   - `non-trivial` — 任何非平凡变更都触发
-   - `detection-driven` — 仅当 Detection 信号匹配时触发（窄关切的推荐默认值）
-5. **Detection signals** — 至少 3 行可 grep 的规则（路径通配 / 导入模式 / API 调用模式）。`detection-driven` 必需；对其他类别可作为关注提示
-6. **Reasoning tier** — `flagship`（需要深层多跳推理——例如缺陷排查、架构判断）或 `workhorse`（模式匹配 / 清单核对）。档位在分派时由运行平台按当前模型梯队解析：flagship → 该平台当前最强推理模型；workhorse → 比 flagship 低一档、性价比更高的模型。不要在审查者文件里写死具体模型名——模型代际更替时档位语义不变。默认 `workhorse`，除非该审查者需要对差异做横切推理
-7. **One worked scenario** — 该审查者会捕捉的问题的具体 file:line 式示例（用于填充 Worked scenarios 章节；另外 ≥2 个留作 TODO）
-8. **Dispatch 模式（`extends`）** —（建议最先确认，它决定整份文件的定位）询问：这个审查者是 (a) **某个内置维度的项目专属补充**，还是 (b) **一个全新独立维度**？
-   - (a) 选定一个内置审查者名（`spec-conformance` / `correctness` / `test-quality` / `docs-sync` / `robustness` / `security` / `ux` / `performance` / `architecture` / `code-quality` / `skill-plugin-quality`）→ 写 `extends: <内置名>`。`deep-review` 会把它的 Checklist 与 worked scenarios 吸收进该 host 一并审查，不额外占用子代理。
-   - (b) 内置 11 位都不覆盖、需要独立分派 → 写 `extends: standalone`。
-   - 多数项目专属审查者属于 (a)；优先吸收以控制子代理数量。拿不准时，对照 `deep-review/SKILL.md` 第 2 步的吸收示例选最接近的 host。
+### 1. 收集规则来源
 
-### 2. Generate the file
+让用户提供要执行的项目约定、适用路径、例外和至少一个会被漏掉的实际例子。优先引用仓库已有规范，不把口头偏好扩写成通用最佳实践。
 
-输出目录以仓库根为锚（cwd 可能不在仓库根，例如从 monorepo 子目录启动）；非 git 仓库时回退为当前工作目录——不带回退的命令替换在非 git 目录下会展开为空串，把目录建到文件系统根上：
+### 2. 选择宿主与触发条件
+
+先问“这是哪个内置维度的项目专属补充，还是全新独立维度”。补充型选择最接近最终判断责任的宿主；不是按文件类型机械选择。
+
+触发条件要描述差异中的事实或风险表面。`always` 只用于几乎所有正式拉取请求都必须检查的项目契约。
+
+### 3. 设计检查清单
+
+保留足以让较低档审查模型执行的细节：
+
+- 5–10 条具体审查问题；
+- 检测表，说明差异出现什么信号时关注什么；
+- 2–3 个真实场景，至少一个说明“不应报告”的边界；
+- 每条发现所需证据和影响；
+- 清晰的输出字段。
+
+不要把固定行数、固定次数或个人风格写成缺陷。确有阈值时说明它来自哪个项目预算或规则。
+
+### 4. 写入文件
+
+定位根目录并创建目录：
 
 ```bash
-mkdir -p "$(git rev-parse --show-toplevel 2>/dev/null || pwd)/docs/rules/review/"
+repo_root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+mkdir -p "$repo_root/docs/rules/review"
 ```
 
-monorepo 中如果该审查者只约束某个子包，可改为写入该子包内的 `docs/rules/review/`——`deep-review` 会两层都收集，子包级视为对仓库级的补充/收窄。
+按 `references/template.md` 写入 `<仓库根>/docs/rules/review/<name>.md`。正文用项目对话语言，frontmatter 键保持模板格式。
 
-读取本技能的 `references/template.md`。替换：
+### 5. 验证
 
-| Placeholder | 来源 |
-|---|---|
-| `<NAME>` | 第 1 步的 Name（kebab-case，= 文件名 stem，写入 frontmatter `name`） |
-| `<TITLE>` | 名称 → 人类可读形式（例如 `migration-safety` → "Migration Safety"） |
-| `<DOMAIN>` | 第 1 步的领域短语 |
-| `<BEST_FOR>` | 第 1 步的"Best for"一句话 |
-| `<TRIGGER>` | 第 1 步的 Trigger category |
-| `<REASONING>` | 第 1 步的 Reasoning tier |
-| `<DETECTION_ROWS>` | 由 Detection signals 拼装成的 Markdown 表格行 |
-| `<WORKED_SCENARIO_1>` | 第 1 步提供的那个场景 |
-| `<EXTENDS>` | 第 8 步的 Dispatch 模式（`extends: <内置名>` 或 `extends: standalone`） |
+- YAML frontmatter 能解析，所有必填字段存在；
+- `name` 与文件名一致，`extends` 指向合法宿主或 `standalone`；
+- `trigger` 合法，检测表与它一致；
+- 引用的项目文件和命令存在；
+- 用一个应命中和一个不应命中的差异场景手工走查；
+- 运行仓库中针对项目审查者协议的测试或校验器。
 
-将替换后的内容写入 `<仓库根>/docs/rules/review/<name>.md`（或选定的子包级目录）。
-
-frontmatter 的 `value` 字段，以及正文中其余的 `<TODO: ...>` 占位符（Checklist 正文、场景 2 和 3、Output contract 细节），留给用户填写——它们需要本技能无法合成的领域专业知识。
-
-### 3. Tell the user what to do next
-
-打印一段简短摘要：
-
-1. 文件已创建于 `docs/rules/review/<name>.md`
-2. **使用前必须完成的编辑：**
-   - 填写 frontmatter 中的 `value` 字段
-   - 将 Checklist 中的 `<TODO: ...>` 占位符替换为 5–10 条具体、可操作的审查问题
-   - 再补 2 个 Worked scenarios（具体的 file:line 式示例）
-   - 如该审查者需要特殊的 lens/category 标签，可选地调整 Output contract
-3. **验证：**
-   - 在一个本应触发新审查者的拉取请求上运行 `/deep-review`
-   - 检查分派的审查者列表中包含 `<name>`
-   - 确认综合输出中包含该自定义审查者的发现
-4. **若 trigger 设置错了：** 编辑 frontmatter 的 `trigger` 字段并重新运行；无需其他改动
+返回文件路径、定位、触发条件和验证证据。
 
 ## Anti-patterns
 
-- ❌ 使用内置审查者的名称——`deep-review` 会把重名的自定义审查者吸收进同名内置审查者；要新增一个维度，就取一个区别于内置的名字
-- ❌ 为窄关切设置 `always` 触发——每个拉取请求都要付出分派成本；优先用带具体信号的 `detection-driven`
-- ❌ 省略 Detection signals——`detection-driven` 必需，在其他场景也可作为关注提示
-- ❌ 删除"起点，而非边界"的范围前言——缺少它的审查者往往会漏掉清单之外的发现（较新的推理模型倾向于把枚举列表当成封闭集合）
-- ❌ 把某内置维度的项目专属收窄声明成 `extends: standalone`（或不写 `extends` 又把 `Scope` 写得像全新维度）——它会被独立分派，和 host 对同一 file:line 重复报告、空耗子代理。若它本质是某内置维度的收窄，用 `extends: <内置名>` 声明吸收；只有内置 11 位都不覆盖的关切才用 `standalone`
-
-## Example session
-
-```
-User: /reviewer-creator
-Assistant: [走完 8 个问题；用户提供：
-            name=migration-safety, best_for="捕捉不安全的数据库迁移",
-            domain="迁移安全", trigger=detection-driven, signals=
-            (*.sql 文件、ALTER TABLE 模式、drop_column 调用、
-            migrations/ 目录), reasoning=workhorse, 1 个场景,
-            extends=standalone（迁移安全是内置维度未覆盖的全新维度）]
-Assistant: [生成 docs/rules/review/migration-safety.md]
-Assistant: "文件已创建。接下来：填写 Checklist（5–10 条具体的安全检查，
-            如'添加 NOT NULL 却没有回填？'、'并发索引创建？'），
-            补 2 个 Worked scenarios，然后在一个含迁移的拉取请求上运行
-            /deep-review 以验证分派。"
-```
+- 用一个全新审查者重复内置检查，制造同一行的重复发现。
+- `extends` 缺失或非法，期待主调度器读取正文猜宿主。
+- 为了减少代理数量，把真正独立的治理维度硬塞进不相关宿主。
+- 检查清单只有“是否符合最佳实践”之类抽象问题。
+- 把安全利用风险写进结构质量审查，或反过来只检查插件 schema 而漏掉执行能力。
+- 未验证 frontmatter 和触发条件就宣称创建完成。
