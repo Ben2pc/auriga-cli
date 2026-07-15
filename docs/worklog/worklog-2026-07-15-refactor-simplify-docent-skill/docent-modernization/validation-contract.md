@@ -21,7 +21,6 @@
 | Category (类别) | This repo's concrete tool (本仓库具体工具) |
 |---|---|
 | `repo-check` | `node:test`，经 `npm test` 运行；Claude Code 与 Codex 官方 `quick_validate.py` |
-| `manual` | 在真实仓库显式调用 `docent`，人工核对报告内容、图表、锚点和离线行为 |
 
 ## Assertions (断言)
 
@@ -63,7 +62,7 @@
 ### VAL-DOCNT-008
 - **Behavior (行为)**: `docent` 的用户可见插件负载变化必须提升 auriga-workflow 插件版本，并保持 Claude Code 与 Codex 两份插件清单同步。
 - **Tool (工具)**: `repo-check`
-- **Evidence (判据)**: 两份插件清单携带相同版本，且版本不低于 4.0.6。
+- **Evidence (判据)**: 两份插件清单携带相同版本，且版本不低于 4.0.7。
 
 ### VAL-DOCNT-009
 - **Behavior (行为)**: 当前拉取请求的规范、验收契约与正式评审记录必须在就绪前归档，并由长期总规范和评审索引指向归档后的稳定路径。

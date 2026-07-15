@@ -39,7 +39,7 @@
 | [`arch-design`](../../../worklog/worklog-2026-07-14-refactor-simplify-arch-design/arch-design-modernization/review.md) | Auriga 插件 | Claude Code / Codex | 精简；实现已落地 PR #183；强化架构与领域模型触发、人工评审门禁、技术质量目标和条件式工具箱；模型评测未执行 |
 | [`code-simplify`](../../../worklog/worklog-2026-07-15-refactor-simplify-code-simplify-skill/code-simplify-modernization/review.md) | Auriga 插件 | Claude Code / Codex | 精简；PR #184 首次深入评审无阻塞问题，文档同步意见已处理；保留授权边界、行为保护、维护成本判断、用户确认的普查模式和按需手法提醒；模型评测未执行 |
 | [`deep-review`](../../../worklog/worklog-2026-07-15-refactor-deep-review-for-new-models/deep-review-modernization/review.md) | Auriga 插件 | Claude Code / Codex | 精简；PR #185 已完成首次深入评审并处理信任边界、协议闭环、长期契约与结构性测试意见；保留 10 个独立审查维度和弱模型所需细节；模型评测未执行 |
-| [`docent`](../../../worklog/worklog-2026-07-15-refactor-simplify-docent-skill/docent-modernization/review.md) | Auriga 插件 | Claude Code / Codex | 精简实现完成，等待首次深入评审；保留显式调用、单子代理隔离和可视化离线制品，将版本历史、验证路径、定位手段和视觉定制改为按条件使用；模型评测未执行 |
+| [`docent`](../../../worklog/worklog-2026-07-15-refactor-simplify-docent-skill/docent-modernization/review.md) | Auriga 插件 | Claude Code / Codex | 首次深入评审完成并修复默认视觉基线、验证路径、真实调用名与契约证据；保留显式调用、单子代理隔离和可视化离线制品；模型评测未执行 |
 | `documentation-and-adrs` | Auriga 插件 | Claude Code / Codex | 待评审 |
 | `git-workflow` | Auriga 插件 | Claude Code / Codex | 待评审 |
 | `goalify` | Auriga 插件 | Claude Code / Codex | 待评审 |
