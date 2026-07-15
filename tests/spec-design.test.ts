@@ -524,19 +524,10 @@ describe("spec-design skill — repo-check VALs", () => {
       false,
       ".claude/skills/documentation-and-adrs symlink must be removed",
     );
-    // The plugin manifests + marketplace description enumerate bundled
-    // skills; all three must list the forked skill so the catalog and
-    // install surfaces stay consistent with what ships.
-    for (const manifest of [
-      "plugins/auriga-workflow/.claude-plugin/plugin.json",
-      "plugins/auriga-workflow/.codex-plugin/plugin.json",
-      ".claude-plugin/marketplace.json",
-    ]) {
-      assert.ok(
-        read(manifest).includes("documentation-and-adrs"),
-        `${manifest} must list documentation-and-adrs`,
-      );
-    }
+    assert.ok(
+      read("plugins/auriga-workflow/README.md").includes("documentation-and-adrs"),
+      "plugin README skills table must list documentation-and-adrs",
+    );
   });
 
   test("VAL-DOC-002: forked documentation-and-adrs stores ADRs under docs/architecture/, not docs/decisions/", () => {

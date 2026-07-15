@@ -193,7 +193,11 @@ describe("generateCatalog (build-time)", () => {
     assert.match(pluginHelp, /\bauriga-notify\b/);
     const workflowPlugin = catalog.plugins.find((entry) => entry.name === "auriga-workflow");
     assert.ok(workflowPlugin, "auriga-workflow must remain in the plugin catalog");
-    assert.match(workflowPlugin.description, /test-driven-development/);
+    assert.match(workflowPlugin.description, /engineering workflow/i);
+    assert.ok(
+      workflowPlugin.description.length <= 240,
+      "plugin catalog description should summarize the workflow instead of enumerating every skill",
+    );
     assert.doesNotMatch(workflowPlugin.description, /test-designer/);
   });
 
