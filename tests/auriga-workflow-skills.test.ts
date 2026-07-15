@@ -873,7 +873,11 @@ describe("deep-review modernization contract", () => {
     );
     assert.match(
       execution,
-      /缺少[^。\n]*细粒度[^。\n]*(?:不能|不得)[^。\n]*(?:切换[^。\n]*外部|停止[^。\n]*内置)/,
+      /缺少[^。\n]*细粒度[^。\n]*(?:不能|不得)[^。\n]*切换[^。\n]*外部/,
+    );
+    assert.match(
+      execution,
+      /缺少[^。\n]*细粒度[^。\n]*(?:不能|不得)[^。\n]*停止[^。\n]*内置/,
     );
     assert.doesNotMatch(execution, /平台能力确有需要[^。\n]*外部代理/);
   });
@@ -886,7 +890,11 @@ describe("deep-review modernization contract", () => {
     assert.match(execution, /平台原生[^。\n]*(?:隔离|权限边界)/);
     assert.match(
       execution,
-      /外部[^。\n]*无法[^。\n]*(?:只读|阻止外部写入)[^。\n]*(?:不启动|审查缺口)/,
+      /外部[^。\n]*无法[^。\n]*(?:只读|阻止外部写入)[^。\n]*不启动/,
+    );
+    assert.match(
+      execution,
+      /外部[^。\n]*无法[^。\n]*(?:只读|阻止外部写入)[^。\n]*审查缺口/,
     );
     assert.match(execution, /不可信[^。\n]*(?:头分支|拉取请求)[^。\n]*不执行/);
     assert.match(execution, /持续集成[^。\n]*证据/);
