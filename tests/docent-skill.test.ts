@@ -428,10 +428,10 @@ describe("docent release sync", () => {
     const parts = String(claude.version).split(".").map(Number);
     const meetsMinimum =
       parts[0] > 4 ||
-      (parts[0] === 4 && (parts[1] > 0 || (parts[1] === 0 && parts[2] >= 6)));
+      (parts[0] === 4 && (parts[1] > 0 || (parts[1] === 0 && parts[2] >= 7)));
     assert.ok(
       meetsMinimum,
-      `plugin version must include the docent modernization release (>= 4.0.6), got ${claude.version}`,
+      `plugin version must include the docent modernization release (>= 4.0.7), got ${claude.version}`,
     );
     assert.equal(
       codex.version,
