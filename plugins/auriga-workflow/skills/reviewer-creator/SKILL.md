@@ -35,7 +35,7 @@ description: "当用户要求创建自定义审查者、添加项目专属审查
 - `extends`：一个内置名称或 `standalone`；
 - `trigger`：见下方触发条件；
 - `reasoning`：`flagship` 或 `workhorse`；
-- `tools`：默认 `[Read, Grep, Glob]`，确需运行只读验证再加 `Bash`；
+- `tools`：申请的最大权限，默认 `[Read, Grep, Glob]`，确需运行只读验证再加 `Bash`；实际执行仍取主编排安全策略与运行时限制的交集；
 - `value`：说明它比宿主通用检查多防住什么项目风险。
 
 **可选：**
@@ -53,7 +53,6 @@ description: "当用户要求创建自定义审查者、添加项目专属审查
 - `tag:performance-sensitive`
 - `tag:architecture`
 - `tag:agent-extension`
-- `detection-driven`（正文必须给出可机械识别的检测条件）
 
 补充型审查者的 trigger 与宿主 trigger 取并集：任一命中都会运行宿主与项目补充。
 
@@ -90,13 +89,15 @@ repo_root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 mkdir -p "$repo_root/docs/rules/review"
 ```
 
-按 `references/template.md` 写入 `<仓库根>/docs/rules/review/<name>.md`。正文用项目对话语言，frontmatter 键保持模板格式。
+按 `references/template.md` 写入 `<仓库根>/docs/rules/review/<name>.md`。正文用项目对话语言，frontmatter 键保持模板格式。补充型审查者删除模板里的独立输出契约，继承宿主审查者的输出契约并由主编排追加项目来源；只有 `extends: standalone` 保留完整输出契约。
 
 ### 5. 验证
 
 - YAML frontmatter 能解析，所有必填字段存在；
 - `name` 与文件名一致，`extends` 指向合法宿主或 `standalone`；
-- `trigger` 合法，检测表与它一致；
+- `best_for` 与 `value` 非空，`reasoning` 为 `flagship` 或 `workhorse`；
+- `trigger` 是合法的 `always` 或 `tag:<标签>`，检测表与它一致；
+- `tools` 只包含 `Read`、`Grep`、`Glob`、`Bash` 且至少包含 `Read`；
 - 引用的项目文件和命令存在；
 - 用一个应命中和一个不应命中的差异场景手工走查；
 - 运行仓库中针对项目审查者协议的测试或校验器。
