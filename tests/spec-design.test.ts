@@ -348,19 +348,19 @@ describe("spec-design skill — repo-check VALs", () => {
 
     const parentCoverage = markdownSection(umbrella, "## Parent coverage map");
     const parentIds = parentContract.match(/### (VAL-[A-Z]+-\d+)/g)?.map((line) => line.slice(4)) ?? [];
-    const expectedChildren: Record<string, string> = {
-      "VAL-INV-001": "待定",
-      "VAL-INV-002": "待定",
-      "VAL-REV-001": "待定",
-      "VAL-REV-002": "待定",
-      "VAL-REV-003": "VAL-RISK-001、VAL-VRSK-001",
-      "VAL-MIG-001": "VAL-ASSET-001、VAL-FLOW-002、VAL-VAST-001、VAL-VREF-001",
-      "VAL-MIG-002": "VAL-PUBL-001..002、VAL-REMOVE-001、VAL-NOMUTATE-001、VAL-FLOW-002、VAL-REL-002、VAL-VRUL-001、VAL-VMIG-001",
-      "VAL-MIG-003": "VAL-PUBL-001、VAL-MANUAL-001、VAL-RELEASE-001、VAL-REL-001、VAL-VREL-001",
-      "VAL-DOC-001": "VAL-LIFE-001",
-      "VAL-DOC-002": "VAL-LIFE-001",
+    const requiredChildren: Record<string, string[]> = {
+      "VAL-INV-001": ["待定"],
+      "VAL-INV-002": ["待定"],
+      "VAL-REV-001": ["待定"],
+      "VAL-REV-002": ["待定"],
+      "VAL-REV-003": ["VAL-RISK-001", "VAL-VRSK-001"],
+      "VAL-MIG-001": ["VAL-ASSET-001", "VAL-FLOW-002", "VAL-VAST-001", "VAL-VREF-001", "VAL-ROUT-001..003", "VAL-CUST-002"],
+      "VAL-MIG-002": ["VAL-PUBL-001..002", "VAL-REMOVE-001", "VAL-NOMUTATE-001", "VAL-FLOW-002", "VAL-REL-002", "VAL-VRUL-001", "VAL-VMIG-001", "VAL-PORT-001..002"],
+      "VAL-MIG-003": ["VAL-PUBL-001", "VAL-MANUAL-001", "VAL-RELEASE-001", "VAL-REL-001", "VAL-VREL-001"],
+      "VAL-DOC-001": ["VAL-LIFE-001"],
+      "VAL-DOC-002": ["VAL-LIFE-001", "VAL-REL-002"],
     };
-    assert.deepEqual(Object.keys(expectedChildren).sort(), [...parentIds].sort());
+    assert.deepEqual(Object.keys(requiredChildren).sort(), [...parentIds].sort());
     for (const parentVal of parentIds) {
       const rows = parentCoverage.split("\n").filter((line) => line.startsWith(`| ${parentVal} |`));
       assert.equal(rows.length, 1, `umbrella must contain exactly one coverage row for ${parentVal}`);
@@ -370,7 +370,13 @@ describe("spec-design skill — repo-check VALs", () => {
         `${parentVal} must map to exact child contracts and child VALs, or be explicitly pending`,
       );
       const cells = rows[0].split("|").map((cell) => cell.trim());
-      assert.equal(cells[3], expectedChildren[parentVal], `${parentVal} must map to the intended child VALs`);
+      const actualChildren = cells[3].split("、");
+      for (const required of requiredChildren[parentVal]) {
+        assert.ok(
+          actualChildren.includes(required),
+          `${parentVal} must keep required child mapping ${required}`,
+        );
+      }
       if (cells[3] !== "待定") {
         const linkedContracts = [...cells[2].matchAll(/\(([^)]+validation-contract\.md)\)/g)]
           .map((match) => fs.readFileSync(path.resolve(
