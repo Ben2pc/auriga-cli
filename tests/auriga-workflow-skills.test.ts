@@ -863,12 +863,31 @@ describe("deep-review modernization contract", () => {
     assert.match(execution, /共享故障|永久错误/);
   });
 
+  test("built-in agents are the default and external processes require an explicit user request", () => {
+    const text = deepReview();
+    const execution = markdownSection(text, "## 5. 独立执行");
+    assert.match(execution, /默认[^。\n]*平台内置[^。\n]*Agent/);
+    assert.match(
+      execution,
+      /只有用户明确要求[^。\n]*(?:独立进程|非交互式)[^。\n]*Agent[^。\n]*才[^。\n]*外部/,
+    );
+    assert.match(
+      execution,
+      /缺少[^。\n]*细粒度[^。\n]*(?:不能|不得)[^。\n]*(?:切换[^。\n]*外部|停止[^。\n]*内置)/,
+    );
+    assert.doesNotMatch(execution, /平台能力确有需要[^。\n]*外部代理/);
+  });
+
   test("reviewer tools are enforced and untrusted head code is not executed", () => {
     const text = deepReview();
     const execution = markdownSection(text, "## 5. 独立执行");
-    assert.match(execution, /tools[^。\n]*(?:实际权限|权限机制|允许列表)/);
-    assert.match(execution, /权限交集|交集/);
-    assert.match(execution, /无法[^。\n]*限制[^。\n]*(?:停止|不分派|审查缺口)/);
+    assert.match(execution, /tools[^。\n]*最大权限/);
+    assert.match(execution, /实际权限[^。\n]*交集/);
+    assert.match(execution, /平台原生[^。\n]*(?:隔离|权限边界)/);
+    assert.match(
+      execution,
+      /外部[^。\n]*无法[^。\n]*(?:只读|阻止外部写入)[^。\n]*(?:不启动|审查缺口)/,
+    );
     assert.match(execution, /不可信[^。\n]*(?:头分支|拉取请求)[^。\n]*不执行/);
     assert.match(execution, /持续集成[^。\n]*证据/);
   });
@@ -944,8 +963,8 @@ describe("deep-review modernization contract", () => {
     assert.match(claude.version, /^\d+\.\d+\.\d+$/);
     const [major, minor, patch] = claude.version.split(".").map(Number);
     assert.ok(
-      major > 4 || (major === 4 && (minor > 0 || patch >= 5)),
-      `plugin version ${claude.version} must not regress below 4.0.5`,
+      major > 4 || (major === 4 && (minor > 0 || patch >= 6)),
+      `plugin version ${claude.version} must not regress below 4.0.6`,
     );
   });
 
