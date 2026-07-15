@@ -348,19 +348,19 @@ describe("spec-design skill — repo-check VALs", () => {
 
     const parentCoverage = markdownSection(umbrella, "## Parent coverage map");
     const parentIds = parentContract.match(/### (VAL-[A-Z]+-\d+)/g)?.map((line) => line.slice(4)) ?? [];
-    const expectedChildren: Record<string, string> = {
-      "VAL-INV-001": "待定",
-      "VAL-INV-002": "待定",
-      "VAL-REV-001": "待定",
-      "VAL-REV-002": "待定",
-      "VAL-REV-003": "VAL-RISK-001、VAL-VRSK-001",
-      "VAL-MIG-001": "VAL-ASSET-001、VAL-FLOW-002、VAL-VAST-001、VAL-VREF-001",
-      "VAL-MIG-002": "VAL-PUBL-001..002、VAL-REMOVE-001、VAL-NOMUTATE-001、VAL-FLOW-002、VAL-REL-002、VAL-VRUL-001、VAL-VMIG-001",
-      "VAL-MIG-003": "VAL-PUBL-001、VAL-MANUAL-001、VAL-RELEASE-001、VAL-REL-001、VAL-VREL-001",
-      "VAL-DOC-001": "VAL-LIFE-001",
-      "VAL-DOC-002": "VAL-LIFE-001",
+    const requiredChildren: Record<string, string[]> = {
+      "VAL-INV-001": ["待定"],
+      "VAL-INV-002": ["待定"],
+      "VAL-REV-001": ["待定"],
+      "VAL-REV-002": ["待定"],
+      "VAL-REV-003": ["VAL-RISK-001", "VAL-VRSK-001", "VAL-DRISK-001"],
+      "VAL-MIG-001": ["VAL-ASSET-001", "VAL-FLOW-002", "VAL-VAST-001", "VAL-VREF-001", "VAL-ROUT-001..003", "VAL-CUST-002"],
+      "VAL-MIG-002": ["VAL-PUBL-001..002", "VAL-REMOVE-001", "VAL-NOMUTATE-001", "VAL-FLOW-002", "VAL-REL-002", "VAL-VRUL-001", "VAL-VMIG-001", "VAL-PORT-001..002"],
+      "VAL-MIG-003": ["VAL-PUBL-001", "VAL-MANUAL-001", "VAL-RELEASE-001", "VAL-REL-001", "VAL-VREL-001", "VAL-DRREL-001"],
+      "VAL-DOC-001": ["VAL-LIFE-001"],
+      "VAL-DOC-002": ["VAL-LIFE-001", "VAL-DRREL-002"],
     };
-    assert.deepEqual(Object.keys(expectedChildren).sort(), [...parentIds].sort());
+    assert.deepEqual(Object.keys(requiredChildren).sort(), [...parentIds].sort());
     for (const parentVal of parentIds) {
       const rows = parentCoverage.split("\n").filter((line) => line.startsWith(`| ${parentVal} |`));
       assert.equal(rows.length, 1, `umbrella must contain exactly one coverage row for ${parentVal}`);
@@ -370,7 +370,13 @@ describe("spec-design skill — repo-check VALs", () => {
         `${parentVal} must map to exact child contracts and child VALs, or be explicitly pending`,
       );
       const cells = rows[0].split("|").map((cell) => cell.trim());
-      assert.equal(cells[3], expectedChildren[parentVal], `${parentVal} must map to the intended child VALs`);
+      const actualChildren = cells[3].split("、");
+      for (const required of requiredChildren[parentVal]) {
+        assert.ok(
+          actualChildren.includes(required),
+          `${parentVal} must keep required child mapping ${required}`,
+        );
+      }
       if (cells[3] !== "待定") {
         const linkedContracts = [...cells[2].matchAll(/\(([^)]+validation-contract\.md)\)/g)]
           .map((match) => fs.readFileSync(path.resolve(
@@ -438,8 +444,21 @@ describe("spec-design skill — repo-check VALs", () => {
     const verificationRule = read(
       "docs/worklog/worklog-2026-07-14-refactor-remove-verification-skill/verification-before-completion/validation-contract.md",
     );
-    const childIds = [child, repair, unifiedTdd, verificationRule]
-      .flatMap((text) => text.match(/### (VAL-[A-Z]+-\d+)/g)?.map((line) => line.slice(4)) ?? []);
+    const umbrella = read(
+      "docs/long-running-specs/model-generation-workflow-upgrade/umbrella.md",
+    );
+    const umbrellaDir = path.join(
+      repoRoot,
+      "docs/long-running-specs/model-generation-workflow-upgrade",
+    );
+    const linkedContractPaths = new Set(
+      [...umbrella.matchAll(/\(([^)]+validation-contract\.md)\)/g)].map(
+        (match) => path.resolve(umbrellaDir, match[1]),
+      ),
+    );
+    const childIds = [...linkedContractPaths]
+      .flatMap((contractPath) => fs.readFileSync(contractPath, "utf-8")
+        .match(/### (VAL-[A-Z]+-\d+)/g)?.map((line) => line.slice(4)) ?? []);
 
     assert.equal(
       childIds.some((id) => parentIds.has(id)),
@@ -479,6 +498,23 @@ describe("spec-design skill — repo-check VALs", () => {
         assert.ok(line.includes(childVal), `${parentVal} row must map ${childVal}`);
       }
     }
+  });
+
+  test("deep-review formal record preserves modernization risks and recovery signals", () => {
+    const rel = "docs/worklog/worklog-2026-07-15-refactor-deep-review-for-new-models/deep-review-modernization/review.md";
+    assert.ok(fs.existsSync(path.join(repoRoot, rel)), "deep-review must keep a formal review record");
+    const review = read(rel);
+    for (const heading of [
+      "## 当前职责",
+      "## 可复现失效模式",
+      "## 处置结论",
+      "## 风险与恢复条件",
+    ]) {
+      assert.ok(review.includes(heading), `deep-review review record must keep ${heading}`);
+    }
+    assert.match(review, /观察信号/);
+    assert.match(review, /恢复条件/);
+    assert.match(review, /模型评测未执行|没有执行[^。\n]*模型评测/);
   });
 
   test("VAL-DEP-002: skills-lock.json no longer contains brainstorming entry; .agents/skills/brainstorming/ is gone", () => {

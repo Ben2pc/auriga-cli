@@ -14,6 +14,30 @@ function read(rel: string): string {
 const deepReview = (): string =>
   read("plugins/auriga-workflow/skills/deep-review/SKILL.md");
 
+const builtinReviewerTriggers = {
+  architecture: "tag:architecture",
+  "code-quality": "tag:maintained-code",
+  correctness: "tag:executable-behavior",
+  "docs-sync": "always",
+  performance: "tag:performance-sensitive",
+  security: "tag:security-sensitive",
+  "skill-plugin-quality": "tag:agent-extension",
+  "spec-conformance": "always",
+  "test-quality": "tag:executable-behavior-or-tests",
+  ux: "tag:ui",
+} as const;
+
+function markdownSection(text: string, heading: string): string {
+  const start = text.indexOf(heading);
+  assert.notEqual(start, -1, `missing section ${heading}`);
+  const level = heading.match(/^#+/)?.[0].length ?? 0;
+  const nextHeading = new RegExp(`^#{1,${level}}\\s`, "m");
+  const bodyStart = start + heading.length;
+  const tail = text.slice(bodyStart);
+  const next = nextHeading.exec(tail);
+  return text.slice(start, next ? bodyStart + next.index : text.length);
+}
+
 describe("auriga-workflow skill contracts", () => {
   test("unified test-driven-development is plugin-bundled and concise", () => {
     const rel = "plugins/auriga-workflow/skills/test-driven-development/SKILL.md";
@@ -542,88 +566,104 @@ describe("project rule discovery anchors to the repo root", () => {
   });
 });
 
-describe("deep-review custom-reviewer scope overlap", () => {
-  // VAL-OVL-001 — overlapping custom reviewer is not dispatched separately
-  test("overlapping custom reviewer is not dispatched as a separate subagent", () => {
+describe("deep-review custom-reviewer explicit protocol", () => {
+  test("custom reviewers declare a host or standalone explicitly", () => {
     const text = deepReview();
     assert.ok(
-      text.includes("范围重叠"),
-      "SKILL.md must define the scope-overlap concept for custom reviewers",
+      text.includes("extends: <内置审查者名>"),
+      "SKILL.md must require an explicit built-in host",
     );
     assert.ok(
-      text.includes("不再为该自定义审查者分派独立子代理"),
-      "an overlapping custom reviewer must not be dispatched as a separate subagent",
+      text.includes("extends: standalone"),
+      "SKILL.md must support an explicit standalone dimension",
     );
   });
 
-  // VAL-OVL-002 — overlapping custom reviewer's content is absorbed into the host
-  test("overlapping custom reviewer's checklist is absorbed into the host built-in", () => {
+  test("hosted custom content is delivered as a project supplement", () => {
     const text = deepReview();
     assert.ok(
       text.includes("项目专属补充"),
       "absorbed custom content must be labelled as a project-specific supplement",
     );
     assert.ok(
-      /Checklist[^。]*worked scenarios/.test(text),
-      "the absorbed content must be the custom reviewer's Checklist and worked scenarios",
+      /宿主组成一个数据包/.test(text),
+      "the host and project supplement must share one review packet",
     );
   });
 
-  // VAL-OVL-003 — non-overlapping custom reviewer still dispatched standalone
-  test("non-overlapping custom reviewer is still dispatched as an independent reviewer", () => {
+  test("standalone custom reviewer remains an independent dimension", () => {
     const text = deepReview();
     assert.ok(
-      text.includes("全新维度"),
-      "SKILL.md must describe a non-overlapping custom reviewer as a new dimension",
+      text.includes("独立维度"),
+      "SKILL.md must describe a standalone reviewer as an independent dimension",
     );
     assert.ok(
-      /不重叠[^]*?独立[^]*?分派/.test(text),
-      "a non-overlapping custom reviewer must still be dispatched as an independent reviewer",
+      /extends: standalone/.test(text),
+      "independent dispatch must be explicit",
     );
   });
 
-  // VAL-OVL-004 — overlap decided semantically, optional explicit field wins
-  test("overlap is decided semantically with an optional explicit Extends field", () => {
+  test("invalid metadata becomes a review gap instead of semantic guessing", () => {
     const text = deepReview();
     assert.ok(
-      text.includes("语义判断"),
-      "overlap detection must be primarily a semantic judgment",
+      text.includes("不做正文语义猜测"),
+      "the orchestrator must not infer a host from the reviewer body",
     );
     assert.ok(
-      text.includes("extends"),
-      "an explicit extends field, when present, must take precedence",
+      text.includes("审查缺口"),
+      "invalid custom metadata must remain visible as a gap",
+    );
+    for (const key of [
+      "name",
+      "best_for",
+      "extends",
+      "trigger",
+      "reasoning",
+      "tools",
+      "value",
+    ]) {
+      assert.match(
+        text,
+        new RegExp(`\\b${key}\\b`),
+        `custom reviewer validation must cover ${key}`,
+      );
+    }
+  });
+
+  test("name collision does not silently choose a host", () => {
+    const text = deepReview();
+    assert.ok(
+      /重名[^]*?显式声明/.test(text),
+      "a name collision must still require an explicit declaration",
     );
   });
 
-  // VAL-OVL-005 — name collision unified into absorption, old skip rule removed
-  test("name collision is treated as guaranteed overlap, not skip-and-warn", () => {
+  test("extension trigger can activate its host", () => {
     const text = deepReview();
     assert.ok(
-      /重名[^]*?必然重叠/.test(text),
-      "a name collision must be treated as a guaranteed overlap",
-    );
-    assert.ok(
-      !text.includes("跳过并给出警告"),
-      "the old skip-and-warn rule for name collisions must be removed",
+      /宿主默认条件或任一项目扩展[^]*?命中[^]*?运行宿主/.test(text),
+      "host and extension triggers must be combined",
     );
   });
 
-  // VAL-OVL-006 — host not triggered → absorbed content does not run
-  test("absorbed content does not run when the host built-in is not triggered", () => {
+  test("absorbed findings preserve the project reviewer source", () => {
     const text = deepReview();
     assert.ok(
-      text.includes("随 host 一并不运行"),
-      "absorbed custom content must not run when its host built-in is not triggered",
+      /\(宿主名 \/ 项目审查者名\)/.test(text),
+      "findings from project supplements must preserve their source",
+    );
+    assert.match(
+      text,
+      /独立审查者[^。\n]*\(项目审查者名, standalone\)/,
+      "standalone findings must preserve their independent source",
     );
   });
 
-  // VAL-OVL-007 — absorbed findings attributed to the host built-in name
-  test("absorbed findings are attributed to the host built-in reviewer name", () => {
+  test("project reviewer instructions come from the trusted base", () => {
     const text = deepReview();
-    assert.ok(
-      text.includes("按 host 内置审查者名标注"),
-      "findings from absorbed content must be attributed to the host built-in name",
-    );
+    assert.match(text, /基准分支[^。\n]*(?:可信|信任)/);
+    assert.match(text, /新增或修改[^。\n]*项目审查者[^。\n]*(?:不执行|不能执行)/);
+    assert.match(text, /作为[^。\n]*(?:差异|审查对象)/);
   });
 
   // VAL-OVL-008 — Extends: standalone is a sentinel that forces independent dispatch
@@ -639,16 +679,15 @@ describe("deep-review custom-reviewer scope overlap", () => {
     );
   });
 
-  // VAL-OVL-009 — when Extends is omitted, the default biases toward absorption
-  test("default with no Extends biases toward absorption", () => {
+  test("missing Extends is rejected instead of absorbed by default", () => {
     const text = deepReview();
     assert.ok(
-      text.includes("偏向吸收"),
-      "the default when Extends is omitted must bias toward absorbing into a host",
+      /缺失(?:、|或)非法[^]*?extends/.test(text),
+      "missing or invalid extends must be called out",
     );
     assert.ok(
-      /套不上|没有.*host|都不.*覆盖/.test(text),
-      "independent dispatch must be the fallback only when no host built-in fits",
+      !text.includes("偏向吸收"),
+      "the old implicit absorption rule must be removed",
     );
   });
 });
@@ -689,18 +728,15 @@ describe("deep-review dispatch delivery", () => {
     );
   });
 
-  // VAL-DEG-001 — graceful degradation for older reviewers without frontmatter
-  test("reviewers without frontmatter fall back to the prose Metadata section", () => {
+  test("reviewers without frontmatter are reported as gaps without prose fallback", () => {
     const text = deepReview();
     assert.ok(
-      /没有 frontmatter|无 frontmatter|缺少 frontmatter|没有 YAML frontmatter/.test(
-        text,
-      ),
-      "SKILL.md must address reviewers that lack YAML frontmatter",
+      /合法 YAML frontmatter/.test(text),
+      "SKILL.md must require valid YAML frontmatter",
     );
     assert.ok(
-      /(降级|回退)[^]*?## Metadata|## Metadata[^]*?(降级|回退)/.test(text),
-      "the fallback must read the prose ## Metadata section",
+      !/回退读取旧 `## Metadata`/.test(text) || text.includes("不回退读取旧 `## Metadata`"),
+      "the legacy prose metadata fallback must be removed",
     );
   });
 });
@@ -761,31 +797,279 @@ describe("reviewer-creator extends support", () => {
       text.includes("必填") && text.includes("可选"),
       "the schema must distinguish required from optional fields",
     );
-    assert.ok(
-      /可选[^]*?(extends|effort)/.test(text),
-      "extends and effort must be documented as optional",
+    assert.match(text.match(/\*\*必填：\*\*[\s\S]*?\*\*可选：\*\*/)?.[0] ?? "", /extends/);
+    assert.match(text.match(/\*\*可选：\*\*[\s\S]*?合法 `trigger`/)?.[0] ?? "", /effort/);
+  });
+
+  test("reviewer-creator uses only mechanically routable triggers", () => {
+    const text = read(
+      "plugins/auriga-workflow/skills/reviewer-creator/SKILL.md",
     );
+    assert.doesNotMatch(text, /detection-driven/);
+  });
+
+  test("hosted reviewers inherit the host output contract", () => {
+    const creator = read(
+      "plugins/auriga-workflow/skills/reviewer-creator/SKILL.md",
+    );
+    const template = read(
+      "plugins/auriga-workflow/skills/reviewer-creator/references/template.md",
+    );
+    assert.match(creator, /补充型[^。\n]*继承[^。\n]*宿主[^。\n]*输出契约/);
+    assert.match(template, /仅[^。\n]*standalone[^。\n]*保留/);
+    assert.match(template, /补充型[^。\n]*删除[^。\n]*继承宿主/);
+  });
+});
+
+describe("deep-review modernization contract", () => {
+  const reviewer = (name: string) =>
+    read(
+      `plugins/auriga-workflow/skills/deep-review/references/reviewers/${name}.md`,
+    );
+
+  test("first formal review runs automatically and later agent-proposed reruns ask", () => {
+    const text = deepReview();
+    assert.match(text, /第一次[^。]*直接执行/);
+    assert.match(text, /用户明确要求再次审查[^。]*直接执行/);
+    assert.match(text, /代理主动建议重跑[^。]*先询问用户/);
+    assert.match(text, /不要[^。]*自动开始下一轮深度审查/);
+    assert.match(text, /正式审查记录|正式评审记录/);
+    assert.match(text, /无法判断[^。\n]*询问用户/);
+  });
+
+  test("reviewers run with an explicit clean-context packet and bounded retry", () => {
+    const text = deepReview();
+    const execution = markdownSection(text, "## 5. 独立执行");
+    for (const anchor of [
+      "不继承实现会话",
+      "不使用 `resume` / `continue`",
+      "目标元数据",
+      "原始差异",
+      "权威需求",
+      "适用项目规则",
+      "审查者文件路径",
+      "审查缺口",
+    ]) {
+      assert.ok(execution.includes(anchor), `missing isolation anchor: ${anchor}`);
+    }
+    for (const forbidden of ["实现会话", "当前对话历史", "先前审查会话"]) {
+      assert.match(
+        execution,
+        new RegExp(`不继承[^。\\n]*${forbidden}|不复制[^。\\n]*${forbidden}`),
+        `clean contexts must prohibit inheriting ${forbidden}`,
+      );
+    }
+    assert.match(execution, /明确的瞬时失败[^。\n]*重试一次/);
+    assert.match(execution, /共享故障|永久错误/);
+  });
+
+  test("reviewer tools are enforced and untrusted head code is not executed", () => {
+    const text = deepReview();
+    const execution = markdownSection(text, "## 5. 独立执行");
+    assert.match(execution, /tools[^。\n]*(?:实际权限|权限机制|允许列表)/);
+    assert.match(execution, /权限交集|交集/);
+    assert.match(execution, /无法[^。\n]*限制[^。\n]*(?:停止|不分派|审查缺口)/);
+    assert.match(execution, /不可信[^。\n]*(?:头分支|拉取请求)[^。\n]*不执行/);
+    assert.match(execution, /持续集成[^。\n]*证据/);
+  });
+
+  test("routing uses risk surfaces instead of a trivial/non-trivial split", () => {
+    const text = deepReview();
+    for (const signal of [
+      "executable-behavior",
+      "tests",
+      "maintained-code",
+      "security-sensitive",
+      "performance-sensitive",
+      "agent-extension",
+    ]) {
+      assert.ok(text.includes(`\`${signal}\``), `missing signal ${signal}`);
+    }
+    assert.match(text, /新增普通文件本身不等于架构变化/);
+    assert.match(text, /生产代码或测试变化时触发|`executable-behavior` 或 `tests`/);
+    for (const [reviewer, trigger] of Object.entries(builtinReviewerTriggers)) {
+      const row = text
+        .split("\n")
+        .find((line) => line.startsWith(`| \`${reviewer}\` |`));
+      assert.ok(row, `missing routing row for ${reviewer}`);
+      const expectedSignals = trigger === "tag:executable-behavior-or-tests"
+        ? ["`executable-behavior`", "`tests`"]
+        : [trigger === "always" ? "始终执行" : `\`${trigger.slice(4)}\``];
+      assert.ok(
+        expectedSignals.every((signal) => row.includes(signal)),
+        `${reviewer} must keep routing trigger ${trigger}`,
+      );
+    }
+  });
+
+  test("correctness owns edge and failure behavior and robustness is retired", () => {
+    const text = reviewer("correctness");
+    assert.match(text, /正常、边界和失败/);
+    assert.match(text, /超时与重试/);
+    assert.match(text, /资源生命周期/);
+    assert.ok(
+      !fs.existsSync(
+        path.join(
+          repoRoot,
+          "plugins/auriga-workflow/skills/deep-review/references/reviewers/robustness.md",
+        ),
+      ),
+      "robustness reviewer must be removed",
+    );
+  });
+
+  test("deep-review ships exactly ten built-in reviewers", () => {
+    const dir = path.join(
+      repoRoot,
+      "plugins/auriga-workflow/skills/deep-review/references/reviewers",
+    );
+    assert.deepEqual(
+      fs
+        .readdirSync(dir)
+        .filter((name) => name.endsWith(".md"))
+        .map((name) => name.replace(/\.md$/, ""))
+        .sort(),
+      Object.keys(builtinReviewerTriggers).sort(),
+    );
+  });
+
+  test("auriga-workflow dual-runtime manifests carry the same release version", () => {
+    const claude = JSON.parse(
+      read("plugins/auriga-workflow/.claude-plugin/plugin.json"),
+    );
+    const codex = JSON.parse(
+      read("plugins/auriga-workflow/.codex-plugin/plugin.json"),
+    );
+    assert.equal(codex.version, claude.version);
+    assert.match(claude.version, /^\d+\.\d+\.\d+$/);
+    const [major, minor, patch] = claude.version.split(".").map(Number);
+    assert.ok(
+      major > 4 || (major === 4 && (minor > 0 || patch >= 5)),
+      `plugin version ${claude.version} must not regress below 4.0.5`,
+    );
+  });
+
+  test("spec conformance keeps the complete authoritative-source priority", () => {
+    const text = reviewer("spec-conformance");
+    const sources = markdownSection(text, "## Authoritative sources");
+    const rows = sources
+      .split("\n")
+      .filter((line) => /^\| [1-5] \|/.test(line));
+    assert.equal(rows.length, 5);
+    for (const [index, expected] of [
+      "当前对话",
+      "validation-contract.md",
+      "任务、问题、计划、长期规格或已确认设计",
+      "worklog",
+      "拉取请求正文",
+    ].entries()) {
+      assert.match(rows[index], new RegExp(expected.replace(".", "\\.")));
+    }
+  });
+
+  test("spec conformance accepts conversational requirements and rejects implementation rationale", () => {
+    const text = reviewer("spec-conformance");
+    assert.match(text, /用户的原始要求与最新明确决定/);
+    assert.match(text, /validation-contract\.md/);
+    assert.match(text, /docs\/long-running-specs/);
+    assert.match(text, /提交信息、实现说明、技术理由[^。]*不是权威需求来源/);
+    assert.match(text, /No authoritative requirement source/);
+  });
+
+  test("docs sync checks unchanged assets and supports reducing the document estate", () => {
+    const text = reviewer("docs-sync");
+    assert.match(text, /未修改文档/);
+    for (const action of ["删除", "合并", "压缩", "归档", "晋升"]) {
+      assert.ok(text.includes(action), `docs-sync must support ${action}`);
+    }
+    assert.match(text, /归档快照[^。]*不为追赶当前实现而改写/);
+  });
+
+  test("test review is behavior-led without mechanical case or assertion rules", () => {
+    const text = reviewer("test-quality");
+    assert.match(text, /一条验收要求可以需要多个测试[^。]*一个高层测试/);
+    assert.match(text, /文本契约/);
+    assert.match(text, /不强制单断言/);
+    assert.ok(!text.includes("五类场景"));
+    assert.ok(!text.includes("每个分支必须"));
+  });
+
+  test("architecture review follows approved designs without rejecting anemic models", () => {
+    const text = reviewer("architecture");
+    assert.match(text, /docs\/rules\/arch/);
+    assert.match(text, /arch_design\.md/);
+    assert.match(text, /贫血模型中立/);
+    assert.match(text, /规则散落、不变量泄漏、职责错位/);
+    assert.ok(!text.includes("贫血领域模型是反模式"));
+  });
+
+  test("security, performance and ux require contextual evidence", () => {
+    const security = reviewer("security");
+    assert.match(security, /生产公开、生产受限、内部、个人本地、短期演示/);
+    assert.match(security, /攻击者能控制什么/);
+    assert.match(security, /信任边界/);
+
+    const performance = reviewer("performance");
+    assert.match(performance, /输入规模、增长方式/);
+    assert.match(performance, /measured/);
+    assert.match(performance, /structural/);
+    assert.match(performance, /speculative/);
+
+    const ux = reviewer("ux");
+    assert.match(ux, /视觉[^。]*需要渲染、截图或明确代码证据/);
+    assert.match(ux, /accessibilityIdentifier[^；]*不等于 VoiceOver/);
+    assert.match(ux, /resource-id[^。]*不等于 TalkBack/);
+    assert.match(ux, /可靠撤销时不强制二次确认/);
+  });
+
+  test("skill and plugin review keeps Auriga dual entry points and validators", () => {
+    const text = reviewer("skill-plugin-quality");
+    assert.match(text, /`AGENTS\.md` 与 `CLAUDE\.md` \*\*同时存在\*\*/);
+    assert.match(text, /`CLAUDE\.md -> AGENTS\.md` 兼容软链/);
+    assert.match(text, /Claude Code：[\s\S]*quick_validate\.py/);
+    assert.match(text, /Codex：[\s\S]*quick_validate\.py/);
+    assert.match(text, /两种验证器可用时都运行/);
+    assert.match(text, /不要每次审查抓取全部官方文档/);
+  });
+
+  test("synthesis preserves sources, validation needs, gaps and read-only authority", () => {
+    const text = deepReview();
+    const synthesis = text.slice(
+      text.indexOf("## 6. 综合"),
+      text.indexOf("## 7. 交回用户决定"),
+    );
+    for (const section of [
+      "### Blocking issues",
+      "### Non-blocking suggestions",
+      "### Needs validation",
+      "### Architectural observations",
+      "### Review gaps",
+    ]) {
+      assert.ok(synthesis.includes(section), `missing output section ${section}`);
+    }
+    for (const field of ["severity", "confidence", "来源"]) {
+      assert.ok(synthesis.includes(field), `synthesis must preserve ${field}`);
+    }
+    assert.match(synthesis, /按同一根因合并重复发现，同时保留所有来源/);
+
+    const preamble = markdownSection(text, "### Reviewer Must-Not Preamble");
+    for (const prohibition of [
+      "不按严重度或置信度预过滤",
+      "不修改代码、创建问题、提交评论、批准设计",
+      "不要编写补丁",
+      "必须重新检查本次差异",
+      "只对本维度有证据的问题下结论",
+    ]) {
+      assert.ok(preamble.includes(prohibition), `missing prohibition: ${prohibition}`);
+    }
   });
 });
 
 describe("built-in reviewer metadata is machine-readable frontmatter", () => {
   const reviewerDir =
     "plugins/auriga-workflow/skills/deep-review/references/reviewers";
-  const builtins = [
-    "architecture",
-    "code-quality",
-    "correctness",
-    "docs-sync",
-    "performance",
-    "robustness",
-    "security",
-    "skill-plugin-quality",
-    "spec-conformance",
-    "test-quality",
-    "ux",
-  ];
 
-  for (const name of builtins) {
+  for (const [name, expectedTrigger] of Object.entries(builtinReviewerTriggers)) {
     // VAL-FM-001 — each built-in carries valid, parseable YAML frontmatter
     test(`${name}.md frontmatter parses and carries valid orchestration keys`, () => {
       const text = read(`${reviewerDir}/${name}.md`);
@@ -822,11 +1106,12 @@ describe("built-in reviewer metadata is machine-readable frontmatter", () => {
         `${name}.md reasoning must be flagship|workhorse, got ${String(fm.reasoning)}`,
       );
       assert.ok(
-        /^(always|non-trivial|detection-driven|tag:(logic|auth-sensitive|ui|perf|arch))$/.test(
+        /^(always|tag:(executable-behavior|executable-behavior-or-tests|maintained-code|security-sensitive|ui|performance-sensitive|architecture|agent-extension))$/.test(
           String(fm.trigger),
         ),
         `${name}.md trigger must be a legal value, got ${String(fm.trigger)}`,
       );
+      assert.equal(fm.trigger, expectedTrigger);
       assert.ok(
         Array.isArray(fm.tools) && (fm.tools as unknown[]).includes("Read"),
         `${name}.md tools must be a list including Read`,
