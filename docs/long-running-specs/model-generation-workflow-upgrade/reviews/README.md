@@ -37,8 +37,8 @@
 | Asset (资产) | Source (来源) | Runtime (运行时) | Status (状态) |
 |---|---|---|---|
 | [`arch-design`](../../../worklog/worklog-2026-07-14-refactor-simplify-arch-design/arch-design-modernization/review.md) | Auriga 插件 | Claude Code / Codex | 精简；实现已落地 PR #183；强化架构与领域模型触发、人工评审门禁、技术质量目标和条件式工具箱；模型评测未执行 |
-| `code-simplify` | Auriga 插件 | Claude Code / Codex | 待评审 |
-| `deep-review` | Auriga 插件 | Claude Code / Codex | 待评审；PR #183 评审暴露出平台清单规则、迁移方法和领域模型检查项可能漂移，进入本技能轮次时核对 |
+| [`code-simplify`](../../../worklog/worklog-2026-07-15-refactor-simplify-code-simplify-skill/code-simplify-modernization/review.md) | Auriga 插件 | Claude Code / Codex | 精简；PR #184 首次深入评审无阻塞问题，文档同步意见已处理；保留授权边界、行为保护、维护成本判断、用户确认的普查模式和按需手法提醒；模型评测未执行 |
+| `deep-review` | Auriga 插件 | Claude Code / Codex | 待评审；PR #183 与 #184 评审暴露出平台清单规则、市场版本字段、迁移方法和领域模型检查项可能漂移，进入本技能轮次时核对 |
 | `docent` | Auriga 插件 | Claude Code / Codex | 待评审 |
 | `documentation-and-adrs` | Auriga 插件 | Claude Code / Codex | 待评审 |
 | `git-workflow` | Auriga 插件 | Claude Code / Codex | 待评审 |

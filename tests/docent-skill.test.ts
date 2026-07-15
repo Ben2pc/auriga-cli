@@ -398,8 +398,7 @@ describe("docent skill assets", () => {
 });
 
 describe("docent release sync", () => {
-  // VAL-DCNT-004 — plugin manifests bumped past 3.9.0 and kept in lockstep;
-  // marketplace descriptions enumerate docent
+  // VAL-DCNT-004 — plugin manifests bumped past 3.9.0 and kept in lockstep.
   test("plugin manifests are bumped past 3.9.0 and stay in lockstep", () => {
     const claude = JSON.parse(read("plugins/auriga-workflow/.claude-plugin/plugin.json"));
     const codex = JSON.parse(read("plugins/auriga-workflow/.codex-plugin/plugin.json"));
@@ -413,26 +412,30 @@ describe("docent release sync", () => {
       claude.version,
       "claude and codex plugin manifests must carry the same version",
     );
-    for (const [label, manifest] of [
-      ["claude", claude],
-      ["codex", codex],
-    ] as const) {
-      assert.ok(
-        String(manifest.description).includes("docent"),
-        `${label} plugin manifest description must enumerate docent`,
-      );
-    }
+    assert.equal(
+      codex.description,
+      claude.description,
+      "claude and codex plugin manifests must carry the same summary",
+    );
   });
 
-  test("marketplace listings and plugin README enumerate docent", () => {
+  test("marketplace entry stays concise while plugin README enumerates docent", () => {
     const claudeMarketplace = JSON.parse(read(".claude-plugin/marketplace.json"));
     const claudeEntry = (
       claudeMarketplace.plugins as Array<{ name: string; description: string }>
     ).find((p) => p.name === "auriga-workflow");
     assert.ok(claudeEntry, ".claude-plugin/marketplace.json must list auriga-workflow");
+    const claudeManifest = JSON.parse(
+      read("plugins/auriga-workflow/.claude-plugin/plugin.json"),
+    );
+    assert.equal(
+      claudeEntry!.description,
+      claudeManifest.description,
+      "marketplace and plugin manifest summaries must stay synchronized",
+    );
     assert.ok(
-      claudeEntry!.description.includes("docent"),
-      ".claude-plugin/marketplace.json: auriga-workflow description must enumerate docent",
+      claudeEntry!.description.length <= 240,
+      "marketplace description should summarize the plugin instead of enumerating every skill",
     );
     // The .agents marketplace carries no description field — the Codex-side
     // user-visible description lives in .codex-plugin/plugin.json (asserted

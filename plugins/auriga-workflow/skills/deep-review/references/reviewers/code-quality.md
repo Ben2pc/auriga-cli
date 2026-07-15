@@ -48,9 +48,9 @@ value: "可维护性缺陷会复利积累；本审查者防止它们一次一个
 6. **死代码**：注释掉的代码块、未使用的导入 / 函数 / 分支、另一分支早已删除的特性标志。
 7. **YAGNI 违规**：为假想的未来需求添加的配置 / 接口扩展点 / 钩子，而该需求并未被要求。
 
-### Maintainability anti-patterns (the `code-simplify` quick-reference smells)
+### Maintainability anti-patterns (`code-simplify` reminders)
 
-这些镜像了 `code-simplify` 技能的快速参考坏味道表——在此处标记，通过 `code-simplify` 修复。（仅重述代码的注释已在上方**注释质量**中涵盖。）
+这些是审查时常见的维护性问题提醒。在此处标记，用户授权后通过 `code-simplify` 处理；需要回忆更多坏味道或重构手法时，再按需读取它的参考目录。（仅重述代码的注释已在上方**注释质量**中涵盖。）
 
 8. **深层嵌套**（3 层及以上）——控制流难以追踪；提取守卫子句或具名辅助函数
 9. **嵌套三元**：`a ? b ? c : d : e` — 用 if/else 或 switch 替换
@@ -62,7 +62,7 @@ value: "可维护性缺陷会复利积累；本审查者防止它们一次一个
 
 ## How to recommend
 
-用 `code-simplify` 的术语命名坏味道，然后将修复指向 `code-simplify` 技能——**不要**在此处重写代码。命名坏味道加上一句方向指引在范围之内；清理本身另行通过 `code-simplify` 进行，行为保全纪律（小步骤、每步测试）也在那里。（与 Reviewer Must-Not Preamble 一致。）
+用 `code-simplify` 的术语命名坏味道，然后将修复指向 `code-simplify` 技能——**不要**在此处重写代码。命名坏味道加上一句方向指引在范围之内；清理本身另行通过 `code-simplify` 进行，并按风险选择验证节点、保护外部行为。（与 Reviewer Must-Not Preamble 一致。）
 
 **机制优先**：当一类发现可以被硬门禁覆盖（lint 规则、formatter 配置、类型约束、CI 检查）时，建议**添加或收紧该机制**——一条发现解决整类问题，且对所有未来拉取请求生效；逐实例标记则每个拉取请求都要重新人工发现一遍。约束靠机制执行，不靠审查者反复巡逻。
 
