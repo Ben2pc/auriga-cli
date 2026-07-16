@@ -39,6 +39,15 @@
 - **风险：提示词结构重新扩散到所有 Agent 可读资料。** 若架构文档、schema 或 ADR 被机械改写为目标与输出契约，恢复“资料沿用自身类型、只有行为指令使用提示词结构”的边界。
 - **风险：文档治理演变为强制写文档。** 若技能持续新增无人消费的资产，重新强化“默认不新增”和单一当前信息源原则。
 
+## 验证证据
+
+- documentation-management 定向契约：95/95 通过。
+- 全量 `npm test`：521/521 通过；SessionStart：20/20 通过；Git guards：105/105 通过。
+- Codex 与 Claude Code 官方技能校验均通过。
+- 真实打包后的 `auriga-workflow` 插件安装场景：1/1 通过。
+- 从用户目录、工作区目录和仓库目录启动真实安装包的 Web UI，工作流状态、插件平台映射、外部插件标记、部分安装提示和缺失平台提示均符合预期。
+- 完整端到端套件卡在无关的外部 `planning-with-files` 网络安装；本 PR 直接影响的打包、插件安装与界面状态已由上述独立验证覆盖。
+
 ## 参考资料
 
 - [GPT-5.6 Prompting Guide](https://developers.openai.com/api/docs/guides/prompt-guidance-gpt-5p6)
