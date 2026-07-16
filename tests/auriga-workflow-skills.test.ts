@@ -494,6 +494,54 @@ describe("auriga-workflow skill contracts", () => {
     assert.match(incremental, /已确认[^。\n]*arch_design\.md[^。\n]*(?:优先|约束)/);
   });
 
+  test("incremental-impl decomposes requirement changes into complete implementation units", () => {
+    const text = read("plugins/auriga-workflow/skills/incremental-impl/SKILL.md");
+    const pluginReadme = read("plugins/auriga-workflow/README.md");
+    const zhWorkflow = read("AGENTS.template.zh-CN.md");
+    const enWorkflow = read("AGENTS.template.en.md");
+
+    assert.match(text, /核心产物是\*\*需求改动的实施拆分\*\*/);
+    assert.match(text, /完整实施单元[^。]*独立交付一个连贯需求结果或一个合法迁移状态/);
+    assert.match(text, /结果完整/);
+    assert.match(text, /边界内聚/);
+    assert.match(text, /可独立验证/);
+    assert.match(text, /依赖明确/);
+    assert.match(text, /中间状态合法/);
+    assert.match(text, /文件数、代码行数、提交数量和写入者都不是单元边界/);
+    assert.match(text, /默认单写者按依赖顺序实施/);
+    assert.match(text, /文件所有权互不重叠/);
+    assert.match(text, /模型与推理强度默认继承/);
+    assert.match(text, /运行时原生工作树/);
+    assert.match(text, /主代理预先创建并传入路径/);
+    assert.match(text, /无法建立等价隔离时改为串行/);
+    assert.match(text, /代理间通信[^。]*正确性不能依赖临时消息/);
+    assert.match(text, /权威接口、决定和进度[^。]*仓库或持久计划验证/);
+    assert.match(text, /内联实现不生成额外的固定交接模板/);
+    assert.match(text, /不强制每个实施单元对应一个提交/);
+
+    for (const removed of [
+      /\bXS\b/,
+      /\bXL\b/,
+      /30[–-]100/,
+      /300[–-]800/,
+      /Minimum-slices gate/i,
+      /NOTICED BUT NOT TOUCHING/,
+      /没有 agent-to-agent channel/i,
+      /每个 slice 一个 atomic commit/i,
+      /Never delete-and-replace/i,
+    ]) {
+      assert.doesNotMatch(text, removed);
+    }
+
+    assert.match(pluginReadme, /complete, verifiable implementation units/);
+    assert.match(zhWorkflow, /需求结果、验证边界和合法中间状态/);
+    assert.match(enWorkflow, /requirement result, verification boundary, and valid intermediate state/);
+    assert.match(zhWorkflow, /文件所有权、工作树隔离和集成顺序/);
+    assert.match(enWorkflow, /file ownership, worktree isolation, and integration order/);
+    assert.doesNotMatch(zhWorkflow, /判定 XS/);
+    assert.doesNotMatch(enWorkflow, /rates the work XS/);
+  });
+
   test("deep-review test-quality reviewer consumes project test rules", () => {
     const text = read(
       "plugins/auriga-workflow/skills/deep-review/references/reviewers/test-quality.md",
@@ -1086,8 +1134,8 @@ describe("deep-review modernization contract", () => {
     assert.match(claude.version, /^\d+\.\d+\.\d+$/);
     const [major, minor, patch] = claude.version.split(".").map(Number);
     assert.ok(
-      major > 4 || (major === 4 && (minor > 0 || patch >= 12)),
-      `plugin version ${claude.version} must not regress below 4.0.12`,
+      major > 4 || (major === 4 && (minor > 0 || patch >= 13)),
+      `plugin version ${claude.version} must not regress below 4.0.13`,
     );
   });
 
