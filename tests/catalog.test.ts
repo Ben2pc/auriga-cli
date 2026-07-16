@@ -60,7 +60,7 @@ describe("generateCatalog (build-time)", () => {
     assertEntriesShape(catalog.workflowSkills, "workflowSkills");
   });
 
-  test("recommended skills: 6 entries (cross-model delegators + frontend skills + deprecation-and-migration); documentation-and-adrs forked into auriga-workflow", () => {
+  test("recommended skills: 6 entries (cross-model delegators + frontend skills + deprecation-and-migration); documentation management is owned by auriga-workflow", () => {
     assert.equal(catalog.recommendedSkills.length, 6);
     const names = catalog.recommendedSkills.map((e) => e.name).sort();
     assert.deepEqual(names, [

@@ -102,7 +102,7 @@ describe("auriga-workflow skill contracts", () => {
       "code-simplify",
       "deep-review",
       "docent",
-      "documentation-and-adrs",
+      "documentation-management",
       "git-workflow",
       "goalify",
       "incremental-impl",
@@ -114,6 +114,49 @@ describe("auriga-workflow skill contracts", () => {
     ]);
     assert.equal(fs.existsSync(path.join(repoRoot, ".agents/skills/test-driven-development")), false);
     assert.equal(fs.existsSync(path.join(repoRoot, ".claude/skills/test-driven-development")), false);
+  });
+
+  test("documentation-management governs document assets and audience-specific context", () => {
+    const skill = read("plugins/auriga-workflow/skills/documentation-management/SKILL.md");
+    const standards = read(
+      "plugins/auriga-workflow/skills/documentation-management/references/document-standards.md",
+    );
+
+    assert.match(skill, /默认不新增/);
+    for (const action of ["更新", "删除", "合并", "压缩", "归档", "晋升", "新建"]) {
+      assert.ok(skill.includes(action), `documentation management must support ${action}`);
+    }
+    assert.match(skill, /主要读者/);
+    assert.match(skill, /人类文档不挂到 `AGENTS\.md`/);
+    assert.match(skill, /Agent 文档是提示词和上下文工程资产/);
+    for (const contract of [
+      "目标",
+      "成功标准",
+      "权限边界",
+      "工具路由",
+      "输出契约",
+      "停止条件",
+    ]) {
+      assert.ok(skill.includes(contract), `Agent documents must preserve ${contract}`);
+    }
+    assert.match(skill, /同一规则只写一次/);
+    assert.match(skill, /不链接只服务人类阅读的材料/);
+    assert.match(skill, /`CLAUDE\.md -> AGENTS\.md` 兼容软链/);
+    assert.match(skill, /docs-sync[^。\n]*独立审查/);
+    assert.doesNotMatch(skill, /常见的自我辩解|危险信号/);
+
+    for (const heading of [
+      "README 与开发指南",
+      "运行手册",
+      "公共接口文档",
+      "架构文档",
+      "架构决策记录",
+      "内联注释",
+      "变更日志与发布说明",
+      "Agent 文档",
+    ]) {
+      assert.ok(standards.includes(`## ${heading}`), `document standards must cover ${heading}`);
+    }
   });
 
   test("active workflow surfaces omit retired entries and default test-agent behavior", () => {

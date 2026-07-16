@@ -40,7 +40,7 @@
 | [`code-simplify`](../../../worklog/worklog-2026-07-15-refactor-simplify-code-simplify-skill/code-simplify-modernization/review.md) | Auriga 插件 | Claude Code / Codex | 精简；PR #184 首次深入评审无阻塞问题，文档同步意见已处理；保留授权边界、行为保护、维护成本判断、用户确认的普查模式和按需手法提醒；模型评测未执行 |
 | [`deep-review`](../../../worklog/worklog-2026-07-15-refactor-deep-review-for-new-models/deep-review-modernization/review.md) | Auriga 插件 | Claude Code / Codex | 精简；PR #185 已完成首次深入评审并处理信任边界、协议闭环、长期契约与结构性测试意见；保留 10 个独立审查维度和弱模型所需细节；模型评测未执行 |
 | [`docent`](../../../worklog/worklog-2026-07-15-refactor-simplify-docent-skill/docent-modernization/review.md) | Auriga 插件 | Claude Code / Codex | 首次深入评审完成并修复默认视觉基线、验证路径、真实调用名与契约证据；保留显式调用、单子代理隔离和可视化离线制品；模型评测未执行 |
-| `documentation-and-adrs` | Auriga 插件 | Claude Code / Codex | 待评审 |
+| `documentation-management` | Auriga 插件；由 `documentation-and-adrs` 重命名 | Claude Code / Codex | 精简实现中；转为工程文档资产治理，强制区分人类文档与 Agent 上下文，保留按文档类型组织的基本工程规范；模型评测未执行 |
 | `git-workflow` | Auriga 插件 | Claude Code / Codex | 待评审 |
 | `goalify` | Auriga 插件 | Claude Code / Codex | 待评审 |
 | `incremental-impl` | Auriga 插件 | Claude Code / Codex | 待评审 |
