@@ -129,19 +129,34 @@ describe("auriga-workflow skill contracts", () => {
     assert.match(skill, /确认目标仓库、工作树、当前分支、远端、基准分支/);
     assert.match(skill, /无法确认归属的改动默认属于用户/);
     assert.match(skill, /未经明确授权，不执行 `git stash`.*`git reset --hard`/);
-    for (const heading of [
+    const templateHeadings = [
       "## Summary / 摘要",
       "## Acceptance Criteria / 验收标准",
       "## Design Decisions / 设计决策",
       "## Risks / 风险",
       "## Test Plan / 验证计划",
       "## Remaining TODOs / 后续事项",
-    ]) {
+    ];
+    for (const heading of templateHeadings) {
       assert.ok(skill.includes(heading), `PR template must preserve ${heading}`);
+      const body = markdownSection(skill, heading).slice(heading.length);
+      assert.match(body, /[\u3400-\u9fff]/, `${heading} example body must use Chinese`);
     }
     assert.match(skill, /本次变更解决了什么问题/);
     assert.match(skill, /用户或调用方能够观察到的结果成立/);
     assert.match(skill, /没有真实决定时写“无”/);
+    const preflight = markdownSection(skill, "## 1. 操作前检查");
+    assert.match(preflight, /仓库根.*当前分支.*工作树状态.*远端关系/);
+    assert.match(preflight, /基准分支/);
+    assert.match(markdownSection(skill, "## 3. 创建 Draft 拉取请求"), /尽早创建 Draft 拉取请求/);
+    assert.match(markdownSection(skill, "## 4. 进入 Ready"), /所有当前提交已推送.*基准分支.*目标分支/s);
+    assert.match(markdownSection(skill, "## 5. 处理评审与持续集成反馈"), /一批处理完成后.*汇总问题、状态和对应提交/s);
+    assert.match(markdownSection(skill, "## 6. 合并"), /必需检查与批准均满足/);
+    assert.match(
+      skill,
+      /`feat`.*`fix`.*`docs`.*`refactor`.*`chore`.*`test`.*`perf`.*`style`.*`build`.*`ci`.*`revert`/s,
+      "Conventional Commit types must match pr-create-guard",
+    );
     for (const hook of [
       "commit-reminder",
       "pr-create-guard",
@@ -150,8 +165,9 @@ describe("auriga-workflow skill contracts", () => {
     ]) {
       assert.ok(skill.includes(`\`${hook}\``), `git-workflow must preserve ${hook} contract`);
     }
-    assert.doesNotMatch(skill, /Interactive rebase verbs|Linux kernel|Postgres|node_modules/);
-    assert.doesNotMatch(skill, /PostToolUse|PreToolUse|truthy|Falsy|fail open/i);
+    assert.doesNotMatch(skill, /git rebase -i|交互式变基(?:教学|命令|操作)|Interactive rebase/i);
+    assert.doesNotMatch(skill, /常见忽略文件|忽略文件清单|\.gitignore 教程/);
+    assert.doesNotMatch(skill, /PostToolUse|PreToolUse|truthy|falsy|BoolVar|Hook 参数|事件名称|失败策略/i);
   });
 
   test("documentation-management governs document assets and audience-specific context", () => {
@@ -1070,8 +1086,8 @@ describe("deep-review modernization contract", () => {
     assert.match(claude.version, /^\d+\.\d+\.\d+$/);
     const [major, minor, patch] = claude.version.split(".").map(Number);
     assert.ok(
-      major > 4 || (major === 4 && (minor > 0 || patch >= 10)),
-      `plugin version ${claude.version} must not regress below 4.0.10`,
+      major > 4 || (major === 4 && (minor > 0 || patch >= 11)),
+      `plugin version ${claude.version} must not regress below 4.0.11`,
     );
   });
 

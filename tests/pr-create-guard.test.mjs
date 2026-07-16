@@ -129,7 +129,7 @@ const cases = [
     expect: { status: 0, stdoutEq: "" },
   },
   {
-    name: "gh pr create success without URL: passive nudge lists five elements",
+    name: "gh pr create success without URL: passive nudge lists six sections",
     payload: {
       hook_event_name: "PostToolUse",
       tool_name: "Bash",
@@ -140,8 +140,9 @@ const cases = [
       status: 0,
       stdoutIncludesAll: [
         "could not identify",
-        "five elements",
+        "six sections",
         "design decisions",
+        "test plan",
         "git-workflow",
         "Conventional Commits",
       ],
@@ -151,7 +152,7 @@ const cases = [
     },
   },
   {
-    name: "gh pr create with URL but fetch fails: fallback lists five elements",
+    name: "gh pr create with URL but fetch fails: fallback lists six sections",
     payload: {
       hook_event_name: "PostToolUse",
       tool_name: "Bash",
@@ -163,13 +164,14 @@ const cases = [
     },
     // The fetch will fail (no auth / no such repo). The hook should
     // gracefully inject the fallback message containing the five
-    // elements — not crash, not block.
+    // sections — not crash, not block.
     expect: {
       status: 0,
       stdoutIncludesAll: [
         "pr-create-guard",
-        "five elements",
+        "six sections",
         "design decisions",
+        "test plan",
         "git-workflow",
         "Conventional Commits",
       ],
@@ -179,13 +181,13 @@ const cases = [
     },
   },
   {
-    name: "inline URL in command body does NOT leak: still emits five elements",
+    name: "inline URL in command body does NOT leak: still emits six sections",
     payload: {
       hook_event_name: "PostToolUse",
       tool_name: "Bash",
       // Body mentions an old PR's URL; tool_response has no URL.
       // The hook must NOT fetch the old PR — it should take the
-      // passive-nudge path instead, which includes the five-element
+      // passive-nudge path instead, which includes the six-section
       // verification list.
       tool_input: {
         command:
@@ -197,8 +199,9 @@ const cases = [
       status: 0,
       stdoutIncludesAll: [
         "could not identify",
-        "five elements",
+        "six sections",
         "design decisions",
+        "test plan",
         "git-workflow",
         "Conventional Commits",
       ],

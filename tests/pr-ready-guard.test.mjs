@@ -2,7 +2,7 @@
 // Smoke + assertion tests for pr-ready-guard.
 //
 // Each case spawns the plugin script with a fake PreToolUse payload and
-// controls the hook's cwd (so we can put stray planning docs into scratch
+// controls the hook's cwd (so we can put active planning state into scratch
 // dirs without polluting the real repo). Git/gh integration paths that
 // need a live remote are exercised manually per README; the smoke cases
 // cover the locally-observable branches.
@@ -121,6 +121,53 @@ const cases = [
     expect: { status: 2, stderrIncludes: "progress.md" },
   },
   {
+    name: "empty .planning directory does not block",
+    setup: () => {
+      const dir = makeRepo();
+      fs.mkdirSync(path.join(dir, ".planning"));
+      return { cwd: dir, cmd: "gh pr ready" };
+    },
+    expect: { status: 0, stderrNotIncludes: "planning artifacts" },
+  },
+  {
+    name: "inactive plan directories do not block without an active pointer",
+    setup: () => {
+      const dir = makeRepo();
+      const inactive = path.join(dir, ".planning", "old-plan");
+      fs.mkdirSync(inactive, { recursive: true });
+      fs.writeFileSync(path.join(inactive, "task_plan.md"), "# archived elsewhere\n");
+      return { cwd: dir, cmd: "gh pr ready" };
+    },
+    expect: { status: 0, stderrNotIncludes: "old-plan" },
+  },
+  {
+    name: "only the directory named by .active_plan blocks",
+    setup: () => {
+      const dir = makeRepo();
+      const root = path.join(dir, ".planning");
+      fs.mkdirSync(path.join(root, "inactive"), { recursive: true });
+      fs.writeFileSync(path.join(root, "inactive", "findings.md"), "inactive\n");
+      fs.mkdirSync(path.join(root, "active"));
+      fs.writeFileSync(path.join(root, "active", "progress.md"), "active\n");
+      fs.writeFileSync(path.join(root, ".active_plan"), "active\n");
+      return { cwd: dir, cmd: "gh pr ready" };
+    },
+    expect: {
+      status: 2,
+      stderrIncludes: ".planning/active/progress.md",
+      stderrNotIncludes: ".planning/inactive/findings.md",
+    },
+  },
+  {
+    name: ".attestation-only active plan blocks",
+    setup: () => {
+      const dir = makeRepo();
+      writePlanningArtifacts(dir, [".attestation"]);
+      return { cwd: dir, cmd: "gh pr ready" };
+    },
+    expect: { status: 2, stderrIncludes: ".attestation" },
+  },
+  {
     name: "isolated planning artifacts under .planning/<plan-id>/ block recursively",
     setup: () => {
       const dir = makeRepo();
@@ -142,6 +189,20 @@ const cases = [
       return { cwd: dir, cmd: "gh pr ready" };
     },
     expect: { status: 2, stderrIncludes: ".planning/.active_plan" },
+  },
+  {
+    name: "unsafe active plan pointer cannot escape .planning",
+    setup: () => {
+      const dir = makeRepo();
+      fs.mkdirSync(path.join(dir, ".planning"));
+      fs.writeFileSync(path.join(dir, ".planning", ".active_plan"), "../docs\n");
+      return { cwd: dir, cmd: "gh pr ready" };
+    },
+    expect: {
+      status: 2,
+      stderrIncludes: "invalid active plan identifier",
+      stderrNotIncludes: "docs/specs",
+    },
   },
   {
     name: "active spec left in docs/specs/*.md blocks",
@@ -213,6 +274,106 @@ const cases = [
     // The walk must descend more than one level — a single-level nested
     // case would still pass if recursion were accidentally capped at depth 1.
     expect: { status: 2, stderrIncludes: "docs/specs/feature-x/references/spec.md" },
+  },
+  {
+    name: "spec symlink blocks without following its target",
+    setup: () => {
+      const dir = makeRepo();
+      const specs = path.join(dir, "docs", "specs");
+      fs.mkdirSync(specs, { recursive: true });
+      fs.writeFileSync(path.join(dir, "outside.md"), "# target\n");
+      fs.symlinkSync(path.join(dir, "outside.md"), path.join(specs, "linked.md"));
+      return { cwd: dir, cmd: "gh pr ready" };
+    },
+    expect: { status: 2, stderrIncludes: "docs/specs/linked.md" },
+  },
+  {
+    name: "broken spec symlink blocks on non-draft create route",
+    setup: () => {
+      const dir = makeRepo();
+      const specs = path.join(dir, "docs", "specs", "topic");
+      fs.mkdirSync(specs, { recursive: true });
+      fs.symlinkSync("missing.md", path.join(specs, "broken.md"));
+      return { cwd: dir, cmd: 'gh pr create --title foo --body "x"' };
+    },
+    expect: { status: 2, stderrIncludes: "docs/specs/topic/broken.md" },
+  },
+  {
+    name: "docs/specs root symlink blocks and is not traversed",
+    setup: () => {
+      const dir = makeRepo();
+      const outside = fs.mkdtempSync(path.join(os.tmpdir(), "outside-specs-"));
+      cleanupDirs.push(outside);
+      fs.mkdirSync(path.join(dir, "docs"));
+      fs.symlinkSync(outside, path.join(dir, "docs", "specs"));
+      return { cwd: dir, cmd: "gh pr ready" };
+    },
+    expect: { status: 2, stderrIncludes: "scan root is a symbolic link" },
+  },
+  {
+    name: ".planning root symlink blocks and is not traversed",
+    setup: () => {
+      const dir = makeRepo();
+      const outside = fs.mkdtempSync(path.join(os.tmpdir(), "outside-planning-"));
+      cleanupDirs.push(outside);
+      fs.symlinkSync(outside, path.join(dir, ".planning"));
+      return { cwd: dir, cmd: "gh pr ready" };
+    },
+    expect: { status: 2, stderrIncludes: "scan root is a symbolic link" },
+  },
+  {
+    name: "non-directory specs root is a blocking scan error",
+    setup: () => {
+      const dir = makeRepo();
+      fs.mkdirSync(path.join(dir, "docs"));
+      fs.writeFileSync(path.join(dir, "docs", "specs"), "not a directory\n");
+      return { cwd: dir, cmd: "gh pr ready" };
+    },
+    expect: { status: 2, stderrIncludes: "scan root is not a directory" },
+  },
+  {
+    name: "scan depth limit blocks excessive nesting",
+    setup: () => {
+      const dir = makeRepo();
+      let current = path.join(dir, "docs", "specs");
+      for (let i = 0; i < 24; i++) current = path.join(current, `d${i}`);
+      fs.mkdirSync(current, { recursive: true });
+      fs.writeFileSync(path.join(current, "spec.md"), "# too deep\n");
+      return { cwd: dir, cmd: "gh pr ready" };
+    },
+    expect: { status: 2, stderrIncludes: "scan depth limit exceeded" },
+  },
+  {
+    name: "reported filenames escape control characters",
+    setup: () => {
+      const dir = makeRepo();
+      const specs = path.join(dir, "docs", "specs");
+      fs.mkdirSync(specs, { recursive: true });
+      fs.writeFileSync(path.join(specs, "safe\ninjected.md"), "# spec\n");
+      return { cwd: dir, cmd: "gh pr ready" };
+    },
+    expect: {
+      status: 2,
+      stderrIncludes: "safe\\ninjected.md",
+      stderrNotIncludes: "safe\ninjected.md",
+    },
+  },
+  {
+    name: "scan entry limit produces bounded blocking output",
+    setup: () => {
+      const dir = makeRepo();
+      const specs = path.join(dir, "docs", "specs");
+      fs.mkdirSync(specs, { recursive: true });
+      for (let i = 0; i < 240; i++) {
+        fs.writeFileSync(path.join(specs, `spec-${String(i).padStart(3, "0")}.md`), "# spec\n");
+      }
+      return { cwd: dir, cmd: "gh pr ready" };
+    },
+    expect: {
+      status: 2,
+      stderrIncludes: "scan entry limit exceeded",
+      stderrMaxLength: 5000,
+    },
   },
   {
     name: "archived worklog copy does NOT count as stray",
@@ -467,6 +628,8 @@ try {
       checks.push({ ok: r.stderr.includes(c.expect.stderrIncludes), msg: `stderr includes "${c.expect.stderrIncludes}" (got "${r.stderr.slice(0, 120)}")` });
     if (c.expect.stderrNotIncludes !== undefined)
       checks.push({ ok: !r.stderr.includes(c.expect.stderrNotIncludes), msg: `stderr does NOT include "${c.expect.stderrNotIncludes}" (got "${r.stderr.slice(0, 120)}")` });
+    if (c.expect.stderrMaxLength !== undefined)
+      checks.push({ ok: r.stderr.length <= c.expect.stderrMaxLength, msg: `stderr length=${r.stderr.length} (max ${c.expect.stderrMaxLength})` });
 
     const allOk = checks.every((x) => x.ok);
     if (allOk) {

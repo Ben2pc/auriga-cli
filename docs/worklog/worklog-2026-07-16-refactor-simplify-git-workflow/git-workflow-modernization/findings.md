@@ -3,7 +3,7 @@
 ## Requirements
 - Retain `git-workflow` as a team-specific lifecycle skill, but remove generic Git teaching and duplicated hook implementation details.
 - Add repository/worktree preflight and user-change protection.
-- Preserve atomic commits, early Draft PR, five-element PR body, Ready feedback batches, and merge checks.
+- Preserve atomic commits, early Draft PR, six-section PR body, Ready feedback batches, and merge checks.
 - Use bilingual PR template headings and Chinese example body text.
 
 ## Research Findings
