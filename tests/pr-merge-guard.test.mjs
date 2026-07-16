@@ -210,6 +210,15 @@ const CHINESE_TEST_PLAN_UNCHECKED = `## 验收标准
 - [ ] 手工模拟器验证待补
 `;
 
+const BILINGUAL_TEMPLATE_UNCHECKED = `## Acceptance Criteria / 验收标准
+
+- [ ] 双语验收项待完成
+
+## Test Plan / 验证计划
+
+- [ ] 双语验证项待完成
+`;
+
 // `- [ ]` inside a fenced code block under the Test plan heading is an
 // example, not a real test step — must not block.
 const TEST_PLAN_FENCED = `## Test plan
@@ -408,6 +417,15 @@ const cases = [
     cmd: "gh pr merge --squash",
     body: CHINESE_TEST_PLAN_UNCHECKED,
     expect: { status: 2, stderrIncludes: ["手工模拟器验证待补"] },
+  },
+  {
+    name: "bilingual template headings are recognized → blocks",
+    cmd: "gh pr merge --squash",
+    body: BILINGUAL_TEMPLATE_UNCHECKED,
+    expect: {
+      status: 2,
+      stderrIncludes: ["双语验收项待完成", "双语验证项待完成"],
+    },
   },
   {
     name: "Chinese 测试方案 alias heading is recognized → blocks",

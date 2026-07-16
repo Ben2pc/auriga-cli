@@ -116,6 +116,44 @@ describe("auriga-workflow skill contracts", () => {
     assert.equal(fs.existsSync(path.join(repoRoot, ".claude/skills/test-driven-development")), false);
   });
 
+  test("git-workflow keeps team lifecycle contracts without generic Git teaching", () => {
+    const skill = read("plugins/auriga-workflow/skills/git-workflow/SKILL.md");
+    const parsed = matter(skill);
+
+    assert.equal(parsed.data.name, "git-workflow");
+    assert.match(parsed.data.description, /工作树.*提交.*拉取请求.*Ready.*合并/);
+    assert.ok(
+      skill.split("\n").length <= 140,
+      "git-workflow must stay within a 140-line context budget",
+    );
+    assert.match(skill, /确认目标仓库、工作树、当前分支、远端、基准分支/);
+    assert.match(skill, /无法确认归属的改动默认属于用户/);
+    assert.match(skill, /未经明确授权，不执行 `git stash`.*`git reset --hard`/);
+    for (const heading of [
+      "## Summary / 摘要",
+      "## Acceptance Criteria / 验收标准",
+      "## Design Decisions / 设计决策",
+      "## Risks / 风险",
+      "## Test Plan / 验证计划",
+      "## Remaining TODOs / 后续事项",
+    ]) {
+      assert.ok(skill.includes(heading), `PR template must preserve ${heading}`);
+    }
+    assert.match(skill, /本次变更解决了什么问题/);
+    assert.match(skill, /用户或调用方能够观察到的结果成立/);
+    assert.match(skill, /没有真实决定时写“无”/);
+    for (const hook of [
+      "commit-reminder",
+      "pr-create-guard",
+      "pr-ready-guard",
+      "pr-merge-guard",
+    ]) {
+      assert.ok(skill.includes(`\`${hook}\``), `git-workflow must preserve ${hook} contract`);
+    }
+    assert.doesNotMatch(skill, /Interactive rebase verbs|Linux kernel|Postgres|node_modules/);
+    assert.doesNotMatch(skill, /PostToolUse|PreToolUse|truthy|Falsy|fail open/i);
+  });
+
   test("documentation-management governs document assets and audience-specific context", () => {
     const skillPath = "plugins/auriga-workflow/skills/documentation-management/SKILL.md";
     const skill = read(skillPath);
@@ -1032,8 +1070,8 @@ describe("deep-review modernization contract", () => {
     assert.match(claude.version, /^\d+\.\d+\.\d+$/);
     const [major, minor, patch] = claude.version.split(".").map(Number);
     assert.ok(
-      major > 4 || (major === 4 && (minor > 0 || patch >= 8)),
-      `plugin version ${claude.version} must not regress below 4.0.8`,
+      major > 4 || (major === 4 && (minor > 0 || patch >= 9)),
+      `plugin version ${claude.version} must not regress below 4.0.9`,
     );
   });
 
