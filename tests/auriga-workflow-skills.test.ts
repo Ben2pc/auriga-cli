@@ -117,11 +117,20 @@ describe("auriga-workflow skill contracts", () => {
   });
 
   test("documentation-management governs document assets and audience-specific context", () => {
-    const skill = read("plugins/auriga-workflow/skills/documentation-management/SKILL.md");
+    const skillPath = "plugins/auriga-workflow/skills/documentation-management/SKILL.md";
+    const skill = read(skillPath);
+    const parsed = matter(skill);
     const standards = read(
       "plugins/auriga-workflow/skills/documentation-management/references/document-standards.md",
     );
 
+    assert.equal(parsed.data.name, path.basename(path.dirname(skillPath)));
+    assert.match(parsed.data.description, /新建.*更新.*合并.*压缩.*归档.*删除/);
+    assert.match(
+      parsed.data.description,
+      /README.*运行手册.*公共接口文档.*架构文档.*ADR.*变更日志.*代码注释.*AGENTS\.md.*项目规则/,
+    );
+    assert.match(parsed.data.description, /代码变化造成文档事实漂移/);
     assert.match(skill, /默认不新增/);
     for (const action of ["更新", "删除", "合并", "压缩", "归档", "晋升", "新建"]) {
       assert.ok(skill.includes(action), `documentation management must support ${action}`);
@@ -1023,8 +1032,8 @@ describe("deep-review modernization contract", () => {
     assert.match(claude.version, /^\d+\.\d+\.\d+$/);
     const [major, minor, patch] = claude.version.split(".").map(Number);
     assert.ok(
-      major > 4 || (major === 4 && (minor > 0 || patch >= 7)),
-      `plugin version ${claude.version} must not regress below 4.0.7`,
+      major > 4 || (major === 4 && (minor > 0 || patch >= 8)),
+      `plugin version ${claude.version} must not regress below 4.0.8`,
     );
   });
 
