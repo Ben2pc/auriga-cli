@@ -40,7 +40,7 @@
 | [`code-simplify`](../../../worklog/worklog-2026-07-15-refactor-simplify-code-simplify-skill/code-simplify-modernization/review.md) | Auriga 插件 | Claude Code / Codex | 精简；PR #184 首次深入评审无阻塞问题，文档同步意见已处理；保留授权边界、行为保护、维护成本判断、用户确认的普查模式和按需手法提醒；模型评测未执行 |
 | [`deep-review`](../../../worklog/worklog-2026-07-15-refactor-deep-review-for-new-models/deep-review-modernization/review.md) | Auriga 插件 | Claude Code / Codex | 精简；PR #185 已完成首次深入评审并处理信任边界、协议闭环、长期契约与结构性测试意见；保留 10 个独立审查维度和弱模型所需细节；模型评测未执行 |
 | [`docent`](../../../worklog/worklog-2026-07-15-refactor-simplify-docent-skill/docent-modernization/review.md) | Auriga 插件 | Claude Code / Codex | 首次深入评审完成并修复默认视觉基线、验证路径、真实调用名与契约证据；保留显式调用、单子代理隔离和可视化离线制品；模型评测未执行 |
-| `documentation-management` | Auriga 插件；由 `documentation-and-adrs` 重命名 | Claude Code / Codex | 精简实现中；转为工程文档资产治理，强制区分人类文档与 Agent 上下文，保留按文档类型组织的基本工程规范；模型评测未执行 |
+| [`documentation-management`](../../../worklog/worklog-2026-07-16-refactor-documentation-management/documentation-management/review.md) | Auriga 插件；由 `documentation-and-adrs` 重命名 | Claude Code / Codex | 精简；PR #188 已完成首次深入评审并修复阻塞项；转为工程文档资产治理，区分人类文档、Agent 资料、行为指令与共享资产；模型评测未执行 |
 | `git-workflow` | Auriga 插件 | Claude Code / Codex | 待评审 |
 | `goalify` | Auriga 插件 | Claude Code / Codex | 待评审 |
 | `incremental-impl` | Auriga 插件 | Claude Code / Codex | 待评审 |
@@ -93,7 +93,7 @@
 
 ## 单项记录模板
 
-深入评审进行时先新增 `docs/specs/<asset-name>/review.md`，并在同目录维护当前子 PR 的规范与验收契约。正式评审记录是长期总规范的验收证据，PR Ready 时必须归档到 `docs/worklog/` 或晋升到稳定文档，不能删除；临时规范与计划仍按工作流规则选择归档或删除。本索引只链接归档或晋升后的正式记录，不在长期规范里绕过子 PR 的生命周期门禁。正文使用以下结构：
+深入评审进行时先新增 `docs/specs/<asset-name>/review.md`。默认在同目录维护当前子 PR 的规范与验收契约；用户明确豁免子规范时可以只保留评审记录，并在记录中写明豁免决定。豁免子规范不等于豁免正式评审记录：正式评审记录仍是长期总规范的验收证据，PR Ready 时必须归档到 `docs/worklog/` 或晋升到稳定文档，不能删除；临时规范与计划仍按工作流规则选择归档或删除。本索引只链接归档或晋升后的正式记录，不在长期规范里绕过子 PR 的生命周期门禁。正文使用以下结构：
 
 ```markdown
 # <asset-name> 评审

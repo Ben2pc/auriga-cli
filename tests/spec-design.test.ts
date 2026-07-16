@@ -425,6 +425,16 @@ describe("spec-design skill — repo-check VALs", () => {
       /正式评审记录[^\n]*(?:不能删除|不得删除)/,
       "formal child review evidence must survive the Ready transition",
     );
+    assert.match(
+      reviewIndex,
+      /用户明确豁免子规范[^\n]*只保留评审记录/,
+      "an explicit user decision may waive a child spec without manufacturing an unused asset",
+    );
+    assert.match(
+      reviewIndex,
+      /豁免子规范不等于豁免正式评审记录/,
+      "waiving a child spec must not erase formal review evidence",
+    );
   });
 
   test("archived child contract uses unique VAL ids and maps them to parent assertions", () => {

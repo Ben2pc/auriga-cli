@@ -17,7 +17,8 @@
 | 11 | [`code-simplify` 精简](../../worklog/worklog-2026-07-15-refactor-simplify-code-simplify-skill/code-simplify-modernization/) | VAL-CS-001..008 | PR #184 首次深入评审无阻塞问题，文档同步意见已处理；删除语言示例与弱模型软约束，保留授权边界、行为保护、维护成本判断、用户确认的普查模式和按需手法提醒；模型评测未执行 |
 | 12 | [`deep-review` 现代化](../../worklog/worklog-2026-07-15-refactor-deep-review-for-new-models/deep-review-modernization/) | VAL-IND-001..VAL-DRREL-002 | PR #185 已完成实现并归档子规范；首次深入评审后的信任边界、协议闭环与契约测试意见已处理；内置维度从 11 个收敛为 10 个；模型评测未执行 |
 | 13 | [`docent` 精简](../../worklog/worklog-2026-07-15-refactor-simplify-docent-skill/docent-modernization/) | VAL-DOCNT-001..009 | 首次深入评审完成并修复阻塞项；保留显式调用、单子代理隔离和可视化离线制品，精简无条件内容与视觉差异化要求；模型评测未执行 |
-| 14 | `workflow-consolidation/` | VAL-MIG-001..005 | 等待前序结论 |
+| 14 | [`documentation-management` 精简](../../worklog/worklog-2026-07-16-refactor-documentation-management/documentation-management/review.md) | — | PR #188 已完成首次深入评审并修复阻塞项；由 `documentation-and-adrs` 重命名，转为工程文档资产与长期上下文治理；用户明确豁免当前子规范；模型评测未执行 |
+| 15 | `workflow-consolidation/` | VAL-MIG-001..005 | 等待前序结论 |
 
 ## Parent coverage map (父级验收覆盖映射)
 
