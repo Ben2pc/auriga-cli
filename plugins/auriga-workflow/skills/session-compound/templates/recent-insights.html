@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Session Compound — 近期洞察</title>
+<style>
+  :root {
+    --canvas: #faf9f5;
+    --surface: #f2ede4;
+    --card: #fffdfa;
+    --ink: #181715;
+    --body: #46443f;
+    --muted: #777269;
+    --line: #e5ded3;
+    --coral: #c96f54;
+    --teal: #317e70;
+    --amber: #a66d19;
+    --dark: #1d1b18;
+    --serif: "Iowan Old Style", "Source Serif Pro", Georgia, serif;
+    --sans: ui-sans-serif, system-ui, -apple-system, "Helvetica Neue", sans-serif;
+    --mono: ui-monospace, "SF Mono", Menlo, monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--canvas); color: var(--ink); }
+  body { font: 14px/1.6 var(--sans); padding: 52px 28px 90px; }
+  main { max-width: 1120px; margin: 0 auto; }
+  h1, h2 { font-family: var(--serif); font-weight: 500; letter-spacing: -.02em; }
+  h1 { font-size: clamp(34px, 5vw, 58px); line-height: 1.03; margin: 12px 0 20px; }
+  h2 { font-size: 27px; margin: 48px 0 14px; }
+  h3 { margin: 0 0 7px; font-size: 14px; }
+  p { color: var(--body); margin: 0; }
+  .eyebrow { color: var(--coral); font: 700 11px/1 var(--sans); letter-spacing: .14em; text-transform: uppercase; }
+  .hero { display: grid; grid-template-columns: 1.4fr .8fr; gap: 20px; align-items: stretch; }
+  .hero-copy { padding: 34px 4px 24px; }
+  .hero-copy > p { max-width: 680px; font-size: 17px; }
+  .coverage { background: var(--dark); color: #fffaf2; border-radius: 18px; padding: 28px; display: grid; align-content: center; }
+  .coverage .num { font: 48px/1 var(--mono); }
+  .coverage .label { color: #bcb5aa; margin-top: 8px; }
+  .coverage dl { display: grid; grid-template-columns: 1fr auto; gap: 8px 18px; margin: 25px 0 0; }
+  .coverage dt { color: #bcb5aa; }
+  .coverage dd { margin: 0; font-family: var(--mono); }
+  .glance { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-top: 28px; }
+  .glance > a { color: inherit; text-decoration: none; }
+  .glance article, .card { border: 1px solid var(--line); background: var(--card); border-radius: 14px; padding: 20px; box-shadow: 0 9px 28px -25px rgba(30, 25, 19, .5); }
+  .glance article:nth-child(1) { border-top: 3px solid var(--teal); }
+  .glance article:nth-child(2) { border-top: 3px solid var(--coral); }
+  .glance article:nth-child(3) { border-top: 3px solid var(--amber); }
+  .glance article:nth-child(4) { border-top: 3px solid var(--ink); }
+  .glance .label { font-size: 11px; font-weight: 700; letter-spacing: .06em; color: var(--muted); margin-bottom: 9px; }
+  .list { display: grid; gap: 10px; }
+  .row { display: grid; grid-template-columns: minmax(140px, .28fr) 1fr; gap: 18px; border-top: 1px solid var(--line); padding: 16px 2px; }
+  .row:first-child { border-top: 0; }
+  .row .meta { color: var(--muted); font-size: 12px; }
+  .split { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .chip { display: inline-flex; border-radius: 999px; padding: 3px 9px; background: var(--surface); color: var(--muted); font-size: 11px; margin-right: 6px; }
+  .candidate { border-left: 4px solid var(--coral); }
+  .candidate .why { margin-top: 8px; color: var(--muted); }
+  .empty { color: var(--muted); font-style: italic; padding: 10px 0; }
+  .limitations { margin-top: 48px; background: var(--surface); border-radius: 14px; padding: 22px; }
+  .limitations ul { margin: 8px 0 0; padding-left: 20px; color: var(--body); }
+  footer { margin-top: 44px; color: var(--muted); font-size: 12px; }
+  @media (max-width: 850px) {
+    .hero, .split { grid-template-columns: 1fr; }
+    .glance { grid-template-columns: 1fr 1fr; }
+  }
+  @media (max-width: 540px) {
+    body { padding: 30px 18px 60px; }
+    .glance, .row { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<script id="report-bundle" type="application/json">__REPORT_BUNDLE__</script>
+<main>
+  <section class="hero">
+    <div class="hero-copy">
+      <div class="eyebrow">Recent session insights</div>
+      <h1>从近期会话里，找到真正值得改变的工作方式</h1>
+      <p id="interaction-style">正在读取多会话洞察。</p>
+    </div>
+    <aside class="coverage">
+      <div class="num" id="analyzed-count">—</div>
+      <div class="label">已分析会话</div>
+      <div class="label" id="window-label"></div>
+      <dl id="coverage-list"></dl>
+    </aside>
+  </section>
+
+  <section class="glance" id="glance">
+    <a href="#wins"><article><div class="label">正在奏效</div><p id="glance-working"></p></article></a>
+    <a href="#frictions"><article><div class="label">正在阻碍</div><p id="glance-hindering"></p></article></a>
+    <a href="#experiments"><article><div class="label">快速改善</div><p id="glance-quick-wins"></p></article></a>
+    <a href="#experiments"><article><div class="label">更大胆尝试</div><p id="glance-ambitious"></p></article></a>
+  </section>
+
+  <h2>项目与任务分布</h2>
+  <section class="card list" id="project-areas"></section>
+
+  <section class="split">
+    <div>
+      <h2>有效做法</h2>
+      <div class="card list" id="wins"></div>
+    </div>
+    <div>
+      <h2>反复摩擦</h2>
+      <div class="card list" id="frictions"></div>
+    </div>
+  </section>
+
+  <h2>值得尝试</h2>
+  <section class="card list" id="experiments"></section>
+
+  <h2>长期沉淀候选</h2>
+  <section class="list" id="durable-candidates"></section>
+
+  <section class="limitations">
+    <h3>证据边界</h3>
+    <ul id="evidence-limitations"></ul>
+  </section>
+  <footer id="generated-at"></footer>
+</main>
+<script>
+(function () {
+  const data = JSON.parse(document.getElementById('report-bundle').textContent);
+  const $ = (selector) => document.querySelector(selector);
+  const array = (value) => Array.isArray(value) ? value : [];
+  const esc = (value) => String(value ?? '')
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+  const text = (item) => typeof item === 'string'
+    ? item
+    : item?.text || item?.summary || item?.description || item?.title || '';
+  const title = (item, fallback) => typeof item === 'object' && item
+    ? item.title || item.name || item.area || item.pattern || fallback
+    : fallback;
+  const evidence = (item) => typeof item === 'object' && item
+    ? array(item.evidence_refs || item.evidence).join(' · ')
+    : '';
+  const empty = (message) => `<div class="empty">${esc(message)}</div>`;
+
+  $('#interaction-style').textContent = data.interaction_style || '没有足够证据概括互动方式。';
+  const coverage = data.coverage || {};
+  const windowInfo = data.window || {};
+  $('#analyzed-count').textContent = coverage.analyzed ?? 0;
+  $('#window-label').textContent = windowInfo.started_at && windowInfo.ended_at
+    ? `${new Date(windowInfo.started_at).toLocaleDateString()} – ${new Date(windowInfo.ended_at).toLocaleDateString()}`
+    : '覆盖时间未知';
+  $('#coverage-list').innerHTML = [
+    ['发现', coverage.discovered],
+    ['时间窗内', coverage.in_window],
+    ['缓存复用', coverage.cache_hits],
+    ['排除', coverage.excluded],
+    ['延后', coverage.deferred],
+    ['未做语义分析', coverage.not_semantically_analyzed],
+  ].map(([label, value]) => `<dt>${label}</dt><dd>${value ?? 0}</dd>`).join('');
+
+  const glance = data.at_a_glance || {};
+  $('#glance-working').textContent = glance.working || '暂无明确结论';
+  $('#glance-hindering').textContent = glance.hindering || '暂无明确结论';
+  $('#glance-quick-wins').textContent = glance.quick_wins || '暂无明确结论';
+  $('#glance-ambitious').textContent = glance.ambitious || '暂无明确结论';
+
+  function renderRows(selector, items, fallback) {
+    const values = array(items);
+    $(selector).innerHTML = values.length ? values.map((item, index) => `<div class="row">
+      <div><h3>${esc(title(item, `观察 ${index + 1}`))}</h3><div class="meta">${esc(evidence(item))}</div></div>
+      <p>${esc(text(item))}</p>
+    </div>`).join('') : empty(fallback);
+  }
+  renderRows('#project-areas', data.project_areas, '没有足够证据划分项目区域。');
+  renderRows('#wins', data.wins, '没有稳定重复的有效做法。');
+  renderRows('#frictions', data.frictions, '没有稳定重复的摩擦模式。');
+  renderRows('#experiments', data.experiments, '这次没有值得尝试的新实验。');
+
+  const candidates = array(data.durable_candidates);
+  $('#durable-candidates').innerHTML = candidates.length ? candidates.map((item, index) => `<article class="card candidate">
+    <span class="chip">${esc(item.type || '候选')}</span>
+    <h3>${esc(title(item, `候选 ${index + 1}`))}</h3>
+    <p>${esc(text(item))}</p>
+    ${item.why_durable ? `<p class="why">沉淀依据：${esc(item.why_durable)}</p>` : ''}
+  </article>`).join('') : empty('没有达到长期沉淀门槛的候选。');
+
+  const limitations = array(data.evidence_limitations);
+  $('#evidence-limitations').innerHTML = limitations.length
+    ? limitations.map((item) => `<li>${esc(text(item))}</li>`).join('')
+    : '<li>未声明额外证据限制。</li>';
+  $('#generated-at').textContent = data.generated_at ? `生成于 ${new Date(data.generated_at).toLocaleString()}` : '';
+})();
+</script>
+</body>
+</html>

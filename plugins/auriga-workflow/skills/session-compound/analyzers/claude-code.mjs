@@ -105,6 +105,7 @@ function newStats() {
     humanTurns: [], // {ts, text, tokens, toolCounts}
     feedbackMoments: [], // {ts, text}
     skillInvocations: {}, // skill name -> count (Skill-tool invocations)
+    skillUsageEvents: [], // {ts, name, evidence, turn_idx}
     skillTimeline: [], // {ts, name} — Skill invocations in order, for stage classification
     skillAttribution: {}, // skill name -> attributed tool-call count (workload)
     reviewSyntheses: [], // {ts, text} — assistant messages carrying a deep-review punch list
@@ -112,7 +113,7 @@ function newStats() {
     cacheBreaks: [], // {ts, uncached, totalInput}
     todosFinal: [], // last TodoWrite payload
     prLinks: {}, // prNumber -> {number, url, repository}
-    toolFailures: [], // {call_id, name, preview} — mirrors codex shape
+    toolFailures: [], // {call_id, name, preview, classification} — mirrors codex shape
     toolUseNameById: {}, // tool_use id -> name (to label failures)
     recordedTurnMs: 0, // sum of system/turn_duration durationMs
     apiErrors: [], // {status, retryAttempt}
@@ -224,6 +225,71 @@ function summarize(text, max = 120) {
   return cleaned.length <= max ? cleaned : cleaned.slice(0, max - 1) + '…'
 }
 
+function skillNameFromPath(filePath) {
+  return path.basename(path.dirname(filePath))
+}
+
+function recordSkillUsage(stats, { ts, name, evidence, turnIdx }) {
+  if (!name) return
+  if (
+    evidence === 'inferred' &&
+    stats.skillUsageEvents.some(
+      (event) =>
+        event.name === name &&
+        event.evidence === evidence &&
+        event.turn_idx === turnIdx,
+    )
+  ) {
+    return
+  }
+  stats.skillUsageEvents.push({
+    ts: ts ?? null,
+    name,
+    evidence,
+    turn_idx: turnIdx ?? null,
+  })
+}
+
+function buildSkillUsageRecords(stats) {
+  const byName = new Map()
+  for (const event of stats.skillUsageEvents) {
+    if (!byName.has(event.name)) {
+      byName.set(event.name, {
+        name: event.name,
+        count: 0,
+        explicit_count: 0,
+        inferred_count: 0,
+        evidence_types: [],
+        explicit_turns: new Set(),
+        inferred_events: [],
+      })
+    }
+    const record = byName.get(event.name)
+    if (event.evidence === 'explicit') {
+      record.explicit_count++
+      if (event.turn_idx != null) record.explicit_turns.add(event.turn_idx)
+    }
+    if (event.evidence === 'inferred') {
+      record.inferred_count++
+      record.inferred_events.push(event)
+    }
+    if (!record.evidence_types.includes(event.evidence)) {
+      record.evidence_types.push(event.evidence)
+    }
+  }
+  return [...byName.values()].map(
+    ({ explicit_turns, inferred_events, ...record }) => ({
+      ...record,
+      count:
+        record.explicit_count +
+        inferred_events.filter(
+          (event) =>
+            event.turn_idx == null || !explicit_turns.has(event.turn_idx),
+        ).length,
+    }),
+  )
+}
+
 // ---------- Main scan ----------
 async function scan(filePath) {
   const stats = newStats()
@@ -264,6 +330,7 @@ async function scan(filePath) {
       if (isHumanUserEntry(e)) {
         const text = humanText(e)
         currentTurn = {
+          idx: stats.humanTurns.length,
           ts,
           text,
           summary: summarize(text),
@@ -295,6 +362,7 @@ async function scan(filePath) {
                 call_id: block.tool_use_id || null,
                 name: stats.toolUseNameById[block.tool_use_id] || 'unknown',
                 preview: summarize(tc, 200),
+                classification: 'unknown',
               })
             }
           }
@@ -391,11 +459,25 @@ function handleAssistant(e, stats, currentTurn) {
         if (name === 'Read' && block.input?.file_path) {
           const fp = block.input.file_path
           stats.fileReads[fp] = (stats.fileReads[fp] || 0) + 1
+          if (fp.endsWith('/SKILL.md')) {
+            recordSkillUsage(stats, {
+              ts: tsToMs(e.timestamp),
+              name: skillNameFromPath(fp),
+              evidence: 'inferred',
+              turnIdx: currentTurn?.idx,
+            })
+          }
         }
         // Skill invocations
         if (name === 'Skill' && block.input?.skill) {
           const skill = block.input.skill
           stats.skillInvocations[skill] = (stats.skillInvocations[skill] || 0) + 1
+          recordSkillUsage(stats, {
+            ts: tsToMs(e.timestamp),
+            name: skill,
+            evidence: 'explicit',
+            turnIdx: currentTurn?.idx,
+          })
           // The timeline exists to align feedback_moments by timestamp —
           // a null-ts entry can't anchor anything, so it stays out (the
           // invocation count above still records it).
@@ -476,8 +558,8 @@ function claudeWorkflowSignals(stats) {
     had_code_edit: firstEditTs != null,
     first_edit_ts: firstEditTs,
     prs_count: Object.keys(stats.prLinks).length,
-    skills_invoked_count: Object.values(stats.skillInvocations).reduce(
-      (a, b) => a + b,
+    skills_invoked_count: buildSkillUsageRecords(stats).reduce(
+      (sum, skill) => sum + skill.count,
       0,
     ),
   }
@@ -549,10 +631,7 @@ function emit(stats, filePath) {
   }
 
   // Skills / agents lists
-  const skills = Object.entries(stats.skillInvocations).map(([name, count]) => ({
-    name,
-    count,
-  }))
+  const skills = buildSkillUsageRecords(stats)
   const skillAttribution = Object.entries(stats.skillAttribution).map(
     ([name, count]) => ({ name, count }),
   )
@@ -636,6 +715,7 @@ function emit(stats, filePath) {
       agent_invocations: stats.agentInvocations,
       tool_failures: stats.toolFailures,
       skill_timeline: stats.skillTimeline,
+      skill_usage_events: stats.skillUsageEvents,
       review_syntheses: stats.reviewSyntheses,
     },
   }

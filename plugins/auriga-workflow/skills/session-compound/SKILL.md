@@ -1,352 +1,168 @@
 ---
 name: session-compound
-description: 当用户要求复盘、总结、沉淀、整理这次会话、wrap up this session、extract takeaways from this session，或提取会话中的可复用经验时使用；产出一份可交互的 HTML 会话报告。
+description: 当用户要求复盘、总结、沉淀当前会话，分析最近一段时间的 Claude Code 或 Codex 使用方式，wrap up this session、extract takeaways、recent usage insights，或从会话中提取可复用经验时使用；先让用户选择单会话复盘或最近 30 天洞察，再生成对应的离线 HTML 报告。
 ---
 
 # Session Compound
 
-把单次 CLI 会话压缩成一份可离线打开的 HTML 报告（写到 `/tmp`，不落进项目仓库）。报告分四个 tab：
+把会话记录转成可追溯的洞察，而不是机械地寻找更多规则。每次调用只生成一种报告：
 
-- **Narrative** — 这次做了什么（时间线 + 关键反馈时刻 + Agent 撰写的叙事摘要）
-- **Health** — token / cache / 工具用量诊断
-- **评估** — 中性工作流事实面板 + 独立子代理的指令遵循 / skill 召回 / 逐 skill 执行评估 finding
-- **Compound** — playground：左侧候选条目列表（可勾选 + 行内编辑），右侧实时合成 markdown，底部一键复制「提示词」，粘回 Claude / Codex 让 agent 按规则落库
+- **单会话复盘**：叙事、执行健康度、独立评估和长期沉淀候选。
+- **最近 30 天洞察**：跨会话的有效模式、反复摩擦、值得尝试的改进和长期沉淀候选。
 
-## 何时使用
+两种模式分别分析当前运行时，不合并 Claude Code 与 Codex 的记录。报告写入系统临时目录，不进入项目仓库。
 
-- 用户要求「复盘 / 总结 / 沉淀 / wrap up」当前会话
-- 用户显式调用 `/session-compound` 或类似命令
-- 用户想从这次会话里提取 AGENTS.md / `docs/rules/` 增补、可复用的现成 skill、或可抽象的 skill 缺口
+## 入口门禁
 
-**不要**用于跨会话分析——那是 `session-report` 插件的范围（最近 7 天 × 全部项目）。
+每次调用都用 `AskUserQuestion` 或 `request_user_input` 让用户明确二选一：
 
----
+1. 单会话复盘
+2. 最近 30 天洞察
 
-## 工作流
+未选择前不进入任一模式；不根据用户措辞猜默认值，也不在一次调用中生成两份报告。
 
-### 步骤 1：跑 analyzer
+先确认当前运行时：`CLAUDE_CODE_SESSION_ID` 表示 Claude Code，`CODEX_THREAD_ID` 表示 Codex。用户指定会话文件时，以指定文件和对应运行时为准。
 
-先判断 CLI 身份（读环境变量 `CLAUDE_CODE_SESSION_ID` 或 `CODEX_THREAD_ID`，命中哪个就是哪一边），再执行对应分支。
+## 共同证据边界
 
-#### Claude Code 分支
+- 分析器只提取事实。非零退出保留在 `health.tool_failures`，`classification` 默认为 `unknown`；没有语义证据时不写成浪费。
+- `health.skills` 同时保留显式与推断使用：`explicit_count`、`inferred_count`、`evidence_types`。同一用户轮次对同一 `SKILL.md` 的重复读取只算一个使用单元。
+- `health.skill_catalog`、`health.workflow_rules`、`health.workflow_signals` 是当前能力、当前规则与中性事实。用它们回看历史时必须标记“按当前状态回看”，不能伪装成会话发生时的快照。
+- `raw_for_compound.skill_usage_events`、`skill_timeline`、`review_syntheses` 和证据引用用于追溯，不直接等于结论。
+- 缺失证据写成未知或合法空态，不用数字零冒充已确认事实。
 
-```sh
-node <skill-dir>/analyzers/claude-code.mjs > /tmp/session-compound.json
-```
+## 模式一：单会话复盘
 
-`<skill-dir>` 是这份 SKILL.md 所在目录的绝对路径。
-
-脚本会自动通过 `CLAUDE_CODE_SESSION_ID` 环境变量 + 当前 cwd 推断出 `~/.claude/projects/<cwd-slug>/<session-id>.jsonl`。可选 override：
-- `--session-id <uuid>` — 指定会话 id
-- `--project-slug <slug>` — 指定 cwd slug（覆盖自动推断）
-- `--file <abs-path>` — 直接指定 JSONL 文件路径
-
-运行时要求 Node 18+（脚本用 `node:fs` / `readline` 命名空间 import）。
-
-#### Codex 分支
+### 1. 生成会话证据
 
 ```sh
-node <skill-dir>/analyzers/codex.mjs > /tmp/session-compound.json
+# Claude Code
+node <skill-dir>/analyzers/claude-code.mjs > /tmp/session-compound-evidence.json
+
+# Codex
+node <skill-dir>/analyzers/codex.mjs > /tmp/session-compound-evidence.json
 ```
 
-脚本会从 `CODEX_THREAD_ID` 环境变量读 thread id，然后在 `~/.codex/sessions/**/rollout-*-<thread-id>.jsonl`（以及 `~/.codex/archived_sessions/**/` fallback）下定位文件。可选 override：
-- `--thread-id <uuid>` — 指定 thread id（`--session-id` 是其别名）
-- `--file <abs-path>` — 直接指定 rollout JSONL 文件路径
+用户指定其他会话时，在对应命令中加入 `--file <绝对路径>`。没有显式 `--file` 时，分析器从当前运行时的会话标识定位日志。非零退出时根据错误修正路径后重跑；拿不到有效 JSON 就停止，不生成伪报告。
 
-#### 通用约束
+### 2. 做独立评估
 
-如果 analyzer 非零退出，读 stderr、对症修正（错路径、缺会话、文件未生成等）后重跑。**未拿到 JSON 不要继续后续步骤**。
+读取 `references/eval-dispatch.md`，用内置 Agent 新建一个**零上下文继承**的独立评估上下文。召回分析覆盖全部已安装 skill，逐技能执行评估只覆盖本会话实际使用的技能，包括仅有推断证据的技能。
 
-### 步骤 2：读 JSON 摘要
+评估发现保留 `polarity`、`severity`、`confidence`、证据性质和证据引用；不按重要性预过滤。评估失败不阻塞事实报告，评估区明确显示未完成。
 
-读 `/tmp/session-compound.json`。重点扫这些字段：
+### 3. 形成三层结果
 
-- `session` — id / cwd / 时长 / 模型 / git；`recorded_turn_ms` 是日志里 `turn_duration` 条目记录的真实 turn 墙钟时长之和（存在时比 `active_ms` 间隙估算更准）
-- `narrative.task_title` — 会话标题（Claude 端取自 `aiTitle`，缺失为空串；Codex 端取自首条用户消息），报告 hero 标题用它
-- `narrative.human_turns` — 用户每个 turn 的摘要 + token + 触发的工具
-- `narrative.feedback_moments` — 检测到的用户纠正 / 方向收缩瞬间（含「先不动 / 不着急 / 微优化」这类改向信号；纯疑问句不计入）
-- `narrative.away_summaries` — Claude 在用户离开时写的自然语言摘要（来自 `away_summary` 条目，叙事原料）
-- `health.tokens` / `health.cache_hit_rate` / `health.context_window_used_pct`
-- `health.tools` / `health.subagents` / `health.skills`（两端都有 skills：Claude 端来自 `Skill` 工具调用，Codex 端来自 `<skill><name>` 块解析；subagents 含 Claude `Agent` / Codex `spawn_agent` 调用）
-- `health.skill_attribution` — 每个 skill 驱动了多少次工具调用（工作量，与 `skills` 的调用次数语义不同；目前 Claude 端有，来自 `attributionSkill`）
-- `health.prs` — 本次会话引用的 PR 列表（去重，`{number,url,repository}`；目前 Claude 端有，来自 `pr-link`）
-- `health.tool_failures` — 失败的工具调用（`{call_id,name,preview}`，两端同形）
-- `health.expensive_turns` — token 消耗最高的 turn
-- `health.waste_signals` — 重复读同文件、低 cache 命中、API 错误 / 重试等浪费信号
-- `health.skill_catalog` — 本机可用的全部已安装 skill 目录（`{name, description, editable}`，按 name 去重折叠插件缓存多版本；`editable` 表示该 skill 源在当前仓库内、可就地优化）。**指令遵循 & skill 召回评估的输入**
-- `health.workflow_rules` — 从仓库 AGENTS.md / CLAUDE.md 受管区块解析出的工作流规则（`{n, text}`）；无受管区块为空数组
-- `health.workflow_signals` — **中性事实包，不含任何判决**（`{git_branch, on_main, had_code_edit, first_edit_ts, prs_count, skills_invoked_count}`）。机械层只提取事实；指令遵循 / 召回 / skill 执行的判断**全部交评估 subagent**
-- `raw_for_compound` — 用来写候选条目的原材料（含 `agent_invocations`、`tool_failures`、`skill_timeline`、`review_syntheses`）
-- `raw_for_compound.skill_timeline` — Skill 调用时间线（`{ts, name}` 按调用顺序；子代理 sidechain 与无时间戳的调用不入列）。把 `feedback_moments` 的时间戳落到这条时间线上，就能机械判断"用户纠正发生时哪个工作流阶段在跑"——这是经验归类到 `docs/rules/{spec,arch,test}/` 的依据，长会话被 compact 后也不丢
-- `raw_for_compound.review_syntheses` — deep-review 的 punch list 全文（`{ts, text}`，按输出契约标题 `## Deep Review:` 在代码围栏外匹配主对话助手消息——子代理与 Codex commentary 阶段消息已过滤；同一会话多次 review 会产生多条；截断为 6000 字符并追加省略号）。review 类经验（评审本该拦住的问题模式）的首要原料
+主 Agent 基于证据和独立评估形成：
 
-两套 analyzer 输出的**核心字段**（`session.{id,cwd,duration_ms,model,git,recorded_turn_ms}` / `narrative.{task_title,human_turns,feedback_moments,away_summaries}` / `health.{tokens,cache_hit_rate,tools,subagents,skills,skill_attribution,prs,tool_failures,expensive_turns,waste_signals,skill_catalog,workflow_rules,workflow_signals}` / `raw_for_compound.{feedback_moments,repeated_reads,agent_invocations,tool_failures,skill_timeline,review_syntheses}`）一致；其中展示字段由模板渲染，`skill_timeline` / `review_syntheses` 是步骤 4.5 / 5d 的 agent 侧原料，不进模板渲染。除此之外两侧各有 CLI-specific 扩展字段，Codex 多 `health.{compaction_count, turn_aborted_count, patch_apply, mcp_tool_call_count, custom_tool_call_count, web_search_count, tool_search_count, image_generation_count, context_window, reasoning_output_ratio}` 与 `narrative.{task_conclusion, task_completed, task_duration_ms, time_to_first_token_ms}`；Claude 多 `health.{api_calls, cache_breaks}`。注意 `skill_attribution` / `prs` / `away_summaries` 目前仅 Claude 端有数据（Codex 日志无等价信号），缺失侧为空集合。`skill_catalog` / `workflow_rules` / `workflow_signals` 两端都有，各从本 CLI 的 skill 根目录与会话 cwd 的 AGENTS.md 构建（`workflow_signals` 是中性事实，不下判决）。模板已按 CLI 分支处理这些差异。
+1. **洞察**：不要求行动的事实解释或单次观察。
+2. **值得尝试**：可低成本验证的新用法、工作方式或提示词，不修改长期资产。
+3. **长期沉淀候选**：只有用户明确要求长期保持某种行为，或同类纠正、约束、流程在至少两个独立会话出现时才允许提出。单会话通常只能依赖前一种门禁。
 
-### 步骤 3：复制模板到输出文件
+长期候选默认 `default_selected: false`。以下情况直接否决：
 
-报告是一次性产物——写到 `/tmp`，不要放进项目目录，避免被 git 跟踪 / 误提交进用户仓库。
+- 一次性问题、没有行动权的外部问题，或 `session-compound` 自身缺陷。
+- 反馈已被现有规则、技能、测试、类型系统、静态检查或审查机制完整吸收。
+- 仅因为工具返回非零状态，就推断应该新增规则。
+- 外部或缓存技能不可编辑，却提出修改其 `SKILL.md`。
 
-```sh
-cp <skill-dir>/template.html /tmp/session-compound-$(date +%Y%m%d-%H%M).html
-```
+本仓库可编辑技能确有正文缺口时，可以提出指向 in-repo `SKILL.md` 的就地优化候选；外部或缓存技能更新时会被覆盖，不产出编辑候选。能用工程机制更早拦截的问题，优先指向符合技术栈的类型、静态检查、测试或持续集成机制，不增加长期上下文租金。
 
-### 步骤 4：基于数据预查 ecosystem skill
+只有在已经确认存在“新增或安装技能”的真实候选后，才按需运行生态搜索。搜索只能验证或路由既有候选，不能反向制造建议。已经安装或频繁使用的能力只能写成“新的使用方式”，不能包装成尚未尝试的新功能。
 
-在写 candidates 之前，**先**从本次 session 数据里识别 3–5 个可能的 skill 缺口模式（重复读同一份文档、反复出现的工具组合 + 失败、长 turn 里出现的固定多步流程关键词），为每个模式生成一个搜索 query，然后跑：
+### 4. 确定性生成报告
 
-```sh
-npx skills find "<query>" 2>&1 | head -30
-```
+将结构化结果写入 `/tmp/session-compound-single-data.json`：
 
-每个 query 抽 top-3 结果（name / install_count / source URL）。
-
-依据返回结果做出 verdict：
-- **`recommend-install`** — 找到一个或多个高 install 的现成 skill，复用即可（不用再写 `skill-gap` candidate）
-- **`partial-match`** — 有相关 skill 但语义不完全匹配（在 `skill-gap` candidate 的 find-skills 检查字段里引用这些结果，避免下游 agent 重跑）
-- **`no-match`** — 完全没有可复用的，写 `skill-gap` candidate 自创
-
-这一步的输出**直接进入下一步 5d 的 candidates 数组**，但需要一个特殊 type `existing-skill`——任何 `recommend-install` verdict 的结果都应该作为一个 `existing-skill` candidate 加进数组（用户在浏览器里勾选 → 复制 prompt 后下游 agent 会自动跑 `npx skills add` 安装）。
-
-### 步骤 4.5：派遣独立 subagent 做指令遵循 & skill 执行评估
-
-产出 `eval-findings`（指令遵循 / 召回 / 逐 skill 执行评估）→ 步骤 5e 注入报告、并可喂 5d 的 skill-body 候选。**完整派遣协议（输入清单、输出 schema、skill-body 落点规则）见 `references/eval-dispatch.md`——派遣前读它。** 这里只列不可省的硬约束：
-
-- **必须用独立、零上下文继承（fresh context）的 subagent**：被评估的会话正是主 Agent 自己跑的，自评有系统性偏差（纪律同 `deep-review`：新会话、不 resume、不把当前对话历史复制进子代理）。
-- **范围**：召回 / 指令遵循覆盖 `skill_catalog` 里**全部已安装 skill** 与全部 `workflow_rules`；逐 skill 执行 eval **仅覆盖本会话真正调用过 / 跑过的 skill**（`health.skills` 里的）。机械层只给 `workflow_signals` 中性事实（分支 / 是否在 main / 有无编辑 / PR / skill 调用数），**所有判断由 subagent 做**——包括"在 main 上编辑了"这类原来机械层下的判决。
-- **输出**：finding 数组 `{kind, polarity, severity?, confidence, text, skill?}`——`polarity` 区分正向（positive）与缺口（gap），`severity` 仅缺口必填（正向省略），`confidence` 是证据强度（详见 `references/eval-dispatch.md` 的输出契约）。**不按重要性预过滤**（全部 in-scope finding 都报告，过滤交给人）。
-
-### 步骤 5：注入数据 + 撰写 Agent 填空段（**用 Edit，不用 Write**——必须保留模板的 JS/CSS）
-
-需要做 5 处编辑：
-
-#### 5a. 替换 `<script id="report-data">` 的内容
-
-把这块的内容替换成步骤 1 产出的完整 JSON：
-
-```html
-<script id="report-data" type="application/json">
-{ "cli": "claude-code", ... }
-</script>
-```
-
-模板的 JS 会自动从这个 JSON 渲染 hero、所有表格、bar、时间线。
-
-#### 5b. 填 `<!-- AGENT: narrative-summary -->` 块
-
-把这个 div：
-```html
-<div id="narrative-summary" class="empty-hint">No summary yet — ...</div>
-```
-替换为：
-```html
-<div id="narrative-summary">这里写 ≤3 句话的会话叙事摘要</div>
-```
-
-摘要要求：**事实性**。引用真实的 turn 内容、真实的决策、真实的工具模式——不要套话。
-
-#### 5c. 填 `<!-- AGENT: anomalies -->` 块
-
-把 `<div class="takes" id="anomalies">...</div>` 内的占位 hint 替换为 **3–5 张 take 卡片**。数值尽量用「占总 token 的 %」表达。精确 markup：
-
-```html
-<div class="take bad"><div class="fig">62%</div><div class="txt">Turn <b>#4</b> 一个 prompt 消耗了 62% 的总 token</div></div>
-```
-
-class 含义：
-- `.take.bad` — 浪费 / 红
-- `.take.good` — 健康信号 / 绿
-- `.take.warn` — 警示 / 黄
-- `.take.info` — 中性事实 / 蓝
-
-`.fig` 是一个短数字（%、计数、或 `12×` 倍数）。`.txt` 是一句白话，主语用 `<b>` 包起来。
-
-可发掘的角度：
-- 单个 turn 占了不成比例的份额
-- Cache hit < 85%（Claude）或 reasoning 占 output > 50%（Codex）
-- 反复读同一个文件
-- 子 agent 调用没有输出格式约束
-- Context window 接近上限（Codex）
-
-#### 5d. 填 `<script id="candidates">` 数组（**本 skill 的核心价值**）
-
-把那个 script tag 里的 `[]` 替换为候选条目数组。每条候选都属于以下三类之一——**只有这三类**：
-
-1. **`existing-skill`** — 步骤 4 预查命中的现成 ecosystem skill，一条 `npx skills add` 命令即可装上
-2. **`agent-md`** — 写入 AGENTS.md 体系（根 AGENTS.md / `docs/rules/<topic>.md` + 索引 / 消费方绑定的 `docs/rules/{spec,arch,test,review}/` / 子目录 AGENTS.md，按下方 target 表选一）
-3. **`skill-gap`** — 多步骤可重复模式，ecosystem 没现成可复用，值得抽象成新 skill
-
-Schema：
 ```json
-[
-  {
-    "name": "kebab-case-name",
-    "type": "existing-skill | agent-md | skill-gap",
-    "body": "条目正文 markdown——直接落库的文本（或对 existing-skill 来说，含安装命令）",
-    "default_selected": true
-  }
-]
+{
+  "mode": "single",
+  "report_data": {},
+  "narrative_summary": "不超过三句话的事实性摘要",
+  "anomalies": [{ "tone": "good|warn|bad|info", "figure": "短标记", "text": "解释" }],
+  "eval_findings": [],
+  "observations": [],
+  "experiments": [],
+  "durable_candidates": []
+}
 ```
 
-##### type 语义
+再运行：
 
-- **`existing-skill`** — 步骤 4 预查时找到的现成 ecosystem skill，verdict 为 `recommend-install`。正文模板：
-  ```
-  **来源**: <owner/repo@skill> · <NK installs> · <skills.sh URL>
-  **解决的本会话问题**: <为什么这个 skill 适合本会话出现的某个模式>
-  **安装命令**: `npx -y skills add <owner/repo@skill> -a codex claude-code -y`
-  ```
-  安装命令拆解：
-  - `npx -y` — `-y` 在前面，让 npx 自动升级 / 拉包，跳过"need to install? (y/N)"询问
-  - `-a codex claude-code` — `skills add` 的 `-a` 收集后续所有非 flag 参数，所以**空格分隔**多个 agent。本仓库只针对这两个 agent
-  - 末尾 `-y` — `skills add` 自身的"yes to confirmation prompts"
-  勾选后会进入合成的 prompt，下游 agent 会自动执行 `npx skills add` 安装
-
-- **`agent-md`** — 沉淀到 AGENTS.md 体系。**target 由本 skill 自己判断并在候选里给出推荐，不要把选择甩给用户或下游再决策一轮。**
-
-  选 target 前**先勘察当前工程已有的指令组织规范**——别套用通用默认：
-  1. 读根 `AGENTS.md` / `CLAUDE.md`：它通常是**入口 + 索引**，靠多级文件做渐进式披露（根文件保持精简、详细规范拆到 `docs/` 专题文件 / 子目录指令文件）。**不要往根 AGENTS.md 堆内容**——顺着它已有的分层结构走。
-  2. 看 `docs/rules/` 等是否已有覆盖该领域的专题文件；有就**在那份文件里扩写**，而不是新建一份平行的。
-  3. 判断经验是否**绑定某个工作流阶段**——`docs/rules/` 下有四个**消费方绑定**目录，由对应 skill 在固定阶段机械读取：`docs/rules/spec/`（`spec-design` 调研阶段收集）、`docs/rules/arch/`（`arch-design` 作为设计硬约束）、`docs/rules/test/`（`test-driven-development` + `deep-review` 的 test-quality 审查者）、`docs/rules/review/`（`deep-review` 自动发现并分派的自定义审查者）。落进这些目录的经验会在**犯错的那个阶段**被自动注入对应 agent 的上下文，而根 AGENTS.md 只能指望被想起——能归类到阶段的经验优先归到对应目录。
-  4. 看工程**现有 skill** 是否已经覆盖这个模式——若只是某个 skill 的指引不到位 / 缺一条规则，**首选在那个 skill 的 `SKILL.md` 里就地优化**（target 指向该 skill 文件），比新增 AGENTS.md 段落或新建 skill 都更轻、更聚合。
-
-  按下表选 target（优先复用 / 扩写既有文件，最后才考虑新建）：
-
-  | 经验范围 | target | 何时选 |
-  |---|---|---|
-  | **某个现有 skill 的指引可改进** | 那个 skill 的 `SKILL.md`（就地优化） | 模式已被某 skill 覆盖，只是规则缺一条 / 触发不准——最聚合，优先选 |
-  | **绑定工作流阶段的经验**（spec 澄清遗漏 / 架构约束 / 测试约定） | `docs/rules/spec/`、`docs/rules/arch/`、`docs/rules/test/` 下的专题文件（扩写已有或新建；无需根 AGENTS.md 索引行——消费方按目录自动发现） | 经验对应 `spec-design` / `arch-design` / `test-driven-development` / test-quality 的固定消费点，在下次同阶段工作时自动生效 |
-  | **审查维度类经验**（评审本该拦住的问题模式） | 扩写现有 `docs/rules/review/<name>.md` 的 Checklist / worked scenarios；**全新维度则建议运行 `reviewer-creator`**，不要徒手新建 | `docs/rules/review/` 文件承载 frontmatter 编排契约且被 `deep-review` 自动发现分派——徒手文件缺编排元数据时只能走降级路径靠语义猜测 |
-  | 现有 `docs/rules/<topic>.md` 已覆盖该领域 | 在那份文件里扩写（不新建平行文件） | 已有专题文件，顺着它加 |
-  | 跨整个仓库 / 跨语言 / 工作流级（短规则） | 根 `AGENTS.md`（`CLAUDE.md` 是软链则只写一处） | 短、所有未来会话都该看，且根文件没有更合适的下级归宿 |
-  | 跨整个仓库但**内容较长**（>10 行 / 表格 / 代码） | 新建 `docs/rules/<topic>.md` + 根 `AGENTS.md` 加一行索引 | 写进根 AGENTS.md 会让它膨胀，破坏渐进式披露 |
-  | 仅针对某个独立子目录（plugin / package / service） | 那个子目录的 `AGENTS.md`（不存在就新建） | 经验只在该子目录上下文生效，写到根会污染全局 |
-
-  正文模板（target 一行必须给出**具体推荐落点** + 是「就地优化既有文件」还是「新建」）：
-  ```
-  **target**: <具体路径>（如 `<skill>/SKILL.md` 就地优化 / 现有 `docs/rules/<topic>.md` 扩写 / 根 `AGENTS.md` / 新建 `docs/rules/<topic>.md` + 索引 / `<subdir>/AGENTS.md`）
-  **落点理由**: <一句话：为什么是这个文件——已有 X 覆盖该领域 / 顺着现有分层 / 根文件无更合适下级>
-  **要写入的内容**:
-  > <逐字给出要追加 / 修改的段落，下游 agent 复制粘贴即可>
-  **索引行**（仅当新建通用 `docs/rules/<topic>.md` 时填；消费方绑定目录 `docs/rules/{spec,arch,test,review}/` 下的文件不填——对应 skill 按目录自动发现）:
-  > - [<title>](docs/rules/<topic>.md) — <一句 hook>
-  ```
-
-- **`skill-gap`** — 这次会话里出现了**多步骤可重复模式**，值得抽象成一个新 skill。正文必含：触发短语 / find-skills 检查结果 / imperative 3–5 步流程 / bundled resources / 验证方式（见下方模板）
-
-##### 决策表
-
-| 经验形态 | 沉淀路径 |
-|---|---|
-| ecosystem 已经有匹配 skill | `existing-skill`（最廉价） |
-| **工程现有 skill 已覆盖、只是指引不到位** | `agent-md` → 就地优化那个 skill 的 `SKILL.md`（最聚合，优先） |
-| spec 阶段就该问清却漏问、导致返工的维度 | `agent-md` → `docs/rules/spec/` 专题文件（扩写或新建） |
-| 被违反 / 争论过的架构约束（分层、依赖方向、模块边界） | `agent-md` → `docs/rules/arch/` 专题文件（扩写或新建） |
-| 测试设计约定 / fixture 约定 / flaky 模式 | `agent-md` → `docs/rules/test/` 专题文件（扩写或新建） |
-| 评审本该拦住的问题模式 | `agent-md` → 扩写现有 `docs/rules/review/<name>.md`；全新维度 → 建议运行 `reviewer-creator` |
-| 现有 `docs/rules/<topic>.md` 已覆盖该领域 | `agent-md` → 在那份文件里扩写 |
-| 跨会话的工作流约束 / 流程规则（短文本） | `agent-md` → 根 AGENTS.md（无更合适下级时） |
-| 跨会话的长文约定（>10 行 / 表格 / 代码） | `agent-md` → 新建 `docs/rules/<topic>.md` + 根 AGENTS.md 索引 |
-| 只影响某个子目录的约定 | `agent-md` → `<subdir>/AGENTS.md` |
-| **多步骤、可重复、有触发条件、需要脚本辅助** | `skill-gap`（新 skill） |
-| 一次性 / 上游工具 issue / 不在用户控制范围内 | **不要写候选** |
-
-落点优先级（从最聚合到最重）：**就地优化现有 skill / 扩写现有 docs** → 现有分层里的合适位置 → 根 AGENTS.md 短规则 → 新建专题文件 → 新建 skill。先复用既有结构，最后才新建。
-
-##### 分类归档的原料来源
-
-- **阶段归类**（spec / arch / test）：用 `raw_for_compound.skill_timeline` 把每个 `feedback_moment` 的时间戳落到当时活跃的 skill 阶段上——spec-design 进行中收到的纠正多半是 spec 类经验，test 阶段的纠正多半是测试约定。不要只凭印象归类，长会话的记忆可能已被 compact。
-- **review 类经验**：首要原料是 `raw_for_compound.review_syntheses`（deep-review 主 Agent 的 punch list 全文）；`health.prs` 非空时，再用 `gh pr view <number> --comments` 拉取该 PR 上的评审意见——人工 review 和 CI 自动评审（机器人 review、check 结论）一起消费。穿过评审才被用户发现的问题、或评审反复指出的同类 finding，就是「评审本该拦住的模式」的直接证据。
-
-##### `skill-gap` 候选必须自证「值得做成 skill」
-
-参考 `skill-development` skill 的判断框架，只有同时满足以下 5 条 hard gate 才写 `skill-gap`：
-
-1. **多步骤**：能拆成 ≥3 步、步骤间有顺序 / 依赖
-2. **可重复**：未来会话很可能再次发生（一次性的不写候选）
-3. **能写出第三人称 + 具体触发短语**——这是 skill description 的硬规范，也是隐式 sanity check：写不出「This skill should be used when the user asks to "X", "Y"」就说明触发场景不清晰，不值得做 skill
-4. **可绑定资源**：需要 `scripts/`（deterministic 脚本）/ `references/`（按需加载的文档）/ `assets/`（输出模板）。纯文字规则放 `agent-md` 更轻
-5. **ecosystem 里没有现成 skill 能复用**——产出候选前用 `npx skills find <query>` 查过（这是 `find-skills` skill 的核心动作）
-
-反例（这些不该写成 `skill-gap`）：
-- "用户偏好先写 spec 再实现" → 单一规则 → 写成 `agent-md`（根 AGENTS.md 一行）
-- "lingolens 项目里题型组件命名是 *Question 不是 *Player" → 子目录范围约定 → `agent-md`（`<subdir>/AGENTS.md`）
-
-正例（这些可以做 skill）：
-- "e2e 验证前先检查 dev server / 数据库 / 依赖状态机" → 多步骤检查清单 + 可绑定脚本 → `skill-gap`
-- "添加新题型组件时：先建 `*Question.tsx`，再加单测，再注册到 router，再写 mobile preview" → 4 步固定流程 → `skill-gap`
-
-`skill-gap` 正文模板（agent 撰写候选时按此填，覆盖全部 5 条 hard gate）：
-
-```markdown
-**触发短语**（第三人称 + 具体短语，自证 gate #3）：
-> This skill should be used when the user asks to "<具体短语 1>", "<具体短语 2>", or mentions <场景>.
-
-**find-skills 检查**（自证 gate #5，用 `npx skills find <query>`）：
-- 已搜：<keyword>
-- 结果：无现成可复用 / 找到 `<owner/repo@skill>` 但 <理由不合适>
-
-**3–5 步流程**（imperative，verb-first；遵循 skill-development 写作规范）：
-1. Verb …
-2. Verb …
-3. Verb …
-
-**Bundled resources**（自证 gate #4）：
-- `scripts/<name>.sh` — 做 <X>
-- `references/<name>.md` — 提供 <Y> 的细节
-- `assets/<name>/` — <Z> 模板（可选）
-
-**验证**：跑 `<command>` 应该看到 <expected>；失败时检查 <fallback>。
-
-**为什么不是 `agent-md`**：本条满足 5 条 hard gate（多步骤 + 可重复 + 触发清晰 + 资源可绑定 + ecosystem 没现成的）；写成 AGENTS.md 段落无法承载脚本和多步骤逻辑。
+```sh
+node <skill-dir>/scripts/render-report.mjs \
+  --mode single \
+  --template <skill-dir>/templates/single-session.html \
+  --data /tmp/session-compound-single-data.json \
+  --output /tmp/session-compound-single-<timestamp>.html
 ```
 
-下游 agent 拿到这种 `skill-gap` 候选后，应走 `skill-creator` 的完整流程（capture-intent → interview → draft → eval → iterate），**不要直接现场写 SKILL.md**——`skill-creator` 会确保 description 触发率、imperative 风格、progressive disclosure（SKILL.md ≤2k 词，详情拆 references/）这些 skill-development 规范都被遵守。
+模型不编辑模板、HTML、JavaScript 或样式。
 
-##### 原材料
+## 模式二：最近 30 天洞察
 
-来自 JSON 的 `raw_for_compound`：feedback 瞬间、重复读文件、子 agent 调用、turn 时间线。**`narrative.feedback_moments` 里的用户反馈片段（≤200 字符摘要）** 通常是 `agent-md` 候选的起点——如果某条反馈反复出现，就是一条工作流级规则。`human_turns` 里反复出现的工具组合 + 失败模式则是 `skill-gap` 的线索。
+### 1. 建立会话清单与增量队列
 
-**步骤 4.5 的 `eval-findings` 也是候选原材料**——尤其 `kind: skill-eval` 的 finding（某 skill 执行欠佳）：
-
-- 当 finding 指向**本仓库可编辑的** SKILL.md（`skill_catalog` 里 `editable: true` 的那条），且问题是 skill body 写得不到位时，产出一个 `agent-md` 候选，**target 直接指向那份 in-repo SKILL.md** 做就地优化（与决策表「工程现有 skill 已覆盖、只是指引不到位」一致）。这正是"对抗一味叠加内容"的入口：先判断是不是 body 本身没写好，而不是默认加规则。
-- 对**外部 / cached、不可编辑**（`editable: false`）的 skill，**不要产出编辑候选**——它的源在插件缓存里，改了下次更新即被覆盖；只在报告「评估」tab 的「指令遵循与 skill 评估」区块里报告它的表现即可。
-
-##### 质量标准
-
-宁少勿滥。**3–8 条高价值候选** 胜过 20 条平庸候选。明显的别写——只保留**未来某次会话**会真正用到的。`skill-gap` 的标准最高，一次产出 0–2 条就够了。
-
-每条 `agent-md` 候选写入数组前过三道**否决闸门**（任一命中就不写）：
-
-1. **持续租金**：规则落进 AGENTS.md / `docs/rules/` 后，每次相关派发都要付上下文成本——这是永久租金，不是一次性写入成本。只有"写入时会反复发生、且下游兜不住"的问题付得起这个价；一次性摩擦、低频耦合不录入。
-2. **已有机制兜底**：问题如果正是被现有评审 / 测试 / hook 抓出来的，说明机制已经在工作，再写规则是重复供给。
-3. **机制可替代，且拦截点越早越好**：能用零租金机制（不进 agent 上下文）锁住的约束，候选就写成指向那个机制的就地改动，不写提示词规则。机制按拦截时点从早到晚选**最早可行**的一级：lint / 类型系统 / 静态检查（写代码当下就拦）→ 本地测试（验证时拦）→ CI / hook（推送时拦）——越晚拦截，修复回路越长，CI 上的 agent review 还要再付一轮 token 与人力。机制形态**按工程技术栈选原生的**（如 TypeScript 的 ESLint 自定义规则 / 类型约束、Swift 的 swiftlint、schema 校验、本仓库对 markdown 契约的 node:test 文本断言）；某一级在该技术栈实现成本明显过高时，才退到下一级。
-
-被闸门否决的经验不等于丢弃：实质是代码缺陷的，写修复候选（target 指向出问题的源文件）；值得跟踪但不属本次范围的，建议记入 PR 的 Remaining TODOs 或 issue。
-
-#### 5e. 填 `<script id="eval-findings">` 数组
-
-把步骤 4.5 独立 subagent 返回的 finding 数组写进 `<script id="eval-findings">` 块（默认是 `[]`）：
-
-```html
-<script id="eval-findings" type="application/json">
-[{ "kind": "recall", "severity": "high", "confidence": "med", "text": "...", "skill": "..." }]
-</script>
+```sh
+node <skill-dir>/scripts/insights-pipeline.mjs prepare \
+  --runtime <claude-code|codex> \
+  --days 30 \
+  --facet-schema-version 1 \
+  --prompt-version 1 \
+  > /tmp/session-compound-prepared.json
 ```
 
-模板会把它渲染进「评估」tab 的「指令遵循与 skill 评估」区块；数组为空则该区块自动隐藏（不显示空壳）。**原样注入 subagent 的输出，不要在这里二次过滤或改写措辞**——预过滤已在派遣纪律里禁止。
+默认缓存位于 `~/.cache/auriga-cli/session-compound/facets/<runtime>/`。目录权限为 `0700`，文件为 `0600`；缓存只保存短切面和失效元数据，不复制完整会话。缓存可随时删除，下次从原始日志重建。
 
-### 步骤 6：打开报告
+命中要求 `runtime + session_id + content_fingerprint + facet_schema_version + analysis_prompt_version` 全部一致。单次默认最多排入 50 个未缓存会话；更多会话进入 `deferred`，报告必须披露，后续运行从未完成部分继续。
 
-替用户打开报告，并把 `/tmp` 下的绝对路径一并报告。**优先用内置浏览器**打开 `file://<绝对路径>`——不同 Agent 的内置浏览器工具不一样，用当前 Agent 可用的那个；没有内置浏览器时回退到系统命令（macOS `open <path>` / Linux `xdg-open <path>`）。**不要**预渲染候选（勾选交给用户）、**不要**把报告复制进项目仓库（它是一次性产物）。用户在 Compound tab 勾选、行内编辑措辞、点 Copy，把生成的提示词粘回 Agent 那一句话就完成落库。
+### 2. 提取并保存逐会话切面
 
----
+仅处理 `analysis_queue`。对每个描述符先用对应分析器的 `--file` 生成精简证据，再读取 `references/facet-dispatch.md`，用内置 Agent 分批生成严格的 `SessionFacet` JSON。一个会话或一个批次失败不丢弃其他成功结果。
 
-## 备注
+每个有效切面通过确定性入口保存：
 
-- 写 `skill-gap` / `agent-md` 类候选前，强烈建议先用 `find-skills` 跑一次 ecosystem 搜索（`npx skills find <query>`，候选 gate #5）；新建 skill 时按 skill-development 规范（第三人称 description、imperative body、progressive disclosure：SKILL.md ≤2k 词 + references/ + scripts/ + assets/、validation checklist）撰写，`skill-gap` body 模板的每个字段都对应该规范的某条要求
-- 模板 JS 只读三个 script block：`<script id="report-data">`（analyzer 输出）、`<script id="candidates">`（你撰写的候选）、`<script id="eval-findings">`（步骤 4.5 独立 subagent 的评估 finding）。其余渲染都靠这三个 blob 驱动。**不要改 HTML 结构**。
-- Compound tab 是这个 skill 区别于普通 session report 的核心价值——把「AI 提取候选 → 人审核 → 落入 AGENTS.md / 装 skill / 新建 skill」做成了无摩擦闭环。
-- Codex 有原生 sub-agent（`spawn_agent` / `wait_agent` / `close_agent` 工具调用），analyzer 会把 `agent_type` 汇总到 `health.subagents`。Codex 也支持 skill（`$skill-name` 命令，日志里以 `<skill><name>` 块注入），analyzer 解析后填进 `health.skills`，与 Claude 端同形。
-- Codex 的 `health` 段额外含：`compaction_count`（自动压缩次数）、`patch_apply.{success, failure}`（代码修改成败比）、`mcp_tool_call_count` / `custom_tool_call_count` / `web_search_count` / `tool_search_count` / `image_generation_count` 等专项工具计数，以及 `context_window`（模型窗口大小）。
-- 如果 `raw_for_compound` 很稀（会话短、没反馈瞬间），宁可产出 1–3 条高质量 `skill-gap`，也不要硬凑 5 条。
-- 如果 JSON 超过 2MB，截断 `narrative.human_turns` 和 `health.expensive_turns` 到前 50 条再嵌入（analyzer 通常已经控制了，但要检查）。
+```sh
+node <skill-dir>/scripts/insights-pipeline.mjs store \
+  --descriptor <descriptor.json> \
+  --facet <facet.json> \
+  --facet-schema-version 1 \
+  --prompt-version 1
+```
+
+结构不合法的切面不进缓存。保存完成后重新运行 `prepare`，获得包含本轮缓存命中的最新清单。
+
+### 3. 构建有界汇总输入
+
+```sh
+node <skill-dir>/scripts/insights-pipeline.mjs aggregate \
+  --prepared /tmp/session-compound-prepared-latest.json \
+  --max-facets 80 \
+  > /tmp/session-compound-aggregate.json
+```
+
+全部有效切面参与机械计数；只有有界的代表性切面进入最终语义汇总。报告同时显示发现数、时间窗内数量、成功分析数、缓存命中、排除、延后和未纳入语义分析的数量。
+
+### 4. 生成近期洞察
+
+读取 `references/insights-dispatch.md`，用内置 Agent 从汇总输入生成严格的 `InsightReportData`。跨会话的“反复”结论至少引用两个独立会话；单次事实只能写成单次观察。Agent 侧阻碍、用户侧摩擦和环境问题分开陈述，同时保留有效模式。
+
+如果近期只有一个有效会话或覆盖不足，报告事实摘要和证据限制，不声称存在趋势。允许零条值得尝试和零条长期候选。
+
+将结果写入 `/tmp/session-compound-insights-data.json`，再运行：
+
+```sh
+node <skill-dir>/scripts/render-report.mjs \
+  --mode insights \
+  --template <skill-dir>/templates/recent-insights.html \
+  --data /tmp/session-compound-insights-data.json \
+  --output /tmp/session-compound-insights-<timestamp>.html
+```
+
+## 交付与人工确认
+
+- 打开所选报告，并返回 `/tmp` 下的绝对路径；没有浏览器工具时使用系统默认打开命令。
+- 报告生成即为合法完成；零建议、零候选不是错误。
+- 不自动安装技能，不修改 `AGENTS.md`、项目规则、技能或其他工程资产。
+- 洞察与值得尝试默认只留在报告里。只有用户明确选择长期候选后，才交给相应能力：工程文档与 Agent 上下文交给 `documentation-management`，技能交给 `skill-creator`，新审查者交给 `reviewer-creator`。
+- 候选应用属于新的实现动作，继续遵循当前仓库的需求、分支、验证和评审规则。

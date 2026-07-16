@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Session Compound — REPORT_TITLE</title>
+<title>Session Compound — 单会话复盘</title>
 <style>
   /* Restyled to Anthropic Claude brand language:
      warm cream canvas, serif display headlines, coral CTAs, occasional
@@ -552,24 +552,8 @@
 </head>
 <body>
 
-<!-- All analyzer output goes here. JS reads this and renders everything. -->
-<script id="report-data" type="application/json">
-{ "cli": "claude-code", "session": {}, "narrative": {}, "health": {}, "raw_for_compound": {} }
-</script>
-
-<!-- Agent-authored compound candidates (one array of items). Schema:
-     [{ "name": "...", "type": "existing-skill|agent-md|skill-gap",
-        "body": "markdown body", "default_selected": true|false }] -->
-<script id="candidates" type="application/json">
-[]
-</script>
-
-<!-- Independent eval subagent findings (SKILL.md fills this in step 5e). Schema:
-     [{ "kind": "recall|compliance|skill-eval", "severity": "high|med|low",
-        "confidence": "high|med|low", "text": "finding", "skill": "name?" }] -->
-<script id="eval-findings" type="application/json">
-[]
-</script>
+<!-- render-report.mjs replaces the single data slot. Do not add inline data. -->
+<script id="report-bundle" type="application/json">__REPORT_BUNDLE__</script>
 
 <div class="hero">
   <div>
@@ -593,11 +577,7 @@
 <section class="panel active" id="panel-narrative">
   <div class="card">
     <h3>会话摘要</h3>
-    <!-- AGENT: narrative-summary
-         用 ≤3 句话讲述本次会话：用户最初要做什么、实际做了什么、关键转折点。
-         必须是事实性陈述——引用真实的 turn 内容、真实的工具使用模式，不要套话。
-    -->
-    <div id="narrative-summary" class="empty-hint">摘要未填——Agent 需要替换 <code>&lt;!-- AGENT: narrative-summary --&gt;</code> 块。</div>
+    <div id="narrative-summary" class="empty-hint">未提供会话摘要。</div>
   </div>
 
   <h2>时间线</h2>
@@ -622,15 +602,8 @@
 <section class="panel" id="panel-health">
   <div class="card">
     <h3>异常 & 亮点</h3>
-    <!-- AGENT: anomalies
-         填 3-5 张 take 卡片。数值尽量用「占总 token 的 %」表达。class:
-         .take.bad（浪费 / 红）、.take.good（健康 / 绿）、.take.warn（警示 / 黄）、
-         .take.info（中性事实 / 蓝）。.fig 一个短数字，.txt 一句白话，主语用 <b> 包起来。
-         示例：
-         <div class="take bad"><div class="fig">62%</div><div class="txt">Turn <b>#4</b> 一个 prompt 消耗了 62% 的总 token</div></div>
-    -->
     <div class="takes" id="anomalies">
-      <div class="empty-hint">异常未填——Agent 需要替换 <code>&lt;!-- AGENT: anomalies --&gt;</code> 块。</div>
+      <div class="empty-hint">未提供异常或亮点。</div>
     </div>
   </div>
 
@@ -698,15 +671,20 @@
   <div id="eval-empty" class="empty-hint" hidden>评估 finding 由独立子代理在运行时产出；本报告尚未注入。</div>
 </section>
 
-<!-- ============ TAB 4: COMPOUND / 沉淀（playground） ============ -->
+<!-- ============ TAB 4: COMPOUND / 三层建议 ============ -->
 <section class="panel" id="panel-compound">
   <div class="card">
-    <h3>把这次会话沉淀进 memory / docs</h3>
+    <h3>从理解到长期沉淀</h3>
     <p style="color: var(--text-dim); margin: 6px 0 0; font-size: 13px;">
-      勾选想保留的条目，下方会实时合成 markdown 和「复制回 Claude / Codex」的提示词。
-      措辞如果想改，复制后回到 chat 里改即可。
+      洞察不要求行动，值得尝试只用于低成本验证；长期候选默认未选中，只有人工选择后才进入后续工作。
     </p>
   </div>
+
+  <h2>洞察</h2>
+  <div class="card" id="observations-list"></div>
+
+  <h2>值得尝试</h2>
+  <div class="card" id="experiments-list"></div>
 
   <div class="compound-grid">
     <div>
@@ -723,7 +701,7 @@
 
   <div class="prompt-out">
     <div class="head">
-      <div class="label">复制粘回 Claude / Codex</div>
+      <div class="label">复制已确认的长期候选</div>
       <button class="copy-btn" id="copy-btn">复制</button>
     </div>
     <textarea id="prompt-textarea" readonly></textarea>
@@ -732,12 +710,10 @@
 
 <script>
 (function () {
-  const data = JSON.parse(document.getElementById('report-data').textContent);
-  // Coerce the agent-filled blocks to arrays: a malformed fill (null, a bare
-  // string, an object) must not throw and blank out the whole report.
-  const asArray = (id) => { try { const v = JSON.parse(document.getElementById(id).textContent); return Array.isArray(v) ? v : []; } catch { return []; } };
-  const candidates = asArray('candidates');
-  const evalFindings = asArray('eval-findings');
+  const bundle = JSON.parse(document.getElementById('report-bundle').textContent);
+  const data = bundle.report_data || {};
+  const candidates = Array.isArray(bundle.durable_candidates) ? bundle.durable_candidates : [];
+  const evalFindings = Array.isArray(bundle.eval_findings) ? bundle.eval_findings : [];
 
   // ---------- Helpers ----------
   const $ = (sel) => document.querySelector(sel);
@@ -755,6 +731,22 @@
     const filled = Math.round((n / max) * width);
     return '█'.repeat(filled) + '░'.repeat(width - filled);
   };
+
+  const summary = String(bundle.narrative_summary || '').trim();
+  if (summary) {
+    $('#narrative-summary').classList.remove('empty-hint');
+    $('#narrative-summary').textContent = summary;
+  }
+  const anomalies = Array.isArray(bundle.anomalies) ? bundle.anomalies : [];
+  if (anomalies.length) {
+    $('#anomalies').innerHTML = anomalies.map((item, index) => {
+      const tone = ['bad', 'good', 'warn', 'info'].includes(item.tone) ? item.tone : 'info';
+      return `<div class="take ${tone} stagger" style="--i:${index}">
+        <div class="fig">${escapeHtml(String(item.figure || '•'))}</div>
+        <div class="txt">${escapeHtml(String(item.text || ''))}</div>
+      </div>`;
+    }).join('');
+  }
 
   // ---------- Body data-cli ----------
   document.body.setAttribute('data-cli', data.cli || 'claude-code');
@@ -784,17 +776,6 @@
       document.querySelectorAll('.panel').forEach(x => x.classList.remove('active'));
       t.classList.add('active');
       $('#panel-' + t.dataset.tab).classList.add('active');
-    });
-  });
-
-  // ---------- Stagger animation for agent-authored take cards ----------
-  // The anomalies <div class="takes"> children are written by the agent in
-  // step 5c (raw HTML, no JS hook). Add the .stagger class + --i index after
-  // the page loads so they get the same fade-up cascade as candidates.
-  requestAnimationFrame(() => {
-    document.querySelectorAll('#anomalies .take').forEach((el, i) => {
-      el.classList.add('stagger');
-      el.style.setProperty('--i', i);
     });
   });
 
@@ -1017,16 +998,13 @@
   // Internal state for compound tab
   const state = candidates.map((c, i) => ({
     idx: i,
-    selected: c.default_selected !== false,
+    selected: c.default_selected === true,
     name: c.name || `candidate-${i}`,
-    type: c.type || 'agent-md',
-    body: c.body || '',
+    type: c.type || 'agent-context',
+    body: c.body || c.text || '',
   }));
 
-  // Visually surface ecosystem recommendations (existing-skill) at the top
-  // of the candidate list — they're cheaper to act on than building a new
-  // skill, so users should see them first. Stable sort otherwise.
-  const TYPE_ORDER = ['existing-skill', 'agent-md', 'skill-gap'];
+  const TYPE_ORDER = ['mechanism', 'agent-context', 'existing-skill', 'reviewer', 'new-skill'];
   const orderIdx = (t) => {
     const i = TYPE_ORDER.indexOf(t);
     return i === -1 ? TYPE_ORDER.length : i;
@@ -1073,13 +1051,12 @@
 
   function renderCandidates() {
     if (!state.length) {
-      candidatesList.innerHTML = '<div class="empty-hint">未产出候选条目。Agent 需要填 <code>&lt;script id="candidates"&gt;</code>。</div>';
+      candidatesList.innerHTML = '<div class="empty-hint">本次没有达到长期沉淀门槛的候选。</div>';
       return;
     }
     candidatesList.innerHTML = state.map((c, i) => {
-      const isExisting = c.type === 'existing-skill';
       return `
-      <div class="candidate ${c.selected ? 'active' : ''} ${isExisting ? 'is-existing-skill' : ''}" data-idx="${i}" style="--i: ${i};">
+      <div class="candidate ${c.selected ? 'active' : ''}" data-idx="${i}" style="--i: ${i};">
         <div class="head">
           <label>
             <input type="checkbox" ${c.selected ? 'checked' : ''} />
@@ -1108,9 +1085,7 @@
       if (!c.selected) continue;
       (groups[c.type] ||= []).push(c);
     }
-    // Existing-skill first (cheapest action: just install), then AGENTS.md
-    // edits, then skill-gap (heaviest: build a new skill).
-    const order = ['existing-skill', 'agent-md', 'skill-gap'];
+    const order = TYPE_ORDER;
     const parts = [];
     for (const type of order) {
       if (!groups[type]?.length) continue;
@@ -1122,36 +1097,13 @@
     return parts.join('\n\n');
   }
 
-  // Per-type processing instructions for the copy-back prompt. buildPrompt
-  // emits only the blocks whose type is present in the current selection —
-  // shipping all three when the user picked one type wastes downstream tokens.
-  const TYPE_INSTRUCTIONS = {
-    'existing-skill': [
-      '**`## existing-skill`** — 步骤 4 预查 ecosystem 时找到的可复用 skill。请直接执行每条 body 里附的 `npx -y skills add <owner/repo@skill> -a codex claude-code -y` 命令安装（`npx -y` 在前给 npx 自动升级用；`-a codex claude-code` 同时装到 codex 和 claude-code 两个 agent；末尾 `-y` 跳过 skills CLI 自己的确认）。安装成功后简短确认，无需再 scaffold 新 skill。',
-    ],
-    'agent-md': [
-      '**`## agent-md`** — 沉淀到 AGENTS.md 体系。每条 body 第一行已经给出**推荐 target** + 落点理由（就地优化某个 `<skill>/SKILL.md` / 扩写现有 `docs/rules/<topic>.md` / 根 `AGENTS.md` / 新建 `docs/rules/<topic>.md` + 索引 / `<subdir>/AGENTS.md`）。这是 session-compound 已按工程现有规范判定过的落点——优先沿用，不要从头再决策一轮。落地前快速核对一次仓库现状（目标文件 / skill 是否仍在、是否已有覆盖该领域的更合适位置）：若现状与推荐 target 一致就直接落；只有当仓库结构与候选判断明显不符时才调整，并说明原因。优先「就地优化已有 skill / 扩写已有 docs」而非新建或往根 AGENTS.md 堆内容（根文件是入口+索引，靠多级文件渐进式披露）。按 target 把"要写入的内容"段逐字落到对应文件；新建 `docs/rules/<topic>.md` 时同时在根 `AGENTS.md` 加索引行；若根 `AGENTS.md` 与 `CLAUDE.md` 是软链则只写一处。',
-    ],
-    'skill-gap': [
-      '**`## skill-gap`** — 新 skill 候选。每条都已按 5 条 hard gate（多步骤 + 可重复 + 第三人称触发短语 + 可绑定资源 + ecosystem 没现成的）筛过，正文里附了触发短语 / find-skills 检查结果 / imperative 步骤 / bundled resources。请按以下顺序处理：',
-      '  1. 调用 `find-skills` skill：用候选里给的关键词跑 `npx skills find` 再确认一次（候选作者的查可能不完整或过时；如果上面 `## existing-skill` 段已经覆盖了相同 query 范围，可跳过）；若发现现成可复用 skill，停在这里——把那个 skill 推荐给我，不要继续造轮子',
-      '  2. 如果确认无现成可复用，调用 `skill-creator` skill 来 scaffold 新 skill。**不要直接现场写 SKILL.md**——skill-creator 会带你过完整的 capture-intent / interview / draft / test-prompts / eval 流程，并确保 description 用第三人称具体触发短语、body 用 imperative 风格、SKILL.md ≤2k 词且把细节拆到 references/（这些是 skill-development 文档的硬规范）',
-      '  3. 在我确认 scope 之前不要落盘',
-    ],
-  };
-
   function buildPrompt(md) {
     if (!md) return '';
-    const present = TYPE_ORDER.filter((t) =>
-      state.some((c) => c.selected && c.type === t),
-    );
-    const blocks = [];
-    for (const type of present) blocks.push(...TYPE_INSTRUCTIONS[type], '');
-    const intro =
-      present.length > 1
-        ? '请处理以下 session-compound 输出。每段对应一个沉淀路径，不要混淆：'
-        : '请处理以下 session-compound 输出：';
-    return [intro, '', ...blocks, '---', '', md].join('\n');
+    return [
+      '我已人工选择以下 session-compound 长期候选。请先核对当前工程是否已经吸收这些要求，再把仍然有效的候选路由给对应管理能力；不要由 session-compound 自己直接落库。',
+      '',
+      md,
+    ].join('\n');
   }
 
   function updateOutputs() {
@@ -1186,6 +1138,23 @@
 
   renderCandidates();
   updateOutputs();
+
+  function renderCommitmentList(target, items, emptyText) {
+    const list = Array.isArray(items) ? items : [];
+    $(target).innerHTML = list.length
+      ? list.map((item) => `<div class="turn">
+          <div class="idx">${target.includes('experiment') ? '试' : '察'}</div>
+          <div class="summary">
+            <div>${escapeHtml(item.title || item.name || item.text || '')}</div>
+            ${item.text && item.text !== item.title ? `<div class="toolset">${escapeHtml(item.text)}</div>` : ''}
+            ${item.trial ? `<div class="toolset">试法：${escapeHtml(item.trial)}</div>` : ''}
+          </div>
+          <div class="tokens"></div>
+        </div>`).join('')
+      : `<div class="empty-hint">${escapeHtml(emptyText)}</div>`;
+  }
+  renderCommitmentList('#observations-list', bundle.observations, '本次没有额外洞察。');
+  renderCommitmentList('#experiments-list', bundle.experiments, '本次没有足够证据提出值得尝试的改进。');
 
   // ---------- escapeHtml ----------
   function escapeHtml(str) {
