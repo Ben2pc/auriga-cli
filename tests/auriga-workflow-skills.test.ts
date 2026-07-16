@@ -319,7 +319,7 @@ describe("auriga-workflow skill contracts", () => {
 
     for (const rel of ["AGENTS.md", "AGENTS.template.zh-CN.md", "AGENTS.template.en.md"]) {
       const template = read(rel);
-      assert.match(template, /v1\.17\.0/);
+      assert.match(template, /v1\.18\.0/);
       assert.match(
         template,
         /领域模型|domain model/i,
@@ -494,36 +494,81 @@ describe("auriga-workflow skill contracts", () => {
     assert.match(incremental, /已确认[^。\n]*arch_design\.md[^。\n]*(?:优先|约束)/);
   });
 
-  test("incremental-impl decomposes requirement changes into complete implementation units", () => {
+  test("incremental-impl traces VAL-IMPL-001..011 to requirement-led implementation units", () => {
     const text = read("plugins/auriga-workflow/skills/incremental-impl/SKILL.md");
+    const contract = read(
+      "docs/worklog/worklog-2026-07-16-refactor-simplify-incremental-impl/validation-contract.md",
+    );
     const pluginReadme = read("plugins/auriga-workflow/README.md");
+    const specDesign = read("plugins/auriga-workflow/skills/spec-design/SKILL.md");
+    const umbrellaTemplate = read(
+      "plugins/auriga-workflow/skills/spec-design/references/umbrella-template.md",
+    );
+    const reviewRecord = read(
+      "docs/worklog/worklog-2026-07-16-refactor-simplify-incremental-impl/review.md",
+    );
+    const reviewIndex = read(
+      "docs/long-running-specs/model-generation-workflow-upgrade/reviews/README.md",
+    );
+    const programUmbrella = read(
+      "docs/long-running-specs/model-generation-workflow-upgrade/umbrella.md",
+    );
     const zhWorkflow = read("AGENTS.template.zh-CN.md");
     const enWorkflow = read("AGENTS.template.en.md");
+    const repoWorkflow = read("AGENTS.md");
 
-    assert.match(text, /核心产物是\*\*需求改动的实施拆分\*\*/);
-    assert.match(text, /完整实施单元[^。]*独立交付一个连贯需求结果或一个合法迁移状态/);
-    assert.match(text, /结果完整/);
-    assert.match(text, /边界内聚/);
-    assert.match(text, /可独立验证/);
-    assert.match(text, /依赖明确/);
+    for (let index = 1; index <= 11; index += 1) {
+      const id = `VAL-IMPL-${String(index).padStart(3, "0")}`;
+      assert.match(contract, new RegExp(`\\| ${id} \\|`), `${id} must remain traceable`);
+    }
+
+    // VAL-IMPL-001: consume approved inputs without silently reopening upstream decisions.
+    assert.match(text, /用户最新决定[^。]*验收契约[^。]*arch_design\.md[^。]*当前计划/);
+    assert.match(text, /不在实现阶段重新决定产品范围、模块边界或迁移形态/);
+
+    // VAL-IMPL-002: one unit carries the whole coherent result and its protection evidence.
+    assert.match(text, /完整实施单元[^。]*(?:需求结果|迁移状态)[^。]*最小改动集合/);
+    assert.match(text, /结果完整[^\n]*(?:代码|实现)[^\n]*测试[^\n]*(?:配置|数据变化)[^\n]*文档/);
+    assert.match(text, /行为保护/);
+
+    // VAL-IMPL-003: split by independently verifiable results, not delivery mechanics.
+    assert.match(text, /技术不变量/);
+    assert.match(text, /只有当两个结果[^。]*分别验证[^。]*分别集成[^。]*才拆/);
+    assert.match(text, /文件数、代码行数、提交数量和写入者[^。]*不是单元边界/);
     assert.match(text, /中间状态合法/);
-    assert.match(text, /文件数、代码行数、提交数量和写入者都不是单元边界/);
-    assert.match(text, /默认单写者按依赖顺序实施/);
-    assert.match(text, /文件所有权互不重叠/);
-    assert.match(text, /模型与推理强度默认继承/);
+
+    // VAL-IMPL-005: parallelism follows decomposition and has no unmet dependencies.
+    assert.match(text, /默认单写者[^。]*按依赖顺序实施/);
+    assert.match(
+      text,
+      /拆分完成后[^。]*文件所有权互不重叠[^。]*输入输出(?:边界)?稳定[^。]*(?:不存在未满足依赖|依赖已经完成)[^。]*并行/,
+    );
+    assert.match(text, /有前后依赖[^。]*等待前置结果完成/);
+
+    // VAL-IMPL-006..009: preserve cross-runtime dispatch capabilities and evidence handoff.
+    assert.match(text, /模型与推理强度默认继承[^。]*确有需要[^。]*运行时支持[^。]*参数覆盖[^。]*不写死/);
     assert.match(text, /运行时原生工作树/);
     assert.match(text, /主代理预先创建并传入路径/);
     assert.match(text, /无法建立等价隔离时改为串行/);
+    assert.match(
+      text,
+      /写入代理收到[^。]*单元结果[^。]*权威资料[^。]*工作目录[^。]*文件所有权[^。]*禁止范围[^。]*依赖[^。]*验证方式[^。]*期望证据/,
+    );
+    assert.match(text, /委派写入[^。]*变更结果[^。]*验证证据[^。]*未解决问题/);
+    assert.match(text, /内联实现[^。]*不生成[^。]*固定交接模板/);
     assert.match(text, /代理间通信[^。]*正确性不能依赖临时消息/);
     assert.match(text, /权威接口、决定和进度[^。]*仓库或持久计划验证/);
-    assert.match(text, /内联实现不生成额外的固定交接模板/);
-    assert.match(text, /不强制每个实施单元对应一个提交/);
+
+    // VAL-IMPL-010: commits keep semantic boundaries without mirroring unit boundaries.
+    assert.match(text, /git-workflow[^。]*语义边界提交[^。]*不强制[^。]*实施单元[^。]*提交/);
 
     for (const removed of [
-      /\bXS\b/,
-      /\bXL\b/,
+      /\b(?:XS|S|M|L|XL)\b/,
       /30[–-]100/,
       /300[–-]800/,
+      /规模(?:门|分档|过滤|判定)/,
+      /(?:最低|最少|minimum)[^。\n]{0,30}(?:代理|agent|并行|parallel)/i,
+      /(?:差异|代码|diff)[^。\n]{0,20}(?:行数|lines?)[^。\n]{0,20}(?:阈值|[<>≤≥]|\d+\s*[–-]\s*\d+)/i,
       /Minimum-slices gate/i,
       /NOTICED BUT NOT TOUCHING/,
       /没有 agent-to-agent channel/i,
@@ -533,11 +578,36 @@ describe("auriga-workflow skill contracts", () => {
       assert.doesNotMatch(text, removed);
     }
 
-    assert.match(pluginReadme, /complete, verifiable implementation units/);
-    assert.match(zhWorkflow, /需求结果、验证边界和合法中间状态/);
-    assert.match(enWorkflow, /requirement result, verification boundary, and valid intermediate state/);
-    assert.match(zhWorkflow, /文件所有权、工作树隔离和集成顺序/);
-    assert.match(enWorkflow, /file ownership, worktree isolation, and integration order/);
+    // VAL-IMPL-011: public entry points describe decomposition before execution routing.
+    assert.match(
+      pluginReadme,
+      /\| `incremental-impl` \|[^|\n]*requirement changes[^|\n]*implementation units[^|\n]*incremental execution/i,
+    );
+    assert.match(zhWorkflow, /incremental-impl[^。\n]*先[^。\n]*完整实施单元[^。\n]*按依赖/);
+    assert.match(enWorkflow, /incremental-impl[^\n]*decompose[^\n]*complete implementation units[^\n]*dependency/i);
+    assert.match(specDesign, /incremental-impl[^\n]*子规范[^\n]*完整[^\n]*实施单元/);
+    assert.match(umbrellaTemplate, /incremental-impl[^\n]*子规范[^\n]*完整实施单元/);
+    assert.doesNotMatch(specDesign, /incremental-impl[^\n]*(?:第 2 步|同一套切分轴)/);
+    assert.doesNotMatch(umbrellaTemplate, /incremental-impl Step 2/);
+    for (const workflow of [zhWorkflow, enWorkflow, repoWorkflow]) {
+      assert.match(workflow, /# auriga (?:工作流|Workflow) \(v1\.18\.0\)/);
+    }
+    assert.match(reviewIndex, /incremental-impl[^\n]*worklog-2026-07-16-refactor-simplify-incremental-impl\/review\.md/);
+    assert.match(programUmbrella, /incremental-impl[^\n]*VAL-IMPL-001\.\.011[^\n]*PR #191/);
+    for (const heading of [
+      "## 当前职责",
+      "## 可复现失效模式",
+      "## 目标模型证据",
+      "## 与其他资产的关系",
+      "## 处置结论",
+      "## 风险与恢复条件",
+      "## 参考资料",
+    ]) {
+      assert.ok(reviewRecord.includes(heading), `review record must preserve ${heading}`);
+    }
+    assert.match(reviewRecord, /(?:未执行[^。]*模型行为评测|模型行为评测[^。]*未执行)/);
+    assert.match(reviewRecord, /观察信号|如果正式评审|如果多写者/);
+    assert.match(reviewRecord, /恢复|加强|补充/);
     assert.doesNotMatch(zhWorkflow, /判定 XS/);
     assert.doesNotMatch(enWorkflow, /rates the work XS/);
   });

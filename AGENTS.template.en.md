@@ -1,5 +1,5 @@
 <!-- AURIGA:WORKFLOW:v1 START — Managed block, maintained by auriga-cli. Do not edit by hand; upgrades replace it wholesale. Put project-specific instructions after the END marker below. -->
-# auriga Workflow (v1.17.0)
+# auriga Workflow (v1.18.0)
 
 1. Requirement Clarification: Clarify new requirements with `spec-design` first. **spec = why + observable what; arch design = structural how; plan = implementation steps** — requirements do not prescribe technical paths; for product features, lead with the Why. A change that does not move the external behavior contract may skip the spec, but its technical design may still need architecture clarification.
 

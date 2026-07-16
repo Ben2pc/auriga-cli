@@ -1,5 +1,5 @@
 <!-- AURIGA:WORKFLOW:v1 START — 受管区块,由 auriga-cli 维护,请勿手改;升级会整块覆盖。工程专属规则写在下方 END 标记之后。 -->
-# auriga 工作流 (v1.17.0)
+# auriga 工作流 (v1.18.0)
 
 1. 需求澄清：新需求先用 `spec-design` 澄清。**spec = why + 用户可观察的 what；arch design = 系统结构的 how；plan = 实施步骤**——需求规格不写技术路径；产品功能优先讲清“为什么做”。改动不影响外部行为契约时可以跳过需求规格，但技术方案仍可能需要架构澄清。
 
@@ -65,7 +65,7 @@
 - **并行写必须隔离**：独立 git worktree，或改动目录完全独立。
 - **按档位选模型，不写死型号**：flagship 给架构判断 / 复杂编码；workhorse 给常规机械任务。Effort：写码 / agentic 子任务 `xhigh`，轻度调研 `high`，机械任务 `medium`。
 - **派遣必须显式给出验收标准和输出格式**（shape + scope/length），具体格式按任务选。
-<!-- AURIGA:WORKFLOW:v1 END sha256=f9faf3eb286e3d9b -->
+<!-- AURIGA:WORKFLOW:v1 END sha256=aad6d2e4d9600c5a -->
 
 <!-- 在下方添加你的工程专属规则。上方受管区块由 auriga-cli 维护,升级时整块替换;此处内容会被保留。 -->
 
