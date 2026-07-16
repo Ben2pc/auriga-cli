@@ -998,8 +998,8 @@ describe("reviewer-creator extends support", () => {
     );
   });
 
-  // VAL-CRT-002 — the question flow asks supplement-vs-new-dimension and writes extends
-  test("SKILL.md asks supplement-vs-new-dimension and writes extends", () => {
+  // VAL-REV-001, VAL-REV-002 — classify from evidence and ask only on real ambiguity
+  test("SKILL.md classifies hosted versus standalone reviewers without mandatory questioning", () => {
     const text = read(
       "plugins/auriga-workflow/skills/reviewer-creator/SKILL.md",
     );
@@ -1007,9 +1007,16 @@ describe("reviewer-creator extends support", () => {
       text.includes("extends"),
       "reviewer-creator must populate the extends field from the answer",
     );
-    assert.ok(
-      /补充[^]*?独立维度|独立维度[^]*?补充/.test(text),
-      "the flow must ask whether the reviewer supplements a built-in or is a new dimension",
+    assert.match(text, /补充[^]*?独立维度|独立维度[^]*?补充/);
+    assert.match(
+      text,
+      /证据[^。\n]*(?:明确|足够)[^。\n]*(?:直接|判断|确定)/,
+      "clear repository evidence should be enough to classify the reviewer",
+    );
+    assert.match(
+      text,
+      /歧义[^。\n]*(?:询问|确认)/,
+      "user confirmation should be reserved for ambiguity that changes routing",
     );
     assert.ok(
       !text.includes("不会自动产出"),
@@ -1031,7 +1038,36 @@ describe("reviewer-creator extends support", () => {
       "the schema must distinguish required from optional fields",
     );
     assert.match(text.match(/\*\*必填：\*\*[\s\S]*?\*\*可选：\*\*/)?.[0] ?? "", /extends/);
-    assert.match(text.match(/\*\*可选：\*\*[\s\S]*?合法 `trigger`/)?.[0] ?? "", /effort/);
+    assert.match(text.match(/\*\*可选：\*\*[\s\S]*?(?:##|$)/)?.[0] ?? "", /effort/);
+  });
+
+  // VAL-REV-004 — deep-review owns the current registry and routing vocabulary
+  test("reviewer-creator reads the current deep-review protocol instead of duplicating its registry", () => {
+    const text = read(
+      "plugins/auriga-workflow/skills/reviewer-creator/SKILL.md",
+    );
+    assert.match(text, /deep-review[^。\n]*(?:路由表|元数据协议|注册表)/);
+    assert.doesNotMatch(text, /内置名称：/);
+    for (const trigger of Object.values(builtinReviewerTriggers)) {
+      assert.ok(
+        !text.includes(`- \`${trigger}\``),
+        `reviewer-creator must not duplicate registered trigger ${trigger}`,
+      );
+    }
+  });
+
+  // VAL-REV-003 — content depth follows risk instead of fixed quotas
+  test("reviewer guidance has no fixed checklist or scenario quota", () => {
+    const creator = read(
+      "plugins/auriga-workflow/skills/reviewer-creator/SKILL.md",
+    );
+    const template = read(
+      "plugins/auriga-workflow/skills/reviewer-creator/references/template.md",
+    );
+    assert.doesNotMatch(creator, /5[–-]10|2[–-]3/);
+    assert.doesNotMatch(template, /5[–-]10|2[–-]3/);
+    assert.match(template, /边界[^。\n]*(?:容易混淆|不明显)[^。\n]*(?:保留|提供)/);
+    assert.match(template, /没有[^。\n]*(?:真实|必要)[^。\n]*删除本节/);
   });
 
   test("reviewer-creator uses only mechanically routable triggers", () => {
@@ -1041,6 +1077,7 @@ describe("reviewer-creator extends support", () => {
     assert.doesNotMatch(text, /detection-driven/);
   });
 
+  // VAL-REV-005 — hosted and standalone reviewers keep distinct output contracts
   test("hosted reviewers inherit the host output contract", () => {
     const creator = read(
       "plugins/auriga-workflow/skills/reviewer-creator/SKILL.md",
@@ -1204,8 +1241,8 @@ describe("deep-review modernization contract", () => {
     assert.match(claude.version, /^\d+\.\d+\.\d+$/);
     const [major, minor, patch] = claude.version.split(".").map(Number);
     assert.ok(
-      major > 4 || (major === 4 && (minor > 0 || patch >= 13)),
-      `plugin version ${claude.version} must not regress below 4.0.13`,
+      major > 4 || (major === 4 && (minor > 0 || patch >= 14)),
+      `plugin version ${claude.version} must not regress below 4.0.14`,
     );
   });
 
