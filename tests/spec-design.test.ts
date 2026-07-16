@@ -425,6 +425,16 @@ describe("spec-design skill — repo-check VALs", () => {
       /正式评审记录[^\n]*(?:不能删除|不得删除)/,
       "formal child review evidence must survive the Ready transition",
     );
+    assert.match(
+      reviewIndex,
+      /用户明确豁免子规范[^\n]*只保留评审记录/,
+      "an explicit user decision may waive a child spec without manufacturing an unused asset",
+    );
+    assert.match(
+      reviewIndex,
+      /豁免子规范不等于豁免正式评审记录/,
+      "waiving a child spec must not erase formal review evidence",
+    );
   });
 
   test("archived child contract uses unique VAL ids and maps them to parent assertions", () => {
@@ -531,12 +541,17 @@ describe("spec-design skill — repo-check VALs", () => {
     );
   });
 
-  test("VAL-DOC-001: documentation-and-adrs forked into auriga-workflow — gone from skills-lock + .agents/skills, present as plugin-bundled skill", () => {
+  test("VAL-DOC-001: documentation-management replaces the vendored documentation skill and ships only through auriga-workflow", () => {
     const lock = JSON.parse(read("skills-lock.json"));
     assert.equal(
       "documentation-and-adrs" in lock.skills,
       false,
       "skills-lock.json must not contain documentation-and-adrs (forked into auriga-workflow)",
+    );
+    assert.equal(
+      "documentation-management" in lock.skills,
+      false,
+      "auriga-owned documentation-management must not return to skills-lock.json",
     );
     assert.equal(
       fs.existsSync(path.join(repoRoot, ".agents/skills/documentation-and-adrs")),
@@ -547,11 +562,18 @@ describe("spec-design skill — repo-check VALs", () => {
       fs.existsSync(
         path.join(
           repoRoot,
-          "plugins/auriga-workflow/skills/documentation-and-adrs/SKILL.md",
+          "plugins/auriga-workflow/skills/documentation-management/SKILL.md",
         ),
       ),
       true,
-      "documentation-and-adrs must ship as a plugin-bundled auriga-workflow skill",
+      "documentation-management must ship as a plugin-bundled auriga-workflow skill",
+    );
+    assert.equal(
+      fs.existsSync(
+        path.join(repoRoot, "plugins/auriga-workflow/skills/documentation-and-adrs"),
+      ),
+      false,
+      "the old documentation-and-adrs plugin path must be retired",
     );
     // Plugin-bundled skills carry no .claude/skills/<name> symlink — the
     // fork must remove the one the vendored skill left behind.
@@ -560,15 +582,20 @@ describe("spec-design skill — repo-check VALs", () => {
       false,
       ".claude/skills/documentation-and-adrs symlink must be removed",
     );
+    assert.equal(
+      fs.existsSync(path.join(repoRoot, ".claude/skills/documentation-management")),
+      false,
+      "plugin-bundled documentation-management must not have a standalone symlink",
+    );
     assert.ok(
-      read("plugins/auriga-workflow/README.md").includes("documentation-and-adrs"),
-      "plugin README skills table must list documentation-and-adrs",
+      read("plugins/auriga-workflow/README.md").includes("documentation-management"),
+      "plugin README skills table must list documentation-management",
     );
   });
 
-  test("VAL-DOC-002: forked documentation-and-adrs stores ADRs under docs/architecture/, not docs/decisions/", () => {
+  test("VAL-DOC-002: documentation-management stores ADRs under docs/architecture/, not docs/decisions/", () => {
     const text = read(
-      "plugins/auriga-workflow/skills/documentation-and-adrs/SKILL.md",
+      "plugins/auriga-workflow/skills/documentation-management/SKILL.md",
     );
     assert.ok(
       text.includes("docs/architecture/"),

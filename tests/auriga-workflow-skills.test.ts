@@ -102,7 +102,7 @@ describe("auriga-workflow skill contracts", () => {
       "code-simplify",
       "deep-review",
       "docent",
-      "documentation-and-adrs",
+      "documentation-management",
       "git-workflow",
       "goalify",
       "incremental-impl",
@@ -114,6 +114,67 @@ describe("auriga-workflow skill contracts", () => {
     ]);
     assert.equal(fs.existsSync(path.join(repoRoot, ".agents/skills/test-driven-development")), false);
     assert.equal(fs.existsSync(path.join(repoRoot, ".claude/skills/test-driven-development")), false);
+  });
+
+  test("documentation-management governs document assets and audience-specific context", () => {
+    const skillPath = "plugins/auriga-workflow/skills/documentation-management/SKILL.md";
+    const skill = read(skillPath);
+    const parsed = matter(skill);
+    const standards = read(
+      "plugins/auriga-workflow/skills/documentation-management/references/document-standards.md",
+    );
+
+    assert.equal(parsed.data.name, path.basename(path.dirname(skillPath)));
+    assert.match(parsed.data.description, /新建.*更新.*合并.*压缩.*归档.*删除/);
+    assert.match(
+      parsed.data.description,
+      /README.*运行手册.*公共接口文档.*架构文档.*ADR.*变更日志.*代码注释.*AGENTS\.md.*项目规则/,
+    );
+    assert.match(parsed.data.description, /代码变化造成文档事实漂移/);
+    assert.match(skill, /默认不新增/);
+    for (const action of ["更新", "删除", "合并", "压缩", "归档", "晋升", "新建"]) {
+      assert.ok(skill.includes(action), `documentation management must support ${action}`);
+    }
+    assert.match(skill, /先确定消费者/);
+    assert.match(skill, /纯人类文档不挂到 `AGENTS\.md`/);
+    assert.match(skill, /区分 Agent 资料与 Agent 指令/);
+    assert.match(skill, /工程资料沿用各自的文档结构/);
+    assert.match(skill, /只有提示词、项目规则或标准操作流程（SOP）[^。]*才按目标/);
+    for (const contract of [
+      "目标",
+      "成功标准",
+      "权限边界",
+      "工具路由",
+      "输出契约",
+      "停止条件",
+    ]) {
+      assert.ok(skill.includes(contract), `Agent documents must preserve ${contract}`);
+    }
+    assert.match(skill, /同一规则只写一次/);
+    assert.match(skill, /不链接只服务人类阅读的材料/);
+    assert.match(skill, /`CLAUDE\.md -> AGENTS\.md` 兼容软链/);
+    assert.match(skill, /仓库根只放全局规则与导航/);
+    assert.match(skill, /子包[^。\n]*自己的根目录维护 `AGENTS\.md`/);
+    assert.match(skill, /最近的适用作用域[^。\n]*`AGENTS\.md` 建立索引/);
+    assert.match(skill, /最近公共祖先/);
+    assert.match(skill, /ADR 可以同时服务人类与 Agent/);
+    assert.match(standards, /架构文档、接口契约、schema、ADR 等资料[^。]*不套用提示词结构/);
+    assert.match(standards, /仅对提示词、项目规则和标准操作流程等行为指令/);
+    assert.match(skill, /docs-sync[^。\n]*独立审查/);
+    assert.doesNotMatch(skill, /常见的自我辩解|危险信号/);
+
+    for (const heading of [
+      "README 与开发指南",
+      "运行手册",
+      "公共接口文档",
+      "架构文档",
+      "架构决策记录",
+      "内联注释",
+      "变更日志与发布说明",
+      "Agent 文档",
+    ]) {
+      assert.ok(standards.includes(`## ${heading}`), `document standards must cover ${heading}`);
+    }
   });
 
   test("active workflow surfaces omit retired entries and default test-agent behavior", () => {
@@ -971,8 +1032,8 @@ describe("deep-review modernization contract", () => {
     assert.match(claude.version, /^\d+\.\d+\.\d+$/);
     const [major, minor, patch] = claude.version.split(".").map(Number);
     assert.ok(
-      major > 4 || (major === 4 && (minor > 0 || patch >= 7)),
-      `plugin version ${claude.version} must not regress below 4.0.7`,
+      major > 4 || (major === 4 && (minor > 0 || patch >= 8)),
+      `plugin version ${claude.version} must not regress below 4.0.8`,
     );
   });
 
