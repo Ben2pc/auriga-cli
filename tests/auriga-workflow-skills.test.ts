@@ -128,7 +128,9 @@ describe("auriga-workflow skill contracts", () => {
     }
     assert.match(skill, /先确定消费者/);
     assert.match(skill, /纯人类文档不挂到 `AGENTS\.md`/);
-    assert.match(skill, /Agent 文档是提示词和上下文工程资产/);
+    assert.match(skill, /区分 Agent 资料与 Agent 指令/);
+    assert.match(skill, /工程资料沿用各自的文档结构/);
+    assert.match(skill, /只有提示词、项目规则或标准操作流程（SOP）[^。]*才按目标/);
     for (const contract of [
       "目标",
       "成功标准",
@@ -147,6 +149,8 @@ describe("auriga-workflow skill contracts", () => {
     assert.match(skill, /最近的适用作用域[^。\n]*`AGENTS\.md` 建立索引/);
     assert.match(skill, /最近公共祖先/);
     assert.match(skill, /ADR 可以同时服务人类与 Agent/);
+    assert.match(standards, /架构文档、接口契约、schema、ADR 等资料[^。]*不套用提示词结构/);
+    assert.match(standards, /仅对提示词、项目规则和标准操作流程等行为指令/);
     assert.match(skill, /docs-sync[^。\n]*独立审查/);
     assert.doesNotMatch(skill, /常见的自我辩解|危险信号/);
 
