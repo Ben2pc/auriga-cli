@@ -55,7 +55,7 @@ goalify 是**需求已经明确之后**用来驱动长程任务的工具——�
 
 set goal 之前必须和用户确认这个 goal 的终点——它要把 auriga workflow 推进到哪个阶段就停下。用 `AskUserQuestion` / `request_user_input` 给出选项，常见终点：
 
-- **跑到 PR Ready** — 验证完成 + 补全 PR 描述五要素 + 标记 Ready for Review
+- **跑到 PR Ready** — 验证完成 + 补全 PR 正文六个章节 + 标记 Ready for Review
 - **跑到 deep-review 收敛** — 循环运行 review 与修复：deep-review → 修 blocking findings → 提交 → 再次 deep-review，直到三条同时满足：(1) 最近一轮 `deep-review` 报 0 blocking findings；(2) 所有 PR Check 通过；(3) PR 上没有未解决（unresolved）的 blocking review comment。non-blocking findings 仍按严重度、置信度和改动风险判断。不设循环上限，`/goal` 文本不要硬编轮数
 - **跑到合并** — 含评审与合并
 - **用户自定义** — 用户自己定义停止条件；如果停止条件不够具体，先问清楚再 set goal

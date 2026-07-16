@@ -19,7 +19,7 @@ travel together so they share one distribution model and one install step.
 | `goalify` | Plans an autonomous goal from a spec or work-in-progress and dispatches it via the built-in `/goal` command. |
 | `deep-review` | Multi-dimensional PR review orchestrator — dispatches parallel fresh-context reviewers per dimension and synthesizes findings into a Blocking / Non-blocking / Architectural punch list. |
 | `reviewer-creator` | Scaffolds a project reviewer at `docs/rules/review/<name>.md`; `deep-review` hosts supplements in a built-in dimension or dispatches explicit standalone dimensions. |
-| `git-workflow` | The git lifecycle skill — branch hygiene, atomic / checkpoint commits, the five-element PR body. |
+| `git-workflow` | The Git lifecycle skill — worktree safety, semantic commits, bilingual PR body contracts, review feedback, and merge readiness. |
 | `documentation-management` | Manages human and Agent documentation as distinct context assets, governs document lifecycle, and promotes durable decisions into `docs/architecture/`. |
 | `docent` | Explicit-invocation code docent — a single dedicated subagent locates and reads the code behind a natural-language question (or path), then emits a self-contained interactive HTML walkthrough with file:line anchors. |
 
@@ -28,8 +28,8 @@ travel together so they share one distribution model and one install step.
 | Hook | Event | Fires on | Action |
 |---|---|---|---|
 | `commit-reminder` | `PostToolUse` | `Edit` / `Write` / `MultiEdit` (Claude Code) · `apply_patch` (Codex's canonical file-edit tool) | When uncommitted diff vs `HEAD` exceeds 200 lines or 8 files **and** the last reminder was ≥ 5 minutes ago, injects `additionalContext` nudging the agent to commit at the next semantic boundary. Never blocks. Silent outside a git repo. |
-| `pr-create-guard` | `PostToolUse` | `gh pr create` | Fetches the new PR's body + title via `gh pr view`, injects a snapshot (headings + TODO counts) so the agent can self-verify against the five-element PR description contract (scope / acceptance criteria / design decisions / risks / TODOs). Also flags titles that don't match Conventional Commits format with a soft nudge. Never blocks. |
-| `pr-ready-guard` | `PreToolUse` | `gh pr ready` · `gh pr create` (when `--draft` / `-d` absent) | Hard-blocks (exit 2) on **structural** issues: stray `findings.md` / `progress.md` / `task_plan.md` at repo root, unfinalized active specs under `docs/specs/`, or unpushed commits (`gh pr ready` only). On `gh pr ready` otherwise injects a body snapshot. |
+| `pr-create-guard` | `PostToolUse` | `gh pr create` | Fetches the new PR's body + title via `gh pr view`, injects a snapshot (headings + TODO counts) so the agent can self-verify against the six-section PR description contract (scope / acceptance criteria / design decisions / risks / test plan / TODOs). Also flags titles that don't match Conventional Commits format with a soft nudge. Never blocks. |
+| `pr-ready-guard` | `PreToolUse` | `gh pr ready` · `gh pr create` (when `--draft` / `-d` absent) | Hard-blocks (exit 2) on **structural** issues: the `.planning/.active_plan` pointer and files in the plan directory it names, unfinalized active specs under `docs/specs/`, scanner safety failures, or unpushed commits (`gh pr ready` only). On `gh pr ready` otherwise injects a body snapshot. |
 | `pr-merge-guard` | `PreToolUse` | `gh pr merge` | Hard-blocks (exit 2) while the PR body's `Acceptance criteria` or `Test plan` section still has unchecked `- [ ]` checklist items. Scoped to those two sections — unchecked items elsewhere (Remaining TODOs) never block; fenced code blocks are skipped. Fails open if `gh` can't read the body. |
 
 ## Structure
@@ -101,15 +101,23 @@ so both must enforce the same structural baseline:
   out of Route B; falsy and empty values trigger the same structural
   enforcement as no flag at all.
 
-1. **Stray planning docs at repo root** (both routes): `findings.md`,
-   `progress.md`, `task_plan.md`. Archive to
-   `docs/worklog/worklog-<YYYY-MM-DD>-<branch-name>/` (or delete) before ready.
+1. **Active temporary planning state under `.planning/`** (both routes): the
+   `.planning/.active_plan` pointer and regular files, including optional
+   attestations, under the plan directory named by that pointer. Inactive plan
+   directories and legacy root `task_plan.md`, `findings.md`, and `progress.md`
+   files are intentionally ignored. Archive reusable active-plan documents to
+   `docs/worklog/worklog-<YYYY-MM-DD>-<branch-name>/`, then remove the pointer
+   and active directory before ready.
 2. **Unfinalized active specs under `docs/specs/`** (both routes): the dev-only
    temp workspace for `spec-design` / `arch-design` outputs; by PR Ready every
    spec must be promoted to `docs/architecture/`, archived to `docs/worklog/`,
    or deleted. Scanned recursively, so nested `docs/specs/<topic>/*.md` are
    caught.
-3. **Unpushed commits on the current branch** (Route A only, and only when no PR
+3. **Unsafe or incomplete scan state** (both routes): symbolic-link scan roots,
+   malformed or stale active-plan pointers, unreadable directories, or depth and
+   entry limits block instead of failing open. Reported paths are escaped and
+   bounded, and directory symbolic links are never followed.
+4. **Unpushed commits on the current branch** (Route A only, and only when no PR
    ref is passed): the remote-side PR can't reflect what isn't pushed. Route B
    skips this — `gh pr create` pushes on demand.
 

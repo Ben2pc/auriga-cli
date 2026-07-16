@@ -18,7 +18,8 @@
 | 12 | [`deep-review` 现代化](../../worklog/worklog-2026-07-15-refactor-deep-review-for-new-models/deep-review-modernization/) | VAL-IND-001..VAL-DRREL-002 | PR #185 已完成实现并归档子规范；首次深入评审后的信任边界、协议闭环与契约测试意见已处理；内置维度从 11 个收敛为 10 个；模型评测未执行 |
 | 13 | [`docent` 精简](../../worklog/worklog-2026-07-15-refactor-simplify-docent-skill/docent-modernization/) | VAL-DOCNT-001..009 | 首次深入评审完成并修复阻塞项；保留显式调用、单子代理隔离和可视化离线制品，精简无条件内容与视觉差异化要求；模型评测未执行 |
 | 14 | [`documentation-management` 精简](../../worklog/worklog-2026-07-16-refactor-documentation-management/documentation-management/review.md) | — | PR #188 已完成首次深入评审并修复阻塞项；由 `documentation-and-adrs` 重命名，转为工程文档资产与长期上下文治理；用户明确豁免当前子规范；模型评测未执行 |
-| 15 | `workflow-consolidation/` | VAL-MIG-001..005 | 等待前序结论 |
+| 15 | [`git-workflow` 精简](../../worklog/worklog-2026-07-16-refactor-simplify-git-workflow/git-workflow-modernization/) | VAL-GIT-001..007 | PR #189 已完成首次深入评审并修复全部确认项；保留 Git 生命周期团队契约，删除通用教学和重复 Hook 细节，Ready 守卫收敛为活动计划范围并补齐安全扫描；模型评测未执行 |
+| 16 | `workflow-consolidation/` | VAL-MIG-001..005 | 等待前序结论 |
 
 ## Parent coverage map (父级验收覆盖映射)
 

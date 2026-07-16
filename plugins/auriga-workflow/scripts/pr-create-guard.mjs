@@ -60,7 +60,7 @@ process.stdin.on("end", () => {
       // Can't identify which PR was created (unusual — gh pr create
       // normally prints the URL). Fall back to a passive nudge.
       return inject(
-        `[pr-create-guard] PR created, but could not identify it from gh output. Verify the body covers the five elements (scope / acceptance criteria / design decisions / risks / remaining TODOs). Check the title follows Conventional Commits (\`<type>(<scope>)?: <subject>\`). Follow the \`git-workflow\` skill for the five-element PR body.`,
+        `[pr-create-guard] PR created, but could not identify it from gh output. Verify the body covers the six sections (scope / acceptance criteria / design decisions / risks / test plan / remaining TODOs). Check the title follows Conventional Commits (\`<type>(<scope>)?: <subject>\`). Follow the \`git-workflow\` skill for the six-section PR body.`,
       );
     }
 
@@ -69,7 +69,7 @@ process.stdin.on("end", () => {
       // gh unavailable or not authenticated. Don't pretend to know
       // anything; remind the Agent to self-verify.
       return inject(
-        `[pr-create-guard] PR ${prRef} created (fields could not be fetched via gh). Verify the five elements (scope / acceptance criteria / design decisions / risks / remaining TODOs) and the title follows Conventional Commits. Follow the \`git-workflow\` skill for the five-element PR body.`,
+        `[pr-create-guard] PR ${prRef} created (fields could not be fetched via gh). Verify the six sections (scope / acceptance criteria / design decisions / risks / test plan / remaining TODOs) and the title follows Conventional Commits. Follow the \`git-workflow\` skill for the six-section PR body.`,
       );
     }
 
@@ -202,8 +202,8 @@ function summarize(prRef, fields) {
       : null;
 
   const tail = [
-    "Verify the five PR-body elements are covered: scope / acceptance criteria / design decisions / risks / remaining TODOs.",
-    "Follow the `git-workflow` skill for the five-element PR body.",
+    "Verify the six PR-body sections are covered: scope / acceptance criteria / design decisions / risks / test plan / remaining TODOs.",
+    "Follow the `git-workflow` skill for the six-section PR body.",
   ].join(" ");
 
   const parts = [head, headingLine, todoLine];

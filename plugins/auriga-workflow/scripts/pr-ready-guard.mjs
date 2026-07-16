@@ -11,7 +11,7 @@
 // Block only on structural signals that can't be reasonably debated:
 //   B1  unpushed commits on the current branch  (Route A only — gh
 //       pr create handles push itself, so this check is moot there)
-//   B2  stray planning docs at repo root (findings/progress/task_plan)
+//   B2  the active planning pointer and state named by it under .planning/
 //   B3  active specs left under docs/specs/ — that directory is a
 //       dev-only temporary workspace and must be empty by PR Ready
 //       (promote to docs/architecture/, archive to docs/worklog/, or
@@ -63,9 +63,9 @@ process.stdin.on("end", () => {
 
 function handlePrReady(cmd) {
   const repoRoot = gitToplevel() ?? process.cwd();
-  const stray = findStrayDocs(repoRoot);
-  if (hasAnyStray(stray)) {
-    return block(formatStrayBlockMessage(stray, "ready"));
+  const artifacts = findUnresolvedReadyArtifacts(repoRoot);
+  if (hasUnresolvedArtifacts(artifacts)) {
+    return block(formatReadyBlockMessage(artifacts, "ready"));
   }
 
   // B1: unpushed commits on current branch. Only meaningful when the
@@ -98,9 +98,9 @@ function handlePrCreateGoingReady() {
   // Skip B1 (gh handles push on create) and skip the body snapshot
   // (PR doesn't exist yet — PostToolUse pr-create-guard handles it).
   const repoRoot = gitToplevel() ?? process.cwd();
-  const stray = findStrayDocs(repoRoot);
-  if (hasAnyStray(stray)) {
-    return block(formatStrayBlockMessage(stray, "create-nondraft"));
+  const artifacts = findUnresolvedReadyArtifacts(repoRoot);
+  if (hasUnresolvedArtifacts(artifacts)) {
+    return block(formatReadyBlockMessage(artifacts, "create-nondraft"));
   }
   return exit0();
 }
@@ -162,69 +162,237 @@ function stripQuoted(cmd) {
 // ---------------------------------------------------------------------
 // Structural checks
 
-// Recursively collect `.md` files (excluding `.bak`) under `dir`, returned
-// as repo-relative posix paths prefixed by `relPrefix`. The active spec
-// directory must be scanned recursively: spec-design and arch-design write
-// their outputs nested one level down — docs/specs/<topic>/spec.md,
-// docs/specs/<topic>/arch_design.md — so a flat readdir sees only the
-// <topic> directory name and never matches `.md` (issue #113).
-function collectSpecMd(dir, relPrefix) {
-  let entries;
-  try {
-    entries = fs.readdirSync(dir, { withFileTypes: true });
-  } catch {
-    return []; // dir doesn't exist — nothing stray here
-  }
-  const out = [];
-  for (const ent of entries) {
-    const childRel = `${relPrefix}/${ent.name}`;
-    if (ent.isDirectory()) {
-      out.push(...collectSpecMd(path.join(dir, ent.name), childRel));
-    } else if (/\.md$/i.test(ent.name) && !/\.bak$/i.test(ent.name)) {
-      out.push(childRel);
-    }
-  }
-  return out;
+const MAX_SCAN_DEPTH = 20;
+const MAX_SCAN_ENTRIES = 200;
+const MAX_POINTER_BYTES = 256;
+const MAX_REPORTED_ITEMS = 12;
+const MAX_REPORTED_PATH_CHARS = 160;
+
+function issue(kind, relPath, code = null) {
+  return { kind, path: relPath, code };
 }
 
-function findStrayDocs(repoRoot) {
-  const rootFiles = ["findings.md", "progress.md", "task_plan.md"];
-  const root = rootFiles.filter((f) => {
-    try {
-      return fs.statSync(path.join(repoRoot, f)).isFile();
-    } catch {
-      return false;
+function lstatRoot(absPath, relPath, issues, { missingIsIssue = false } = {}) {
+  try {
+    const stat = fs.lstatSync(absPath);
+    if (stat.isSymbolicLink()) {
+      issues.push(issue("scan root is a symbolic link", relPath));
+      return null;
     }
-  });
+    if (!stat.isDirectory()) {
+      issues.push(issue("scan root is not a directory", relPath));
+      return null;
+    }
+    return stat;
+  } catch (error) {
+    if (error?.code === "ENOENT" && !missingIsIssue) return null;
+    const kind = error?.code === "ENOENT" ? "active plan directory is missing" : "scan root cannot be read";
+    issues.push(issue(kind, relPath, error?.code ?? "UNKNOWN"));
+    return null;
+  }
+}
 
-  // B3: docs/specs/ is a dev-only temp workspace; any `.md` left at PR
-  // Ready means a spec was never promoted / archived / deleted. Scanned
-  // recursively so nested docs/specs/<topic>/*.md are caught.
-  const activeSpecs = collectSpecMd(
+// Walk a verified directory without following directory symlinks. The caller
+// chooses which non-directory entries count as artifacts. Scanner failures and
+// resource limits become blocking issues instead of silently failing open.
+function collectBoundedEntries(absRoot, relRoot, include, issues) {
+  if (!lstatRoot(absRoot, relRoot, issues)) return [];
+
+  const found = [];
+  const state = { entries: 0, stopped: false };
+
+  function walk(absDir, relDir, depth) {
+    if (state.stopped) return;
+    if (depth > MAX_SCAN_DEPTH) {
+      issues.push(issue("scan depth limit exceeded", relDir));
+      state.stopped = true;
+      return;
+    }
+
+    let currentStat;
+    try {
+      currentStat = fs.lstatSync(absDir);
+    } catch (error) {
+      if (error?.code === "ENOENT") return;
+      issues.push(issue("directory cannot be read", relDir, error?.code ?? "UNKNOWN"));
+      state.stopped = true;
+      return;
+    }
+    if (currentStat.isSymbolicLink()) {
+      issues.push(issue("directory became a symbolic link during scan", relDir));
+      state.stopped = true;
+      return;
+    }
+    if (!currentStat.isDirectory()) {
+      issues.push(issue("scan path is not a directory", relDir));
+      state.stopped = true;
+      return;
+    }
+
+    let dir;
+    try {
+      dir = fs.opendirSync(absDir);
+      while (!state.stopped) {
+        const ent = dir.readSync();
+        if (ent === null) break;
+
+        state.entries++;
+        if (state.entries > MAX_SCAN_ENTRIES) {
+          issues.push(issue("scan entry limit exceeded", relRoot));
+          state.stopped = true;
+          break;
+        }
+
+        const childAbs = path.join(absDir, ent.name);
+        const childRel = `${relDir}/${ent.name}`;
+        if (ent.isDirectory()) {
+          walk(childAbs, childRel, depth + 1);
+        } else if (include(ent, childRel)) {
+          found.push(childRel);
+        }
+      }
+    } catch (error) {
+      if (error?.code !== "ENOENT") {
+        issues.push(issue("directory cannot be read", relDir, error?.code ?? "UNKNOWN"));
+        state.stopped = true;
+      }
+    } finally {
+      try {
+        dir?.closeSync();
+      } catch (error) {
+        issues.push(issue("directory handle cannot be closed", relDir, error?.code ?? "UNKNOWN"));
+        state.stopped = true;
+      }
+    }
+  }
+
+  walk(absRoot, relRoot, 0);
+  return found;
+}
+
+function findActivePlanningState(repoRoot, issues) {
+  const planningRoot = path.join(repoRoot, ".planning");
+  if (!lstatRoot(planningRoot, ".planning", issues)) return [];
+
+  const pointerPath = path.join(planningRoot, ".active_plan");
+  let pointerStat;
+  try {
+    pointerStat = fs.lstatSync(pointerPath);
+  } catch (error) {
+    if (error?.code === "ENOENT") return [];
+    issues.push(issue("active plan pointer cannot be read", ".planning/.active_plan", error?.code ?? "UNKNOWN"));
+    return [];
+  }
+
+  const planning = [".planning/.active_plan"];
+  if (!pointerStat.isFile() || pointerStat.isSymbolicLink()) {
+    issues.push(issue("active plan pointer is not a regular file", ".planning/.active_plan"));
+    return planning;
+  }
+  if (pointerStat.size > MAX_POINTER_BYTES) {
+    issues.push(issue("active plan pointer exceeds size limit", ".planning/.active_plan"));
+    return planning;
+  }
+
+  let planId;
+  try {
+    planId = fs.readFileSync(pointerPath, "utf8").trim();
+  } catch (error) {
+    issues.push(issue("active plan pointer cannot be read", ".planning/.active_plan", error?.code ?? "UNKNOWN"));
+    return planning;
+  }
+
+  if (!/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(planId)) {
+    issues.push(issue("invalid active plan identifier", ".planning/.active_plan"));
+    return planning;
+  }
+
+  const planRel = `.planning/${planId}`;
+  const planAbs = path.join(planningRoot, planId);
+  if (!lstatRoot(planAbs, planRel, issues, { missingIsIssue: true })) return planning;
+  // The root has already been verified. collectBoundedEntries performs the
+  // same check immediately before walking to avoid time-of-check races.
+  const planFiles = collectBoundedEntries(
+    planAbs,
+    planRel,
+    (ent, childRel) => {
+      if (ent.isSymbolicLink()) {
+        issues.push(issue("active plan contains a symbolic link", childRel));
+        return false;
+      }
+      return ent.isFile();
+    },
+    issues,
+  );
+  planning.push(...planFiles);
+  return planning;
+}
+
+function findUnresolvedReadyArtifacts(repoRoot) {
+  const scanIssues = [];
+  const planning = findActivePlanningState(repoRoot, scanIssues);
+
+  // docs/specs/ preserves the historical contract: every non-directory
+  // Markdown entry except *.bak blocks, including valid and broken symlinks.
+  const activeSpecs = collectBoundedEntries(
     path.join(repoRoot, "docs", "specs"),
     "docs/specs",
+    (ent) => /\.md$/i.test(ent.name) && !/\.bak$/i.test(ent.name),
+    scanIssues,
   );
-  return { root, activeSpecs };
+  return { planning, activeSpecs, scanIssues };
 }
 
-function hasAnyStray(s) {
-  return s.root.length > 0 || s.activeSpecs.length > 0;
+function hasUnresolvedArtifacts(artifacts) {
+  return (
+    artifacts.planning.length > 0 ||
+    artifacts.activeSpecs.length > 0 ||
+    artifacts.scanIssues.length > 0
+  );
 }
 
-function formatStrayBlockMessage(stray, route) {
+function quotePath(value) {
+  const shortened =
+    value.length > MAX_REPORTED_PATH_CHARS
+      ? `${value.slice(0, MAX_REPORTED_PATH_CHARS - 1)}…`
+      : value;
+  return JSON.stringify(shortened);
+}
+
+function formatPathList(paths) {
+  const shown = paths.slice(0, MAX_REPORTED_ITEMS).map(quotePath);
+  if (paths.length > shown.length) shown.push(JSON.stringify(`… ${paths.length - shown.length} more`));
+  return `[${shown.join(", ")}]`;
+}
+
+function formatIssues(issues) {
+  const shown = issues.slice(0, MAX_REPORTED_ITEMS).map((entry) => {
+    const code = entry.code ? ` (${entry.code})` : "";
+    return `${entry.kind}${code}: ${quotePath(entry.path)}`;
+  });
+  if (issues.length > shown.length) shown.push(`… ${issues.length - shown.length} more`);
+  return shown.join(", ");
+}
+
+function formatReadyBlockMessage(artifacts, route) {
   const parts = [];
-  if (stray.root.length > 0) {
-    parts.push(`stray planning docs at repo root: [${stray.root.join(", ")}]`);
-  }
-  if (stray.activeSpecs.length > 0) {
+  if (artifacts.planning.length > 0) {
     parts.push(
-      `unfinalized active specs in docs/specs/: [${stray.activeSpecs.join(", ")}]`,
+      `temporary planning artifacts for active plan: ${formatPathList(artifacts.planning)}`,
     );
   }
+  if (artifacts.activeSpecs.length > 0) {
+    parts.push(
+      `unfinalized active specs in docs/specs/: ${formatPathList(artifacts.activeSpecs)}`,
+    );
+  }
+  if (artifacts.scanIssues.length > 0) {
+    parts.push(`blocking scanner issues: ${formatIssues(artifacts.scanIssues)}`);
+  }
   // Only active specs are "promote-able" to docs/architecture/.
-  // B2 is session-ephemeral by definition — don't suggest promotion when
-  // only that fires.
-  const promoteable = stray.activeSpecs.length > 0;
+  // Planning state is session-ephemeral by definition — don't suggest
+  // promotion when only that fires.
+  const promoteable = artifacts.activeSpecs.length > 0;
   const archiveTarget = "docs/worklog/worklog-<YYYY-MM-DD>-<branch>/";
 
   let remediation;
