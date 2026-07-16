@@ -4,6 +4,11 @@ import crypto from 'node:crypto'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
+import {
+  ANALYSIS_PROMPT_VERSION,
+  FACET_SCHEMA_VERSION,
+  facetValidationError,
+} from './contracts.mjs'
 
 const DEFAULT_DAYS = 30
 const DEFAULT_BUDGET = 50
@@ -45,6 +50,13 @@ function positiveInt(value, fallback, label) {
   return parsed
 }
 
+function managedVersion(values, key, expected) {
+  if (values[key] != null && String(values[key]) !== String(expected)) {
+    fail(`--${key} is managed by this skill and must equal ${expected}`)
+  }
+  return String(expected)
+}
+
 function defaultSessionRoots(runtime) {
   const home = os.homedir()
   if (runtime === 'codex') {
@@ -66,7 +78,7 @@ function walkJsonl(root, output = []) {
   }
   for (const entry of entries) {
     const full = path.join(root, entry.name)
-    if (entry.isDirectory()) walkJsonl(full, output)
+    if (entry.isDirectory() && entry.name !== 'subagents') walkJsonl(full, output)
     else if (entry.isFile() && entry.name.endsWith('.jsonl')) output.push(full)
   }
   return output
@@ -94,6 +106,7 @@ function inspectSession(file, runtime) {
   let lastTs = null
   let humanTurns = 0
   let completed = false
+  let isSubagent = false
   let content
   let stat
   try {
@@ -136,6 +149,13 @@ function inspectSession(file, runtime) {
       if (entry.type === 'session_meta') {
         sessionId ||= payload.id || null
         cwd ||= payload.cwd || null
+        const source = payload.source
+        if (
+          (source && typeof source === 'object' && source.subagent) ||
+          (typeof source === 'string' && source.toLowerCase().includes('subagent'))
+        ) {
+          isSubagent = true
+        }
       }
       if (
         entry.type === 'event_msg' &&
@@ -164,6 +184,7 @@ function inspectSession(file, runtime) {
     ended_at: lastTs == null ? null : new Date(lastTs).toISOString(),
     human_turn_count: humanTurns,
     completed,
+    is_subagent: isSubagent,
     content_fingerprint: crypto.createHash('sha256').update(content).digest('hex'),
     parse_error_count: parseErrors,
     read_error: null,
@@ -214,8 +235,8 @@ function prepare(values) {
   if (now == null) fail('--now must be an ISO-8601 timestamp')
   const days = positiveInt(values.days, DEFAULT_DAYS, '--days')
   const budget = positiveInt(values.budget, DEFAULT_BUDGET, '--budget')
-  const schemaVersion = required(values, 'facet-schema-version')
-  const promptVersion = required(values, 'prompt-version')
+  const schemaVersion = managedVersion(values, 'facet-schema-version', FACET_SCHEMA_VERSION)
+  const promptVersion = managedVersion(values, 'prompt-version', ANALYSIS_PROMPT_VERSION)
   const cutoff = now - days * 24 * 60 * 60 * 1000
 
   const files = [...new Set(roots.flatMap((root) => walkJsonl(root)))].sort()
@@ -228,17 +249,22 @@ function prepare(values) {
     }
   })
   const descriptors = recentCandidates.map((file) => inspectSession(file, runtime))
-  const inWindow = descriptors.filter((descriptor) => {
+  const rawInWindow = descriptors.filter((descriptor) => {
     const ended = parseTime(descriptor.ended_at)
     return ended != null && ended >= cutoff && ended <= now
   })
+  const subagents = rawInWindow.filter((descriptor) => descriptor.is_subagent)
+  const inWindow = rawInWindow.filter((descriptor) => !descriptor.is_subagent)
   const eligible = inWindow.filter(
     (descriptor) =>
       descriptor.session_id &&
       descriptor.content_fingerprint &&
+      descriptor.parse_error_count === 0 &&
+      !descriptor.read_error &&
       descriptor.human_turn_count > 0,
   )
   const cachedFacets = []
+  const cachedFacetTimes = {}
   const uncached = []
   let invalidCache = 0
   for (const descriptor of eligible) {
@@ -248,7 +274,10 @@ function prepare(values) {
       schemaVersion,
       promptVersion,
     )
-    if (cached.state === 'hit') cachedFacets.push(cached.facet)
+    if (cached.state === 'hit') {
+      cachedFacets.push(cached.facet)
+      cachedFacetTimes[descriptor.session_id] = descriptor.ended_at
+    }
     else {
       if (cached.state === 'invalid') invalidCache++
       uncached.push(descriptor)
@@ -274,33 +303,20 @@ function prepare(values) {
       in_window: inWindow.length,
       eligible: eligible.length,
       excluded: inWindow.length - eligible.length,
+      excluded_subagents: subagents.length,
+      excluded_damaged: inWindow.filter(
+        (descriptor) => descriptor.parse_error_count > 0 || descriptor.read_error,
+      ).length,
       cache_hits: cachedFacets.length,
       queued: analysisQueue.length,
       deferred,
       invalid_cache: invalidCache,
     },
     cached_facets: cachedFacets,
+    cached_facet_times: cachedFacetTimes,
     analysis_queue: analysisQueue,
   }
 }
-
-const FACET_FIELDS = [
-  'session_id',
-  'underlying_goal',
-  'outcome',
-  'wins',
-  'frictions',
-  'user_instructions',
-  'brief_summary',
-  'evidence_refs',
-]
-const FACET_OPTIONAL_FIELDS = ['project_area']
-const FACET_OUTCOMES = new Set([
-  'fully_achieved',
-  'partially_achieved',
-  'not_achieved',
-  'unknown',
-])
 
 function readJson(file, label) {
   try {
@@ -336,8 +352,8 @@ function storeFacet(values) {
     fail('store accepts exactly one --facet file')
   }
   const facet = validateFacet(readJson(facetFile, 'facet'), 'facet')
-  const schemaVersion = required(values, 'facet-schema-version')
-  const promptVersion = required(values, 'prompt-version')
+  const schemaVersion = managedVersion(values, 'facet-schema-version', FACET_SCHEMA_VERSION)
+  const promptVersion = managedVersion(values, 'prompt-version', ANALYSIS_PROMPT_VERSION)
   const cacheRoot = values['cache-root'] || path.join(os.homedir(), '.cache', 'auriga-cli', 'session-compound')
   if (facet.session_id !== descriptor.session_id) {
     fail('facet.session_id does not match descriptor.session_id')
@@ -364,38 +380,6 @@ function storeFacet(values) {
   return { stored: true, cache_file: file, session_id: descriptor.session_id }
 }
 
-function facetValidationError(facet, label) {
-  if (!facet || typeof facet !== 'object' || Array.isArray(facet)) {
-    return `${label} must be a JSON object`
-  }
-  for (const field of FACET_FIELDS) {
-    if (!(field in facet)) return `${label} is missing required field: ${field}`
-  }
-  const allowed = new Set([...FACET_FIELDS, ...FACET_OPTIONAL_FIELDS])
-  for (const field of Object.keys(facet)) {
-    if (!allowed.has(field)) return `${label} has unexpected field: ${field}`
-  }
-  for (const field of ['session_id', 'underlying_goal', 'brief_summary']) {
-    if (typeof facet[field] !== 'string' || !facet[field].trim()) {
-      return `${label}.${field} must be a non-empty string`
-    }
-  }
-  if (!FACET_OUTCOMES.has(facet.outcome)) {
-    return `${label}.outcome is not recognized`
-  }
-  for (const field of ['wins', 'frictions', 'user_instructions', 'evidence_refs']) {
-    if (!Array.isArray(facet[field])) return `${label}.${field} must be an array`
-    if (facet[field].length > 100) return `${label}.${field} is too large`
-  }
-  if (!facet.evidence_refs.every((ref) => typeof ref === 'string')) {
-    return `${label}.evidence_refs must contain only strings`
-  }
-  if (JSON.stringify(facet).length > 64 * 1024) {
-    return `${label} exceeds the 64 KiB cache limit`
-  }
-  return null
-}
-
 function validateFacet(facet, label) {
   const error = facetValidationError(facet, label)
   if (error) fail(error)
@@ -408,6 +392,7 @@ function aggregate(values) {
     fail('prepared input must come from the prepare command')
   }
   const maxFacets = positiveInt(values['max-facets'], 80, '--max-facets')
+  const maxBytes = positiveInt(values['max-bytes'], 200 * 1024, '--max-bytes')
   const incoming = []
   for (const file of values.facet || []) {
     const value = readJson(file, `facet file ${file}`)
@@ -415,11 +400,20 @@ function aggregate(values) {
     else incoming.push(value)
   }
   const deduped = new Map()
+  const cachedIds = new Set((prepared.cached_facets || []).map((facet) => facet.session_id))
+  const queuedIds = new Set((prepared.analysis_queue || []).map((descriptor) => descriptor.session_id))
+  const incomingIds = new Set()
   for (const [index, facet] of [
     ...(prepared.cached_facets || []),
     ...incoming,
   ].entries()) {
     const validated = validateFacet(facet, `facet ${index}`)
+    if (index >= (prepared.cached_facets || []).length) {
+      if (queuedIds.size > 0 && !queuedIds.has(validated.session_id)) {
+        fail(`facet ${index}.session_id was not queued: ${validated.session_id}`)
+      }
+      incomingIds.add(validated.session_id)
+    }
     deduped.set(validated.session_id, validated)
   }
   const facets = [...deduped.values()]
@@ -440,11 +434,20 @@ function aggregate(values) {
     Number(facet.wins.length > 0) +
     Number(facet.frictions.length > 0) +
     Number(facet.user_instructions.length > 0)
+  const endedAtBySession = {
+    ...(prepared.cached_facet_times || {}),
+    ...Object.fromEntries(
+      (prepared.analysis_queue || []).map((descriptor) => [descriptor.session_id, descriptor.ended_at]),
+    ),
+  }
   const byProject = new Map()
   for (const facet of facets) {
     const project = facet.project_area || 'unknown'
     if (!byProject.has(project)) byProject.set(project, [])
-    byProject.get(project).push(facet)
+    byProject.get(project).push({
+      ...facet,
+      ended_at: endedAtBySession[facet.session_id] || null,
+    })
   }
   const projectQueues = [...byProject.entries()]
     .sort(([left], [right]) => left.localeCompare(right))
@@ -452,17 +455,26 @@ function aggregate(values) {
       projectFacets.sort((left, right) => {
         const scoreDiff = signalScore(right) - signalScore(left)
         if (scoreDiff !== 0) return scoreDiff
+        const timeDiff = String(right.ended_at || '').localeCompare(String(left.ended_at || ''))
+        if (timeDiff !== 0) return timeDiff
         return String(left.session_id).localeCompare(String(right.session_id))
       }),
     )
   const representativeFacets = []
+  let representativeBytes = 2
   while (
     representativeFacets.length < maxFacets &&
     projectQueues.some((queue) => queue.length > 0)
   ) {
     for (const queue of projectQueues) {
       if (queue.length && representativeFacets.length < maxFacets) {
-        representativeFacets.push(queue.shift())
+        const candidate = queue.shift()
+        const candidateBytes = Buffer.byteLength(JSON.stringify(candidate)) +
+          (representativeFacets.length > 0 ? 1 : 0)
+        if (representativeBytes + candidateBytes <= maxBytes) {
+          representativeFacets.push(candidate)
+          representativeBytes += candidateBytes
+        }
       }
     }
   }
@@ -473,6 +485,14 @@ function aggregate(values) {
     coverage: {
       ...(prepared.coverage || {}),
       analyzed: facets.length,
+      newly_analyzed: [...incomingIds].filter((id) => !cachedIds.has(id)).length,
+      failed: Math.max(
+        0,
+        (prepared.coverage?.queued || queuedIds.size) -
+          [...incomingIds].filter((id) => queuedIds.size === 0 || queuedIds.has(id)).length,
+      ),
+      semantic_budget_deferred: Math.max(0, facets.length - representativeFacets.length),
+      representative_count: representativeFacets.length,
       not_semantically_analyzed: Math.max(
         0,
         (prepared.coverage?.eligible || 0) - facets.length,
@@ -487,8 +507,50 @@ function aggregate(values) {
     },
     all_facet_count: facets.length,
     representative_count: representativeFacets.length,
+    representative_bytes: representativeBytes,
     representative_facets: representativeFacets,
   }
+}
+
+function compactValue(value, maxArray, maxString) {
+  if (typeof value === 'string') {
+    return value.length > maxString ? `${value.slice(0, maxString - 1)}…` : value
+  }
+  if (Array.isArray(value)) {
+    const kept = value.length <= maxArray
+      ? value
+      : [
+          ...value.slice(0, Math.ceil(maxArray / 2)),
+          ...value.slice(-Math.floor(maxArray / 2)),
+        ]
+    return kept.map((item) => compactValue(item, maxArray, maxString))
+  }
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, item]) => [key, compactValue(item, maxArray, maxString)]),
+    )
+  }
+  return value
+}
+
+function compactEvidence(values) {
+  const evidence = readJson(required(values, 'evidence'), 'session evidence')
+  const maxBytes = positiveInt(values['max-bytes'], 64 * 1024, '--max-bytes')
+  const originalBytes = Buffer.byteLength(JSON.stringify(evidence))
+  for (const [maxArray, maxString] of [[50, 2000], [24, 1200], [12, 600], [6, 300]]) {
+    const compacted = compactValue(evidence, maxArray, maxString)
+    compacted.evidence_truncated = originalBytes > Buffer.byteLength(JSON.stringify(compacted))
+    compacted.original_bytes = originalBytes
+    const encoded = JSON.stringify(compacted)
+    if (Buffer.byteLength(encoded) + 1 <= maxBytes) return compacted
+  }
+  fail(`session evidence cannot fit within ${maxBytes} bytes`)
+}
+
+function createWorkspace() {
+  const workspace = fs.mkdtempSync(path.join(os.tmpdir(), 'auriga-session-compound-'))
+  fs.chmodSync(workspace, 0o700)
+  return workspace
 }
 
 const parsed = parseArgs(process.argv.slice(2))
@@ -498,6 +560,10 @@ if (parsed.command === 'prepare') {
   process.stdout.write(`${JSON.stringify(storeFacet(parsed.values), null, 2)}\n`)
 } else if (parsed.command === 'aggregate') {
   process.stdout.write(`${JSON.stringify(aggregate(parsed.values), null, 2)}\n`)
+} else if (parsed.command === 'compact-evidence') {
+  process.stdout.write(`${JSON.stringify(compactEvidence(parsed.values))}\n`)
+} else if (parsed.command === 'workspace') {
+  process.stdout.write(`${createWorkspace()}\n`)
 } else {
-  fail('expected command: prepare, store, or aggregate')
+  fail('expected command: workspace, prepare, compact-evidence, store, or aggregate')
 }

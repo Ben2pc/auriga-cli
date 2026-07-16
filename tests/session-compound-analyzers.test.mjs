@@ -244,6 +244,33 @@ function codexFunctionCallOutput({ callId, output, ts }) {
   };
 }
 
+function codexCustomExecCall({ cmd, callId = `custom-${uuid()}`, ts, objectLiteral = false }) {
+  return {
+    type: "response_item",
+    timestamp: ts,
+    payload: {
+      type: "custom_tool_call",
+      name: "exec",
+      call_id: callId,
+      input: objectLiteral
+        ? `const r = await tools.exec_command({cmd:${JSON.stringify(cmd)},workdir:"/repo"}); text(r.output);`
+        : `const r = await tools.exec_command(${JSON.stringify({ cmd, workdir: "/repo" })}); text(r.output);`,
+    },
+  };
+}
+
+function codexCustomExecOutput({ callId, output, ts }) {
+  return {
+    type: "response_item",
+    timestamp: ts,
+    payload: {
+      type: "custom_tool_call_output",
+      call_id: callId,
+      output: [{ type: "input_text", text: output }],
+    },
+  };
+}
+
 // ---------- shared helpers ----------
 const T0 = "2026-05-28T10:00:00.000Z";
 const T1 = "2026-05-28T10:01:00.000Z";
@@ -569,6 +596,10 @@ test("codex analyzer emits empty skills list when no <skill> block present [VAL-
 });
 
 test("codex analyzer detects inferred skill use from a SKILL.md read [VAL-SKIL-002]", () => {
+  const skillRoot = writeSkillRoot("codex-inferred", [
+    { name: "systematic-debugging", description: "debug" },
+  ]);
+  const skillPath = path.join(skillRoot, "systematic-debugging", "SKILL.md");
   const file = writeFixture("codex-inferred-skill", [
     codexMeta(),
     codexTurnContext(),
@@ -576,7 +607,7 @@ test("codex analyzer detects inferred skill use from a SKILL.md read [VAL-SKIL-0
     codexFunctionCall({
       name: "exec_command",
       args: {
-        cmd: "sed -n '1,220p' /repo/.agents/skills/systematic-debugging/SKILL.md",
+        cmd: `sed -n '1,220p' ${skillPath}`,
       },
       ts: T1,
     }),
@@ -592,7 +623,10 @@ test("codex analyzer detects inferred skill use from a SKILL.md read [VAL-SKIL-0
 });
 
 test("codex inferred skill use dedupes repeated reads per user turn [VAL-SKIL-003]", () => {
-  const skillPath = "/repo/.agents/skills/systematic-debugging/SKILL.md";
+  const skillRoot = writeSkillRoot("codex-inferred-dedup", [
+    { name: "systematic-debugging", description: "debug" },
+  ]);
+  const skillPath = path.join(skillRoot, "systematic-debugging", "SKILL.md");
   const file = writeFixture("codex-inferred-dedup", [
     codexMeta(),
     codexTurnContext(),
@@ -613,6 +647,10 @@ test("codex inferred skill use dedupes repeated reads per user turn [VAL-SKIL-00
 });
 
 test("explicit and inferred evidence remain distinguishable without double-counting [VAL-SKIL-003]", () => {
+  const skillRoot = writeSkillRoot("codex-explicit-inferred", [
+    { name: "systematic-debugging", description: "debug" },
+  ]);
+  const skillPath = path.join(skillRoot, "systematic-debugging", "SKILL.md");
   const file = writeFixture("codex-skill-evidence", [
     codexMeta(),
     codexTurnContext(),
@@ -620,7 +658,7 @@ test("explicit and inferred evidence remain distinguishable without double-count
     codexSkillBlock("systematic-debugging", T0),
     codexFunctionCall({
       name: "exec_command",
-      args: { cmd: "cat /repo/.agents/skills/systematic-debugging/SKILL.md" },
+      args: { cmd: `cat ${skillPath}` },
       ts: T1,
     }),
   ]);
@@ -631,6 +669,67 @@ test("explicit and inferred evidence remain distinguishable without double-count
   assertEqual(hit.count, 1, "both signals in one user turn describe one use episode");
   assertEqual([...hit.evidence_types].sort().join(","), "explicit,inferred",
     "the report can explain both evidence sources");
+});
+
+test("codex ignores SKILL.md mentions that are not real file reads [VAL-SKIL-002]", () => {
+  const skillRoot = writeSkillRoot("codex-not-read", [
+    { name: "systematic-debugging", description: "debug" },
+  ]);
+  const skillPath = path.join(skillRoot, "systematic-debugging", "SKILL.md");
+  const file = writeFixture("codex-not-read", [
+    codexMeta(),
+    codexTurnContext(),
+    codexUserMsgEvent("inspect paths", T0),
+    codexFunctionCall({ name: "exec_command", args: { cmd: `echo ${skillPath}` }, ts: T1 }),
+    codexFunctionCall({ name: "exec_command", args: { cmd: `test -f ${skillPath}` }, ts: T2 }),
+  ]);
+  const out = runAnalyzer(CODEX, file);
+  assert(!out.health.skills.some((skill) => skill.name === "systematic-debugging"),
+    "path mentions and existence probes are not skill-use evidence");
+});
+
+test("codex current custom exec events preserve inferred skills and failures [VAL-SKIL-002] [VAL-EVID-001]", () => {
+  const skillRoot = writeSkillRoot("codex-custom-exec", [
+    { name: "systematic-debugging", description: "debug" },
+  ]);
+  const skillPath = path.join(skillRoot, "systematic-debugging", "SKILL.md");
+  const callId = "custom-exec-read";
+  const file = writeFixture("codex-custom-exec", [
+    codexMeta(),
+    codexTurnContext(),
+    codexUserMsgEvent("read then diagnose", T0),
+    codexCustomExecCall({
+      cmd: `sed -n '1,80p' ${skillPath}`,
+      callId,
+      ts: T1,
+      objectLiteral: true,
+    }),
+    codexCustomExecOutput({ callId, output: "Script failed\nProcess exited with code 1", ts: T2 }),
+  ]);
+  const out = runAnalyzer(CODEX, file);
+  const skill = out.health.skills.find((item) => item.name === "systematic-debugging");
+  assertEqual(skill?.inferred_count, 1, "custom exec reads contribute inferred skill evidence");
+  assertEqual(out.health.tool_failures.length, 1, "custom exec failures remain visible");
+  assertEqual(out.health.tool_failures[0].classification, "unknown",
+    "custom exec failures remain neutral");
+});
+
+test("claude inferred skill evidence requires an existing SKILL.md read [VAL-SKIL-002]", () => {
+  const skillRoot = writeSkillRoot("claude-inferred", [
+    { name: "systematic-debugging", description: "debug" },
+  ]);
+  const skillPath = path.join(skillRoot, "systematic-debugging", "SKILL.md");
+  const file = writeFixture("claude-inferred", [
+    claudeUser("diagnose", T0),
+    claudeAssistant({
+      ts: T1,
+      reqId: "r-read-skill",
+      content: [{ type: "tool_use", id: "read-skill", name: "Read", input: { file_path: skillPath } }],
+    }),
+  ]);
+  const out = runAnalyzer(CLAUDE, file);
+  const skill = out.health.skills.find((item) => item.name === "systematic-debugging");
+  assertEqual(skill?.inferred_count, 1, "Claude Read events preserve inferred evidence");
 });
 
 test("multiple explicit invocations remain exact even within one user turn [VAL-SKIL-001]", () => {
@@ -667,6 +766,22 @@ test("non-zero command exits remain raw failures instead of automatic waste [VAL
     "the deterministic analyzer must not guess whether the failure was expected");
   assert(!(out.health?.waste_signals ?? []).some((s) => s.type === "tool_failures"),
     "raw failures must not automatically create a waste verdict");
+});
+
+test("aborted turns and patch failures remain neutral facts [VAL-EVID-001]", () => {
+  const file = writeFixture("codex-neutral-failures", [
+    codexMeta(),
+    codexTurnContext(),
+    codexUserMsgEvent("stop and retry", T0),
+    { type: "event_msg", timestamp: T1, payload: { type: "turn_aborted" } },
+    codexPatchApplyEnd({ success: false, ts: T2 }),
+  ]);
+  const out = runAnalyzer(CODEX, file);
+  const types = (out.health.waste_signals || []).map((signal) => signal.type);
+  assert(!types.includes("turn_aborted"), "an interrupted turn is not automatically waste");
+  assert(!types.includes("patch_apply_failure"), "a patch failure is not automatically waste");
+  assertEqual(out.health.tool_failures[0]?.classification, "unknown",
+    "the patch failure remains available as a neutral raw fact");
 });
 
 test("claude tool errors also keep an unknown classification [VAL-EVID-001]", () => {

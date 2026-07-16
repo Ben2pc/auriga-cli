@@ -140,7 +140,7 @@ plugins/auriga-workflow/skills/session-compound/
 ├── analyzers/
 │   ├── claude-code.mjs                           （改）
 │   ├── codex.mjs                                 （改）
-│   └── skill-catalog.mjs                         （改）
+│   └── skill-catalog.mjs                         （复用）
 ├── scripts/                                      （新增）
 │   ├── insights-pipeline.mjs                     （新增）
 │   └── render-report.mjs                         （新增）

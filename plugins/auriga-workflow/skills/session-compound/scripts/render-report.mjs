@@ -1,7 +1,9 @@
 #!/usr/bin/env node
 
 import fs from 'node:fs'
+import crypto from 'node:crypto'
 import path from 'node:path'
+import { reportValidationError } from './contracts.mjs'
 
 function fail(message) {
   process.stderr.write(`[render-report] ${message}\n`)
@@ -44,47 +46,6 @@ function safeJson(value) {
     .replace(/\u2029/g, '\\u2029')
 }
 
-function isObject(value) {
-  return value != null && typeof value === 'object' && !Array.isArray(value)
-}
-
-function validateData(mode, data) {
-  if (!isObject(data)) fail('data must be a JSON object')
-  if (mode === 'single') {
-    if (!isObject(data.report_data)) fail('single data.report_data must be an object')
-    for (const field of [
-      'anomalies',
-      'eval_findings',
-      'observations',
-      'experiments',
-      'durable_candidates',
-    ]) {
-      if (field in data && !Array.isArray(data[field])) {
-        fail(`single data.${field} must be an array`)
-      }
-    }
-    return
-  }
-  if (!isObject(data.coverage)) fail('insights data.coverage must be an object')
-  if (!isObject(data.at_a_glance)) fail('insights data.at_a_glance must be an object')
-  if ('window' in data && !isObject(data.window)) {
-    fail('insights data.window must be an object')
-  }
-  for (const field of [
-    'project_areas',
-    'wins',
-    'frictions',
-    'observations',
-    'experiments',
-    'durable_candidates',
-    'evidence_limitations',
-  ]) {
-    if (field in data && !Array.isArray(data[field])) {
-      fail(`insights data.${field} must be an array`)
-    }
-  }
-}
-
 const args = parseArgs(process.argv.slice(2))
 const mode = required(args, 'mode')
 if (!['single', 'insights'].includes(mode)) fail('--mode must be single or insights')
@@ -98,14 +59,25 @@ try {
 } catch (error) {
   fail(`data is not valid JSON: ${error.message}`)
 }
-if (data.mode !== mode) fail(`data.mode must equal ${mode}`)
-validateData(mode, data)
+const validationError = reportValidationError(mode, data)
+if (validationError) fail(validationError)
 const marker = '__REPORT_BUNDLE__'
 const markerCount = template.split(marker).length - 1
 if (markerCount !== 1) fail(`template must contain exactly one ${marker} marker`)
 const html = template.replace(marker, safeJson(data))
-fs.mkdirSync(path.dirname(outputFile), { recursive: true })
-const temp = `${outputFile}.${process.pid}.${Date.now()}.tmp`
-fs.writeFileSync(temp, html)
+fs.mkdirSync(path.dirname(outputFile), { recursive: true, mode: 0o700 })
+try {
+  if (fs.lstatSync(outputFile).isSymbolicLink()) fail('output path must not be a symbolic link')
+} catch (error) {
+  if (error?.code !== 'ENOENT') throw error
+}
+const temp = `${outputFile}.${process.pid}.${crypto.randomUUID()}.tmp`
+const handle = fs.openSync(temp, 'wx', 0o600)
+try {
+  fs.writeFileSync(handle, html)
+} finally {
+  fs.closeSync(handle)
+}
 fs.renameSync(temp, outputFile)
+fs.chmodSync(outputFile, 0o600)
 process.stdout.write(`${JSON.stringify({ mode, output: outputFile })}\n`)

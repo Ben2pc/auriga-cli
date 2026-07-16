@@ -229,6 +229,16 @@ function skillNameFromPath(filePath) {
   return path.basename(path.dirname(filePath))
 }
 
+function existingSkillName(filePath) {
+  try {
+    const real = fs.realpathSync(filePath)
+    if (!fs.statSync(real).isFile() || path.basename(real) !== 'SKILL.md') return null
+    return skillNameFromPath(real)
+  } catch {
+    return null
+  }
+}
+
 function recordSkillUsage(stats, { ts, name, evidence, turnIdx }) {
   if (!name) return
   if (
@@ -459,10 +469,11 @@ function handleAssistant(e, stats, currentTurn) {
         if (name === 'Read' && block.input?.file_path) {
           const fp = block.input.file_path
           stats.fileReads[fp] = (stats.fileReads[fp] || 0) + 1
-          if (fp.endsWith('/SKILL.md')) {
+          const inferredSkill = fp.endsWith('/SKILL.md') ? existingSkillName(fp) : null
+          if (inferredSkill) {
             recordSkillUsage(stats, {
               ts: tsToMs(e.timestamp),
-              name: skillNameFromPath(fp),
+              name: inferredSkill,
               evidence: 'inferred',
               turnIdx: currentTurn?.idx,
             })
@@ -651,7 +662,7 @@ function emit(stats, filePath) {
 
   return {
     cli: 'claude-code',
-    schema_version: 1,
+    schema_version: 2,
     generated_at: new Date().toISOString(),
     source_file: filePath,
     session: {

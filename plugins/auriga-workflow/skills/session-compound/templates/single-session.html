@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:; base-uri 'none'; form-action 'none'" />
 <title>Session Compound — 单会话复盘</title>
 <style>
   /* Restyled to Anthropic Claude brand language:
@@ -216,6 +217,10 @@
     transition-property: color, transform, border-color;
     transition-duration: 180ms;
     transition-timing-function: var(--ease);
+    background: transparent;
+    border-top: 0;
+    border-left: 0;
+    border-right: 0;
   }
   .tab:hover { color: var(--ink); }
   .tab.active {
@@ -223,6 +228,10 @@
     border-bottom-color: var(--primary);
   }
   .tab:active { transform: scale(0.97); }
+  .tab:focus-visible, button:focus-visible, input:focus-visible, textarea:focus-visible, a:focus-visible {
+    outline: 3px solid #2e7a6c;
+    outline-offset: 3px;
+  }
 
   .panel { display: none; padding-top: 32px; }
   .panel.active { display: block; }
@@ -548,6 +557,18 @@
   .copy-btn.copied { background: var(--accent-teal); }
 
   .empty-hint { color: var(--muted-soft); font-style: italic; padding: 16px 0; font-family: var(--ui); }
+
+  @media (max-width: 760px) {
+    body { padding: 28px 18px 64px; }
+    .hero, .compound-grid { grid-template-columns: 1fr; }
+    .hero { padding: 26px 22px; }
+    .hero .total { min-width: 0; text-align: left; }
+    .tabs { overflow-x: auto; }
+    .tab { flex: 0 0 auto; padding-inline: 14px; }
+    .turn { grid-template-columns: 28px minmax(0, 1fr); }
+    .turn .tokens { grid-column: 2; }
+    table.findings { display: block; overflow-x: auto; }
+  }
 </style>
 </head>
 <body>
@@ -566,15 +587,15 @@
   </div>
 </div>
 
-<div class="tabs">
-  <div class="tab active" data-tab="narrative">叙事</div>
-  <div class="tab" data-tab="health">健康度</div>
-  <div class="tab" data-tab="eval">评估</div>
-  <div class="tab" data-tab="compound">沉淀</div>
+<div class="tabs" role="tablist" aria-label="报告章节">
+  <button type="button" class="tab active" id="tab-narrative" role="tab" aria-selected="true" aria-controls="panel-narrative" tabindex="0" data-tab="narrative">叙事</button>
+  <button type="button" class="tab" id="tab-health" role="tab" aria-selected="false" aria-controls="panel-health" tabindex="-1" data-tab="health">健康度</button>
+  <button type="button" class="tab" id="tab-eval" role="tab" aria-selected="false" aria-controls="panel-eval" tabindex="-1" data-tab="eval">评估</button>
+  <button type="button" class="tab" id="tab-compound" role="tab" aria-selected="false" aria-controls="panel-compound" tabindex="-1" data-tab="compound">沉淀</button>
 </div>
 
 <!-- ============ TAB 1: NARRATIVE / 叙事 ============ -->
-<section class="panel active" id="panel-narrative">
+<section class="panel active" id="panel-narrative" role="tabpanel" aria-labelledby="tab-narrative">
   <div class="card">
     <h3>会话摘要</h3>
     <div id="narrative-summary" class="empty-hint">未提供会话摘要。</div>
@@ -599,7 +620,7 @@
 </section>
 
 <!-- ============ TAB 2: HEALTH / 健康度 ============ -->
-<section class="panel" id="panel-health">
+<section class="panel" id="panel-health" role="tabpanel" aria-labelledby="tab-health" hidden>
   <div class="card">
     <h3>异常 & 亮点</h3>
     <div class="takes" id="anomalies">
@@ -619,9 +640,9 @@
   <!-- skills exist on both CLIs now (codex parses <skill> blocks); hide only
        when empty for this session. -->
   <div id="sec-skills" hidden>
-    <h2>触发的 skill</h2>
+    <h2>Skill 使用证据</h2>
     <p style="color: var(--text-dim); margin: 6px 0 10px; font-size: 13px;">
-      每个 skill 被<b>启动了几次</b>（命令入口触发次数）。
+      显式调用与从实际读取 <code>SKILL.md</code> 推断的使用分别展示；证据类型不等于调用意图。
     </p>
     <div class="card"><table class="bars" id="skills-table"></table></div>
   </div>
@@ -649,7 +670,7 @@
 </section>
 
 <!-- ============ TAB 3: EVAL / 评估 ============ -->
-<section class="panel" id="panel-eval">
+<section class="panel" id="panel-eval" role="tabpanel" aria-labelledby="tab-eval" hidden>
   <div class="card">
     <h3>本会话工作流事实</h3>
     <p style="color: var(--text-dim); margin: 6px 0 10px; font-size: 13px;">
@@ -672,7 +693,7 @@
 </section>
 
 <!-- ============ TAB 4: COMPOUND / 三层建议 ============ -->
-<section class="panel" id="panel-compound">
+<section class="panel" id="panel-compound" role="tabpanel" aria-labelledby="tab-compound" hidden>
   <div class="card">
     <h3>从理解到长期沉淀</h3>
     <p style="color: var(--text-dim); margin: 6px 0 0; font-size: 13px;">
@@ -705,6 +726,7 @@
       <button class="copy-btn" id="copy-btn">复制</button>
     </div>
     <textarea id="prompt-textarea" readonly></textarea>
+    <div id="copy-status" class="empty-hint" role="status" aria-live="polite"></div>
   </div>
 </section>
 
@@ -770,12 +792,30 @@
   $('#total-tokens').textContent = fmtN(h.tokens?.total);
 
   // ---------- Tab switching ----------
-  document.querySelectorAll('.tab').forEach(t => {
-    t.addEventListener('click', () => {
-      document.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
-      document.querySelectorAll('.panel').forEach(x => x.classList.remove('active'));
-      t.classList.add('active');
-      $('#panel-' + t.dataset.tab).classList.add('active');
+  const tabs = [...document.querySelectorAll('[role="tab"]')];
+  function activateTab(tab, { focus = false } = {}) {
+    tabs.forEach((item) => {
+      const selected = item === tab;
+      item.classList.toggle('active', selected);
+      item.setAttribute('aria-selected', String(selected));
+      item.tabIndex = selected ? 0 : -1;
+      const panel = $('#' + item.getAttribute('aria-controls'));
+      panel.classList.toggle('active', selected);
+      panel.hidden = !selected;
+    });
+    if (focus) tab.focus();
+  }
+  tabs.forEach((tab, index) => {
+    tab.addEventListener('click', () => activateTab(tab));
+    tab.addEventListener('keydown', (event) => {
+      let next = index;
+      if (event.key === 'ArrowRight') next = (index + 1) % tabs.length;
+      else if (event.key === 'ArrowLeft') next = (index - 1 + tabs.length) % tabs.length;
+      else if (event.key === 'Home') next = 0;
+      else if (event.key === 'End') next = tabs.length - 1;
+      else return;
+      event.preventDefault();
+      activateTab(tabs[next], { focus: true });
     });
   });
 
@@ -851,7 +891,22 @@
   }
   renderBars('#tools-table', h.tools);
   renderBars('#subagents-table', h.subagents);
-  renderBars('#skills-table', h.skills);
+  function renderSkills(target, skills) {
+    if (!skills.length) {
+      $(target).innerHTML = '<tr><td class="name" style="color: var(--text-mute); font-style: italic;">无</td></tr>';
+      return;
+    }
+    $(target).innerHTML = `<thead><tr>
+      <th>Skill</th><th>使用单元</th><th>显式</th><th>推断</th><th>证据类型</th>
+    </tr></thead><tbody>${[...skills].sort((a, b) => b.count - a.count).map((skill) => `<tr>
+      <td class="name">${escapeHtml(skill.name)}</td>
+      <td class="count">${skill.count}</td>
+      <td class="count">${skill.explicit_count}</td>
+      <td class="count">${skill.inferred_count}</td>
+      <td>${escapeHtml((skill.evidence_types || []).join(' · '))}</td>
+    </tr>`).join('')}</tbody>`;
+  }
+  renderSkills('#skills-table', h.skills || []);
 
   // ---------- Optional sections: render + unhide only when data present ----------
   // Graceful absence: a signal missing for this session leaves its section
@@ -870,11 +925,19 @@
 
   // PRs referenced this session (currently Claude-only data).
   const prs = h.prs || [];
+  const safeWebUrl = (value) => {
+    try {
+      const url = new URL(value);
+      return ['http:', 'https:'].includes(url.protocol) ? url.href : null;
+    } catch {
+      return null;
+    }
+  };
   if (prs.length) {
     $('#pr-list').innerHTML = prs.map(p => `<div class="turn">
       <div class="idx">PR</div>
       <div class="summary">
-        <div>${p.url ? `<a href="${escapeHtml(p.url)}" target="_blank" rel="noopener">#${escapeHtml(String(p.number))}</a>` : '#' + escapeHtml(String(p.number))}</div>
+        <div>${safeWebUrl(p.url) ? `<a href="${escapeHtml(safeWebUrl(p.url))}" target="_blank" rel="noopener">#${escapeHtml(String(p.number))}</a>` : '#' + escapeHtml(String(p.number))}</div>
         ${p.repository ? `<div class="toolset">${escapeHtml(p.repository)}</div>` : ''}
       </div>
       <div class="tokens"></div>
@@ -953,6 +1016,8 @@
         <td><span class="conf">${escapeHtml(CONF[f.confidence] || f.confidence || '—')}</span></td>
         <td><span class="badge kind">${escapeHtml(KIND[f.kind] || f.kind || '—')}</span></td>
         <td class="f-text">${escapeHtml(f.text || '')}</td>
+        <td>${escapeHtml(f.evidence_nature || '—')}</td>
+        <td>${escapeHtml((f.evidence_refs || []).join(' · ') || '—')}</td>
         <td class="f-skill">${f.skill ? escapeHtml(f.skill) : '—'}</td>
       </tr>`;
     }).join('');
@@ -962,7 +1027,7 @@
         <b>置信度</b> = 证据强度：高 = transcript 直接佐证（时间戳 / 原文）/ 中 = 间接推断 / 低 = 可辩护的解读。
       </div>
       <table class="findings">
-      <thead><tr><th>性质</th><th>严重度</th><th>置信度</th><th>类型</th><th>发现</th><th>相关 skill</th></tr></thead>
+      <thead><tr><th>性质</th><th>严重度</th><th>置信度</th><th>类型</th><th>发现</th><th>证据性质</th><th>证据引用</th><th>相关 skill</th></tr></thead>
       <tbody>${rows}</tbody>
     </table>`;
   }
@@ -994,14 +1059,17 @@
   const previewEl = $('#compound-preview-md');
   const promptEl = $('#prompt-textarea');
   const copyBtn = $('#copy-btn');
+  const copyStatus = $('#copy-status');
 
   // Internal state for compound tab
   const state = candidates.map((c, i) => ({
     idx: i,
-    selected: c.default_selected === true,
-    name: c.name || `candidate-${i}`,
-    type: c.type || 'agent-context',
-    body: c.body || c.text || '',
+    selected: false,
+    name: c.name,
+    type: c.type,
+    body: c.text,
+    why: c.why_durable,
+    evidenceRefs: c.evidence_refs,
   }));
 
   const TYPE_ORDER = ['mechanism', 'agent-context', 'existing-skill', 'reviewer', 'new-skill'];
@@ -1065,6 +1133,8 @@
           <span class="type ${escapeHtml(c.type)}">${escapeHtml(c.type)}</span>
         </div>
         <div class="body">${renderMdBody(c.body)}</div>
+        <div class="body"><b>沉淀依据：</b>${renderInlineMd(c.why)}</div>
+        <div class="body"><b>证据：</b>${escapeHtml(c.evidenceRefs.join(' · '))}</div>
       </div>
     `;
     }).join('');
@@ -1112,11 +1182,13 @@
       previewEl.classList.add('empty');
       previewEl.textContent = '勾选左侧候选条目，这里会实时显示合成的 markdown。';
       promptEl.value = '';
+      copyStatus.textContent = '尚未选择候选';
       return;
     }
     previewEl.classList.remove('empty');
     previewEl.textContent = md;
     promptEl.value = buildPrompt(md);
+    copyStatus.textContent = '';
   }
 
   copyBtn.addEventListener('click', async () => {
@@ -1126,13 +1198,16 @@
       const orig = copyBtn.textContent;
       copyBtn.textContent = '已复制';
       copyBtn.classList.add('copied');
+      copyStatus.textContent = '已复制';
       setTimeout(() => {
         copyBtn.textContent = orig;
         copyBtn.classList.remove('copied');
       }, 1400);
     } catch {
+      promptEl.focus();
       promptEl.select();
-      document.execCommand('copy');
+      const copied = typeof document.execCommand === 'function' && document.execCommand('copy');
+      copyStatus.textContent = copied ? '已复制' : '自动复制失败，请手动复制已选中的文本';
     }
   });
 
@@ -1148,6 +1223,8 @@
             <div>${escapeHtml(item.title || item.name || item.text || '')}</div>
             ${item.text && item.text !== item.title ? `<div class="toolset">${escapeHtml(item.text)}</div>` : ''}
             ${item.trial ? `<div class="toolset">试法：${escapeHtml(item.trial)}</div>` : ''}
+            ${item.success_signal ? `<div class="toolset">成功信号：${escapeHtml(item.success_signal)}</div>` : ''}
+            <div class="toolset">证据：${escapeHtml((item.evidence_refs || []).join(' · '))}</div>
           </div>
           <div class="tokens"></div>
         </div>`).join('')

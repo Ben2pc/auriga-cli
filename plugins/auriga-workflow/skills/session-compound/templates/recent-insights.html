@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:; base-uri 'none'; form-action 'none'" />
 <title>Session Compound — 近期洞察</title>
 <style>
   :root {
@@ -13,7 +14,7 @@
     --body: #46443f;
     --muted: #777269;
     --line: #e5ded3;
-    --coral: #c96f54;
+    --coral: #9e4f3a;
     --teal: #317e70;
     --amber: #a66d19;
     --dark: #1d1b18;
@@ -55,7 +56,17 @@
   .split { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
   .chip { display: inline-flex; border-radius: 999px; padding: 3px 9px; background: var(--surface); color: var(--muted); font-size: 11px; margin-right: 6px; }
   .candidate { border-left: 4px solid var(--coral); }
+  .candidate label { display: grid; grid-template-columns: auto 1fr; gap: 12px; align-items: start; cursor: pointer; }
+  .candidate input { margin-top: 4px; accent-color: var(--coral); }
+  .candidate:has(input:checked) { outline: 2px solid var(--coral); outline-offset: 2px; }
   .candidate .why { margin-top: 8px; color: var(--muted); }
+  .detail { margin-top: 7px; font-size: 13px; color: var(--muted); }
+  .selection { margin-top: 16px; }
+  .selection textarea { width: 100%; min-height: 150px; resize: vertical; border: 1px solid var(--line); border-radius: 10px; padding: 14px; background: var(--card); color: var(--ink); font: 12px/1.55 var(--mono); }
+  .selection-actions { display: flex; align-items: center; gap: 12px; margin-top: 10px; }
+  button { border: 0; border-radius: 8px; padding: 10px 16px; background: var(--dark); color: #fffaf2; font: 600 13px/1 var(--sans); cursor: pointer; }
+  button:focus-visible, input:focus-visible, a:focus-visible, textarea:focus-visible { outline: 3px solid var(--teal); outline-offset: 3px; }
+  .copy-status { color: var(--muted); font-size: 12px; }
   .empty { color: var(--muted); font-style: italic; padding: 10px 0; }
   .limitations { margin-top: 48px; background: var(--surface); border-radius: 14px; padding: 22px; }
   .limitations ul { margin: 8px 0 0; padding-left: 20px; color: var(--body); }
@@ -111,8 +122,19 @@
   <h2>值得尝试</h2>
   <section class="card list" id="experiments"></section>
 
+  <h2>单次观察</h2>
+  <section class="card list" id="observations"></section>
+
   <h2>长期沉淀候选</h2>
   <section class="list" id="durable-candidates"></section>
+  <section class="selection" aria-labelledby="selection-title">
+    <h3 id="selection-title">已选择的长期候选</h3>
+    <textarea id="selected-candidates" readonly aria-label="已选择的长期候选内容"></textarea>
+    <div class="selection-actions">
+      <button type="button" id="copy-candidates">复制已选择项</button>
+      <span class="copy-status" id="copy-status" role="status" aria-live="polite"></span>
+    </div>
+  </section>
 
   <section class="limitations">
     <h3>证据边界</h3>
@@ -125,35 +147,44 @@
   const data = JSON.parse(document.getElementById('report-bundle').textContent);
   const $ = (selector) => document.querySelector(selector);
   const array = (value) => Array.isArray(value) ? value : [];
-  const esc = (value) => String(value ?? '')
-    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;').replace(/'/g, '&#039;');
-  const text = (item) => typeof item === 'string'
-    ? item
-    : item?.text || item?.summary || item?.description || item?.title || '';
-  const title = (item, fallback) => typeof item === 'object' && item
-    ? item.title || item.name || item.area || item.pattern || fallback
-    : fallback;
-  const evidence = (item) => typeof item === 'object' && item
-    ? array(item.evidence_refs || item.evidence).join(' · ')
-    : '';
-  const empty = (message) => `<div class="empty">${esc(message)}</div>`;
+  const add = (parent, tag, value, className) => {
+    const node = document.createElement(tag);
+    if (value != null) node.textContent = String(value);
+    if (className) node.className = className;
+    parent.append(node);
+    return node;
+  };
+  const empty = (parent, message) => add(parent, 'div', message, 'empty');
+  const evidence = (item) => array(item.evidence_refs).join(' · ');
+  const ownerLabel = { agent: 'Agent', user: '用户', environment: '环境' };
 
   $('#interaction-style').textContent = data.interaction_style || '没有足够证据概括互动方式。';
-  const coverage = data.coverage || {};
-  const windowInfo = data.window || {};
-  $('#analyzed-count').textContent = coverage.analyzed ?? 0;
-  $('#window-label').textContent = windowInfo.started_at && windowInfo.ended_at
-    ? `${new Date(windowInfo.started_at).toLocaleDateString()} – ${new Date(windowInfo.ended_at).toLocaleDateString()}`
-    : '覆盖时间未知';
-  $('#coverage-list').innerHTML = [
+  const coverage = data.coverage;
+  const windowInfo = data.window;
+  $('#analyzed-count').textContent = coverage.analyzed;
+  $('#window-label').textContent =
+    `${new Date(windowInfo.started_at).toLocaleDateString()} – ${new Date(windowInfo.ended_at).toLocaleDateString()}`;
+  const coverageList = $('#coverage-list');
+  [
     ['发现', coverage.discovered],
     ['时间窗内', coverage.in_window],
+    ['符合分析条件', coverage.eligible],
     ['缓存复用', coverage.cache_hits],
+    ['本轮新分析', coverage.newly_analyzed],
+    ['分析失败', coverage.failed],
+    ['本轮排入分析', coverage.queued],
     ['排除', coverage.excluded],
+    ['排除子代理日志', coverage.excluded_subagents],
+    ['排除损坏日志', coverage.excluded_damaged],
+    ['失效缓存', coverage.invalid_cache],
     ['延后', coverage.deferred],
+    ['进入代表性语义输入', coverage.representative_count],
+    ['语义预算延后', coverage.semantic_budget_deferred],
     ['未做语义分析', coverage.not_semantically_analyzed],
-  ].map(([label, value]) => `<dt>${label}</dt><dd>${value ?? 0}</dd>`).join('');
+  ].forEach(([label, value]) => {
+    add(coverageList, 'dt', label);
+    add(coverageList, 'dd', value);
+  });
 
   const glance = data.at_a_glance || {};
   $('#glance-working').textContent = glance.working || '暂无明确结论';
@@ -161,30 +192,83 @@
   $('#glance-quick-wins').textContent = glance.quick_wins || '暂无明确结论';
   $('#glance-ambitious').textContent = glance.ambitious || '暂无明确结论';
 
-  function renderRows(selector, items, fallback) {
+  function renderRows(selector, items, fallback, detail) {
+    const parent = $(selector);
     const values = array(items);
-    $(selector).innerHTML = values.length ? values.map((item, index) => `<div class="row">
-      <div><h3>${esc(title(item, `观察 ${index + 1}`))}</h3><div class="meta">${esc(evidence(item))}</div></div>
-      <p>${esc(text(item))}</p>
-    </div>`).join('') : empty(fallback);
+    if (!values.length) return empty(parent, fallback);
+    values.forEach((item, index) => {
+      const row = add(parent, 'div', null, 'row');
+      const heading = add(row, 'div');
+      add(heading, 'h3', item.title || item.name || item.area || `观察 ${index + 1}`);
+      add(heading, 'div', evidence(item), 'meta');
+      const content = add(row, 'div');
+      add(content, 'p', item.text);
+      if (detail) detail(content, item);
+    });
   }
   renderRows('#project-areas', data.project_areas, '没有足够证据划分项目区域。');
   renderRows('#wins', data.wins, '没有稳定重复的有效做法。');
-  renderRows('#frictions', data.frictions, '没有稳定重复的摩擦模式。');
-  renderRows('#experiments', data.experiments, '这次没有值得尝试的新实验。');
+  renderRows('#frictions', data.frictions, '没有稳定重复的摩擦模式。', (parent, item) => {
+    add(parent, 'div', `责任侧：${ownerLabel[item.owner]}`, 'detail');
+  });
+  renderRows('#experiments', data.experiments, '这次没有值得尝试的新实验。', (parent, item) => {
+    add(parent, 'div', `试法：${item.trial}`, 'detail');
+    add(parent, 'div', `成功信号：${item.success_signal}`, 'detail');
+  });
+  renderRows('#observations', data.observations, '没有需要单独记录的一次性观察。');
 
   const candidates = array(data.durable_candidates);
-  $('#durable-candidates').innerHTML = candidates.length ? candidates.map((item, index) => `<article class="card candidate">
-    <span class="chip">${esc(item.type || '候选')}</span>
-    <h3>${esc(title(item, `候选 ${index + 1}`))}</h3>
-    <p>${esc(text(item))}</p>
-    ${item.why_durable ? `<p class="why">沉淀依据：${esc(item.why_durable)}</p>` : ''}
-  </article>`).join('') : empty('没有达到长期沉淀门槛的候选。');
+  const candidateList = $('#durable-candidates');
+  const selectedOutput = $('#selected-candidates');
+  const copyStatus = $('#copy-status');
+  function selectedText() {
+    const selected = candidates.filter((_item, index) =>
+      candidateList.querySelector(`[data-candidate-index="${index}"]`)?.checked);
+    if (!selected.length) return '';
+    return selected.map((item) => `## ${item.name}\n\n${item.text}`).join('\n\n');
+  }
+  function updateSelection() {
+    selectedOutput.value = selectedText();
+    copyStatus.textContent = selectedOutput.value ? '' : '尚未选择候选';
+  }
+  if (!candidates.length) {
+    empty(candidateList, '没有达到长期沉淀门槛的候选。');
+  } else {
+    candidates.forEach((item, index) => {
+      const card = add(candidateList, 'article', null, 'card candidate');
+      const label = add(card, 'label');
+      const checkbox = add(label, 'input');
+      checkbox.type = 'checkbox';
+      checkbox.dataset.candidateIndex = index;
+      checkbox.checked = false;
+      checkbox.addEventListener('change', updateSelection);
+      const content = add(label, 'span');
+      add(content, 'span', item.type, 'chip');
+      add(content, 'h3', item.name);
+      add(content, 'p', item.text);
+      add(content, 'p', `沉淀依据：${item.why_durable}`, 'why');
+      add(content, 'div', `证据：${evidence(item)}`, 'detail');
+    });
+  }
+  updateSelection();
+
+  $('#copy-candidates').addEventListener('click', async () => {
+    if (!selectedOutput.value) return;
+    try {
+      await navigator.clipboard.writeText(selectedOutput.value);
+      copyStatus.textContent = '已复制';
+    } catch {
+      selectedOutput.focus();
+      selectedOutput.select();
+      const copied = typeof document.execCommand === 'function' && document.execCommand('copy');
+      copyStatus.textContent = copied ? '已复制' : '自动复制失败，请手动复制已选中的文本';
+    }
+  });
 
   const limitations = array(data.evidence_limitations);
-  $('#evidence-limitations').innerHTML = limitations.length
-    ? limitations.map((item) => `<li>${esc(text(item))}</li>`).join('')
-    : '<li>未声明额外证据限制。</li>';
+  const limitationList = $('#evidence-limitations');
+  (limitations.length ? limitations : ['未声明额外证据限制。'])
+    .forEach((item) => add(limitationList, 'li', item));
   $('#generated-at').textContent = data.generated_at ? `生成于 ${new Date(data.generated_at).toLocaleString()}` : '';
 })();
 </script>
