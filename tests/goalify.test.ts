@@ -10,123 +10,82 @@ const repoRoot = path.resolve(
   "..",
 );
 
-function read(rel: string): string {
-  return fs.readFileSync(path.join(repoRoot, rel), "utf-8");
+function readSkill(): string {
+  return fs.readFileSync(
+    path.join(repoRoot, "plugins/auriga-workflow/skills/goalify/SKILL.md"),
+    "utf-8",
+  );
 }
 
 describe("goalify skill contract", () => {
-  test("documents spec-design inputs", () => {
-    const text = read("plugins/auriga-workflow/skills/goalify/SKILL.md");
-    assert.ok(
-      text.includes("spec.md") && text.includes("validation-contract.md"),
-      "goalify must list both spec source files",
-    );
+  test("accepts formal and conversational sources without bypassing architecture approval", () => {
+    const text = readSkill();
+
+    assert.match(text, /只在用户明确要求或选择自主运行时使用/);
+    assert.ok(text.includes("spec.md") && text.includes("validation-contract.md"));
+    assert.match(text, /不要求任务必须有正式规格/);
+    assert.match(text, /对话、问题单、当前分支、提交历史和拉取请求正文/);
+    assert.match(text, /自主运行不能批准或绕过架构确认门禁/);
+    assert.match(text, /实质性架构决定，停止并交回用户/);
   });
 
-  test("does not start an autonomous implementation across an unapproved architecture gate", () => {
-    const text = read("plugins/auriga-workflow/skills/goalify/SKILL.md");
-
-    assert.match(text, /启动[^。\n]*goal[^。\n]*架构设计[^。\n]*用户确认/);
-    assert.match(text, /自驱[^。\n]*(?:不能|不得)[^。\n]*(?:批准|绕过)[^。\n]*arch-design/);
-  });
-
-  test("keeps /goal text portable and boundary-light", () => {
-    const text = read("plugins/auriga-workflow/skills/goalify/SKILL.md");
-    assert.ok(text.includes("## Must Not"), "goalify must define Must Not rules");
-    assert.ok(text.includes("## Examples"), "goalify must include /goal examples");
-    assert.ok(
-      text.includes("Must not 在 `/goal` 文本里硬编切片计划"),
-      "goalify must prohibit hard-coded slice plans in /goal text",
-    );
-    assert.ok(
-      text.includes("Must not 把 `spec.md`、`validation-contract.md`") &&
-        text.includes("大段复制进 `/goal`"),
-      "goalify must prohibit copying existing spec content into /goal text",
-    );
-    assert.ok(
-      text.includes("Must not 预判 `deep-review`"),
-      "goalify must prohibit pre-judging deep-review findings",
-    );
-    assert.ok(
-      text.includes("Claude Code") && text.includes("Codex"),
-      "goalify must document runtime-specific /goal dispatch behavior",
-    );
-    assert.ok(
-      text.includes("deep-review") && text.includes("blocking"),
-      "goalify must document the common endpoint of completing deep-review and fixing blocking findings",
-    );
-    assert.ok(
-      text.includes("跑到 deep-review 收敛"),
-      "goalify must offer a converged deep-review terminus",
-    );
-    assert.ok(
-      text.includes("PR Check") && text.includes("unresolved"),
-      "the converged terminus must spell out CI-green and no-unresolved-blocking-comment criteria",
-    );
-    assert.ok(
-      text.includes("handoff") &&
-        text.includes("这次做了什么") &&
-        text.includes("怎么验收") &&
-        text.includes("下一步可以做什么"),
-      "goalify must require a final handoff with what changed, acceptance, and next steps",
-    );
-    assert.ok(
-      text.includes("incremental-impl"),
-      "goalify must preserve the boundary with incremental-impl",
-    );
-    assert.equal(
-      text.includes("切片计划一起写进 `/goal`"),
-      false,
-      "goalify must not instruct Agents to hard-code slice plans into /goal text",
-    );
-    assert.equal(
-      /每条\s+VAL[\s\S]{0,40}翻译成\s+goal/.test(text),
-      false,
-      "goalify must not instruct Agents to translate each VAL into /goal text",
-    );
-  });
-
-  test("requires a stable /goal output shape", () => {
-    const text = read("plugins/auriga-workflow/skills/goalify/SKILL.md");
+  test("keeps the goal compact and delegates implementation planning", () => {
+    const text = readSkill();
+    const contractSection = text.match(/## 组织目标[\s\S]*?## 确定终点/);
+    assert.ok(contractSection, "goalify must document the compact goal contract");
+    const contract = contractSection[0];
     let previousIndex = -1;
+
     for (const section of [
-      "目标一句话",
-      "事实来源",
-      "执行约束",
-      "终点条件",
-      "越界停止规则",
-      "handoff 要求",
+      "**目标**",
+      "**权威事实与约束**",
+      "**终点与停止条件**",
+      "**交接**",
     ]) {
-      const sectionIndex = text.indexOf(section);
-      assert.notEqual(sectionIndex, -1, `goalify output shape must include ${section}`);
-      assert.ok(
-        sectionIndex > previousIndex,
-        `goalify output shape must keep ${section} in order`,
-      );
+      const sectionIndex = contract.indexOf(section);
+      assert.notEqual(sectionIndex, -1, `goal contract must include ${section}`);
+      assert.ok(sectionIndex > previousIndex, `goal contract must keep ${section} in order`);
       previousIndex = sectionIndex;
     }
+
+    assert.match(text, /基于当前任务状态推进，不假设必须重新从默认分支开始/);
+    assert.match(text, /不要在目标里硬编切片、复制现有事实正文或预判评审发现/);
+    assert.doesNotMatch(text, /从 main 建分支/);
+    assert.doesNotMatch(text, /先做切片 1/);
+    assert.doesNotMatch(text, /deep-review 将发现/);
+    assert.ok(text.includes("incremental-impl"));
   });
 
-  test("keeps built-in endpoint choices focused", () => {
-    const text = read("plugins/auriga-workflow/skills/goalify/SKILL.md");
-    const endpointSection = text.match(/## 确定终点阶段[\s\S]*?## 启动方式/);
+  test("uses an explicit endpoint and preserves deep-review convergence", () => {
+    const text = readSkill();
+    const endpointSection = text.match(/## 确定终点[\s\S]*?## 启动与交接/);
     assert.ok(endpointSection, "goalify must document endpoint selection");
     const endpoints = endpointSection[0];
 
-    assert.ok(endpoints.includes("跑到 PR Ready"), "PR Ready remains a built-in endpoint");
-    assert.ok(
-      endpoints.includes("跑到 deep-review 收敛"),
-      "deep-review convergence remains a built-in endpoint",
+    assert.match(endpoints, /用户已经明确终点时直接采用，不重复询问/);
+    assert.match(
+      endpoints,
+      /没有说明跑到哪里，或自定义终点缺少可验证的停止条件时，再询问/,
     );
-    assert.ok(endpoints.includes("跑到合并"), "merge remains a built-in endpoint");
-    assert.ok(endpoints.includes("用户自定义"), "custom endpoint remains available");
+    assert.ok(endpoints.includes("PR Ready"));
+    assert.ok(endpoints.includes("深度评审收敛"));
+    assert.ok(endpoints.includes("合并"));
+    assert.ok(endpoints.includes("自定义终点"));
+    assert.match(endpoints, /最近一轮深度评审没有阻塞项/);
+    assert.match(endpoints, /所有拉取请求检查通过/);
+    assert.match(endpoints, /没有未解决的阻塞性评审意见/);
+    assert.match(endpoints, /明确授权为达成收敛而再次运行深度评审/);
+    assert.match(endpoints, /只有用户明确授权合并时才能采用/);
+  });
 
-    assert.equal(endpoints.includes("跑到 Draft PR"), false, "Draft PR is no longer built-in");
-    assert.equal(endpoints.includes("跑到验证完成"), false, "verification-only is no longer built-in");
-    assert.equal(
-      endpoints.includes("跑到 deep-review 完成"),
-      false,
-      "one-shot deep-review is no longer built-in",
-    );
+  test("dispatches according to runtime capability and requires a bounded handoff", () => {
+    const text = readSkill();
+
+    assert.ok(text.includes("Codex") && text.includes("Claude Code"));
+    assert.match(text, /Codex 暴露目标启动能力时，直接设置并启动目标/);
+    assert.match(text, /Claude Code 通常输出可粘贴到 `\/goal` 的文本/);
+    assert.match(text, /不假装已经操作其交互界面/);
+    assert.match(text, /到达终点或触发停止条件后立即交接/);
+    assert.match(text, /完成内容、验收方式、剩余风险和用户下一步可以做什么/);
   });
 });
