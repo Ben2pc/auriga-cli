@@ -10,7 +10,7 @@ travel together so they share one distribution model and one install step.
 | Skill | What it does |
 |---|---|
 | `systematic-debugging` | Evidence-first diagnosis — establishes a repeatable verification path or a production evidence-collection path before permanent repair. |
-| `incremental-impl` | Size triage (XS–XL), slicing strategy, optional parallel subagent dispatch, per-slice Implement → Test → Verify → Commit discipline. |
+| `incremental-impl` | Decomposes approved requirement changes into complete, verifiable implementation units, then coordinates incremental execution and integration. |
 | `test-driven-development` | Minimal behavior-first TDD — consumes acceptance contracts and project test rules. |
 | `spec-design` | Requirement clarification — produces PR-scoped contracts under `docs/specs/<topic>/`, or an explicitly approved cross-PR program contract under `docs/long-running-specs/<topic>/`. |
 | `arch-design` | Technical design clarification — domain models, module boundaries, dependency direction, human-reviewed design records, and migration constraints. |

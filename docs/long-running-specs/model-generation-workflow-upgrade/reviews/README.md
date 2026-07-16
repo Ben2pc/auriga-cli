@@ -43,7 +43,7 @@
 | [`documentation-management`](../../../worklog/worklog-2026-07-16-refactor-documentation-management/documentation-management/review.md) | Auriga 插件；由 `documentation-and-adrs` 重命名 | Claude Code / Codex | 精简；PR #188 已完成首次深入评审并修复阻塞项；转为工程文档资产治理，区分人类文档、Agent 资料、行为指令与共享资产；模型评测未执行 |
 | [`git-workflow`](../../../worklog/worklog-2026-07-16-refactor-simplify-git-workflow/git-workflow-modernization/review.md) | Auriga 插件 | Claude Code / Codex | PR #189 首次深入评审完成并修复全部确认项；删除通用 Git 教学与 Hook 实现细节，保留仓库安全、提交、拉取请求、评审反馈和合并契约，Ready 守卫只检查活动计划并具备安全扫描边界；模型评测未执行 |
 | [`goalify`](../../../worklog/worklog-2026-07-16-refactor-goalify-simplify/goalify-modernization/review.md) | Auriga 插件 | Claude Code / Codex | 精简；PR #190 首次深入评审完成并修复全部高置信度契约与文档问题；保留深度评审收敛、架构人工门禁和双运行时条件式启动；模型评测未执行 |
-| `incremental-impl` | Auriga 插件 | Claude Code / Codex | 待评审 |
+| [`incremental-impl`](../../../worklog/worklog-2026-07-16-refactor-simplify-incremental-impl/review.md) | Auriga 插件 | Claude Code / Codex | 精简；PR #191 首次深入评审完成并修复并行依赖、契约追溯、工作流版本和长期文档同步问题；核心职责收敛为按需求结果与合法中间状态拆分完整实施单元，派发降为可选执行方式；模型评测未执行 |
 | `reviewer-creator` | Auriga 插件 | Claude Code / Codex | 待评审 |
 | `session-compound` | Auriga 插件 | Claude Code / Codex | 待评审 |
 | `spec-design` | Auriga 插件 | Claude Code / Codex | 待评审；PR #183 已修复交接绕过 `arch-design`，现有长程子规范拆分树与“规格 / 架构 / 实施计划”三阶段边界仍需在本技能轮次单独澄清 |

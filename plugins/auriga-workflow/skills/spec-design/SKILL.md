@@ -163,7 +163,7 @@ VAL 编号约定适用于所有写 VAL 的地方：`VAL-<CATEGORY>-<NNN>`。`CAT
 
 ## 拆分决策树
 
-按顺序走，第一个命中的胜出。这些轴特意与 `incremental-impl` 第 2 步的词汇对齐——spec 一旦选定一条轴，下游 plan 和 impl 沿用同名，不再重新决定。
+按顺序走，第一个命中的胜出。这些轴只决定需求层的子规范如何分组。下游 plan 与 `incremental-impl` 消费已经确认的子规范、依赖和验收结果，不重新打开产品拆分；实施单元仍按实际代码和合法中间状态确定。
 
 1. **全新地（一个全新子系统）** → **Walking Skeleton**：先打通最薄的端到端路径，之后纵向加厚
 2. **高风险 / 高未知的技术表面** → **By risk**：先攻最不确定的子规范，验证，再扩展
@@ -226,7 +226,7 @@ VAL 的 `Tool` 字段必须从下面的**类别**里选——绝不写具体工�
 ## 和其他 skill 的关系
 
 - `test-driven-development` — 消费 `validation-contract.md`（`spec.md` 正文作为兜底上下文），建立最小失败证据
-- `incremental-impl` — 沿用 B0 选定的同一套切分轴词汇；把 spec + plan 带进逐切片执行
+- `incremental-impl` — 消费 B0 已确认的子规范、依赖和验收结果，再把每项需求改动拆成完整、可验证的实施单元
 - plan 阶段工具（内置 Plan、`planning-with-files`、或工作流 CLAUDE.md 点名的任何规划 skill）——当规模判定走完整 plan 路径时，是 D3 的下游
 - `deep-review` 的 `spec-conformance` 审查者 — 拿 PR diff 对照 VAL 列表验证；finding 标注 `VAL-XXX-NNN`
 - `playground:playground`（Anthropic 官方，软依赖）— 通过 `document-critique` 模板做 D1.5 审查辅助

@@ -4,7 +4,7 @@
 
 **语言规则**：section 标题里的英文锚点（`## Sub-specs`、`## Slicing axis`）和轴名（`Walking Skeleton`、`By risk`、`Horizontal sweep`、`Branch by Abstraction`、`Vertical slice`）保持英文不动。**散文解释跟随用户的对话语言。**
 
-`## Slicing axis` 的取值必须来自 `SKILL.md` §拆分决策树 五选一；spec 阶段定的轴名 `incremental-impl` Step 2 会直接沿用，不可自创新轴。
+`## Slicing axis` 的取值必须来自 `SKILL.md` §拆分决策树五选一，不可自创新轴。它记录需求层的子规范分组方式；下游 `incremental-impl` 消费子规范、依赖和验收结果，再按实际代码形成完整实施单元。
 
 打开 umbrella 一个文件就应该看清总体范围；如果还得翻子 spec 才看得懂，说明 umbrella 失职。
 

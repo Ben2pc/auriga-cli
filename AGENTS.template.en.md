@@ -1,5 +1,5 @@
 <!-- AURIGA:WORKFLOW:v1 START — Managed block, maintained by auriga-cli. Do not edit by hand; upgrades replace it wholesale. Put project-specific instructions after the END marker below. -->
-# auriga Workflow (v1.17.0)
+# auriga Workflow (v1.18.0)
 
 1. Requirement Clarification: Clarify new requirements with `spec-design` first. **spec = why + observable what; arch design = structural how; plan = implementation steps** — requirements do not prescribe technical paths; for product features, lead with the Why. A change that does not move the external behavior contract may skip the spec, but its technical design may still need architecture clarification.
 
@@ -13,7 +13,7 @@
 
 6. TDD: Code changes that alter observable behavior follow `test-driven-development`; pure documentation, pure configuration, generated code, and changes without a useful automated seam are exempt. Define testable acceptance criteria before each task and read `docs/rules/test/` before writing tests.
 
-7. Incremental implementation: Invoke `incremental-impl` for non-trivial work (multi-file changes, cross-file refactors, executing a planned task, ~100+ lines expected) — size triage, slicing, and dispatch belong to the skill; skip when it rates the work XS or the change is pure docs/config.
+7. Incremental implementation: Invoke `incremental-impl` for non-trivial work (multi-file changes, cross-file refactors, cross-cutting changes, or executing an approved plan). First decompose the approved change into complete implementation units by requirement result, verification boundary, and valid intermediate state; then implement them incrementally by dependency. Skip pure documentation, pure configuration, and one clear small edit.
 
 8. Verify before claiming done: Any "done, fixed, passing, or ready for review" judgment must be based on verification results that match the claim and were obtained after the last relevant change; when evidence is insufficient, state the gap.
 
@@ -59,7 +59,7 @@ Repo documentation lives under `docs/`, one directory per purpose:
 |----------|----------|
 | Single-file fix, clear solution | Do it yourself |
 | Parallel read-only tasks (search, analysis) | In-conversation subagents, no isolation |
-| Multiple subagents writing code | `incremental-impl` — returns a slice plan when gates pass |
+| Multiple subagents writing code | `incremental-impl` — defines file ownership, worktree isolation, and integration order |
 | Fresh zero-pollution perspective / cross-model blind-spot coverage | Independent Agent (Reviewer, GPT reviewing Claude, etc.) |
 
 - **Isolate parallel writes**: independent git worktrees, or fully disjoint directories.

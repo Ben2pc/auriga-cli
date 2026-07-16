@@ -19,7 +19,8 @@
 | 13 | [`docent` 精简](../../worklog/worklog-2026-07-15-refactor-simplify-docent-skill/docent-modernization/) | VAL-DOCNT-001..009 | 首次深入评审完成并修复阻塞项；保留显式调用、单子代理隔离和可视化离线制品，精简无条件内容与视觉差异化要求；模型评测未执行 |
 | 14 | [`documentation-management` 精简](../../worklog/worklog-2026-07-16-refactor-documentation-management/documentation-management/review.md) | — | PR #188 已完成首次深入评审并修复阻塞项；由 `documentation-and-adrs` 重命名，转为工程文档资产与长期上下文治理；用户明确豁免当前子规范；模型评测未执行 |
 | 15 | [`git-workflow` 精简](../../worklog/worklog-2026-07-16-refactor-simplify-git-workflow/git-workflow-modernization/) | VAL-GIT-001..007 | PR #189 已完成首次深入评审并修复全部确认项；保留 Git 生命周期团队契约，删除通用教学和重复 Hook 细节，Ready 守卫收敛为活动计划范围并补齐安全扫描；模型评测未执行 |
-| 16 | `workflow-consolidation/` | VAL-MIG-001..005 | 等待前序结论 |
+| 16 | [`incremental-impl` 精简](../../worklog/worklog-2026-07-16-refactor-simplify-incremental-impl/) | VAL-IMPL-001..011 | PR #191 首次深入评审完成并修复阻塞项；删除固定规模与派发仪式，保留完整实施单元、依赖顺序、隔离并行和跨运行时能力；模型评测未执行 |
+| 17 | `workflow-consolidation/` | VAL-MIG-001..005 | 等待前序结论 |
 
 ## Parent coverage map (父级验收覆盖映射)
 
