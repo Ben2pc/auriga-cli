@@ -1,5 +1,7 @@
 # Validation Contract — session-compound 现代化 (验收契约 — session-compound 现代化)
 
+> 归档自 PR #193 的开发期验收契约；作为本次实现与正式评审的验收依据。
+
 > 与 spec.md 配套：spec.md 描述 why+what；本文件描述“什么算通过”。
 > 每条 VAL 只描述 Behavior + Tool + Evidence；测试函数、夹具和内部拆分由测试驱动开发阶段决定。
 
