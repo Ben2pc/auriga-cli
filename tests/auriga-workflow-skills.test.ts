@@ -126,8 +126,8 @@ describe("auriga-workflow skill contracts", () => {
     for (const action of ["更新", "删除", "合并", "压缩", "归档", "晋升", "新建"]) {
       assert.ok(skill.includes(action), `documentation management must support ${action}`);
     }
-    assert.match(skill, /主要读者/);
-    assert.match(skill, /人类文档不挂到 `AGENTS\.md`/);
+    assert.match(skill, /先确定消费者/);
+    assert.match(skill, /纯人类文档不挂到 `AGENTS\.md`/);
     assert.match(skill, /Agent 文档是提示词和上下文工程资产/);
     for (const contract of [
       "目标",
@@ -142,6 +142,11 @@ describe("auriga-workflow skill contracts", () => {
     assert.match(skill, /同一规则只写一次/);
     assert.match(skill, /不链接只服务人类阅读的材料/);
     assert.match(skill, /`CLAUDE\.md -> AGENTS\.md` 兼容软链/);
+    assert.match(skill, /仓库根只放全局规则与导航/);
+    assert.match(skill, /子包[^。\n]*自己的根目录维护 `AGENTS\.md`/);
+    assert.match(skill, /最近的适用作用域[^。\n]*`AGENTS\.md` 建立索引/);
+    assert.match(skill, /最近公共祖先/);
+    assert.match(skill, /ADR 可以同时服务人类与 Agent/);
     assert.match(skill, /docs-sync[^。\n]*独立审查/);
     assert.doesNotMatch(skill, /常见的自我辩解|危险信号/);
 
