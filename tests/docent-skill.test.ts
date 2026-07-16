@@ -30,8 +30,16 @@ function listFilesRecursive(rel: string): string[] {
   return out;
 }
 
+function sectionBetween(text: string, start: string, end: string): string {
+  const startIndex = text.indexOf(start);
+  const endIndex = text.indexOf(end, startIndex + start.length);
+  assert.ok(startIndex >= 0, `missing section start: ${start}`);
+  assert.ok(endIndex > startIndex, `missing section end after ${start}: ${end}`);
+  return text.slice(startIndex, endIndex);
+}
+
 describe("docent skill assets", () => {
-  // VAL-DCNT-001 — skill exists and is explicit-invocation only
+  // VAL-DOCNT-001 — explicit invocation, one dedicated Agent, bounded fallback
   test("SKILL.md exists with valid frontmatter and explicit-only invocation", () => {
     const raw = read(`${SKILL_DIR}/SKILL.md`);
     const parsed = matter(raw);
@@ -49,22 +57,38 @@ describe("docent skill assets", () => {
       /显式/.test(String(parsed.data.description)),
       "description must state the explicit-invocation-only boundary for runtimes that trigger by description",
     );
+    assert.match(parsed.content, /Claude Code[^。\n]*\/auriga-workflow:docent/);
+    assert.match(parsed.content, /Codex[^。\n]*auriga-workflow:docent/);
+    const execution = sectionBetween(parsed.content, "## 执行模型：单个专职子代理", "## 子代理工作流");
+    assert.match(execution, /一个[^。\n]*专职子代理|单个专职子代理/);
+    assert.match(execution, /全过程[^。\n]*子代理内部/);
+    assert.match(execution, /不支持派遣子代理[\s\S]{0,180}主对话[\s\S]{0,180}提醒用户/);
   });
 
-  // VAL-DCNT-002 — no fixed HTML template asset; quality is constrained by
-  // purpose + palette + hard constraints in prose
-  test("skill ships no fixed HTML template; hard constraints live in SKILL.md", () => {
+  // VAL-DOCNT-002..005 — keep the comprehension contract, but make history,
+  // hands-on verification, search methods, and visual customization conditional.
+  test("skill separates core report content from conditional tools and presentation", () => {
     const htmlAssets = listFilesRecursive(SKILL_DIR).filter((f) => f.endsWith(".html"));
     assert.deepEqual(htmlAssets, [], "docent must not ship a fixed HTML template asset");
     const text = read(`${SKILL_DIR}/SKILL.md`);
-    assert.ok(text.includes("必答"), "SKILL.md must carry the mandatory-answers checklist");
+    const core = sectionBetween(text, "#### 核心内容", "#### 条件内容");
+    for (const item of [
+      "为什么存在",
+      "入口与主流程",
+      "代码地图",
+      "数据或状态",
+      "相邻契约",
+      "阅读足迹",
+      "如何验证理解",
+    ]) {
+      assert.ok(core.includes(item), `core report contract must retain: ${item}`);
+    }
     assert.ok(
       /文件:行号/.test(text),
       "SKILL.md must require file:line anchors for code conclusions",
     );
     assert.ok(text.includes("自包含"), "SKILL.md must require a self-contained offline HTML");
     assert.ok(text.includes("阅读足迹"), "SKILL.md must require the reading-footprint section");
-    assert.ok(text.includes("不适用"), "SKILL.md must allow explicit N/A but forbid silent omission");
     assert.ok(
       /至少一张/.test(text) && /时序图|流程图|状态图/.test(text),
       "SKILL.md must hard-require at least one standard software-engineering diagram for the main flow",
@@ -73,17 +97,46 @@ describe("docent skill assets", () => {
       text.includes("架构总览"),
       "SKILL.md must require an architecture overview diagram on the first screen",
     );
-    assert.ok(
-      text.includes("端到端"),
-      "SKILL.md must center the verify-understanding item on human end-to-end acceptance",
+    assert.match(core, /可运行或可操作[\s\S]{0,120}端到端/);
+    assert.match(core, /否则[\s\S]{0,140}(自动化测试|静态检查|人工核对)/);
+    const conditional = sectionBetween(text, "#### 条件内容", "### 4. 生成 HTML 报告");
+    assert.match(conditional, /历史演化[\s\S]{0,120}(按需|条件)/, "git history must be conditional");
+    assert.match(
+      conditional,
+      /人工端到端体验[\s\S]{0,180}(可运行|可操作)/,
+      "hands-on verification must require a runnable or operable entry point",
+    );
+    const locating = sectionBetween(text, "### 1. 定位", "### 2. 通读");
+    assert.match(locating, /按问题从定位工具箱/, "search methods must be selected as needed");
+    assert.match(locating, /不机械地全部执行/);
+    assert.doesNotMatch(
+      locating,
+      /(?:必须|务必)[^。\n]*(?:全部执行|逐项执行)/,
+      "the locating toolbox must not become a fixed checklist",
     );
     assert.ok(
       text.includes("references/components.md"),
       "SKILL.md must direct the report generator to the bundled component library",
     );
+
+    const design = read(`${SKILL_DIR}/references/design-guidelines.md`);
+    assert.doesNotMatch(
+      design,
+      /两份不同主题的报告不应该长得一样|每份报告.*不同/,
+      "visual variety must not be a quality target",
+    );
+    assert.match(
+      design,
+      /默认.*(基线|组件|token)/,
+      "design guidance must provide a stable default visual baseline",
+    );
+    const components = read(`${SKILL_DIR}/references/components.md`);
+    const visualContract = `${text}\n${design}\n${components}`;
+    assert.match(visualContract, /只有[^。\n]*改善[^。\n]*才[^。\n]*(定制|custom\.css)/);
+    assert.doesNotMatch(visualContract, /先用文件编辑工具写出两个片段|配色与字体[^。\n]*而非默认值/);
   });
 
-  // VAL-DCNT-003 — dual-agent portability conventions
+  // VAL-DOCNT-006 — dual-agent portability conventions
   test("skill files follow agent-portability conventions", () => {
     const files = listFilesRecursive(SKILL_DIR).filter((f) => f.endsWith(".md"));
     assert.ok(files.length > 0, "docent skill files must exist");
@@ -103,7 +156,7 @@ describe("docent skill assets", () => {
     }
   });
 
-  // VAL-DCNT-013 — bundled frontend design reference, referenced by SKILL.md
+  // VAL-DOCNT-005 — bundled visual baseline reference, referenced by SKILL.md
   test("design guidelines reference is bundled and wired into SKILL.md", () => {
     const ref = `${SKILL_DIR}/references/design-guidelines.md`;
     assert.ok(
@@ -139,6 +192,9 @@ describe("docent skill assets", () => {
     assert.ok(tokens.includes("--primary"), "tokens.css must define the design tokens");
     const css = read(`${SKILL_DIR}/assets/components.css`);
     assert.ok(css.includes("file-tree"), "components.css must include the file-tree component");
+    for (const baseline of ["body {", "max-width: 1120px", "h1, h2, h3, h4", "pre {", "@media (max-width: 720px)"]) {
+      assert.ok(css.includes(baseline), `components.css must include default page baseline: ${baseline}`);
+    }
 
     const guide = read(`${SKILL_DIR}/references/components.md`);
     for (const name of ["assets/tokens.css", "assets/components.css", "assets/renderers.js"]) {
@@ -391,6 +447,8 @@ describe("docent skill assets", () => {
         "title must be HTML-escaped, not injected verbatim",
       );
       assert.ok(html2.includes("&lt;/title&gt;"), "escaped title must survive in the output");
+      assert.ok(html2.includes("max-width: 1120px"), "reports without custom CSS must include the page baseline");
+      assert.ok(html2.includes("prefers-reduced-motion"), "the page baseline must respect reduced motion");
     } finally {
       fs.rmSync(tmp, { recursive: true, force: true });
     }
@@ -398,14 +456,16 @@ describe("docent skill assets", () => {
 });
 
 describe("docent release sync", () => {
-  // VAL-DCNT-004 — plugin manifests bumped past 3.9.0 and kept in lockstep.
-  test("plugin manifests are bumped past 3.9.0 and stay in lockstep", () => {
+  test("plugin manifests include the docent modernization release and stay in lockstep", () => {
     const claude = JSON.parse(read("plugins/auriga-workflow/.claude-plugin/plugin.json"));
     const codex = JSON.parse(read("plugins/auriga-workflow/.codex-plugin/plugin.json"));
-    const [maj, min] = String(claude.version).split(".").map(Number);
+    const parts = String(claude.version).split(".").map(Number);
+    const meetsMinimum =
+      parts[0] > 4 ||
+      (parts[0] === 4 && (parts[1] > 0 || (parts[1] === 0 && parts[2] >= 7)));
     assert.ok(
-      maj > 3 || (maj === 3 && min >= 10),
-      `plugin version must be bumped past 3.9.0, got ${claude.version}`,
+      meetsMinimum,
+      `plugin version must include the docent modernization release (>= 4.0.7), got ${claude.version}`,
     );
     assert.equal(
       codex.version,
@@ -450,5 +510,33 @@ describe("docent release sync", () => {
       read("plugins/auriga-workflow/README.md").includes("docent"),
       "plugin README skills table must list docent",
     );
+  });
+
+  test("formal review records bounded recovery decisions [VAL-DOCNT-007]", () => {
+    const review = read(
+      "docs/worklog/worklog-2026-07-15-refactor-simplify-docent-skill/docent-modernization/review.md",
+    );
+    for (const anchor of ["风险、观察信号与恢复条件", "首次深入评审", "接受并修复", "保留为后续候选"]) {
+      assert.ok(review.includes(anchor), `review record must retain: ${anchor}`);
+    }
+    assert.match(review, /恢复条件/);
+    assert.match(review, /不恢复|不把|只有[^。\n]*才/);
+  });
+
+  test("archived docent records stay linked from the long-running indexes [VAL-DOCNT-009]", () => {
+    const archive = "worklog-2026-07-15-refactor-simplify-docent-skill/docent-modernization";
+    assert.ok(
+      fs.existsSync(path.join(repoRoot, `docs/worklog/${archive}/validation-contract.md`)),
+      "archived validation contract must exist",
+    );
+    assert.equal(
+      listFilesRecursive("docs/specs").filter((file) => file.includes("docent-modernization")).length,
+      0,
+      "the active specs directory must not retain the docent child spec",
+    );
+    const umbrella = read("docs/long-running-specs/model-generation-workflow-upgrade/umbrella.md");
+    const index = read("docs/long-running-specs/model-generation-workflow-upgrade/reviews/README.md");
+    assert.ok(umbrella.includes(`${archive}/validation-contract.md`));
+    assert.ok(index.includes(`${archive}/review.md`));
   });
 });

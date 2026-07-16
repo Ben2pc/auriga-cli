@@ -1,26 +1,26 @@
 # 报告组件库：资产清单与拼装配方
 
-固定资产放在 `<skill-dir>/assets/` 下，**按名取用、命令拼装**——不要通过模型逐字重打这些内容（那是几千 token 的复印机工作）。你只生成三样东西：正文内容、图的 JSON 数据、当次定制的版式 CSS。
+固定资产放在 `<skill-dir>/assets/` 下，**按名取用、命令拼装**——不要通过模型逐字重打这些内容。生成正文内容和图的 JSON 数据；只有需要偏离默认基线时才增加定制 CSS。
 
-**组件库不是模板**：版式、叙事结构、章节设计仍然每份报告定制；token 取值可以整体替换成暗色或其他立场（变量名不变，组件自动跟随）。
+**组件库不是固定页面模板**：正文结构按问题组织，但默认复用现有排版和组件。token 取值可以在确有需要时整体替换成暗色或其他主题（变量名不变，组件自动跟随）。
 
 ## 资产清单（命名获取）
 
 | 资产 | 内容 | 拼进哪里 |
 |---|---|---|
 | `assets/tokens.css` | design token 基准色板（暖纸面 + 炭墨 + 珊瑚主色 + 青/琥珀强调，与 session-compound 同源） | `<style>` 开头 |
-| `assets/components.css` | 文件树 `file-tree`、锚点徽章 `anchor`、提示卡 `callout`（`.warn`/`.danger`）、图表容器 `fig` | `<style>` |
+| `assets/components.css` | 页面与排版基线，以及文件树 `file-tree`、锚点徽章 `anchor`、提示卡 `callout`（`.warn`/`.danger`）、图表容器 `fig` | `<style>` |
 | `assets/renderers.js` | 纯函数 SVG 渲染器：`renderSequenceSvg`（时序图）、`renderFlowSvg`（分层流程图/状态图），含 `escapeXml`、中英文宽度估算 | `<script>` 开头 |
 
 ## 拼装：scripts/assemble.sh
 
-先用文件编辑工具写出两个片段：`body 片段`（正文 + 图容器 + 内联调用脚本）和 `custom.css`（当次定制版式，可选），然后执行拼装脚本：
+默认只用文件编辑工具写出 `body 片段`（正文 + 图容器 + 内联调用脚本），并把 custom.css 参数传空。只有偏离固定页面基线能明确改善当前理解问题时，才额外写 `custom.css`：
 
 ```sh
-sh <skill-dir>/scripts/assemble.sh /tmp/docent-body.html /tmp/docent-<主题slug>.html /tmp/docent-custom.css "<报告标题>" "<lang>"
+sh <skill-dir>/scripts/assemble.sh /tmp/docent-body.html /tmp/docent-<主题slug>.html "" "<报告标题>" "<lang>"
 ```
 
-`<skill-dir>` 是本 skill 的安装目录绝对路径，由派遣方在任务里提供——执行前必须替换成实际路径，不能照抄占位符。第 3~5 参可选：custom.css 可传空串跳过；第 5 参 `lang` 默认 `zh`，**报告语言不是中文时必须显式传**（如 `en`），与"报告语言跟随对话语言"的硬性约束对齐。标题会做 HTML 转义；输出路径不得与任何输入相同（脚本会拒绝）。
+`<skill-dir>` 是本 skill 的安装目录绝对路径，由派遣方在任务里提供——执行前必须替换成实际路径，不能照抄占位符。第 3~5 参可选：确需定制时把第 3 参换成 CSS 文件路径；第 5 参 `lang` 默认 `zh`，**报告语言不是中文时必须显式传**（如 `en`），与"报告语言跟随对话语言"的硬性约束对齐。标题会做 HTML 转义；输出路径不得与任何输入相同（脚本会拒绝）。
 
 脚本会把 `assets/` 三件资产注入完整文档：token 与组件 CSS 进 `<style>`，`renderers.js` 定义在 `<head>`——所以正文里任何位置的内联 `<script>` 都可以直接调用渲染器（目标 `<div>` 在调用之前出现即可）。不要自己手拼文档骨架，更不要重打资产内容。
 
