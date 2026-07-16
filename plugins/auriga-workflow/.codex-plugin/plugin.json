@@ -1,6 +1,6 @@
 {
   "name": "auriga-workflow",
-  "version": "4.0.9",
+  "version": "4.0.10",
   "description": "Auriga's end-to-end engineering workflow: clarification, diagnosis, implementation, maintenance, review, and Git lifecycle guardrails. Compatible with Claude Code and Codex.",
   "author": {
     "name": "Ben2pc",

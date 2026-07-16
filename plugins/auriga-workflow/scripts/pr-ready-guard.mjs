@@ -11,7 +11,7 @@
 // Block only on structural signals that can't be reasonably debated:
 //   B1  unpushed commits on the current branch  (Route A only — gh
 //       pr create handles push itself, so this check is moot there)
-//   B2  stray planning docs at repo root (findings/progress/task_plan)
+//   B2  temporary planning state left under .planning/
 //   B3  active specs left under docs/specs/ — that directory is a
 //       dev-only temporary workspace and must be empty by PR Ready
 //       (promote to docs/architecture/, archive to docs/worklog/, or
@@ -162,13 +162,9 @@ function stripQuoted(cmd) {
 // ---------------------------------------------------------------------
 // Structural checks
 
-// Recursively collect `.md` files (excluding `.bak`) under `dir`, returned
-// as repo-relative posix paths prefixed by `relPrefix`. The active spec
-// directory must be scanned recursively: spec-design and arch-design write
-// their outputs nested one level down — docs/specs/<topic>/spec.md,
-// docs/specs/<topic>/arch_design.md — so a flat readdir sees only the
-// <topic> directory name and never matches `.md` (issue #113).
-function collectSpecMd(dir, relPrefix) {
+// Recursively collect matching files under `dir`, returned as repo-relative
+// posix paths prefixed by `relPrefix`.
+function collectFiles(dir, relPrefix, include) {
   let entries;
   try {
     entries = fs.readdirSync(dir, { withFileTypes: true });
@@ -179,8 +175,8 @@ function collectSpecMd(dir, relPrefix) {
   for (const ent of entries) {
     const childRel = `${relPrefix}/${ent.name}`;
     if (ent.isDirectory()) {
-      out.push(...collectSpecMd(path.join(dir, ent.name), childRel));
-    } else if (/\.md$/i.test(ent.name) && !/\.bak$/i.test(ent.name)) {
+      out.push(...collectFiles(path.join(dir, ent.name), childRel, include));
+    } else if (ent.isFile() && include(ent.name)) {
       out.push(childRel);
     }
   }
@@ -188,33 +184,37 @@ function collectSpecMd(dir, relPrefix) {
 }
 
 function findStrayDocs(repoRoot) {
-  const rootFiles = ["findings.md", "progress.md", "task_plan.md"];
-  const root = rootFiles.filter((f) => {
-    try {
-      return fs.statSync(path.join(repoRoot, f)).isFile();
-    } catch {
-      return false;
-    }
-  });
+  // planning-with-files isolated mode stores each plan below
+  // `.planning/<plan-id>/` and keeps `.planning/.active_plan` as a pointer.
+  // Optional attestations are temporary state too, so every regular file in
+  // this directory must be resolved before Ready.
+  const planning = collectFiles(
+    path.join(repoRoot, ".planning"),
+    ".planning",
+    () => true,
+  );
 
   // B3: docs/specs/ is a dev-only temp workspace; any `.md` left at PR
   // Ready means a spec was never promoted / archived / deleted. Scanned
   // recursively so nested docs/specs/<topic>/*.md are caught.
-  const activeSpecs = collectSpecMd(
+  const activeSpecs = collectFiles(
     path.join(repoRoot, "docs", "specs"),
     "docs/specs",
+    (name) => /\.md$/i.test(name) && !/\.bak$/i.test(name),
   );
-  return { root, activeSpecs };
+  return { planning, activeSpecs };
 }
 
 function hasAnyStray(s) {
-  return s.root.length > 0 || s.activeSpecs.length > 0;
+  return s.planning.length > 0 || s.activeSpecs.length > 0;
 }
 
 function formatStrayBlockMessage(stray, route) {
   const parts = [];
-  if (stray.root.length > 0) {
-    parts.push(`stray planning docs at repo root: [${stray.root.join(", ")}]`);
+  if (stray.planning.length > 0) {
+    parts.push(
+      `temporary planning artifacts under .planning/: [${stray.planning.join(", ")}]`,
+    );
   }
   if (stray.activeSpecs.length > 0) {
     parts.push(
@@ -222,8 +222,8 @@ function formatStrayBlockMessage(stray, route) {
     );
   }
   // Only active specs are "promote-able" to docs/architecture/.
-  // B2 is session-ephemeral by definition — don't suggest promotion when
-  // only that fires.
+  // Planning state is session-ephemeral by definition — don't suggest
+  // promotion when only that fires.
   const promoteable = stray.activeSpecs.length > 0;
   const archiveTarget = "docs/worklog/worklog-<YYYY-MM-DD>-<branch>/";
 

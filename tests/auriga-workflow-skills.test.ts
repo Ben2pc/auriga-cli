@@ -1070,8 +1070,8 @@ describe("deep-review modernization contract", () => {
     assert.match(claude.version, /^\d+\.\d+\.\d+$/);
     const [major, minor, patch] = claude.version.split(".").map(Number);
     assert.ok(
-      major > 4 || (major === 4 && (minor > 0 || patch >= 9)),
-      `plugin version ${claude.version} must not regress below 4.0.9`,
+      major > 4 || (major === 4 && (minor > 0 || patch >= 10)),
+      `plugin version ${claude.version} must not regress below 4.0.10`,
     );
   });
 

@@ -29,7 +29,7 @@ travel together so they share one distribution model and one install step.
 |---|---|---|---|
 | `commit-reminder` | `PostToolUse` | `Edit` / `Write` / `MultiEdit` (Claude Code) · `apply_patch` (Codex's canonical file-edit tool) | When uncommitted diff vs `HEAD` exceeds 200 lines or 8 files **and** the last reminder was ≥ 5 minutes ago, injects `additionalContext` nudging the agent to commit at the next semantic boundary. Never blocks. Silent outside a git repo. |
 | `pr-create-guard` | `PostToolUse` | `gh pr create` | Fetches the new PR's body + title via `gh pr view`, injects a snapshot (headings + TODO counts) so the agent can self-verify against the five-element PR description contract (scope / acceptance criteria / design decisions / risks / TODOs). Also flags titles that don't match Conventional Commits format with a soft nudge. Never blocks. |
-| `pr-ready-guard` | `PreToolUse` | `gh pr ready` · `gh pr create` (when `--draft` / `-d` absent) | Hard-blocks (exit 2) on **structural** issues: stray `findings.md` / `progress.md` / `task_plan.md` at repo root, unfinalized active specs under `docs/specs/`, or unpushed commits (`gh pr ready` only). On `gh pr ready` otherwise injects a body snapshot. |
+| `pr-ready-guard` | `PreToolUse` | `gh pr ready` · `gh pr create` (when `--draft` / `-d` absent) | Hard-blocks (exit 2) on **structural** issues: temporary planning state under `.planning/`, unfinalized active specs under `docs/specs/`, or unpushed commits (`gh pr ready` only). On `gh pr ready` otherwise injects a body snapshot. |
 | `pr-merge-guard` | `PreToolUse` | `gh pr merge` | Hard-blocks (exit 2) while the PR body's `Acceptance criteria` or `Test plan` section still has unchecked `- [ ]` checklist items. Scoped to those two sections — unchecked items elsewhere (Remaining TODOs) never block; fenced code blocks are skipped. Fails open if `gh` can't read the body. |
 
 ## Structure
@@ -101,9 +101,11 @@ so both must enforce the same structural baseline:
   out of Route B; falsy and empty values trigger the same structural
   enforcement as no flag at all.
 
-1. **Stray planning docs at repo root** (both routes): `findings.md`,
-   `progress.md`, `task_plan.md`. Archive to
-   `docs/worklog/worklog-<YYYY-MM-DD>-<branch-name>/` (or delete) before ready.
+1. **Temporary planning state under `.planning/`** (both routes): isolated
+   `task_plan.md`, `findings.md`, `progress.md`, the `.active_plan` pointer, and
+   optional attestation files. Archive reusable plan documents to
+   `docs/worklog/worklog-<YYYY-MM-DD>-<branch-name>/`, then delete the temporary
+   planning state before ready.
 2. **Unfinalized active specs under `docs/specs/`** (both routes): the dev-only
    temp workspace for `spec-design` / `arch-design` outputs; by PR Ready every
    spec must be promoted to `docs/architecture/`, archived to `docs/worklog/`,

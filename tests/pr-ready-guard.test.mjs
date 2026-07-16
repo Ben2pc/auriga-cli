@@ -54,6 +54,18 @@ function makeRepo() {
   return dir;
 }
 
+function writePlanningArtifacts(dir, files = ["task_plan.md"]) {
+  const planId = "2026-07-16-feature-x";
+  const planningRoot = path.join(dir, ".planning");
+  const planDir = path.join(planningRoot, planId);
+  fs.mkdirSync(planDir, { recursive: true });
+  fs.writeFileSync(path.join(planningRoot, ".active_plan"), `${planId}\n`);
+  for (const file of files) {
+    fs.writeFileSync(path.join(planDir, file), `# ${file}\n`);
+  }
+  return planDir;
+}
+
 const cleanupDirs = [];
 
 const cases = [
@@ -76,37 +88,60 @@ const cases = [
     name: "git commit -m containing 'gh pr ready' does NOT trigger the hook",
     setup: () => {
       const dir = makeRepo();
-      // Also plant a stray findings.md to prove: if the hook DID
+      // Also plant current planning state to prove: if the hook DID
       // mistakenly trigger on this quoted command, it would block
       // on the stray doc. Since the quote-strip kicks in first, the
       // hook exits 0 silently despite the stray presence.
-      fs.writeFileSync(path.join(dir, "findings.md"), "# would block if hook fired\n");
+      writePlanningArtifacts(dir, ["findings.md"]);
       return { cwd: dir, cmd: `git commit -m "note about gh pr ready workflow"` };
     },
     expect: { status: 0, stdoutEq: "" },
   },
   {
-    name: "stray findings.md at repo root blocks (B2-only → no promote remediation)",
+    name: "legacy root planning files no longer block",
     setup: () => {
       const dir = makeRepo();
       fs.writeFileSync(path.join(dir, "findings.md"), "# notes\n");
-      return { cwd: dir, cmd: "gh pr ready" };
-    },
-    expect: {
-      status: 2,
-      stderrIncludes: "stray planning docs",
-      stderrNotIncludes: "promote",
-    },
-  },
-  {
-    name: "stray progress.md + task_plan.md block (names reported)",
-    setup: () => {
-      const dir = makeRepo();
       fs.writeFileSync(path.join(dir, "progress.md"), "# log\n");
       fs.writeFileSync(path.join(dir, "task_plan.md"), "# plan\n");
       return { cwd: dir, cmd: "gh pr ready" };
     },
+    expect: {
+      status: 0,
+      stderrNotIncludes: "planning artifacts",
+    },
+  },
+  {
+    name: "current progress.md + task_plan.md under .planning block",
+    setup: () => {
+      const dir = makeRepo();
+      writePlanningArtifacts(dir, ["progress.md", "task_plan.md"]);
+      return { cwd: dir, cmd: "gh pr ready" };
+    },
     expect: { status: 2, stderrIncludes: "progress.md" },
+  },
+  {
+    name: "isolated planning artifacts under .planning/<plan-id>/ block recursively",
+    setup: () => {
+      const dir = makeRepo();
+      writePlanningArtifacts(dir);
+      return { cwd: dir, cmd: "gh pr ready" };
+    },
+    expect: {
+      status: 2,
+      stderrIncludes: ".planning/2026-07-16-feature-x/task_plan.md",
+    },
+  },
+  {
+    name: ".planning/.active_plan alone blocks as temporary planning state",
+    setup: () => {
+      const dir = makeRepo();
+      const planningRoot = path.join(dir, ".planning");
+      fs.mkdirSync(planningRoot, { recursive: true });
+      fs.writeFileSync(path.join(planningRoot, ".active_plan"), "archived-plan\n");
+      return { cwd: dir, cmd: "gh pr ready" };
+    },
+    expect: { status: 2, stderrIncludes: ".planning/.active_plan" },
   },
   {
     name: "active spec left in docs/specs/*.md blocks",
@@ -219,13 +254,13 @@ const cases = [
     expect: { status: 0, stderrNotIncludes: "stray" },
   },
   {
-    name: "stray-doc check uses git toplevel, not cwd (subdir invocation)",
+    name: "planning check uses git toplevel, not cwd (subdir invocation)",
     setup: () => {
       const dir = makeRepo();
-      fs.writeFileSync(path.join(dir, "findings.md"), "# at root\n");
+      writePlanningArtifacts(dir, ["findings.md"]);
       const subdir = path.join(dir, "src");
       fs.mkdirSync(subdir, { recursive: true });
-      // Agent fires the hook from inside src/ — must still see root findings.md
+      // Agent fires the hook from inside src/ — must still see root .planning/.
       return { cwd: subdir, cmd: "gh pr ready" };
     },
     expect: { status: 2, stderrIncludes: "findings.md" },
@@ -257,7 +292,7 @@ const cases = [
       const dir = makeRepo();
       // Plant stray docs to prove --draft genuinely opts OUT of the
       // structural check (not just absent of docs).
-      fs.writeFileSync(path.join(dir, "findings.md"), "# stray but draft\n");
+      writePlanningArtifacts(dir, ["findings.md"]);
       return { cwd: dir, cmd: 'gh pr create --draft --title foo --body "x"' };
     },
     expect: { status: 0, stdoutEq: "", stderrNotIncludes: "pr-ready-guard" },
@@ -266,7 +301,7 @@ const cases = [
     name: "gh pr create with -d short flag passes through silently",
     setup: () => {
       const dir = makeRepo();
-      fs.writeFileSync(path.join(dir, "findings.md"), "# stray but -d\n");
+      writePlanningArtifacts(dir, ["findings.md"]);
       return { cwd: dir, cmd: 'gh pr create -d --title foo --body "x"' };
     },
     expect: { status: 0, stdoutEq: "", stderrNotIncludes: "pr-ready-guard" },
@@ -275,7 +310,7 @@ const cases = [
     name: "gh pr create with --draft=true passes through silently",
     setup: () => {
       const dir = makeRepo();
-      fs.writeFileSync(path.join(dir, "findings.md"), "# stray but --draft=true\n");
+      writePlanningArtifacts(dir, ["findings.md"]);
       return { cwd: dir, cmd: 'gh pr create --draft=true --title foo --body "x"' };
     },
     expect: { status: 0, stdoutEq: "", stderrNotIncludes: "pr-ready-guard" },
@@ -284,7 +319,7 @@ const cases = [
     name: "gh pr create with --draft=1 / --draft=t / --draft=TRUE (case-insensitive truthy) passes through",
     setup: () => {
       const dir = makeRepo();
-      fs.writeFileSync(path.join(dir, "findings.md"), "# stray but truthy\n");
+      writePlanningArtifacts(dir, ["findings.md"]);
       // Pick one form per test; here case-insensitive TRUE + short t.
       return { cwd: dir, cmd: 'gh pr create --draft=TRUE --title foo' };
     },
@@ -294,38 +329,38 @@ const cases = [
     name: "gh pr create with --draft=false BLOCKS on stray (cobra falsy → Ready PR)",
     setup: () => {
       const dir = makeRepo();
-      fs.writeFileSync(path.join(dir, "findings.md"), "# stray\n");
+      writePlanningArtifacts(dir, ["findings.md"]);
       // --draft=false semantically creates a NON-draft (Ready) PR per
       // cobra BoolVar; Route B must fire and block on the stray doc.
       return { cwd: dir, cmd: 'gh pr create --draft=false --title foo --body "x"' };
     },
-    expect: { status: 2, stderrIncludes: "stray planning docs" },
+    expect: { status: 2, stderrIncludes: "temporary planning artifacts" },
   },
   {
     name: "gh pr create with --draft=0 BLOCKS on stray (falsy → Ready PR)",
     setup: () => {
       const dir = makeRepo();
-      fs.writeFileSync(path.join(dir, "findings.md"), "# stray\n");
+      writePlanningArtifacts(dir, ["findings.md"]);
       return { cwd: dir, cmd: 'gh pr create --draft=0 --title foo' };
     },
-    expect: { status: 2, stderrIncludes: "stray planning docs" },
+    expect: { status: 2, stderrIncludes: "temporary planning artifacts" },
   },
   {
     name: "gh pr create with --draft= (empty value) BLOCKS on stray (empty → falsy)",
     setup: () => {
       const dir = makeRepo();
-      fs.writeFileSync(path.join(dir, "findings.md"), "# stray\n");
+      writePlanningArtifacts(dir, ["findings.md"]);
       // --draft= with no value is not a valid cobra invocation but we
       // err on the side of "treat as non-draft" since it's not truthy.
       return { cwd: dir, cmd: 'gh pr create --draft= --title foo' };
     },
-    expect: { status: 2, stderrIncludes: "stray planning docs" },
+    expect: { status: 2, stderrIncludes: "temporary planning artifacts" },
   },
   {
     name: "gh pr create --draft at end of command passes through silently (no trailing whitespace)",
     setup: () => {
       const dir = makeRepo();
-      fs.writeFileSync(path.join(dir, "findings.md"), "# stray but --draft at end\n");
+      writePlanningArtifacts(dir, ["findings.md"]);
       return { cwd: dir, cmd: 'gh pr create --title foo --draft' };
     },
     expect: { status: 0, stdoutEq: "", stderrNotIncludes: "pr-ready-guard" },
@@ -334,7 +369,7 @@ const cases = [
     name: "gh pr create -d at end of command passes through silently",
     setup: () => {
       const dir = makeRepo();
-      fs.writeFileSync(path.join(dir, "findings.md"), "# stray but -d at end\n");
+      writePlanningArtifacts(dir, ["findings.md"]);
       return { cwd: dir, cmd: 'gh pr create --title foo -d' };
     },
     expect: { status: 0, stdoutEq: "", stderrNotIncludes: "pr-ready-guard" },
@@ -364,15 +399,15 @@ const cases = [
     expect: { status: 0, stderrNotIncludes: "active specs" },
   },
   {
-    name: "gh pr create without --draft + stray findings.md blocks",
+    name: "gh pr create without --draft + .planning artifacts block",
     setup: () => {
       const dir = makeRepo();
-      fs.writeFileSync(path.join(dir, "findings.md"), "# notes\n");
+      writePlanningArtifacts(dir, ["findings.md"]);
       return { cwd: dir, cmd: 'gh pr create --title foo --body "x"' };
     },
     expect: {
       status: 2,
-      stderrIncludes: "stray planning docs",
+      stderrIncludes: "temporary planning artifacts",
     },
   },
   {
@@ -407,7 +442,7 @@ const cases = [
     setup: () => {
       const dir = makeRepo();
       // Plant stray to prove the quote-strip prevents this from firing.
-      fs.writeFileSync(path.join(dir, "findings.md"), "# would block if hook fired\n");
+      writePlanningArtifacts(dir, ["findings.md"]);
       return { cwd: dir, cmd: `echo "remember to gh pr create later"` };
     },
     expect: { status: 0, stdoutEq: "", stderrNotIncludes: "pr-ready-guard" },
