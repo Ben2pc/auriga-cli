@@ -21,6 +21,7 @@ describe("goalify skill contract", () => {
   test("accepts formal and conversational sources without bypassing architecture approval", () => {
     const text = readSkill();
 
+    assert.match(text, /只在用户明确要求或选择自主运行时使用/);
     assert.ok(text.includes("spec.md") && text.includes("validation-contract.md"));
     assert.match(text, /不要求任务必须有正式规格/);
     assert.match(text, /对话、问题单、当前分支、提交历史和拉取请求正文/);
@@ -36,10 +37,10 @@ describe("goalify skill contract", () => {
     let previousIndex = -1;
 
     for (const section of [
-      "目标",
-      "权威事实与约束",
-      "终点与停止条件",
-      "交接",
+      "**目标**",
+      "**权威事实与约束**",
+      "**终点与停止条件**",
+      "**交接**",
     ]) {
       const sectionIndex = contract.indexOf(section);
       assert.notEqual(sectionIndex, -1, `goal contract must include ${section}`);
@@ -49,6 +50,9 @@ describe("goalify skill contract", () => {
 
     assert.match(text, /基于当前任务状态推进，不假设必须重新从默认分支开始/);
     assert.match(text, /不要在目标里硬编切片、复制现有事实正文或预判评审发现/);
+    assert.doesNotMatch(text, /从 main 建分支/);
+    assert.doesNotMatch(text, /先做切片 1/);
+    assert.doesNotMatch(text, /deep-review 将发现/);
     assert.ok(text.includes("incremental-impl"));
   });
 
@@ -59,6 +63,10 @@ describe("goalify skill contract", () => {
     const endpoints = endpointSection[0];
 
     assert.match(endpoints, /用户已经明确终点时直接采用，不重复询问/);
+    assert.match(
+      endpoints,
+      /没有说明跑到哪里，或自定义终点缺少可验证的停止条件时，再询问/,
+    );
     assert.ok(endpoints.includes("PR Ready"));
     assert.ok(endpoints.includes("深度评审收敛"));
     assert.ok(endpoints.includes("合并"));
@@ -75,6 +83,8 @@ describe("goalify skill contract", () => {
 
     assert.ok(text.includes("Codex") && text.includes("Claude Code"));
     assert.match(text, /Codex 暴露目标启动能力时，直接设置并启动目标/);
+    assert.match(text, /Claude Code 通常输出可粘贴到 `\/goal` 的文本/);
+    assert.match(text, /不假装已经操作其交互界面/);
     assert.match(text, /到达终点或触发停止条件后立即交接/);
     assert.match(text, /完成内容、验收方式、剩余风险和用户下一步可以做什么/);
   });
