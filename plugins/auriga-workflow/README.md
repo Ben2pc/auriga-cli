@@ -16,7 +16,7 @@ travel together so they share one distribution model and one install step.
 | `arch-design` | Technical design clarification — domain models, module boundaries, dependency direction, human-reviewed design records, and migration constraints. |
 | `code-simplify` | Authorized code-level simplification — protects behavior, targets concrete maintenance cost, and supports user-approved code-smell scans. |
 | `session-compound` | Generates either a single-session retrospective or incremental 30-day usage insights as a self-contained HTML report. |
-| `goalify` | Adds bounded autonomous execution to the selected Plan or `planning-with-files` carrier, starting a goal when supported or returning pasteable `/goal` text. |
+| `goalify` | Adds bounded autonomous execution to the selected Plan or `planning-with-files` carrier, and stops at human decision gates such as Ready-time document disposition. |
 | `deep-review` | Local multi-dimensional PR review — required when no CI review exists and optional by user choice when CI review already covers the PR. |
 | `reviewer-creator` | Scaffolds a project reviewer at `docs/rules/review/<name>.md`; `deep-review` hosts supplements in a built-in dimension or dispatches explicit standalone dimensions. |
 | `git-workflow` | The Git lifecycle skill — worktree safety, semantic commits, bilingual PR body contracts, review feedback, and merge readiness. |

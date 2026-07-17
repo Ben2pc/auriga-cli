@@ -51,8 +51,13 @@ describe("auriga-workflow skill contracts", () => {
     assert.match(parsed.data.description, /功能.*缺陷修复.*重构/);
     assert.match(
       parsed.data.description,
-      /纯文档.*纯配置.*生成代码.*没有有效自动化接缝.*不触发/,
-      "frontmatter must preserve the exemption semantics",
+      /判断[^；。]*(?:当前证据|永久测试)|(?:当前证据|永久测试)[^；。]*判断/,
+      "frontmatter must route evidence-lifetime decisions into the skill",
+    );
+    assert.doesNotMatch(
+      parsed.data.description,
+      /没有有效自动化接缝[^；。]*不触发|纯配置[^；。]*不触发/,
+      "lack of an automation seam or a configuration change must not bypass evidence selection",
     );
     for (const anchor of [
       "validation-contract.md",

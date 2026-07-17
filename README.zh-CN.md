@@ -142,7 +142,7 @@ npx -y auriga-cli install plugins --agent codex --plugin session-instructions-lo
 | claude-md-management | Claude Code / Codex | 审计和改进 AGENTS.md / CLAUDE.md |
 | playground | Claude Code / Codex | 构建交互式 HTML playground |
 | codex | Claude Code | Codex 跨模型协作 |
-| auriga-workflow | Claude Code / Codex | auriga 工作流插件 —— 工作流技能加上强制执行工作流的 git 生命周期钩子。技能包括：`systematic-debugging`（证据优先的调试与线上证据采集）、`test-driven-development`（精简行为测试流程）、`incremental-impl`、`spec-design`、`arch-design`、`code-simplify`、`session-compound`、`goalify`（把已明确目标整理成结构化 `/goal` 文本，并在运行环境支持时直接启动）、`deep-review`（多维度拉取请求评审编排器）、`reviewer-creator`、`git-workflow`、`documentation-management`（区分人类文档与 Agent 上下文的工程文档资产治理）和 `docent`。钩子包括 `commit-reminder`、`pr-create-guard`、`pr-ready-guard` 与 `pr-merge-guard`。默认通过插件路径安装。安装器不会自动迁移或删除已有的 Superpowers 测试驱动开发副本；小团队在确认插件技能生效后人工清理。 |
+| auriga-workflow | Claude Code / Codex | Auriga 端到端工程工作流，覆盖证据优先的缺陷诊断、按风险选择验证并审慎沉淀永久测试、需求与架构澄清、增量实现、保留人工门禁的自主执行、按持续集成评审情况路由本地深度评审、文档资产治理和 Git 生命周期约束。 |
 | auriga-notify *(opt-in)* | Claude Code | Claude Code `Notification` 事件的 macOS 原生通知插件。支持焦点感知仅提示音、点击唤起终端、按项目分组通知，并迁移旧 `config.json` / `icon.png`。不随 `install --all` 默认安装，需要显式执行 `install plugins --plugin auriga-notify`。 |
 | session-instructions-loader | Codex | Codex-only SessionStart 插件，注入上层目录的 `AGENTS.md` 和仓库配置的额外 instruction 文件。 |
 

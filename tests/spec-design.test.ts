@@ -375,6 +375,11 @@ describe("spec-design skill — repo-check VALs", () => {
       /根因[^。\n]*确认[^。\n]*`test-driven-development`|`test-driven-development`[^。\n]*根因[^。\n]*确认/,
       "systematic-debugging must hand confirmed fixes to TDD",
     );
+    assert.match(
+      debugging,
+      /`test-driven-development`[^。\n]*(?:证据寿命|永久保护)|(?:证据寿命|永久保护)[^。\n]*`test-driven-development`/,
+      "systematic-debugging must delegate permanent-test decisions to TDD",
+    );
   });
 
   test("workflow entry keeps TDD broad and routes local review around CI review", () => {
@@ -418,7 +423,7 @@ describe("spec-design skill — repo-check VALs", () => {
     assert.equal(codexManifest.version, "4.0.18");
     assert.match(reviewIndex, /quality-gate-scaffolder[^\n]*本轮范围外/);
     assert.doesNotMatch(reviewIndex, /scaffold-[^|\n]*\|[^\n]*待评审/);
-    assert.match(umbrella, /workflow-consolidation[^\n]*实施中/);
+    assert.match(umbrella, /workflow-consolidation[^\n]*已完成/);
   });
 
   test("workflow docs define review/test rule subdirectories and consumers", () => {
