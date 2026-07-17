@@ -53,7 +53,7 @@ GPT 5.6 Sol 与 Fable 5 能够调查仓库、形成候选、选择工具并组�
 
 - [子规范](spec.md)
 - [验收契约](validation-contract.md)
-- [当前技能](../../../plugins/auriga-workflow/skills/spec-design/SKILL.md)
+- [当前技能](../../../../plugins/auriga-workflow/skills/spec-design/SKILL.md)
 - [Matt Pocock `grilling`](https://github.com/mattpocock/skills/blob/main/skills/productivity/grilling/SKILL.md)
 - [Matt Pocock `grill-me` 介绍](https://www.aihero.dev/my-grill-me-skill-has-gone-viral)
 - [社区 Codex 使用讨论](https://www.reddit.com/r/codex/comments/1s8xlja/i_tried_the_grillme_skill_and_it_completely/)

@@ -46,7 +46,7 @@
 | [`incremental-impl`](../../../worklog/worklog-2026-07-16-refactor-simplify-incremental-impl/review.md) | Auriga 插件 | Claude Code / Codex | 精简；PR #191 首次深入评审完成并修复并行依赖、契约追溯、工作流版本和长期文档同步问题；核心职责收敛为按需求结果与合法中间状态拆分完整实施单元，派发降为可选执行方式；模型评测未执行 |
 | [`reviewer-creator`](../../../worklog/worklog-2026-07-16-refactor-simplify-reviewer-creator/reviewer-creator-modernization/review.md) | Auriga 插件 | Claude Code / Codex | 精简；PR #192 首次深入评审无阻塞问题；保留项目审查者的机械协议，删除固定检查项与场景数量、强制提问和重复注册表；模型评测未执行 |
 | [`session-compound`](../../../worklog/worklog-2026-07-17-refactor-modernize-session-compound/review.md) | Auriga 插件 | Claude Code / Codex | 精简；PR #193 已完成首次深入评审并修复阻塞和高优先级问题；新增单会话与近期洞察双模式、增量证据缓存和确定性报告，删除固定候选配额与无条件生态搜索；模型评测未执行 |
-| `spec-design` | Auriga 插件 | Claude Code / Codex | 精简；当前子规范已确认并进入实现，保留价值判断、事实调查、苏格拉底式目标对齐、验收契约和人工确认，删除主观置信度、固定问答仪式与实施切分策略；模型评测未执行 |
+| [`spec-design`](../../../worklog/worklog-2026-07-17-refactor-simplify-spec-design/spec-design-modernization/review.md) | Auriga 插件 | Claude Code / Codex | 精简；PR #194 已完成实现并归档子规范，保留价值判断、事实调查、苏格拉底式目标对齐、验收契约和人工确认，删除主观置信度、固定问答仪式与实施切分策略；模型评测未执行 |
 | [`systematic-debugging`](../../../worklog/worklog-2026-07-14-feat-model-generation-workflow-upgrade/systematic-debugging/review.md) | Auriga 插件；内化自 `obra/superpowers` | Claude Code / Codex | 内化结论暂定；实现已合入 PR #177；PR #178 取消自动迁移并采用团队人工清理；模型评测未执行且不在 PR #178 范围内 |
 | [`test-driven-development`](../../../worklog/worklog-2026-07-14-refactor-simplify-tdd-skill/unified-tdd-skill/review.md) | Auriga 插件；精简自 `obra/superpowers` 并合并原 `test-designer` | Claude Code / Codex | 精简、内化并合并；模型评测未执行 |
 

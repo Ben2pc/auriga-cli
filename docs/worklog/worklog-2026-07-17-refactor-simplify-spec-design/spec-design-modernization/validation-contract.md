@@ -12,15 +12,15 @@
 | 规格产物 | VAL-SPECIFICATION-001 ~ 002 |
 | 验收契约 | VAL-VALIDATION-001 |
 | 需求拆分 | VAL-DECOMPOSITION-001 |
-| 生命周期与风险 | VAL-LIFECYCLE-001 ~ 002、VAL-RISK-001 |
+| 生命周期与恢复条件 | VAL-LIFECYCLE-001 ~ 002、VAL-RECOVERY-001 |
 
 ## Parent coverage map (父级验收覆盖映射)
 
 | Parent VAL (父级验收项) | Child VAL (子验收项) | Status (状态) |
 |---|---|---|
-| VAL-REV-001 | VAL-RISK-001 | planned |
+| VAL-REV-001 | VAL-RECOVERY-001 | planned |
 | VAL-REV-002 | VAL-ALIGNMENT-001、VAL-SPECIFICATION-001 | planned |
-| VAL-REV-003 | VAL-RISK-001 | planned |
+| VAL-REV-003 | VAL-RECOVERY-001 | planned |
 | VAL-MIG-001 | VAL-ALIGNMENT-004、VAL-DECOMPOSITION-001 | planned |
 | VAL-MIG-002 | VAL-LIFECYCLE-002 | planned |
 | VAL-MIG-003 | VAL-LIFECYCLE-002 | planned |
@@ -93,7 +93,7 @@
 - **验证方式**：人工审查
 - **通过标准**：技能采用能力检测与安全降级描述，双运行时插件清单保持一致且用户可见说明同步。
 
-### VAL-RISK-001 — 精简必须保留恢复条件
+### VAL-RECOVERY-001 — 精简必须保留恢复条件
 - **验收要求**：精简记录受影响场景和恢复条件；若价值门禁误拦必做事项、追问持续遗漏关键产品分支，或口头规格造成可追溯性缺口，可以基于真实失败恢复更强约束。
 - **验证方式**：人工审查
 - **通过标准**：正式评审记录点名观察信号和局部恢复方式，不以“模型更强”作为唯一理由。
