@@ -52,7 +52,11 @@
   .list { display: grid; gap: 10px; }
   .row { display: grid; grid-template-columns: minmax(140px, .28fr) 1fr; gap: 18px; border-top: 1px solid var(--line); padding: 16px 2px; }
   .row:first-child { border-top: 0; }
-  .row .meta { color: var(--muted); font-size: 12px; }
+  .evidence { margin-top: 8px; color: var(--muted); font-size: 12px; }
+  .evidence summary { cursor: pointer; }
+  .evidence ul { margin: 7px 0 0; padding-left: 18px; }
+  .evidence li + li { margin-top: 5px; }
+  .evidence code { display: block; margin-top: 2px; overflow-wrap: anywhere; color: var(--muted); font-size: 11px; }
   .split { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
   .chip { display: inline-flex; border-radius: 999px; padding: 3px 9px; background: var(--surface); color: var(--muted); font-size: 11px; margin-right: 6px; }
   .candidate { border-left: 4px solid var(--coral); }
@@ -86,7 +90,7 @@
 <main>
   <section class="hero">
     <div class="hero-copy">
-      <div class="eyebrow">Recent session insights</div>
+      <div class="eyebrow">近期会话洞察</div>
       <h1>从近期会话里，找到真正值得改变的工作方式</h1>
       <p id="interaction-style">正在读取多会话洞察。</p>
     </div>
@@ -99,22 +103,22 @@
   </section>
 
   <section class="glance" id="glance">
-    <a href="#wins"><article><div class="label">正在奏效</div><p id="glance-working"></p></article></a>
-    <a href="#frictions"><article><div class="label">正在阻碍</div><p id="glance-hindering"></p></article></a>
-    <a href="#experiments"><article><div class="label">快速改善</div><p id="glance-quick-wins"></p></article></a>
-    <a href="#experiments"><article><div class="label">更大胆尝试</div><p id="glance-ambitious"></p></article></a>
+    <a href="#wins"><article><div class="label">值得延续</div><p id="glance-working"></p></article></a>
+    <a href="#frictions"><article><div class="label">主要问题</div><p id="glance-hindering"></p></article></a>
+    <a href="#experiments"><article><div class="label">优先尝试</div><p id="glance-quick-wins"></p></article></a>
+    <a href="#experiments"><article><div class="label">长期改进方向</div><p id="glance-ambitious"></p></article></a>
   </section>
 
-  <h2>项目与任务分布</h2>
+  <h2>近期工作重点</h2>
   <section class="card list" id="project-areas"></section>
 
   <section class="split">
     <div>
-      <h2>有效做法</h2>
+      <h2>值得延续的做法</h2>
       <div class="card list" id="wins"></div>
     </div>
     <div>
-      <h2>反复摩擦</h2>
+      <h2>反复出现的问题</h2>
       <div class="card list" id="frictions"></div>
     </div>
   </section>
@@ -122,14 +126,14 @@
   <h2>值得尝试</h2>
   <section class="card list" id="experiments"></section>
 
-  <h2>单次观察</h2>
+  <h2>个别会话发现</h2>
   <section class="card list" id="observations"></section>
 
-  <h2>长期沉淀候选</h2>
+  <h2>可长期采用的改进</h2>
   <section class="list" id="durable-candidates"></section>
   <section class="selection" aria-labelledby="selection-title">
-    <h3 id="selection-title">已选择的长期候选</h3>
-    <textarea id="selected-candidates" readonly aria-label="已选择的长期候选内容"></textarea>
+    <h3 id="selection-title">已选择的长期改进</h3>
+    <textarea id="selected-candidates" readonly aria-label="已选择的长期改进内容"></textarea>
     <div class="selection-actions">
       <button type="button" id="copy-candidates">复制已选择项</button>
       <span class="copy-status" id="copy-status" role="status" aria-live="polite"></span>
@@ -137,7 +141,7 @@
   </section>
 
   <section class="limitations">
-    <h3>证据边界</h3>
+    <h3>报告范围与限制</h3>
     <ul id="evidence-limitations"></ul>
   </section>
   <footer id="generated-at"></footer>
@@ -155,8 +159,54 @@
     return node;
   };
   const empty = (parent, message) => add(parent, 'div', message, 'empty');
-  const evidence = (item) => array(item.evidence_refs).join(' · ');
-  const ownerLabel = { agent: 'Agent', user: '用户', environment: '环境' };
+  const ownerLabel = { agent: '代理执行', user: '用户要求', environment: '运行环境' };
+  const candidateTypeLabel = {
+    'agent-context': '代理上下文',
+    'existing-skill': '现有技能',
+    'new-skill': '新技能',
+    reviewer: '审查规则',
+    mechanism: '工程机制',
+  };
+  const evidenceSessionIndex = new Map(
+    array(data.evidence_sessions).map((session) => [session.session_id, session]),
+  );
+
+  function evidenceLocation(parts) {
+    const [kind, ...rest] = parts;
+    const value = rest.join(':');
+    if (kind === 'turn' && /^\d+$/.test(value)) return `第 ${Number(value) + 1} 轮`;
+    if (kind === 'feedback') return '用户反馈';
+    if (kind === 'review') return '评审记录';
+    if (kind === 'pr') return '拉取请求记录';
+    if (kind === 'tool_failure' || kind === 'tool-failure') return '工具失败记录';
+    if (kind === 'session') return '会话概况';
+    if ((kind === 'narrative' && value === 'task_conclusion') || kind === 'task-conclusion') return '任务结论';
+    if (kind === 'health') return '会话健康记录';
+    return '相关记录';
+  }
+
+  function evidenceLabel(ref) {
+    const [sessionId, ...parts] = String(ref).split(':');
+    const session = evidenceSessionIndex.get(sessionId);
+    const date = session?.ended_at
+      ? new Date(session.ended_at).toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric' })
+      : '日期未知';
+    const title = session?.title || `会话 ${sessionId.slice(0, 8)}`;
+    return `${date}｜${title}｜${evidenceLocation(parts)}`;
+  }
+
+  function appendEvidence(parent, item) {
+    const refs = array(item.evidence_refs);
+    if (!refs.length) return;
+    const sessionCount = new Set(refs.map((ref) => String(ref).split(':')[0])).size;
+    const details = add(parent, 'details', null, 'evidence');
+    add(details, 'summary', `依据：${sessionCount} 个会话，${refs.length} 处记录（查看依据）`);
+    const list = add(details, 'ul');
+    refs.forEach((ref) => {
+      const itemNode = add(list, 'li', evidenceLabel(ref));
+      add(itemNode, 'code', `原始编号：${ref}`);
+    });
+  }
 
   $('#interaction-style').textContent = data.interaction_style || '没有足够证据概括互动方式。';
   const coverage = data.coverage;
@@ -169,18 +219,18 @@
     ['发现', coverage.discovered],
     ['时间窗内', coverage.in_window],
     ['符合分析条件', coverage.eligible],
-    ['缓存复用', coverage.cache_hits],
+    ['复用已有分析', coverage.cache_hits],
     ['本轮新分析', coverage.newly_analyzed],
     ['分析失败', coverage.failed],
-    ['本轮排入分析', coverage.queued],
-    ['排除', coverage.excluded],
-    ['排除子代理日志', coverage.excluded_subagents],
-    ['排除损坏日志', coverage.excluded_damaged],
-    ['失效缓存', coverage.invalid_cache],
-    ['延后', coverage.deferred],
-    ['进入代表性语义输入', coverage.representative_count],
-    ['语义预算延后', coverage.semantic_budget_deferred],
-    ['未做语义分析', coverage.not_semantically_analyzed],
+    ['本次计划分析', coverage.queued],
+    ['不纳入分析', coverage.excluded],
+    ['忽略子代理会话', coverage.excluded_subagents],
+    ['无法读取的会话', coverage.excluded_damaged],
+    ['需重新分析的旧缓存', coverage.invalid_cache],
+    ['留待下次分析', coverage.deferred],
+    ['纳入本次归纳', coverage.representative_count],
+    ['因篇幅限制未纳入归纳', coverage.semantic_budget_deferred],
+    ['尚未完成内容分析', coverage.not_semantically_analyzed],
   ].forEach(([label, value]) => {
     add(coverageList, 'dt', label);
     add(coverageList, 'dd', value);
@@ -200,20 +250,20 @@
       const row = add(parent, 'div', null, 'row');
       const heading = add(row, 'div');
       add(heading, 'h3', item.title || item.name || item.area || `观察 ${index + 1}`);
-      add(heading, 'div', evidence(item), 'meta');
+      appendEvidence(heading, item);
       const content = add(row, 'div');
       add(content, 'p', item.text);
       if (detail) detail(content, item);
     });
   }
   renderRows('#project-areas', data.project_areas, '没有足够证据划分项目区域。');
-  renderRows('#wins', data.wins, '没有稳定重复的有效做法。');
-  renderRows('#frictions', data.frictions, '没有稳定重复的摩擦模式。', (parent, item) => {
-    add(parent, 'div', `责任侧：${ownerLabel[item.owner]}`, 'detail');
+  renderRows('#wins', data.wins, '暂未发现反复出现且值得保留的做法。');
+  renderRows('#frictions', data.frictions, '暂未发现反复出现的问题。', (parent, item) => {
+    add(parent, 'div', `主要来源：${ownerLabel[item.owner]}`, 'detail');
   });
-  renderRows('#experiments', data.experiments, '这次没有值得尝试的新实验。', (parent, item) => {
-    add(parent, 'div', `试法：${item.trial}`, 'detail');
-    add(parent, 'div', `成功信号：${item.success_signal}`, 'detail');
+  renderRows('#experiments', data.experiments, '本次没有新的尝试建议。', (parent, item) => {
+    add(parent, 'div', `尝试方式：${item.trial}`, 'detail');
+    add(parent, 'div', `判断是否有效：${item.success_signal}`, 'detail');
   });
   renderRows('#observations', data.observations, '没有需要单独记录的一次性观察。');
 
@@ -229,10 +279,10 @@
   }
   function updateSelection() {
     selectedOutput.value = selectedText();
-    copyStatus.textContent = selectedOutput.value ? '' : '尚未选择候选';
+    copyStatus.textContent = selectedOutput.value ? '' : '尚未选择长期改进项';
   }
   if (!candidates.length) {
-    empty(candidateList, '没有达到长期沉淀门槛的候选。');
+    empty(candidateList, '本次没有需要纳入长期规则的建议。');
   } else {
     candidates.forEach((item, index) => {
       const card = add(candidateList, 'article', null, 'card candidate');
@@ -243,11 +293,11 @@
       checkbox.checked = false;
       checkbox.addEventListener('change', updateSelection);
       const content = add(label, 'span');
-      add(content, 'span', item.type, 'chip');
+      add(content, 'span', candidateTypeLabel[item.type] || item.type, 'chip');
       add(content, 'h3', item.name);
       add(content, 'p', item.text);
       add(content, 'p', `沉淀依据：${item.why_durable}`, 'why');
-      add(content, 'div', `证据：${evidence(item)}`, 'detail');
+      appendEvidence(content, item);
     });
   }
   updateSelection();

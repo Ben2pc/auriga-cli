@@ -126,6 +126,18 @@ function validInsightsReport(overrides = {}) {
     ...overrides,
   };
 }
+function validInsightsAggregate(overrides = {}) {
+  return {
+    mode: "insights-aggregate",
+    runtime: "codex",
+    representative_facets: [{
+      session_id: "session-readable",
+      project_area: "Auriga 工作流升级",
+      ended_at: "2026-07-15T08:00:00.000Z",
+    }],
+    ...overrides,
+  };
+}
 function run(script, args, opts = {}) {
   return spawnSync("node", [script, ...args], {
     encoding: "utf8",
@@ -586,10 +598,17 @@ test("renderer creates both reports without editing template source [VAL-MODE-00
       ? validSingleReport({ narrative_summary: "Summary with </script> safety" })
       : validInsightsReport();
     writeJson(dataFile, data);
+    const aggregateArgs = [];
+    if (mode === "insights") {
+      const aggregateFile = path.join(dir, "aggregate.json");
+      writeJson(aggregateFile, validInsightsAggregate());
+      aggregateArgs.push("--aggregate", aggregateFile);
+    }
     const r = run(RENDERER, [
       "--mode", mode,
       "--template", path.join(TEMPLATES, mode === "single" ? "single-session.html" : "recent-insights.html"),
       "--data", dataFile,
+      ...aggregateArgs,
       "--output", output,
     ]);
     assert(r.status === 0, `${mode} renderer failed: ${r.stderr}`);
@@ -600,9 +619,95 @@ test("renderer creates both reports without editing template source [VAL-MODE-00
     if (mode === "insights") {
       assert(html.includes('href="#wins"') && html.includes('id="wins"'),
         "the at-a-glance summary must navigate to its supporting section");
-      assert(html.includes('id="window-label"') && html.includes('未做语义分析'),
+      assert(html.includes('id="window-label"') && html.includes('尚未完成内容分析'),
         "the report must disclose the actual window and semantic coverage gap");
     }
+  }
+});
+
+test("recent report uses natural Chinese labels instead of translated analytics jargon [VAL-MODE-004]", () => {
+  const insights = fs.readFileSync(path.join(TEMPLATES, "recent-insights.html"), "utf8");
+  for (const label of [
+    "近期会话洞察",
+    "值得延续",
+    "主要问题",
+    "优先尝试",
+    "长期改进方向",
+    "反复出现的问题",
+    "报告范围与限制",
+    "尝试方式",
+    "判断是否有效",
+  ]) {
+    assert(insights.includes(label), `recent report must use natural Chinese label: ${label}`);
+  }
+  for (const translated of [
+    "Recent session insights",
+    "正在奏效",
+    "正在阻碍",
+    "快速改善",
+    "更大胆尝试",
+    "反复摩擦",
+    "证据边界",
+    "试法：",
+    "成功信号：",
+  ]) {
+    assert(!insights.includes(translated), `recent report must remove translated label: ${translated}`);
+  }
+});
+
+test("recent report keeps raw evidence references traceable but presents a readable session index [VAL-MODE-004]", () => {
+  const dir = tmpDir("render-readable-evidence");
+  const dataFile = path.join(dir, "data.json");
+  const aggregateFile = path.join(dir, "aggregate.json");
+  const output = path.join(dir, "insights.html");
+  const rawRef = "session-readable:turn:12";
+  writeJson(dataFile, validInsightsReport({
+    wins: [{ title: "可读证据", text: "保留追溯能力", evidence_refs: [rawRef] }],
+  }));
+  writeJson(aggregateFile, validInsightsAggregate());
+  const rendered = run(RENDERER, [
+    "--mode", "insights",
+    "--template", path.join(TEMPLATES, "recent-insights.html"),
+    "--data", dataFile,
+    "--aggregate", aggregateFile,
+    "--output", output,
+  ]);
+  assert(rendered.status === 0, `readable evidence render failed: ${rendered.stderr}`);
+  const html = fs.readFileSync(output, "utf8");
+  assert(html.includes('"evidence_sessions"') && html.includes("Auriga 工作流升级"),
+    "renderer must add deterministic human-readable session metadata");
+  assert(html.includes(rawRef), "the exact raw evidence reference must remain in the report bundle");
+  assert(html.includes("查看依据") && html.includes("原始编号"),
+    "raw references must move behind an explicit evidence disclosure");
+  assert(!html.includes("add(heading, 'div', evidence(item), 'meta')"),
+    "raw IDs must not remain the default row metadata");
+});
+
+test("single report uses readable evidence disclosures instead of exposing raw references [VAL-MODE-004]", () => {
+  const single = fs.readFileSync(path.join(TEMPLATES, "single-session.html"), "utf8");
+  assert(single.includes("查看依据") && single.includes("原始编号"),
+    "single report must put exact evidence references behind an explicit disclosure");
+  assert(single.includes("第 ${Number(index) + 1} 轮"),
+    "single report must translate turn references into human-readable positions");
+  for (const rawRenderer of [
+    "(f.evidence_refs || []).join(' · ')",
+    "c.evidenceRefs.join(' · ')",
+    "(item.evidence_refs || []).join(' · ')",
+  ]) {
+    assert(!single.includes(rawRenderer), `single report must remove direct raw reference rendering: ${rawRenderer}`);
+  }
+});
+
+test("both report modes share the natural Chinese writing contract [VAL-MODE-004]", () => {
+  const skill = fs.readFileSync(path.join(SKILL_ROOT, "SKILL.md"), "utf8");
+  const single = fs.readFileSync(path.join(TEMPLATES, "single-session.html"), "utf8");
+  assert(skill.includes("两种报告") && skill.includes("自然、具体的中文"),
+    "the core skill must apply natural-language guidance to both report modes");
+  for (const label of ["单会话复盘", "总令牌数", "拉取请求", "资源消耗最高的轮次", "技能评估"]) {
+    assert(single.includes(label), `single report must use natural Chinese label: ${label}`);
+  }
+  for (const mixedLabel of ["Session Compound — 单会话复盘", "总 token", "本次会话的 PR", "最贵的 turn", "skill 评估"]) {
+    assert(!single.includes(mixedLabel), `single report must remove mixed-language label: ${mixedLabel}`);
   }
 });
 
@@ -659,12 +764,15 @@ test("workspace and rendered reports use private paths and reject symlink output
   equal(fs.statSync(workspace).mode & 0o777, 0o700, "the execution workspace is private");
 
   const dataFile = path.join(workspace, "data.json");
+  const aggregateFile = path.join(workspace, "aggregate.json");
   const output = path.join(workspace, "report.html");
   writeJson(dataFile, validInsightsReport());
+  writeJson(aggregateFile, validInsightsAggregate());
   const rendered = run(RENDERER, [
     "--mode", "insights",
     "--template", path.join(TEMPLATES, "recent-insights.html"),
     "--data", dataFile,
+    "--aggregate", aggregateFile,
     "--output", output,
   ]);
   assert(rendered.status === 0, `private render failed: ${rendered.stderr}`);
@@ -676,6 +784,7 @@ test("workspace and rendered reports use private paths and reject symlink output
     "--mode", "insights",
     "--template", path.join(TEMPLATES, "recent-insights.html"),
     "--data", dataFile,
+    "--aggregate", aggregateFile,
     "--output", symlink,
   ]);
   assert(rejected.status !== 0, "renderer refuses an existing symlink output");
@@ -728,6 +837,14 @@ test("dispatch protocols treat session evidence as untrusted and cap semantic in
     "facet dispatch must have per-session and per-batch byte limits");
   assert(skill.includes("不要在本轮结束前重跑 `prepare`"),
     "the workflow must preserve initial cache provenance");
+  assert(skill.includes("当前资产核对") && skill.includes("已吸收 / 部分吸收 / 未吸收 / 未知"),
+    "the main workflow must own durable-candidate asset screening");
+  assert(skill.includes("不能仅因为缺少核对结果就强制 `durable_candidates` 为空"),
+    "missing asset screening must remain visible instead of silently producing zero candidates");
+  assert(!skill.includes("references/result-contracts.md"),
+    "the always-required result semantics must not be hidden behind an unconditional reference read");
+  assert(fs.readFileSync(RENDERER, "utf8").includes("reportValidationError"),
+    "the deterministic renderer must enforce the complete report shape");
   for (const [name, text] of [
     ["eval", evalDispatch], ["facet", facetDispatch], ["insights", insightsDispatch],
   ]) {
@@ -737,6 +854,10 @@ test("dispatch protocols treat session evidence as untrusted and cap semantic in
     "evidence agents must have explicit tool restrictions");
   assert(/不授予文件、shell、网络或写入工具/.test(insightsDispatch),
     "cross-session synthesis must run without tools");
+  assert(/自然、具体的中文/.test(insightsDispatch) && /避免直接翻译英文分析术语/.test(insightsDispatch),
+    "cross-session synthesis must produce natural Chinese for human readers");
+  assert(/具体做法、问题或改进方向/.test(insightsDispatch),
+    "titles must describe concrete behavior instead of stacking abstractions");
 });
 
 for (const dir of cleanup) fs.rmSync(dir, { recursive: true, force: true });

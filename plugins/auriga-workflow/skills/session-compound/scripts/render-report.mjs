@@ -46,6 +46,35 @@ function safeJson(value) {
     .replace(/\u2029/g, '\\u2029')
 }
 
+function evidenceSessionsFromAggregate(aggregate) {
+  if (!aggregate || aggregate.mode !== 'insights-aggregate') {
+    fail('insights --aggregate must come from the aggregate command')
+  }
+  if (!Array.isArray(aggregate.representative_facets)) {
+    fail('insights aggregate.representative_facets must be an array')
+  }
+  const seen = new Set()
+  const sessions = []
+  for (const [index, facet] of aggregate.representative_facets.entries()) {
+    const sessionId = facet?.session_id
+    if (typeof sessionId !== 'string' || !sessionId.trim()) {
+      fail(`insights aggregate.representative_facets[${index}].session_id must be a string`)
+    }
+    if (seen.has(sessionId)) continue
+    seen.add(sessionId)
+    sessions.push({
+      session_id: sessionId,
+      title: typeof facet.project_area === 'string' && facet.project_area.trim()
+        ? facet.project_area.trim()
+        : '未命名会话',
+      ended_at: typeof facet.ended_at === 'string' && Number.isFinite(Date.parse(facet.ended_at))
+        ? facet.ended_at
+        : null,
+    })
+  }
+  return sessions
+}
+
 const args = parseArgs(process.argv.slice(2))
 const mode = required(args, 'mode')
 if (!['single', 'insights'].includes(mode)) fail('--mode must be single or insights')
@@ -61,6 +90,18 @@ try {
 }
 const validationError = reportValidationError(mode, data)
 if (validationError) fail(validationError)
+if (mode === 'insights') {
+  let aggregate
+  try {
+    aggregate = JSON.parse(readText(required(args, 'aggregate'), 'aggregate data'))
+  } catch (error) {
+    fail(`aggregate data is not valid JSON: ${error.message}`)
+  }
+  data = {
+    ...data,
+    evidence_sessions: evidenceSessionsFromAggregate(aggregate),
+  }
+}
 const marker = '__REPORT_BUNDLE__'
 const markerCount = template.split(marker).length - 1
 if (markerCount !== 1) fail(`template must contain exactly one ${marker} marker`)

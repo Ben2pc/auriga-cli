@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:; base-uri 'none'; form-action 'none'" />
-<title>Session Compound — 单会话复盘</title>
+<title>单会话复盘</title>
 <style>
   /* Restyled to Anthropic Claude brand language:
      warm cream canvas, serif display headlines, coral CTAs, occasional
@@ -298,6 +298,11 @@
   .badge.pol-gap { background: rgba(212, 160, 23, 0.18); color: #6b4e08; }
   .eval-legend { font-size: 12px; color: var(--muted); margin: 4px 0 10px; line-height: 1.6; }
   .conf { font-size: 12.5px; color: var(--muted); white-space: nowrap; }
+  .evidence { margin-top: 7px; color: var(--muted); font-size: 12px; }
+  .evidence summary { cursor: pointer; }
+  .evidence ul { margin: 7px 0 0; padding-left: 18px; }
+  .evidence li + li { margin-top: 5px; }
+  .evidence code { display: block; margin-top: 2px; overflow-wrap: anywhere; color: var(--muted); font-size: 11px; }
 
   /* Tables */
   table.kv { width: 100%; border-collapse: collapse; }
@@ -578,12 +583,12 @@
 
 <div class="hero">
   <div>
-    <h1 id="report-title">Session Compound</h1>
+    <h1 id="report-title">单会话复盘</h1>
     <div class="meta" id="hero-meta"></div>
   </div>
   <div class="total">
     <div class="num" id="total-tokens">—</div>
-    <div class="lbl">总 token</div>
+    <div class="lbl">总令牌数</div>
   </div>
 </div>
 
@@ -609,7 +614,7 @@
 
   <!-- Optional sections: JS unhides only when the analyzer produced data. -->
   <div id="sec-prs" hidden>
-    <h2>本次会话的 PR</h2>
+    <h2>本次会话的拉取请求</h2>
     <div class="card" id="pr-list"></div>
   </div>
 
@@ -628,19 +633,19 @@
     </div>
   </div>
 
-  <h2>Token 分布</h2>
+  <h2>令牌分布</h2>
   <div class="card"><table class="kv" id="token-table"></table></div>
 
   <h2>工具使用</h2>
   <div class="card"><table class="bars" id="tools-table"></table></div>
 
-  <h2>子 agent</h2>
+  <h2>子代理</h2>
   <div class="card"><table class="bars" id="subagents-table"></table></div>
 
   <!-- skills exist on both CLIs now (codex parses <skill> blocks); hide only
        when empty for this session. -->
   <div id="sec-skills" hidden>
-    <h2>Skill 使用证据</h2>
+    <h2>技能使用证据</h2>
     <p style="color: var(--text-dim); margin: 6px 0 10px; font-size: 13px;">
       显式调用与从实际读取 <code>SKILL.md</code> 推断的使用分别展示；证据类型不等于调用意图。
     </p>
@@ -648,11 +653,11 @@
   </div>
 
   <div id="sec-attribution" hidden>
-    <h2>Skill 工作量（attribution）</h2>
+    <h2>技能驱动的工作量</h2>
     <p style="color: var(--text-dim); margin: 6px 0 10px; font-size: 13px;">
-      每个 skill <b>实际驱动了多少次工具调用</b>——一次调用背后展开的真实操作量。
-      与上面的「触发次数」不同：一个 skill 可能只启动 1 次，却驱动几十步操作。
-      这才反映会话的工作量真正集中在哪。（数据来自日志的 <code>attributionSkill</code>，目前仅 Claude 端有。）
+      每个技能<b>实际驱动了多少次工具调用</b>——一次调用背后展开的真实操作量。
+      与上面的「触发次数」不同：一个技能可能只启动 1 次，却驱动几十步操作。
+      这才反映会话的工作量真正集中在哪。（数据来自日志的技能归因记录，目前仅 Claude Code 提供。）
     </p>
     <div class="card"><table class="bars" id="attribution-table"></table></div>
   </div>
@@ -662,7 +667,7 @@
     <div class="card" id="tool-failures"></div>
   </div>
 
-  <h2>最贵的 turn</h2>
+  <h2>资源消耗最高的轮次</h2>
   <div class="card" id="expensive-turns"></div>
 
   <h2>浪费信号</h2>
@@ -674,22 +679,22 @@
   <div class="card">
     <h3>本会话工作流事实</h3>
     <p style="color: var(--text-dim); margin: 6px 0 10px; font-size: 13px;">
-      机械层只<b>提取事实、不下判决</b>：分支 / 是否在 main / 有无代码改动 / PR / skill 调用数。
-      下方的指令遵循 & skill 召回判断全部由<b>独立子代理</b>基于这些事实做出。
+      机械层只<b>提取事实、不下判决</b>：分支、是否在主分支、有无代码改动、拉取请求和技能调用数。
+      下方的指令遵循与技能召回判断全部由<b>独立子代理</b>基于这些事实做出。
     </p>
     <div class="facts" id="workflow-facts"></div>
   </div>
 
   <!-- Independent eval subagent findings (recall / instruction-following / per-skill eval). -->
   <div id="sec-skill-eval" hidden>
-    <h2>指令遵循与 skill 评估</h2>
+    <h2>指令遵循与技能评估</h2>
     <p style="color: var(--text-dim); margin: 6px 0 10px; font-size: 13px;">
-      由<b>独立子代理</b>评估：本会话里 skill / 规则是否在该触发时被召回，以及跑过的
-      skill 是否兑现设计目标。每条带 severity + confidence，未按重要性预过滤。
+      由<b>独立子代理</b>评估：本会话里的技能和规则是否在应触发时被召回，以及使用过的
+      技能是否兑现设计目标。每条都带严重度和置信度，未按重要性预过滤。
     </p>
     <div class="card" id="skill-eval-list"></div>
   </div>
-  <div id="eval-empty" class="empty-hint" hidden>评估 finding 由独立子代理在运行时产出；本报告尚未注入。</div>
+  <div id="eval-empty" class="empty-hint" hidden>评估发现由独立子代理在运行时产出；本报告尚未注入。</div>
 </section>
 
 <!-- ============ TAB 4: COMPOUND / 三层建议 ============ -->
@@ -715,7 +720,7 @@
     <div>
       <h3>实时预览</h3>
       <div class="compound-preview">
-        <div id="compound-preview-md" class="preview-md empty">勾选左侧候选条目，这里会实时显示合成的 markdown。</div>
+        <div id="compound-preview-md" class="preview-md empty">勾选左侧候选条目，这里会实时显示合成的内容。</div>
       </div>
     </div>
   </div>
@@ -745,13 +750,42 @@
     if (!ms) return '—';
     const s = Math.round(ms / 1000);
     const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
-    return h ? `${h}h ${m}m` : m ? `${m}m ${sec}s` : `${sec}s`;
+    return h ? `${h} 小时 ${m} 分钟` : m ? `${m} 分钟 ${sec} 秒` : `${sec} 秒`;
   };
   const fmtTime = (iso) => iso ? new Date(iso).toLocaleString() : '—';
   const block = (n, max, width = 20) => {
     if (!max) return '';
     const filled = Math.round((n / max) * width);
     return '█'.repeat(filled) + '░'.repeat(width - filled);
+  };
+  const evidenceLocation = (ref) => {
+    const parts = String(ref).split(':');
+    const rawIndex = parts.at(-1);
+    const hasIndex = /^\d+$/.test(rawIndex || '');
+    const index = hasIndex ? rawIndex : null;
+    const kind = hasIndex ? parts.at(-2) : parts.at(-1);
+    if (kind === 'turn') return `第 ${Number(index) + 1} 轮`;
+    const labels = {
+      feedback: '用户反馈',
+      review: '评审记录',
+      'skill-event': '技能使用记录',
+      'tool-failure': '工具失败记录',
+      pr: '拉取请求记录',
+      session: '会话概况',
+      narrative: '会话叙事',
+      health: '会话健康记录',
+      workflow: '工作流记录',
+    };
+    const label = labels[kind] || '会话记录';
+    return index == null ? label : `${label}（第 ${Number(index) + 1} 条）`;
+  };
+  const renderEvidence = (refs) => {
+    const list = Array.isArray(refs) ? refs.filter((ref) => typeof ref === 'string' && ref) : [];
+    if (!list.length) return '<span class="empty-hint">未提供依据</span>';
+    return `<details class="evidence">
+      <summary>依据：${list.length} 处记录（查看依据）</summary>
+      <ul>${list.map((ref) => `<li>${escapeHtml(evidenceLocation(ref))}<code>原始编号：${escapeHtml(ref)}</code></li>`).join('')}</ul>
+    </details>`;
   };
 
   const summary = String(bundle.narrative_summary || '').trim();
@@ -777,7 +811,7 @@
   const s = data.session || {};
   const h = data.health || {};
   const title = (data.narrative?.task_title) || (data.narrative?.human_turns?.[0]?.summary) || '会话';
-  document.title = `Session Compound — ${title.slice(0, 60)}`;
+  document.title = `单会话复盘 — ${title.slice(0, 60)}`;
   $('#report-title').textContent = title.length > 80 ? title.slice(0, 79) + '…' : title;
 
   const pills = [];
@@ -787,7 +821,7 @@
   if (s.cwd) pills.push(`<span class="pill">${escapeHtml(s.cwd.replace(/^.*\//, ''))}</span>`);
   const recordedDur = s.recorded_turn_ms ? ` · 实测 ${fmtDur(s.recorded_turn_ms)}` : '';
   const dur = `<span class="pill">总耗时 ${fmtDur(s.duration_ms)} · 活跃 ${fmtDur(s.active_ms)}${recordedDur}</span>`;
-  const turns = `<span class="pill">${data.narrative?.human_turn_count ?? '?'} turn</span>`;
+  const turns = `<span class="pill">${data.narrative?.human_turn_count ?? '?'} 轮对话</span>`;
   $('#hero-meta').innerHTML = pills.join(' ') + ' ' + dur + ' ' + turns + ` <span class="pill">${fmtTime(s.started_at)}</span>`;
   $('#total-tokens').textContent = fmtN(h.tokens?.total);
 
@@ -823,14 +857,14 @@
   const turnsList = $('#turns-list');
   const humanTurns = data.narrative?.human_turns || [];
   if (!humanTurns.length) {
-    turnsList.innerHTML = '<div class="empty-hint">未检测到用户 turn。</div>';
+    turnsList.innerHTML = '<div class="empty-hint">未检测到用户轮次。</div>';
   } else {
     turnsList.innerHTML = humanTurns.map((t, i) => {
       const tools = Object.entries(t.tool_counts || {})
         .sort((a, b) => b[1] - a[1])
         .map(([n, c]) => `${n}×${c}`).join(' · ');
       return `<div class="turn">
-        <div class="idx">#${i}</div>
+        <div class="idx">${i + 1}</div>
         <div class="summary">
           <div>${escapeHtml(t.summary)}</div>
           ${tools ? `<div class="toolset">${tools}</div>` : ''}
@@ -856,19 +890,19 @@
   // ---------- Health: tokens table ----------
   const tk = h.tokens || {};
   const rows = [
-    ['Input（uncached）', fmtN(tk.input_uncached)],
-    ['Cache create', fmtN(tk.cache_create)],
-    ['Cache read', fmtN(tk.cache_read)],
-    ['Output', fmtN(tk.output)],
+    ['未命中缓存的输入', fmtN(tk.input_uncached)],
+    ['写入缓存', fmtN(tk.cache_create)],
+    ['读取缓存', fmtN(tk.cache_read)],
+    ['输出', fmtN(tk.output)],
   ];
   if (data.cli === 'codex' && tk.reasoning_output != null) {
-    rows.push(['Reasoning output', fmtN(tk.reasoning_output)]);
+    rows.push(['推理输出', fmtN(tk.reasoning_output)]);
   }
   rows.push(['<b>总计</b>', `<b>${fmtN(tk.total)}</b>`]);
-  rows.push(['API 调用次数', fmtN(h.api_calls)]);
-  rows.push(['Cache 命中率', fmtPct(h.cache_hit_rate)]);
+  rows.push(['接口调用次数', fmtN(h.api_calls)]);
+  rows.push(['缓存命中率', fmtPct(h.cache_hit_rate)]);
   if (h.context_window_used_pct != null) {
-    rows.push(['Context window 占用', fmtPct(h.context_window_used_pct)]);
+    rows.push(['上下文窗口占用', fmtPct(h.context_window_used_pct)]);
   }
   $('#token-table').innerHTML = rows.map(([k, v]) => `<tr><td>${k}</td><td>${v}</td></tr>`).join('');
 
@@ -897,13 +931,13 @@
       return;
     }
     $(target).innerHTML = `<thead><tr>
-      <th>Skill</th><th>使用单元</th><th>显式</th><th>推断</th><th>证据类型</th>
+      <th>技能</th><th>使用单元</th><th>显式</th><th>推断</th><th>证据类型</th>
     </tr></thead><tbody>${[...skills].sort((a, b) => b.count - a.count).map((skill) => `<tr>
       <td class="name">${escapeHtml(skill.name)}</td>
       <td class="count">${skill.count}</td>
       <td class="count">${skill.explicit_count}</td>
       <td class="count">${skill.inferred_count}</td>
-      <td>${escapeHtml((skill.evidence_types || []).join(' · '))}</td>
+      <td>${escapeHtml((skill.evidence_types || []).map((type) => ({ explicit: '显式调用', inferred: '根据记录推断' }[type] || type)).join(' · '))}</td>
     </tr>`).join('')}</tbody>`;
   }
   renderSkills('#skills-table', h.skills || []);
@@ -962,7 +996,7 @@
     $('#tool-failures').innerHTML = failures.map(f => `<div class="turn">
       <div class="idx">✗</div>
       <div class="summary">
-        <div>${escapeHtml(f.name || 'unknown')}</div>
+        <div>${escapeHtml(f.name || '未知工具')}</div>
         ${f.preview ? `<div class="toolset">${escapeHtml(f.preview)}</div>` : ''}
       </div>
       <div class="tokens"></div>
@@ -975,10 +1009,10 @@
   const yn = (v) => (v == null ? '—' : v ? '是' : '否');
   const factRows = [
     ['结束时分支', wsig.git_branch ?? '—'],
-    ['分支在 main / master', yn(wsig.on_main)],
+    ['位于主分支', yn(wsig.on_main)],
     ['有代码改动', yn(wsig.had_code_edit)],
-    ['引用的 PR 数', wsig.prs_count ?? '—'],
-    ['skill 调用次数', wsig.skills_invoked_count ?? '—'],
+    ['引用的拉取请求数', wsig.prs_count ?? '—'],
+    ['技能调用次数', wsig.skills_invoked_count ?? '—'],
   ];
   $('#workflow-facts').innerHTML = factRows
     .map(([k, v]) => `<span class="fact"><span class="k">${escapeHtml(k)}</span><span class="v">${escapeHtml(String(v))}</span></span>`)
@@ -989,8 +1023,14 @@
   if (evalFindings.length) {
     const SEV = { high: '高', med: '中', low: '低' };
     const CONF = { high: '高', med: '中', low: '低' };
-    const KIND = { recall: '召回', compliance: '指令遵循', 'skill-eval': 'skill 执行' };
+    const KIND = { recall: '召回', compliance: '指令遵循', 'skill-eval': '技能执行' };
     const POL = { positive: '✓ 正向', gap: '⚠ 缺口' };
+    const EVIDENCE_NATURE = {
+      'historical-snapshot': '会话当时记录',
+      'current-state-lookback': '按当前状态回看',
+      'explicit-user-signal': '用户明确反馈',
+      'model-analysis': '模型分析',
+    };
     const sevClass = (s) => 'sev-' + (['high', 'med', 'low'].includes(s) ? s : 'low');
     // polarity 缺失的旧格式 finding：带 severity 视为缺口语义，按原样显示。
     const polOf = (f) => f.polarity === 'positive' || f.polarity === 'gap' ? f.polarity : null;
@@ -1016,18 +1056,18 @@
         <td><span class="conf">${escapeHtml(CONF[f.confidence] || f.confidence || '—')}</span></td>
         <td><span class="badge kind">${escapeHtml(KIND[f.kind] || f.kind || '—')}</span></td>
         <td class="f-text">${escapeHtml(f.text || '')}</td>
-        <td>${escapeHtml(f.evidence_nature || '—')}</td>
-        <td>${escapeHtml((f.evidence_refs || []).join(' · ') || '—')}</td>
+        <td>${escapeHtml(EVIDENCE_NATURE[f.evidence_nature] || f.evidence_nature || '—')}</td>
+        <td>${renderEvidence(f.evidence_refs)}</td>
         <td class="f-skill">${f.skill ? escapeHtml(f.skill) : '—'}</td>
       </tr>`;
     }).join('');
     $('#skill-eval-list').innerHTML = `<div class="eval-legend">
         <b>性质</b>：✓ 正向 = 被正确遵循 / 执行兑现；⚠ 缺口 = 本该发生而未发生，或执行欠佳。
         <b>严重度</b>（仅缺口）：缺口的影响程度——高 = 工作流保证被实质削弱 / 中 = 局部削弱 / 低 = 形式偏差、实质无损。
-        <b>置信度</b> = 证据强度：高 = transcript 直接佐证（时间戳 / 原文）/ 中 = 间接推断 / 低 = 可辩护的解读。
+        <b>置信度</b> = 证据强度：高 = 会话记录直接佐证（时间戳或原文）/ 中 = 间接推断 / 低 = 可辩护的解读。
       </div>
       <table class="findings">
-      <thead><tr><th>性质</th><th>严重度</th><th>置信度</th><th>类型</th><th>发现</th><th>证据性质</th><th>证据引用</th><th>相关 skill</th></tr></thead>
+      <thead><tr><th>性质</th><th>严重度</th><th>置信度</th><th>类型</th><th>发现</th><th>证据性质</th><th>证据引用</th><th>相关技能</th></tr></thead>
       <tbody>${rows}</tbody>
     </table>`;
   }
@@ -1042,7 +1082,7 @@
         <div class="summary">${escapeHtml(t.summary)}</div>
         <div class="tokens">${fmtN(t.tokens)}</div>
       </div>`).join('')
-    : '<div class="empty-hint">无 turn 记录。</div>';
+    : '<div class="empty-hint">无轮次记录。</div>';
 
   // ---------- Health: waste signals ----------
   const waste = h.waste_signals || [];
@@ -1073,6 +1113,13 @@
   }));
 
   const TYPE_ORDER = ['mechanism', 'agent-context', 'existing-skill', 'reviewer', 'new-skill'];
+  const TYPE_LABELS = {
+    mechanism: '工程机制',
+    'agent-context': '代理上下文',
+    'existing-skill': '现有技能',
+    reviewer: '审查规则',
+    'new-skill': '新技能',
+  };
   const orderIdx = (t) => {
     const i = TYPE_ORDER.indexOf(t);
     return i === -1 ? TYPE_ORDER.length : i;
@@ -1130,11 +1177,11 @@
             <input type="checkbox" ${c.selected ? 'checked' : ''} />
             <span class="name">${escapeHtml(c.name)}</span>
           </label>
-          <span class="type ${escapeHtml(c.type)}">${escapeHtml(c.type)}</span>
+          <span class="type ${escapeHtml(c.type)}">${escapeHtml(TYPE_LABELS[c.type] || c.type)}</span>
         </div>
         <div class="body">${renderMdBody(c.body)}</div>
         <div class="body"><b>沉淀依据：</b>${renderInlineMd(c.why)}</div>
-        <div class="body"><b>证据：</b>${escapeHtml(c.evidenceRefs.join(' · '))}</div>
+        <div class="body">${renderEvidence(c.evidenceRefs)}</div>
       </div>
     `;
     }).join('');
@@ -1180,7 +1227,7 @@
     const md = buildMarkdown();
     if (!md) {
       previewEl.classList.add('empty');
-      previewEl.textContent = '勾选左侧候选条目，这里会实时显示合成的 markdown。';
+      previewEl.textContent = '勾选左侧候选条目，这里会实时显示合成的内容。';
       promptEl.value = '';
       copyStatus.textContent = '尚未选择候选';
       return;
@@ -1222,9 +1269,9 @@
           <div class="summary">
             <div>${escapeHtml(item.title || item.name || item.text || '')}</div>
             ${item.text && item.text !== item.title ? `<div class="toolset">${escapeHtml(item.text)}</div>` : ''}
-            ${item.trial ? `<div class="toolset">试法：${escapeHtml(item.trial)}</div>` : ''}
-            ${item.success_signal ? `<div class="toolset">成功信号：${escapeHtml(item.success_signal)}</div>` : ''}
-            <div class="toolset">证据：${escapeHtml((item.evidence_refs || []).join(' · '))}</div>
+            ${item.trial ? `<div class="toolset">尝试方式：${escapeHtml(item.trial)}</div>` : ''}
+            ${item.success_signal ? `<div class="toolset">判断是否有效：${escapeHtml(item.success_signal)}</div>` : ''}
+            ${renderEvidence(item.evidence_refs)}
           </div>
           <div class="tokens"></div>
         </div>`).join('')
