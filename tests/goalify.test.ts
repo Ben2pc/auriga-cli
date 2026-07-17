@@ -29,6 +29,15 @@ describe("goalify skill contract", () => {
     assert.match(text, /实质性架构决定，停止并交回用户/);
   });
 
+  test("combines autonomous execution with exactly one planning carrier", () => {
+    const text = readSkill();
+
+    assert.match(text, /可以与计划载体组合的自主执行模式/);
+    assert.match(text, /内置 Plan 还是 `planning-with-files`/);
+    assert.match(text, /用户已经选择时直接沿用，不重复询问/);
+    assert.match(text, /`goalify` 不与它们三选一/);
+  });
+
   test("keeps the goal compact and delegates implementation planning", () => {
     const text = readSkill();
     const contractSection = text.match(/## 组织目标[\s\S]*?## 确定终点/);

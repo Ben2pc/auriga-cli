@@ -50,16 +50,6 @@
 | [`systematic-debugging`](../../../worklog/worklog-2026-07-14-feat-model-generation-workflow-upgrade/systematic-debugging/review.md) | Auriga 插件；内化自 `obra/superpowers` | Claude Code / Codex | 内化结论暂定；实现已合入 PR #177；PR #178 取消自动迁移并采用团队人工清理；模型评测未执行且不在 PR #178 范围内 |
 | [`test-driven-development`](../../../worklog/worklog-2026-07-14-refactor-simplify-tdd-skill/unified-tdd-skill/review.md) | Auriga 插件；精简自 `obra/superpowers` 并合并原 `test-designer` | Claude Code / Codex | 精简、内化并合并；模型评测未执行 |
 
-### Auriga 自有质量门禁技能
-
-| Asset (资产) | Source (来源) | Runtime (运行时) | Status (状态) |
-|---|---|---|---|
-| `scaffold-kotlin-android-quality-gates` | Auriga 插件 | Claude Code / Codex | 待评审 |
-| `scaffold-node-tool-quality-gates` | Auriga 插件 | Claude Code / Codex | 待评审 |
-| `scaffold-python-backend-quality-gates` | Auriga 插件 | Claude Code / Codex | 待评审 |
-| `scaffold-swift-ios-quality-gates` | Auriga 插件 | Claude Code / Codex | 待评审 |
-| `scaffold-typescript-frontend-quality-gates` | Auriga 插件 | Claude Code / Codex | 待评审 |
-
 ### 外部核心技能
 
 | Asset (资产) | Source (来源) | Runtime (运行时) | Status (状态) |
@@ -84,6 +74,7 @@
 
 | Asset (资产) | Source (来源) | Runtime (运行时) | Status (状态) |
 |---|---|---|---|
+| `quality-gate-scaffolder`（含 5 个 Scaffold 技能） | Auriga 独立插件 | Claude Code / Codex | 本轮范围外；保持现状，不计入技能评审完成度 |
 | `auriga-notify` | Auriga 插件，可选 | Claude Code | 本轮范围外；保持现状 |
 | `skill-creator` | Anthropic 官方插件市场 | Claude Code | 本轮范围外；保持现状 |
 | `claude-md-management` | Anthropic 官方插件市场 | Claude Code / Codex | 本轮范围外；保持现状 |

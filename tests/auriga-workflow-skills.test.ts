@@ -291,7 +291,7 @@ describe("auriga-workflow skill contracts", () => {
       );
     }
     assert.match(text, /只诊断[^\n]{0,40}不(?:实施|修改)/);
-    assert.match(text, /仅在用户授权修复后执行/);
+    assert.match(text, /仅在用户授权修复[^。]*后执行/);
     assert.match(text, /不得记录密钥、令牌、个人信息或完整敏感载荷/);
     assert.match(text, /重新运行最初的问题验证路径/);
     assert.match(text, /删除临时日志、脚本和诊断代码/);
@@ -319,7 +319,7 @@ describe("auriga-workflow skill contracts", () => {
 
     for (const rel of ["AGENTS.md", "AGENTS.template.zh-CN.md", "AGENTS.template.en.md"]) {
       const template = read(rel);
-      assert.match(template, /v1\.19\.0/);
+      assert.match(template, /v1\.20\.0/);
       assert.match(
         template,
         /领域模型|domain model/i,
@@ -327,7 +327,7 @@ describe("auriga-workflow skill contracts", () => {
       );
       assert.match(
         template,
-        /(?:快速流程|quick flow)[^\n]*(?:只跳过实施计划|skips only implementation planning)/i,
+        /(?:快速流程|quick flow)[\s\S]{0,500}(?:不跳过适用的需求澄清、架构确认|never bypasses applicable requirement clarification, architecture approval)/i,
         `${rel} must not let the quick flow bypass architecture clarification`,
       );
     }
@@ -583,14 +583,17 @@ describe("auriga-workflow skill contracts", () => {
       pluginReadme,
       /\| `incremental-impl` \|[^|\n]*requirement changes[^|\n]*implementation units[^|\n]*incremental execution/i,
     );
-    assert.match(zhWorkflow, /incremental-impl[^。\n]*先[^。\n]*完整实施单元[^。\n]*按依赖/);
+    assert.match(
+      zhWorkflow,
+      /incremental-impl[^。\n]*先[^。\n]*完整[^。\n]*实施单元[^。\n]*按依赖/,
+    );
     assert.match(enWorkflow, /incremental-impl[^\n]*decompose[^\n]*complete implementation units[^\n]*dependency/i);
     assert.match(specDesign, /incremental-impl[^\n]*子规范[^\n]*完整[^\n]*实施单元/);
     assert.match(umbrellaTemplate, /incremental-impl[^\n]*子规范[^\n]*完整实施单元/);
     assert.doesNotMatch(specDesign, /incremental-impl[^\n]*(?:第 2 步|同一套切分轴)/);
     assert.doesNotMatch(umbrellaTemplate, /incremental-impl Step 2/);
     for (const workflow of [zhWorkflow, enWorkflow, repoWorkflow]) {
-      assert.match(workflow, /# auriga (?:工作流|Workflow) \(v1\.19\.0\)/);
+      assert.match(workflow, /# auriga (?:工作流|Workflow) \(v1\.20\.0\)/);
     }
     assert.match(reviewIndex, /incremental-impl[^\n]*worklog-2026-07-16-refactor-simplify-incremental-impl\/review\.md/);
     assert.match(programUmbrella, /incremental-impl[^\n]*VAL-IMPL-001\.\.011[^\n]*PR #191/);
@@ -1233,7 +1236,7 @@ describe("deep-review modernization contract", () => {
     const [major, minor, patch] = claude.version.split(".").map(Number);
     assert.ok(
       major > 4 || (major === 4 && (minor > 0 || patch >= 16)),
-      `plugin version ${claude.version} must not regress below 4.0.16`,
+      `plugin version ${claude.version} must not regress below 4.0.18`,
     );
   });
 
