@@ -73,6 +73,11 @@ describe("auriga-workflow skill contracts", () => {
       /测试类断言[^。\n]*多个测试用例/,
       "one test-oriented validation assertion may require multiple test cases",
     );
+    assert.match(text, /每次改动[^。\n]*验证证据[^。\n]*不等于[^。\n]*新增永久测试/);
+    for (const anchor of ["稳定契约", "真实回归风险", "可靠自动化接缝", "长期收益", "维护成本"]) {
+      assert.ok(text.includes(anchor), `unified TDD must consider ${anchor}`);
+    }
+    assert.match(text, /不满足[^。\n]*当前证据/);
     assert.doesNotMatch(
       text,
       /^## 边界$/m,
