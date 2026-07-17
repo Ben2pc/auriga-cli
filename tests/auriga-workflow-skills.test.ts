@@ -487,9 +487,9 @@ describe("auriga-workflow skill contracts", () => {
   test("architecture consumers honor the approved design boundary", () => {
     const specDesign = read("plugins/auriga-workflow/skills/spec-design/SKILL.md");
     const incremental = read("plugins/auriga-workflow/skills/incremental-impl/SKILL.md");
-    const handoff = specDesign.match(/\*\*D3\. 交接。\*\*[\s\S]*?## 用户自带 spec 审计/);
+    const handoff = specDesign.match(/### Phase D[\s\S]*?## 交接前检查/);
 
-    assert.ok(handoff, "spec-design must preserve its D3 handoff section");
+    assert.ok(handoff, "spec-design must preserve its Phase D handoff section");
     assert.match(handoff[0], /arch-design[^。\n]*人工确认/);
     assert.match(incremental, /已确认[^。\n]*arch_design\.md[^。\n]*(?:优先|约束)/);
   });

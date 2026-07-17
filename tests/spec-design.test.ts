@@ -77,29 +77,29 @@ describe("spec-design skill — repo-check VALs", () => {
     }
   });
 
-  test("SKILL.md documents the D1.5 review-aid three-way (skip / playground / static HTML)", () => {
+  test("SKILL.md makes value triage bounded, advisory, and terminal", () => {
     const text = read(
       "plugins/auriga-workflow/skills/spec-design/SKILL.md",
     );
-    assert.ok(text.includes("D1.5"), "must reference D1.5");
-    assert.ok(
-      text.toLowerCase().includes("playground"),
-      "must mention playground option",
-    );
-    assert.ok(
-      /static\s+html/i.test(text),
-      "must mention static HTML option",
-    );
+    assert.match(text, /价值门禁[\s\S]*最多两轮/);
+    assert.match(text, /推荐答案和理由/);
+    assert.match(text, /成本更低的替代/);
+    for (const exit of ["值得做", "先验证", "暂缓", "不做"]) {
+      assert.ok(text.includes(exit), `value gate must preserve the ${exit} exit`);
+    }
+    assert.doesNotMatch(text, /D1\.5|playground|静态 HTML/i);
   });
 
-  test("validation-contract-template.md ships the ## Toolchain section", () => {
+  test("validation-contract keeps evidence semantics without duplicating a concrete toolchain", () => {
     const text = read(
       "plugins/auriga-workflow/skills/spec-design/references/validation-contract-template.md",
     );
-    assert.ok(
-      text.includes("## Toolchain"),
-      "validation-contract template must include a ## Toolchain section",
-    );
+    assert.doesNotMatch(text, /## Toolchain/);
+    assert.match(text, /一条 VAL[^\n]*不代表一个测试用例/);
+    for (const field of ["Behavior", "Tool", "Evidence"]) {
+      assert.ok(text.includes(field), `validation contract must preserve ${field}`);
+    }
+    assert.match(text, /具体测试工具[^\n]*test-driven-development/);
   });
 
   test("spec-template.md Open questions placeholder requires a deferral owner and reason", () => {
@@ -110,13 +110,44 @@ describe("spec-design skill — repo-check VALs", () => {
       text.includes("## Open questions"),
       "spec template must keep the Open questions section",
     );
-    // The placeholder is authored in Chinese — assert on the contract it
-    // encodes: every open question must name an owner (归属) and a
-    // deferral reason (推迟理由).
     assert.ok(
       /归属/.test(text) && /推迟理由/.test(text),
       "Open questions placeholder must require a named owner and a deferral reason",
     );
+    assert.match(text, /不适用的可选章节[^\n]*删除/);
+    assert.doesNotMatch(text, /不要删掉可选章节/);
+  });
+
+  test("spec-design grounds clarity in facts and uses a semantic alignment gate", () => {
+    const text = read(
+      "plugins/auriga-workflow/skills/spec-design/SKILL.md",
+    );
+    assert.match(text, /事实先于问题/);
+    assert.match(text, /需求是否明确[^。]*不能依赖模型记忆、置信度或主观印象/);
+    assert.match(text, /事实由 Agent 调查，决定由人确认/);
+    assert.match(text, /两个独立且称职的 Agent[^。]*明显不同的用户结果/);
+    assert.match(text, /停止条件不是固定问题数或主观置信度/);
+    assert.doesNotMatch(text, /Q\+GUESS|约 95%|最多约 10 轮|6 行复述/);
+  });
+
+  test("spec-design uses Socratic decision alignment without synthetic options", () => {
+    const text = read(
+      "plugins/auriga-workflow/skills/spec-design/SKILL.md",
+    );
+    assert.match(text, /苏格拉底式需求对齐/);
+    assert.match(text, /一次解决一个决定/);
+    assert.match(text, /推荐答案及主要后果/);
+    assert.match(text, /不存在真实取舍时直接推荐，不制造候选/);
+    assert.match(text, /用户明确确认前，不进入架构、计划或实现/);
+  });
+
+  test("spec-design persists only when traceability or handoff needs it", () => {
+    const text = read(
+      "plugins/auriga-workflow/skills/spec-design/SKILL.md",
+    );
+    assert.match(text, /当前对话中的用户确认作为权威规格，不强制生成文件/);
+    assert.match(text, /跨会话、跨 Agent 或独立评审/);
+    assert.match(text, /文件只保存确认后的结果，不记录冗长问答流水/);
   });
 
   test("VAL-DEP-001: product workflow templates keep the three-stage clarification boundary", () => {
