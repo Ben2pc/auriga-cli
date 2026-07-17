@@ -85,9 +85,8 @@ describe("goalify skill contract", () => {
     assert.match(endpoints, /没有未解决的阻塞性评审意见/);
     assert.match(endpoints, /明确授权为达成收敛而再次运行深度评审/);
     assert.match(endpoints, /只有用户明确授权合并时才能采用/);
-    assert.match(endpoints, /删除[^。\n]*归档[^。\n]*晋升|删除[^。\n]*晋升[^。\n]*归档/);
-    assert.match(endpoints, /无人交互[^。\n]*(?:停止|交回用户)/);
-    assert.doesNotMatch(endpoints, /默认[^。\n]*归档/);
+    assert.match(endpoints, /默认[^。\n]*归档/);
+    assert.doesNotMatch(endpoints, /无人交互[^。\n]*(?:停止|交回用户)/);
   });
 
   test("dispatches according to runtime capability and requires a bounded handoff", () => {
