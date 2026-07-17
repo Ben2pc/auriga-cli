@@ -15,7 +15,7 @@ travel together so they share one distribution model and one install step.
 | `spec-design` | Requirement clarification — produces PR-scoped contracts under `docs/specs/<topic>/`, or an explicitly approved cross-PR program contract under `docs/long-running-specs/<topic>/`. |
 | `arch-design` | Technical design clarification — domain models, module boundaries, dependency direction, human-reviewed design records, and migration constraints. |
 | `code-simplify` | Authorized code-level simplification — protects behavior, targets concrete maintenance cost, and supports user-approved code-smell scans. |
-| `session-compound` | Compounds a session into a self-contained interactive HTML report. |
+| `session-compound` | Generates either a single-session retrospective or incremental 30-day usage insights as a self-contained HTML report. |
 | `goalify` | Packages a clarified task into a bounded autonomous goal, starting it when the runtime supports goals or returning pasteable `/goal` text. |
 | `deep-review` | Multi-dimensional PR review orchestrator — dispatches parallel fresh-context reviewers per dimension and synthesizes findings into a Blocking / Non-blocking / Architectural punch list. |
 | `reviewer-creator` | Scaffolds a project reviewer at `docs/rules/review/<name>.md`; `deep-review` hosts supplements in a built-in dimension or dispatches explicit standalone dimensions. |

@@ -3,7 +3,8 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Session Compound — REPORT_TITLE</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:; base-uri 'none'; form-action 'none'" />
+<title>单会话复盘</title>
 <style>
   /* Restyled to Anthropic Claude brand language:
      warm cream canvas, serif display headlines, coral CTAs, occasional
@@ -216,6 +217,10 @@
     transition-property: color, transform, border-color;
     transition-duration: 180ms;
     transition-timing-function: var(--ease);
+    background: transparent;
+    border-top: 0;
+    border-left: 0;
+    border-right: 0;
   }
   .tab:hover { color: var(--ink); }
   .tab.active {
@@ -223,6 +228,10 @@
     border-bottom-color: var(--primary);
   }
   .tab:active { transform: scale(0.97); }
+  .tab:focus-visible, button:focus-visible, input:focus-visible, textarea:focus-visible, a:focus-visible {
+    outline: 3px solid #2e7a6c;
+    outline-offset: 3px;
+  }
 
   .panel { display: none; padding-top: 32px; }
   .panel.active { display: block; }
@@ -289,6 +298,11 @@
   .badge.pol-gap { background: rgba(212, 160, 23, 0.18); color: #6b4e08; }
   .eval-legend { font-size: 12px; color: var(--muted); margin: 4px 0 10px; line-height: 1.6; }
   .conf { font-size: 12.5px; color: var(--muted); white-space: nowrap; }
+  .evidence { margin-top: 7px; color: var(--muted); font-size: 12px; }
+  .evidence summary { cursor: pointer; }
+  .evidence ul { margin: 7px 0 0; padding-left: 18px; }
+  .evidence li + li { margin-top: 5px; }
+  .evidence code { display: block; margin-top: 2px; overflow-wrap: anywhere; color: var(--muted); font-size: 11px; }
 
   /* Tables */
   table.kv { width: 100%; border-collapse: collapse; }
@@ -548,56 +562,48 @@
   .copy-btn.copied { background: var(--accent-teal); }
 
   .empty-hint { color: var(--muted-soft); font-style: italic; padding: 16px 0; font-family: var(--ui); }
+
+  @media (max-width: 760px) {
+    body { padding: 28px 18px 64px; }
+    .hero, .compound-grid { grid-template-columns: 1fr; }
+    .hero { padding: 26px 22px; }
+    .hero .total { min-width: 0; text-align: left; }
+    .tabs { overflow-x: auto; }
+    .tab { flex: 0 0 auto; padding-inline: 14px; }
+    .turn { grid-template-columns: 28px minmax(0, 1fr); }
+    .turn .tokens { grid-column: 2; }
+    table.findings { display: block; overflow-x: auto; }
+  }
 </style>
 </head>
 <body>
 
-<!-- All analyzer output goes here. JS reads this and renders everything. -->
-<script id="report-data" type="application/json">
-{ "cli": "claude-code", "session": {}, "narrative": {}, "health": {}, "raw_for_compound": {} }
-</script>
-
-<!-- Agent-authored compound candidates (one array of items). Schema:
-     [{ "name": "...", "type": "existing-skill|agent-md|skill-gap",
-        "body": "markdown body", "default_selected": true|false }] -->
-<script id="candidates" type="application/json">
-[]
-</script>
-
-<!-- Independent eval subagent findings (SKILL.md fills this in step 5e). Schema:
-     [{ "kind": "recall|compliance|skill-eval", "severity": "high|med|low",
-        "confidence": "high|med|low", "text": "finding", "skill": "name?" }] -->
-<script id="eval-findings" type="application/json">
-[]
-</script>
+<!-- render-report.mjs replaces the single data slot. Do not add inline data. -->
+<script id="report-bundle" type="application/json">__REPORT_BUNDLE__</script>
 
 <div class="hero">
   <div>
-    <h1 id="report-title">Session Compound</h1>
+    <h1 id="report-title">单会话复盘</h1>
     <div class="meta" id="hero-meta"></div>
   </div>
   <div class="total">
     <div class="num" id="total-tokens">—</div>
-    <div class="lbl">总 token</div>
+    <div class="lbl">总令牌数</div>
   </div>
 </div>
 
-<div class="tabs">
-  <div class="tab active" data-tab="narrative">叙事</div>
-  <div class="tab" data-tab="health">健康度</div>
-  <div class="tab" data-tab="eval">评估</div>
-  <div class="tab" data-tab="compound">沉淀</div>
+<div class="tabs" role="tablist" aria-label="报告章节">
+  <button type="button" class="tab active" id="tab-narrative" role="tab" aria-selected="true" aria-controls="panel-narrative" tabindex="0" data-tab="narrative">叙事</button>
+  <button type="button" class="tab" id="tab-health" role="tab" aria-selected="false" aria-controls="panel-health" tabindex="-1" data-tab="health">健康度</button>
+  <button type="button" class="tab" id="tab-eval" role="tab" aria-selected="false" aria-controls="panel-eval" tabindex="-1" data-tab="eval">评估</button>
+  <button type="button" class="tab" id="tab-compound" role="tab" aria-selected="false" aria-controls="panel-compound" tabindex="-1" data-tab="compound">沉淀</button>
 </div>
 
 <!-- ============ TAB 1: NARRATIVE / 叙事 ============ -->
-<section class="panel active" id="panel-narrative">
+<section class="panel active" id="panel-narrative" role="tabpanel" aria-labelledby="tab-narrative">
   <div class="card">
     <h3>会话摘要</h3>
-    <!-- AGENT: narrative-summary
-         用 ≤3 句话讲述本次会话：用户最初要做什么、实际做了什么、关键转折点。
-         必须是事实性陈述——引用真实的 turn 内容、真实的工具使用模式，不要套话。
-    -->
-    <div id="narrative-summary" class="empty-hint">摘要未填——Agent 需要替换 <code>&lt;!-- AGENT: narrative-summary --&gt;</code> 块。</div>
+    <div id="narrative-summary" class="empty-hint">未提供会话摘要。</div>
   </div>
 
   <h2>时间线</h2>
@@ -608,7 +614,7 @@
 
   <!-- Optional sections: JS unhides only when the analyzer produced data. -->
   <div id="sec-prs" hidden>
-    <h2>本次会话的 PR</h2>
+    <h2>本次会话的拉取请求</h2>
     <div class="card" id="pr-list"></div>
   </div>
 
@@ -619,46 +625,39 @@
 </section>
 
 <!-- ============ TAB 2: HEALTH / 健康度 ============ -->
-<section class="panel" id="panel-health">
+<section class="panel" id="panel-health" role="tabpanel" aria-labelledby="tab-health" hidden>
   <div class="card">
     <h3>异常 & 亮点</h3>
-    <!-- AGENT: anomalies
-         填 3-5 张 take 卡片。数值尽量用「占总 token 的 %」表达。class:
-         .take.bad（浪费 / 红）、.take.good（健康 / 绿）、.take.warn（警示 / 黄）、
-         .take.info（中性事实 / 蓝）。.fig 一个短数字，.txt 一句白话，主语用 <b> 包起来。
-         示例：
-         <div class="take bad"><div class="fig">62%</div><div class="txt">Turn <b>#4</b> 一个 prompt 消耗了 62% 的总 token</div></div>
-    -->
     <div class="takes" id="anomalies">
-      <div class="empty-hint">异常未填——Agent 需要替换 <code>&lt;!-- AGENT: anomalies --&gt;</code> 块。</div>
+      <div class="empty-hint">未提供异常或亮点。</div>
     </div>
   </div>
 
-  <h2>Token 分布</h2>
+  <h2>令牌分布</h2>
   <div class="card"><table class="kv" id="token-table"></table></div>
 
   <h2>工具使用</h2>
   <div class="card"><table class="bars" id="tools-table"></table></div>
 
-  <h2>子 agent</h2>
+  <h2>子代理</h2>
   <div class="card"><table class="bars" id="subagents-table"></table></div>
 
   <!-- skills exist on both CLIs now (codex parses <skill> blocks); hide only
        when empty for this session. -->
   <div id="sec-skills" hidden>
-    <h2>触发的 skill</h2>
+    <h2>技能使用证据</h2>
     <p style="color: var(--text-dim); margin: 6px 0 10px; font-size: 13px;">
-      每个 skill 被<b>启动了几次</b>（命令入口触发次数）。
+      显式调用与从实际读取 <code>SKILL.md</code> 推断的使用分别展示；证据类型不等于调用意图。
     </p>
     <div class="card"><table class="bars" id="skills-table"></table></div>
   </div>
 
   <div id="sec-attribution" hidden>
-    <h2>Skill 工作量（attribution）</h2>
+    <h2>技能驱动的工作量</h2>
     <p style="color: var(--text-dim); margin: 6px 0 10px; font-size: 13px;">
-      每个 skill <b>实际驱动了多少次工具调用</b>——一次调用背后展开的真实操作量。
-      与上面的「触发次数」不同：一个 skill 可能只启动 1 次，却驱动几十步操作。
-      这才反映会话的工作量真正集中在哪。（数据来自日志的 <code>attributionSkill</code>，目前仅 Claude 端有。）
+      每个技能<b>实际驱动了多少次工具调用</b>——一次调用背后展开的真实操作量。
+      与上面的「触发次数」不同：一个技能可能只启动 1 次，却驱动几十步操作。
+      这才反映会话的工作量真正集中在哪。（数据来自日志的技能归因记录，目前仅 Claude Code 提供。）
     </p>
     <div class="card"><table class="bars" id="attribution-table"></table></div>
   </div>
@@ -668,7 +667,7 @@
     <div class="card" id="tool-failures"></div>
   </div>
 
-  <h2>最贵的 turn</h2>
+  <h2>资源消耗最高的轮次</h2>
   <div class="card" id="expensive-turns"></div>
 
   <h2>浪费信号</h2>
@@ -676,37 +675,42 @@
 </section>
 
 <!-- ============ TAB 3: EVAL / 评估 ============ -->
-<section class="panel" id="panel-eval">
+<section class="panel" id="panel-eval" role="tabpanel" aria-labelledby="tab-eval" hidden>
   <div class="card">
     <h3>本会话工作流事实</h3>
     <p style="color: var(--text-dim); margin: 6px 0 10px; font-size: 13px;">
-      机械层只<b>提取事实、不下判决</b>：分支 / 是否在 main / 有无代码改动 / PR / skill 调用数。
-      下方的指令遵循 & skill 召回判断全部由<b>独立子代理</b>基于这些事实做出。
+      机械层只<b>提取事实、不下判决</b>：分支、是否在主分支、有无代码改动、拉取请求和技能调用数。
+      下方的指令遵循与技能召回判断全部由<b>独立子代理</b>基于这些事实做出。
     </p>
     <div class="facts" id="workflow-facts"></div>
   </div>
 
   <!-- Independent eval subagent findings (recall / instruction-following / per-skill eval). -->
   <div id="sec-skill-eval" hidden>
-    <h2>指令遵循与 skill 评估</h2>
+    <h2>指令遵循与技能评估</h2>
     <p style="color: var(--text-dim); margin: 6px 0 10px; font-size: 13px;">
-      由<b>独立子代理</b>评估：本会话里 skill / 规则是否在该触发时被召回，以及跑过的
-      skill 是否兑现设计目标。每条带 severity + confidence，未按重要性预过滤。
+      由<b>独立子代理</b>评估：本会话里的技能和规则是否在应触发时被召回，以及使用过的
+      技能是否兑现设计目标。每条都带严重度和置信度，未按重要性预过滤。
     </p>
     <div class="card" id="skill-eval-list"></div>
   </div>
-  <div id="eval-empty" class="empty-hint" hidden>评估 finding 由独立子代理在运行时产出；本报告尚未注入。</div>
+  <div id="eval-empty" class="empty-hint" hidden>评估发现由独立子代理在运行时产出；本报告尚未注入。</div>
 </section>
 
-<!-- ============ TAB 4: COMPOUND / 沉淀（playground） ============ -->
-<section class="panel" id="panel-compound">
+<!-- ============ TAB 4: COMPOUND / 三层建议 ============ -->
+<section class="panel" id="panel-compound" role="tabpanel" aria-labelledby="tab-compound" hidden>
   <div class="card">
-    <h3>把这次会话沉淀进 memory / docs</h3>
+    <h3>从理解到长期沉淀</h3>
     <p style="color: var(--text-dim); margin: 6px 0 0; font-size: 13px;">
-      勾选想保留的条目，下方会实时合成 markdown 和「复制回 Claude / Codex」的提示词。
-      措辞如果想改，复制后回到 chat 里改即可。
+      洞察不要求行动，值得尝试只用于低成本验证；长期候选默认未选中，只有人工选择后才进入后续工作。
     </p>
   </div>
+
+  <h2>洞察</h2>
+  <div class="card" id="observations-list"></div>
+
+  <h2>值得尝试</h2>
+  <div class="card" id="experiments-list"></div>
 
   <div class="compound-grid">
     <div>
@@ -716,28 +720,27 @@
     <div>
       <h3>实时预览</h3>
       <div class="compound-preview">
-        <div id="compound-preview-md" class="preview-md empty">勾选左侧候选条目，这里会实时显示合成的 markdown。</div>
+        <div id="compound-preview-md" class="preview-md empty">勾选左侧候选条目，这里会实时显示合成的内容。</div>
       </div>
     </div>
   </div>
 
   <div class="prompt-out">
     <div class="head">
-      <div class="label">复制粘回 Claude / Codex</div>
+      <div class="label">复制已确认的长期候选</div>
       <button class="copy-btn" id="copy-btn">复制</button>
     </div>
     <textarea id="prompt-textarea" readonly></textarea>
+    <div id="copy-status" class="empty-hint" role="status" aria-live="polite"></div>
   </div>
 </section>
 
 <script>
 (function () {
-  const data = JSON.parse(document.getElementById('report-data').textContent);
-  // Coerce the agent-filled blocks to arrays: a malformed fill (null, a bare
-  // string, an object) must not throw and blank out the whole report.
-  const asArray = (id) => { try { const v = JSON.parse(document.getElementById(id).textContent); return Array.isArray(v) ? v : []; } catch { return []; } };
-  const candidates = asArray('candidates');
-  const evalFindings = asArray('eval-findings');
+  const bundle = JSON.parse(document.getElementById('report-bundle').textContent);
+  const data = bundle.report_data || {};
+  const candidates = Array.isArray(bundle.durable_candidates) ? bundle.durable_candidates : [];
+  const evalFindings = Array.isArray(bundle.eval_findings) ? bundle.eval_findings : [];
 
   // ---------- Helpers ----------
   const $ = (sel) => document.querySelector(sel);
@@ -747,7 +750,7 @@
     if (!ms) return '—';
     const s = Math.round(ms / 1000);
     const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
-    return h ? `${h}h ${m}m` : m ? `${m}m ${sec}s` : `${sec}s`;
+    return h ? `${h} 小时 ${m} 分钟` : m ? `${m} 分钟 ${sec} 秒` : `${sec} 秒`;
   };
   const fmtTime = (iso) => iso ? new Date(iso).toLocaleString() : '—';
   const block = (n, max, width = 20) => {
@@ -755,6 +758,51 @@
     const filled = Math.round((n / max) * width);
     return '█'.repeat(filled) + '░'.repeat(width - filled);
   };
+  const evidenceLocation = (ref) => {
+    const parts = String(ref).split(':');
+    const rawIndex = parts.at(-1);
+    const hasIndex = /^\d+$/.test(rawIndex || '');
+    const index = hasIndex ? rawIndex : null;
+    const kind = hasIndex ? parts.at(-2) : parts.at(-1);
+    if (kind === 'turn') return `第 ${Number(index) + 1} 轮`;
+    const labels = {
+      feedback: '用户反馈',
+      review: '评审记录',
+      'skill-event': '技能使用记录',
+      'tool-failure': '工具失败记录',
+      pr: '拉取请求记录',
+      session: '会话概况',
+      narrative: '会话叙事',
+      health: '会话健康记录',
+      workflow: '工作流记录',
+    };
+    const label = labels[kind] || '会话记录';
+    return index == null ? label : `${label}（第 ${Number(index) + 1} 条）`;
+  };
+  const renderEvidence = (refs) => {
+    const list = Array.isArray(refs) ? refs.filter((ref) => typeof ref === 'string' && ref) : [];
+    if (!list.length) return '<span class="empty-hint">未提供依据</span>';
+    return `<details class="evidence">
+      <summary>依据：${list.length} 处记录（查看依据）</summary>
+      <ul>${list.map((ref) => `<li>${escapeHtml(evidenceLocation(ref))}<code>原始编号：${escapeHtml(ref)}</code></li>`).join('')}</ul>
+    </details>`;
+  };
+
+  const summary = String(bundle.narrative_summary || '').trim();
+  if (summary) {
+    $('#narrative-summary').classList.remove('empty-hint');
+    $('#narrative-summary').textContent = summary;
+  }
+  const anomalies = Array.isArray(bundle.anomalies) ? bundle.anomalies : [];
+  if (anomalies.length) {
+    $('#anomalies').innerHTML = anomalies.map((item, index) => {
+      const tone = ['bad', 'good', 'warn', 'info'].includes(item.tone) ? item.tone : 'info';
+      return `<div class="take ${tone} stagger" style="--i:${index}">
+        <div class="fig">${escapeHtml(String(item.figure || '•'))}</div>
+        <div class="txt">${escapeHtml(String(item.text || ''))}</div>
+      </div>`;
+    }).join('');
+  }
 
   // ---------- Body data-cli ----------
   document.body.setAttribute('data-cli', data.cli || 'claude-code');
@@ -763,7 +811,7 @@
   const s = data.session || {};
   const h = data.health || {};
   const title = (data.narrative?.task_title) || (data.narrative?.human_turns?.[0]?.summary) || '会话';
-  document.title = `Session Compound — ${title.slice(0, 60)}`;
+  document.title = `单会话复盘 — ${title.slice(0, 60)}`;
   $('#report-title').textContent = title.length > 80 ? title.slice(0, 79) + '…' : title;
 
   const pills = [];
@@ -773,28 +821,35 @@
   if (s.cwd) pills.push(`<span class="pill">${escapeHtml(s.cwd.replace(/^.*\//, ''))}</span>`);
   const recordedDur = s.recorded_turn_ms ? ` · 实测 ${fmtDur(s.recorded_turn_ms)}` : '';
   const dur = `<span class="pill">总耗时 ${fmtDur(s.duration_ms)} · 活跃 ${fmtDur(s.active_ms)}${recordedDur}</span>`;
-  const turns = `<span class="pill">${data.narrative?.human_turn_count ?? '?'} turn</span>`;
+  const turns = `<span class="pill">${data.narrative?.human_turn_count ?? '?'} 轮对话</span>`;
   $('#hero-meta').innerHTML = pills.join(' ') + ' ' + dur + ' ' + turns + ` <span class="pill">${fmtTime(s.started_at)}</span>`;
   $('#total-tokens').textContent = fmtN(h.tokens?.total);
 
   // ---------- Tab switching ----------
-  document.querySelectorAll('.tab').forEach(t => {
-    t.addEventListener('click', () => {
-      document.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
-      document.querySelectorAll('.panel').forEach(x => x.classList.remove('active'));
-      t.classList.add('active');
-      $('#panel-' + t.dataset.tab).classList.add('active');
+  const tabs = [...document.querySelectorAll('[role="tab"]')];
+  function activateTab(tab, { focus = false } = {}) {
+    tabs.forEach((item) => {
+      const selected = item === tab;
+      item.classList.toggle('active', selected);
+      item.setAttribute('aria-selected', String(selected));
+      item.tabIndex = selected ? 0 : -1;
+      const panel = $('#' + item.getAttribute('aria-controls'));
+      panel.classList.toggle('active', selected);
+      panel.hidden = !selected;
     });
-  });
-
-  // ---------- Stagger animation for agent-authored take cards ----------
-  // The anomalies <div class="takes"> children are written by the agent in
-  // step 5c (raw HTML, no JS hook). Add the .stagger class + --i index after
-  // the page loads so they get the same fade-up cascade as candidates.
-  requestAnimationFrame(() => {
-    document.querySelectorAll('#anomalies .take').forEach((el, i) => {
-      el.classList.add('stagger');
-      el.style.setProperty('--i', i);
+    if (focus) tab.focus();
+  }
+  tabs.forEach((tab, index) => {
+    tab.addEventListener('click', () => activateTab(tab));
+    tab.addEventListener('keydown', (event) => {
+      let next;
+      if (event.key === 'ArrowRight') next = (index + 1) % tabs.length;
+      else if (event.key === 'ArrowLeft') next = (index - 1 + tabs.length) % tabs.length;
+      else if (event.key === 'Home') next = 0;
+      else if (event.key === 'End') next = tabs.length - 1;
+      else return;
+      event.preventDefault();
+      activateTab(tabs[next], { focus: true });
     });
   });
 
@@ -802,14 +857,14 @@
   const turnsList = $('#turns-list');
   const humanTurns = data.narrative?.human_turns || [];
   if (!humanTurns.length) {
-    turnsList.innerHTML = '<div class="empty-hint">未检测到用户 turn。</div>';
+    turnsList.innerHTML = '<div class="empty-hint">未检测到用户轮次。</div>';
   } else {
     turnsList.innerHTML = humanTurns.map((t, i) => {
       const tools = Object.entries(t.tool_counts || {})
         .sort((a, b) => b[1] - a[1])
         .map(([n, c]) => `${n}×${c}`).join(' · ');
       return `<div class="turn">
-        <div class="idx">#${i}</div>
+        <div class="idx">${i + 1}</div>
         <div class="summary">
           <div>${escapeHtml(t.summary)}</div>
           ${tools ? `<div class="toolset">${tools}</div>` : ''}
@@ -835,19 +890,19 @@
   // ---------- Health: tokens table ----------
   const tk = h.tokens || {};
   const rows = [
-    ['Input（uncached）', fmtN(tk.input_uncached)],
-    ['Cache create', fmtN(tk.cache_create)],
-    ['Cache read', fmtN(tk.cache_read)],
-    ['Output', fmtN(tk.output)],
+    ['未命中缓存的输入', fmtN(tk.input_uncached)],
+    ['写入缓存', fmtN(tk.cache_create)],
+    ['读取缓存', fmtN(tk.cache_read)],
+    ['输出', fmtN(tk.output)],
   ];
   if (data.cli === 'codex' && tk.reasoning_output != null) {
-    rows.push(['Reasoning output', fmtN(tk.reasoning_output)]);
+    rows.push(['推理输出', fmtN(tk.reasoning_output)]);
   }
   rows.push(['<b>总计</b>', `<b>${fmtN(tk.total)}</b>`]);
-  rows.push(['API 调用次数', fmtN(h.api_calls)]);
-  rows.push(['Cache 命中率', fmtPct(h.cache_hit_rate)]);
+  rows.push(['接口调用次数', fmtN(h.api_calls)]);
+  rows.push(['缓存命中率', fmtPct(h.cache_hit_rate)]);
   if (h.context_window_used_pct != null) {
-    rows.push(['Context window 占用', fmtPct(h.context_window_used_pct)]);
+    rows.push(['上下文窗口占用', fmtPct(h.context_window_used_pct)]);
   }
   $('#token-table').innerHTML = rows.map(([k, v]) => `<tr><td>${k}</td><td>${v}</td></tr>`).join('');
 
@@ -870,7 +925,22 @@
   }
   renderBars('#tools-table', h.tools);
   renderBars('#subagents-table', h.subagents);
-  renderBars('#skills-table', h.skills);
+  function renderSkills(target, skills) {
+    if (!skills.length) {
+      $(target).innerHTML = '<tr><td class="name" style="color: var(--text-mute); font-style: italic;">无</td></tr>';
+      return;
+    }
+    $(target).innerHTML = `<thead><tr>
+      <th>技能</th><th>使用单元</th><th>显式</th><th>推断</th><th>证据类型</th>
+    </tr></thead><tbody>${[...skills].sort((a, b) => b.count - a.count).map((skill) => `<tr>
+      <td class="name">${escapeHtml(skill.name)}</td>
+      <td class="count">${skill.count}</td>
+      <td class="count">${skill.explicit_count}</td>
+      <td class="count">${skill.inferred_count}</td>
+      <td>${escapeHtml((skill.evidence_types || []).map((type) => ({ explicit: '显式调用', inferred: '根据记录推断' }[type] || type)).join(' · '))}</td>
+    </tr>`).join('')}</tbody>`;
+  }
+  renderSkills('#skills-table', h.skills || []);
 
   // ---------- Optional sections: render + unhide only when data present ----------
   // Graceful absence: a signal missing for this session leaves its section
@@ -889,11 +959,19 @@
 
   // PRs referenced this session (currently Claude-only data).
   const prs = h.prs || [];
+  const safeWebUrl = (value) => {
+    try {
+      const url = new URL(value);
+      return ['http:', 'https:'].includes(url.protocol) ? url.href : null;
+    } catch {
+      return null;
+    }
+  };
   if (prs.length) {
     $('#pr-list').innerHTML = prs.map(p => `<div class="turn">
       <div class="idx">PR</div>
       <div class="summary">
-        <div>${p.url ? `<a href="${escapeHtml(p.url)}" target="_blank" rel="noopener">#${escapeHtml(String(p.number))}</a>` : '#' + escapeHtml(String(p.number))}</div>
+        <div>${safeWebUrl(p.url) ? `<a href="${escapeHtml(safeWebUrl(p.url))}" target="_blank" rel="noopener">#${escapeHtml(String(p.number))}</a>` : '#' + escapeHtml(String(p.number))}</div>
         ${p.repository ? `<div class="toolset">${escapeHtml(p.repository)}</div>` : ''}
       </div>
       <div class="tokens"></div>
@@ -918,7 +996,7 @@
     $('#tool-failures').innerHTML = failures.map(f => `<div class="turn">
       <div class="idx">✗</div>
       <div class="summary">
-        <div>${escapeHtml(f.name || 'unknown')}</div>
+        <div>${escapeHtml(f.name || '未知工具')}</div>
         ${f.preview ? `<div class="toolset">${escapeHtml(f.preview)}</div>` : ''}
       </div>
       <div class="tokens"></div>
@@ -931,10 +1009,10 @@
   const yn = (v) => (v == null ? '—' : v ? '是' : '否');
   const factRows = [
     ['结束时分支', wsig.git_branch ?? '—'],
-    ['分支在 main / master', yn(wsig.on_main)],
+    ['位于主分支', yn(wsig.on_main)],
     ['有代码改动', yn(wsig.had_code_edit)],
-    ['引用的 PR 数', wsig.prs_count ?? '—'],
-    ['skill 调用次数', wsig.skills_invoked_count ?? '—'],
+    ['引用的拉取请求数', wsig.prs_count ?? '—'],
+    ['技能调用次数', wsig.skills_invoked_count ?? '—'],
   ];
   $('#workflow-facts').innerHTML = factRows
     .map(([k, v]) => `<span class="fact"><span class="k">${escapeHtml(k)}</span><span class="v">${escapeHtml(String(v))}</span></span>`)
@@ -945,8 +1023,14 @@
   if (evalFindings.length) {
     const SEV = { high: '高', med: '中', low: '低' };
     const CONF = { high: '高', med: '中', low: '低' };
-    const KIND = { recall: '召回', compliance: '指令遵循', 'skill-eval': 'skill 执行' };
+    const KIND = { recall: '召回', compliance: '指令遵循', 'skill-eval': '技能执行' };
     const POL = { positive: '✓ 正向', gap: '⚠ 缺口' };
+    const EVIDENCE_NATURE = {
+      'historical-snapshot': '会话当时记录',
+      'current-state-lookback': '按当前状态回看',
+      'explicit-user-signal': '用户明确反馈',
+      'model-analysis': '模型分析',
+    };
     const sevClass = (s) => 'sev-' + (['high', 'med', 'low'].includes(s) ? s : 'low');
     // polarity 缺失的旧格式 finding：带 severity 视为缺口语义，按原样显示。
     const polOf = (f) => f.polarity === 'positive' || f.polarity === 'gap' ? f.polarity : null;
@@ -972,16 +1056,18 @@
         <td><span class="conf">${escapeHtml(CONF[f.confidence] || f.confidence || '—')}</span></td>
         <td><span class="badge kind">${escapeHtml(KIND[f.kind] || f.kind || '—')}</span></td>
         <td class="f-text">${escapeHtml(f.text || '')}</td>
+        <td>${escapeHtml(EVIDENCE_NATURE[f.evidence_nature] || f.evidence_nature || '—')}</td>
+        <td>${renderEvidence(f.evidence_refs)}</td>
         <td class="f-skill">${f.skill ? escapeHtml(f.skill) : '—'}</td>
       </tr>`;
     }).join('');
     $('#skill-eval-list').innerHTML = `<div class="eval-legend">
         <b>性质</b>：✓ 正向 = 被正确遵循 / 执行兑现；⚠ 缺口 = 本该发生而未发生，或执行欠佳。
         <b>严重度</b>（仅缺口）：缺口的影响程度——高 = 工作流保证被实质削弱 / 中 = 局部削弱 / 低 = 形式偏差、实质无损。
-        <b>置信度</b> = 证据强度：高 = transcript 直接佐证（时间戳 / 原文）/ 中 = 间接推断 / 低 = 可辩护的解读。
+        <b>置信度</b> = 证据强度：高 = 会话记录直接佐证（时间戳或原文）/ 中 = 间接推断 / 低 = 可辩护的解读。
       </div>
       <table class="findings">
-      <thead><tr><th>性质</th><th>严重度</th><th>置信度</th><th>类型</th><th>发现</th><th>相关 skill</th></tr></thead>
+      <thead><tr><th>性质</th><th>严重度</th><th>置信度</th><th>类型</th><th>发现</th><th>证据性质</th><th>证据引用</th><th>相关技能</th></tr></thead>
       <tbody>${rows}</tbody>
     </table>`;
   }
@@ -996,7 +1082,7 @@
         <div class="summary">${escapeHtml(t.summary)}</div>
         <div class="tokens">${fmtN(t.tokens)}</div>
       </div>`).join('')
-    : '<div class="empty-hint">无 turn 记录。</div>';
+    : '<div class="empty-hint">无轮次记录。</div>';
 
   // ---------- Health: waste signals ----------
   const waste = h.waste_signals || [];
@@ -1013,20 +1099,27 @@
   const previewEl = $('#compound-preview-md');
   const promptEl = $('#prompt-textarea');
   const copyBtn = $('#copy-btn');
+  const copyStatus = $('#copy-status');
 
   // Internal state for compound tab
   const state = candidates.map((c, i) => ({
     idx: i,
-    selected: c.default_selected !== false,
-    name: c.name || `candidate-${i}`,
-    type: c.type || 'agent-md',
-    body: c.body || '',
+    selected: false,
+    name: c.name,
+    type: c.type,
+    body: c.text,
+    why: c.why_durable,
+    evidenceRefs: c.evidence_refs,
   }));
 
-  // Visually surface ecosystem recommendations (existing-skill) at the top
-  // of the candidate list — they're cheaper to act on than building a new
-  // skill, so users should see them first. Stable sort otherwise.
-  const TYPE_ORDER = ['existing-skill', 'agent-md', 'skill-gap'];
+  const TYPE_ORDER = ['mechanism', 'agent-context', 'existing-skill', 'reviewer', 'new-skill'];
+  const TYPE_LABELS = {
+    mechanism: '工程机制',
+    'agent-context': '代理上下文',
+    'existing-skill': '现有技能',
+    reviewer: '审查规则',
+    'new-skill': '新技能',
+  };
   const orderIdx = (t) => {
     const i = TYPE_ORDER.indexOf(t);
     return i === -1 ? TYPE_ORDER.length : i;
@@ -1073,21 +1166,22 @@
 
   function renderCandidates() {
     if (!state.length) {
-      candidatesList.innerHTML = '<div class="empty-hint">未产出候选条目。Agent 需要填 <code>&lt;script id="candidates"&gt;</code>。</div>';
+      candidatesList.innerHTML = '<div class="empty-hint">本次没有达到长期沉淀门槛的候选。</div>';
       return;
     }
     candidatesList.innerHTML = state.map((c, i) => {
-      const isExisting = c.type === 'existing-skill';
       return `
-      <div class="candidate ${c.selected ? 'active' : ''} ${isExisting ? 'is-existing-skill' : ''}" data-idx="${i}" style="--i: ${i};">
+      <div class="candidate ${c.selected ? 'active' : ''}" data-idx="${i}" style="--i: ${i};">
         <div class="head">
           <label>
             <input type="checkbox" ${c.selected ? 'checked' : ''} />
             <span class="name">${escapeHtml(c.name)}</span>
           </label>
-          <span class="type ${escapeHtml(c.type)}">${escapeHtml(c.type)}</span>
+          <span class="type ${escapeHtml(c.type)}">${escapeHtml(TYPE_LABELS[c.type] || c.type)}</span>
         </div>
         <div class="body">${renderMdBody(c.body)}</div>
+        <div class="body"><b>沉淀依据：</b>${renderInlineMd(c.why)}</div>
+        <div class="body">${renderEvidence(c.evidenceRefs)}</div>
       </div>
     `;
     }).join('');
@@ -1108,9 +1202,7 @@
       if (!c.selected) continue;
       (groups[c.type] ||= []).push(c);
     }
-    // Existing-skill first (cheapest action: just install), then AGENTS.md
-    // edits, then skill-gap (heaviest: build a new skill).
-    const order = ['existing-skill', 'agent-md', 'skill-gap'];
+    const order = TYPE_ORDER;
     const parts = [];
     for (const type of order) {
       if (!groups[type]?.length) continue;
@@ -1122,49 +1214,28 @@
     return parts.join('\n\n');
   }
 
-  // Per-type processing instructions for the copy-back prompt. buildPrompt
-  // emits only the blocks whose type is present in the current selection —
-  // shipping all three when the user picked one type wastes downstream tokens.
-  const TYPE_INSTRUCTIONS = {
-    'existing-skill': [
-      '**`## existing-skill`** — 步骤 4 预查 ecosystem 时找到的可复用 skill。请直接执行每条 body 里附的 `npx -y skills add <owner/repo@skill> -a codex claude-code -y` 命令安装（`npx -y` 在前给 npx 自动升级用；`-a codex claude-code` 同时装到 codex 和 claude-code 两个 agent；末尾 `-y` 跳过 skills CLI 自己的确认）。安装成功后简短确认，无需再 scaffold 新 skill。',
-    ],
-    'agent-md': [
-      '**`## agent-md`** — 沉淀到 AGENTS.md 体系。每条 body 第一行已经给出**推荐 target** + 落点理由（就地优化某个 `<skill>/SKILL.md` / 扩写现有 `docs/rules/<topic>.md` / 根 `AGENTS.md` / 新建 `docs/rules/<topic>.md` + 索引 / `<subdir>/AGENTS.md`）。这是 session-compound 已按工程现有规范判定过的落点——优先沿用，不要从头再决策一轮。落地前快速核对一次仓库现状（目标文件 / skill 是否仍在、是否已有覆盖该领域的更合适位置）：若现状与推荐 target 一致就直接落；只有当仓库结构与候选判断明显不符时才调整，并说明原因。优先「就地优化已有 skill / 扩写已有 docs」而非新建或往根 AGENTS.md 堆内容（根文件是入口+索引，靠多级文件渐进式披露）。按 target 把"要写入的内容"段逐字落到对应文件；新建 `docs/rules/<topic>.md` 时同时在根 `AGENTS.md` 加索引行；若根 `AGENTS.md` 与 `CLAUDE.md` 是软链则只写一处。',
-    ],
-    'skill-gap': [
-      '**`## skill-gap`** — 新 skill 候选。每条都已按 5 条 hard gate（多步骤 + 可重复 + 第三人称触发短语 + 可绑定资源 + ecosystem 没现成的）筛过，正文里附了触发短语 / find-skills 检查结果 / imperative 步骤 / bundled resources。请按以下顺序处理：',
-      '  1. 调用 `find-skills` skill：用候选里给的关键词跑 `npx skills find` 再确认一次（候选作者的查可能不完整或过时；如果上面 `## existing-skill` 段已经覆盖了相同 query 范围，可跳过）；若发现现成可复用 skill，停在这里——把那个 skill 推荐给我，不要继续造轮子',
-      '  2. 如果确认无现成可复用，调用 `skill-creator` skill 来 scaffold 新 skill。**不要直接现场写 SKILL.md**——skill-creator 会带你过完整的 capture-intent / interview / draft / test-prompts / eval 流程，并确保 description 用第三人称具体触发短语、body 用 imperative 风格、SKILL.md ≤2k 词且把细节拆到 references/（这些是 skill-development 文档的硬规范）',
-      '  3. 在我确认 scope 之前不要落盘',
-    ],
-  };
-
   function buildPrompt(md) {
     if (!md) return '';
-    const present = TYPE_ORDER.filter((t) =>
-      state.some((c) => c.selected && c.type === t),
-    );
-    const blocks = [];
-    for (const type of present) blocks.push(...TYPE_INSTRUCTIONS[type], '');
-    const intro =
-      present.length > 1
-        ? '请处理以下 session-compound 输出。每段对应一个沉淀路径，不要混淆：'
-        : '请处理以下 session-compound 输出：';
-    return [intro, '', ...blocks, '---', '', md].join('\n');
+    return [
+      '我已人工选择以下 session-compound 长期候选。请先核对当前工程是否已经吸收这些要求，再把仍然有效的候选路由给对应管理能力；不要由 session-compound 自己直接落库。',
+      '',
+      md,
+    ].join('\n');
   }
 
   function updateOutputs() {
     const md = buildMarkdown();
     if (!md) {
       previewEl.classList.add('empty');
-      previewEl.textContent = '勾选左侧候选条目，这里会实时显示合成的 markdown。';
+      previewEl.textContent = '勾选左侧候选条目，这里会实时显示合成的内容。';
       promptEl.value = '';
+      copyStatus.textContent = '尚未选择候选';
       return;
     }
     previewEl.classList.remove('empty');
     previewEl.textContent = md;
     promptEl.value = buildPrompt(md);
+    copyStatus.textContent = '';
   }
 
   copyBtn.addEventListener('click', async () => {
@@ -1174,18 +1245,40 @@
       const orig = copyBtn.textContent;
       copyBtn.textContent = '已复制';
       copyBtn.classList.add('copied');
+      copyStatus.textContent = '已复制';
       setTimeout(() => {
         copyBtn.textContent = orig;
         copyBtn.classList.remove('copied');
       }, 1400);
     } catch {
+      promptEl.focus();
       promptEl.select();
-      document.execCommand('copy');
+      const copied = typeof document.execCommand === 'function' && document.execCommand('copy');
+      copyStatus.textContent = copied ? '已复制' : '自动复制失败，请手动复制已选中的文本';
     }
   });
 
   renderCandidates();
   updateOutputs();
+
+  function renderCommitmentList(target, items, emptyText) {
+    const list = Array.isArray(items) ? items : [];
+    $(target).innerHTML = list.length
+      ? list.map((item) => `<div class="turn">
+          <div class="idx">${target.includes('experiment') ? '试' : '察'}</div>
+          <div class="summary">
+            <div>${escapeHtml(item.title || item.name || item.text || '')}</div>
+            ${item.text && item.text !== item.title ? `<div class="toolset">${escapeHtml(item.text)}</div>` : ''}
+            ${item.trial ? `<div class="toolset">尝试方式：${escapeHtml(item.trial)}</div>` : ''}
+            ${item.success_signal ? `<div class="toolset">判断是否有效：${escapeHtml(item.success_signal)}</div>` : ''}
+            ${renderEvidence(item.evidence_refs)}
+          </div>
+          <div class="tokens"></div>
+        </div>`).join('')
+      : `<div class="empty-hint">${escapeHtml(emptyText)}</div>`;
+  }
+  renderCommitmentList('#observations-list', bundle.observations, '本次没有额外洞察。');
+  renderCommitmentList('#experiments-list', bundle.experiments, '本次没有足够证据提出值得尝试的改进。');
 
   // ---------- escapeHtml ----------
   function escapeHtml(str) {

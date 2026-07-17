@@ -87,8 +87,8 @@ function codexWorkflowSignals(stats) {
     had_code_edit: (patch.success || 0) + (patch.failure || 0) > 0,
     first_edit_ts: null, // codex logs don't cheaply expose first patch ts
     prs_count: 0, // codex logs carry no pr-link signal
-    skills_invoked_count: Object.values(stats.skillInvocations).reduce(
-      (a, b) => a + b,
+    skills_invoked_count: buildSkillUsageRecords(stats).reduce(
+      (sum, skill) => sum + skill.count,
       0,
     ),
   }
@@ -178,6 +178,7 @@ function newStats() {
     imageGenerationCount: 0,
     agentInvocations: [], // {ts, subagent_type, message_preview, fork_context}
     skillInvocations: {}, // skill name -> count (parsed from <skill><name> blocks)
+    skillUsageEvents: [], // {ts, name, evidence, turn_idx}
     skillTimeline: [], // {ts, name} — mirrors claude-code.mjs, for stage classification
     reviewSyntheses: [], // {ts, text} — mirrors claude-code.mjs, deep-review punch lists
   }
@@ -277,6 +278,189 @@ function extractReadPath(cmd) {
   return candidate
 }
 
+function extractSkillReadPaths(cmd) {
+  if (!cmd) return []
+  const cmdStr = Array.isArray(cmd) ? cmd.join(' ') : String(cmd)
+  const segments = cmdStr.split(/(?:&&|\|\||;|\n)/)
+  const paths = []
+  for (const segment of segments) {
+    if (!/^\s*(?:cat|head|tail|less|nl|sed|awk|rg|grep)\b/.test(segment)) continue
+    for (const match of segment.matchAll(/['"]?([^\s'";|&<>]*\/SKILL\.md)['"]?/g)) {
+      const candidate = match[1]
+      try {
+        const real = fs.realpathSync(candidate)
+        if (fs.statSync(real).isFile() && path.basename(real) === 'SKILL.md') paths.push(real)
+      } catch {
+        // A mentioned but missing path is not proof that a skill was read.
+      }
+    }
+  }
+  return [...new Set(paths)]
+}
+
+function parseCustomToolInput(input) {
+  if (typeof input !== 'string') return null
+  const marker = input.match(/tools\.([a-zA-Z0-9_]+)\s*\(/)
+  if (!marker) return null
+  const toolName = marker[1]
+  const objectStart = input.indexOf('{', marker.index + marker[0].length)
+  if (objectStart === -1) return { name: toolName, args: {} }
+  let depth = 0
+  let quote = null
+  let escaped = false
+  for (let index = objectStart; index < input.length; index++) {
+    const char = input[index]
+    if (quote) {
+      if (escaped) escaped = false
+      else if (char === '\\') escaped = true
+      else if (char === quote) quote = null
+      continue
+    }
+    if (char === '"' || char === "'") {
+      quote = char
+      continue
+    }
+    if (char === '{') depth++
+    if (char === '}') {
+      depth--
+      if (depth === 0) {
+        try {
+          return { name: toolName, args: JSON.parse(input.slice(objectStart, index + 1)) }
+        } catch {
+          return { name: toolName, args: parseJsObjectStrings(input.slice(objectStart, index + 1)) }
+        }
+      }
+    }
+  }
+  return { name: toolName, args: {} }
+}
+
+function parseJsString(source, start) {
+  const quote = source[start]
+  if (!['"', "'", '`'].includes(quote)) return null
+  let escaped = false
+  for (let index = start + 1; index < source.length; index++) {
+    const char = source[index]
+    if (escaped) {
+      escaped = false
+      continue
+    }
+    if (char === '\\') {
+      escaped = true
+      continue
+    }
+    if (char !== quote) continue
+    const token = source.slice(start, index + 1)
+    if (quote === '"') {
+      try {
+        return JSON.parse(token)
+      } catch {
+        return null
+      }
+    }
+    const body = token.slice(1, -1)
+    if (quote === '`' && body.includes('${')) return null
+    return body.replace(/\\([\\'`nrtbfv0])/g, (_match, escape) => ({
+      '\\': '\\',
+      "'": "'",
+      '`': '`',
+      n: '\n',
+      r: '\r',
+      t: '\t',
+      b: '\b',
+      f: '\f',
+      v: '\v',
+      0: '\0',
+    })[escape])
+  }
+  return null
+}
+
+function parseJsObjectStrings(source) {
+  const args = {}
+  for (const key of ['cmd', 'workdir']) {
+    const property = new RegExp(`(?:^|[,\\{])\\s*(?:["']${key}["']|${key})\\s*:`).exec(source)
+    if (!property) continue
+    let start = property.index + property[0].length
+    while (/\s/.test(source[start] || '')) start++
+    const value = parseJsString(source, start)
+    if (value != null) args[key] = value
+  }
+  return args
+}
+
+function customOutputText(output) {
+  if (Array.isArray(output)) {
+    return output.map((item) => (typeof item?.text === 'string' ? item.text : '')).join('\n')
+  }
+  return typeof output === 'string' ? output : JSON.stringify(output || '')
+}
+
+function skillNameFromPath(filePath) {
+  return path.basename(path.dirname(filePath))
+}
+
+function recordSkillUsage(stats, { ts, name, evidence, turnIdx }) {
+  if (!name) return
+  if (
+    evidence === 'inferred' &&
+    stats.skillUsageEvents.some(
+      (event) =>
+        event.name === name &&
+        event.evidence === evidence &&
+        event.turn_idx === turnIdx,
+    )
+  ) {
+    return
+  }
+  stats.skillUsageEvents.push({
+    ts: ts ?? null,
+    name,
+    evidence,
+    turn_idx: turnIdx ?? null,
+  })
+}
+
+function buildSkillUsageRecords(stats) {
+  const byName = new Map()
+  for (const event of stats.skillUsageEvents) {
+    if (!byName.has(event.name)) {
+      byName.set(event.name, {
+        name: event.name,
+        count: 0,
+        explicit_count: 0,
+        inferred_count: 0,
+        evidence_types: [],
+        explicit_turns: new Set(),
+        inferred_events: [],
+      })
+    }
+    const record = byName.get(event.name)
+    if (event.evidence === 'explicit') {
+      record.explicit_count++
+      if (event.turn_idx != null) record.explicit_turns.add(event.turn_idx)
+    }
+    if (event.evidence === 'inferred') {
+      record.inferred_count++
+      record.inferred_events.push(event)
+    }
+    if (!record.evidence_types.includes(event.evidence)) {
+      record.evidence_types.push(event.evidence)
+    }
+  }
+  return [...byName.values()].map(
+    ({ explicit_turns, inferred_events, ...record }) => ({
+      ...record,
+      count:
+        record.explicit_count +
+        inferred_events.filter(
+          (event) =>
+            event.turn_idx == null || !explicit_turns.has(event.turn_idx),
+        ).length,
+    }),
+  )
+}
+
 // ---------- Main scan ----------
 async function scan(filePath) {
   const stats = newStats()
@@ -357,6 +541,7 @@ function handleEventMsg(p, ts, stats, setTurn) {
       if (!text.trim()) break
       if (stats.firstUserText === null) stats.firstUserText = text
       const turn = {
+        idx: stats.humanTurns.length,
         ts,
         text,
         summary: summarize(text),
@@ -442,6 +627,7 @@ function handleEventMsg(p, ts, stats, setTurn) {
           call_id: p.call_id ?? null, // always present (null when missing) to match claude shape
           name: 'patch_apply',
           preview: (p.stderr || p.stdout || '').slice(0, 200),
+          classification: 'unknown',
         })
       }
       break
@@ -476,6 +662,12 @@ function handleResponseItem(p, ts, stats, currentTurn) {
         const name = m ? m[1].trim() : null
         if (name) {
           stats.skillInvocations[name] = (stats.skillInvocations[name] || 0) + 1
+          recordSkillUsage(stats, {
+            ts,
+            name,
+            evidence: 'explicit',
+            turnIdx: currentTurn?.idx,
+          })
           // Mirrors claude-code.mjs: a null-ts entry can't anchor the
           // feedback-alignment timeline; the count above still records it.
           if (ts != null) stats.skillTimeline.push({ ts, name })
@@ -499,6 +691,14 @@ function handleResponseItem(p, ts, stats, currentTurn) {
       if (name === 'exec_command') {
         const fp = extractReadPath(args.cmd)
         if (fp) stats.fileReads[fp] = (stats.fileReads[fp] || 0) + 1
+        for (const skillPath of extractSkillReadPaths(args.cmd)) {
+          recordSkillUsage(stats, {
+            ts,
+            name: skillNameFromPath(skillPath),
+            evidence: 'inferred',
+            turnIdx: currentTurn?.idx,
+          })
+        }
       }
       if (name === 'spawn_agent') {
         stats.agentInvocations.push({
@@ -529,18 +729,49 @@ function handleResponseItem(p, ts, stats, currentTurn) {
           call_id: p.call_id ?? null, // always present (null when missing) to match claude shape
           name: prev?.name || 'unknown',
           preview: outStr.slice(0, 200),
+          classification: 'unknown',
         })
       }
       break
     }
-    case 'custom_tool_call':
+    case 'custom_tool_call': {
       stats.customToolCallCount++
-      stats.toolUses['custom_tool_call'] = (stats.toolUses['custom_tool_call'] || 0) + 1
+      const parsed = parseCustomToolInput(p.input)
+      const name = parsed?.name || p.name || 'custom_tool_call'
+      const args = parsed?.args || {}
+      stats.toolUses[name] = (stats.toolUses[name] || 0) + 1
       if (currentTurn) {
-        currentTurn.toolCounts['custom_tool_call'] =
-          (currentTurn.toolCounts['custom_tool_call'] || 0) + 1
+        currentTurn.toolCounts[name] = (currentTurn.toolCounts[name] || 0) + 1
+      }
+      stats.lastCallByCallId[p.call_id] = { name, args }
+      if (name === 'exec_command') {
+        const fp = extractReadPath(args.cmd)
+        if (fp) stats.fileReads[fp] = (stats.fileReads[fp] || 0) + 1
+        for (const skillPath of extractSkillReadPaths(args.cmd)) {
+          recordSkillUsage(stats, {
+            ts,
+            name: skillNameFromPath(skillPath),
+            evidence: 'inferred',
+            turnIdx: currentTurn?.idx,
+          })
+        }
       }
       break
+    }
+    case 'custom_tool_call_output': {
+      const outStr = customOutputText(p.output)
+      const prev = stats.lastCallByCallId[p.call_id]
+      const failed = /^(?:Script failed\b|Process exited with code [1-9]|.*: command not found|bash: line \d+:)/m.test(outStr)
+      if (failed) {
+        stats.toolFailures.push({
+          call_id: p.call_id ?? null,
+          name: prev?.name || 'unknown',
+          preview: outStr.slice(0, 200),
+          classification: 'unknown',
+        })
+      }
+      break
+    }
     case 'tool_search_call':
       stats.toolSearchCount++
       stats.toolUses['tool_search'] = (stats.toolUses['tool_search'] || 0) + 1
@@ -626,45 +857,6 @@ function emit(stats, filePath) {
       note: `本次会话被自动压缩 ${stats.compactionCount} 次 — cumulative tokens 已不等于 live context`,
     })
   }
-  if (stats.turnAbortCount > 0) {
-    wasteSignals.push({
-      type: 'turn_aborted',
-      count: stats.turnAbortCount,
-      note: `${stats.turnAbortCount} 次 turn 被中断`,
-    })
-  }
-  if (stats.patchApplies.failure > 0) {
-    // Dedupe failed file list, show top 3 + ellipsis.
-    const uniqueFiles = [...new Set(stats.patchApplies.failedFiles)]
-    const filePreview = uniqueFiles.slice(0, 3).join(', ')
-    const more = uniqueFiles.length > 3 ? ` 等 ${uniqueFiles.length} 个文件` : ''
-    wasteSignals.push({
-      type: 'patch_apply_failure',
-      count: stats.patchApplies.failure,
-      files: uniqueFiles,
-      note: `apply_patch 失败 ${stats.patchApplies.failure}×（成功 ${stats.patchApplies.success}×）${filePreview ? ` — ${filePreview}${more}` : ''}`,
-    })
-  }
-  if (stats.toolFailures.length > 0) {
-    // Aggregate by tool name so the user sees which tools are actually
-    // blowing up, not just a raw count.
-    const byName = stats.toolFailures.reduce((acc, f) => {
-      acc[f.name || 'unknown'] = (acc[f.name || 'unknown'] || 0) + 1
-      return acc
-    }, {})
-    const breakdown = Object.entries(byName)
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 3)
-      .map(([n, c]) => `${n} ×${c}`)
-      .join(', ')
-    wasteSignals.push({
-      type: 'tool_failures',
-      count: stats.toolFailures.length,
-      breakdown: byName,
-      note: `${stats.toolFailures.length} 次工具调用失败 — ${breakdown}`,
-    })
-  }
-
   // Sub-agents counted by subagent_type (mirrors claude-code analyzer's shape)
   const subagentByType = stats.agentInvocations.reduce((acc, a) => {
     acc[a.subagent_type] = (acc[a.subagent_type] || 0) + 1
@@ -683,7 +875,7 @@ function emit(stats, filePath) {
 
   return {
     cli: 'codex',
-    schema_version: 1,
+    schema_version: 2,
     generated_at: new Date().toISOString(),
     source_file: filePath,
     session: {
@@ -736,10 +928,7 @@ function emit(stats, filePath) {
       reasoning_output_ratio: reasoningOutputRatio,
       tools: stats.toolUses,
       subagents: subagentList,
-      skills: Object.entries(stats.skillInvocations).map(([name, count]) => ({
-        name,
-        count,
-      })),
+      skills: buildSkillUsageRecords(stats),
       // Shared core fields, kept present (empty here) for schema symmetry with
       // the claude analyzer. Codex logs carry no attribution / pr-link signal.
       skill_attribution: [],
@@ -770,6 +959,7 @@ function emit(stats, filePath) {
       tool_failures: stats.toolFailures,
       agent_invocations: stats.agentInvocations,
       skill_timeline: stats.skillTimeline,
+      skill_usage_events: stats.skillUsageEvents,
       review_syntheses: stats.reviewSyntheses,
     },
   }

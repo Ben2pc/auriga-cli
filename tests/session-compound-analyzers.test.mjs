@@ -223,6 +223,54 @@ function codexAgentCommentary(message, ts) {
   };
 }
 
+function codexFunctionCall({ name, args = {}, callId = `call-${uuid()}`, ts }) {
+  return {
+    type: "response_item",
+    timestamp: ts,
+    payload: {
+      type: "function_call",
+      name,
+      arguments: JSON.stringify(args),
+      call_id: callId,
+    },
+  };
+}
+
+function codexFunctionCallOutput({ callId, output, ts }) {
+  return {
+    type: "response_item",
+    timestamp: ts,
+    payload: { type: "function_call_output", call_id: callId, output },
+  };
+}
+
+function codexCustomExecCall({ cmd, callId = `custom-${uuid()}`, ts, objectLiteral = false }) {
+  return {
+    type: "response_item",
+    timestamp: ts,
+    payload: {
+      type: "custom_tool_call",
+      name: "exec",
+      call_id: callId,
+      input: objectLiteral
+        ? `const r = await tools.exec_command({cmd:${JSON.stringify(cmd)},workdir:"/repo"}); text(r.output);`
+        : `const r = await tools.exec_command(${JSON.stringify({ cmd, workdir: "/repo" })}); text(r.output);`,
+    },
+  };
+}
+
+function codexCustomExecOutput({ callId, output, ts }) {
+  return {
+    type: "response_item",
+    timestamp: ts,
+    payload: {
+      type: "custom_tool_call_output",
+      call_id: callId,
+      output: [{ type: "input_text", text: output }],
+    },
+  };
+}
+
 // ---------- shared helpers ----------
 const T0 = "2026-05-28T10:00:00.000Z";
 const T1 = "2026-05-28T10:01:00.000Z";
@@ -547,6 +595,215 @@ test("codex analyzer emits empty skills list when no <skill> block present [VAL-
   assertEqual(out.health.skills.length, 0, "no <skill> block -> empty skills list");
 });
 
+test("codex analyzer detects inferred skill use from a SKILL.md read [VAL-SKIL-002]", () => {
+  const skillRoot = writeSkillRoot("codex-inferred", [
+    { name: "systematic-debugging", description: "debug" },
+  ]);
+  const skillPath = path.join(skillRoot, "systematic-debugging", "SKILL.md");
+  const file = writeFixture("codex-inferred-skill", [
+    codexMeta(),
+    codexTurnContext(),
+    codexUserMsgEvent("diagnose this failure", T0),
+    codexFunctionCall({
+      name: "exec_command",
+      args: {
+        cmd: `sed -n '1,220p' ${skillPath}`,
+      },
+      ts: T1,
+    }),
+  ]);
+  const out = runAnalyzer(CODEX, file);
+  const hit = out.health?.skills?.find((s) => s.name === "systematic-debugging");
+  assert(hit, "a read of systematic-debugging/SKILL.md must produce skill-use evidence");
+  assertEqual(hit.count, 1, "one user-turn use episode -> count 1");
+  assertEqual(hit.explicit_count, 0, "no explicit skill injection -> explicit_count 0");
+  assertEqual(hit.inferred_count, 1, "the SKILL.md read -> inferred_count 1");
+  assert(Array.isArray(hit.evidence_types) && hit.evidence_types.includes("inferred"),
+    "the record must label the evidence as inferred");
+});
+
+test("codex inferred skill use dedupes repeated reads per user turn [VAL-SKIL-003]", () => {
+  const skillRoot = writeSkillRoot("codex-inferred-dedup", [
+    { name: "systematic-debugging", description: "debug" },
+  ]);
+  const skillPath = path.join(skillRoot, "systematic-debugging", "SKILL.md");
+  const file = writeFixture("codex-inferred-dedup", [
+    codexMeta(),
+    codexTurnContext(),
+    codexUserMsgEvent("first turn", T0),
+    codexFunctionCall({ name: "exec_command", args: { cmd: `head -n 50 ${skillPath}` }, ts: T0 }),
+    codexFunctionCall({ name: "exec_command", args: { cmd: `sed -n '51,120p' ${skillPath}` }, ts: T1 }),
+    codexUserMsgEvent("second turn", T2),
+    codexFunctionCall({ name: "exec_command", args: { cmd: `cat ${skillPath}` }, ts: T2 }),
+  ]);
+  const out = runAnalyzer(CODEX, file);
+  const hit = out.health?.skills?.find((s) => s.name === "systematic-debugging");
+  assert(hit, "the inferred skill must be present");
+  assertEqual(hit.inferred_count, 2, "two distinct user turns -> two inferred use episodes");
+  assertEqual(hit.count, 2, "repeated reads in the first turn must not inflate total use");
+  const events = out.raw_for_compound?.skill_usage_events ?? [];
+  assertEqual(events.filter((e) => e.name === "systematic-debugging").length, 2,
+    "the evaluation substrate must retain one event per turn");
+});
+
+test("explicit and inferred evidence remain distinguishable without double-counting [VAL-SKIL-003]", () => {
+  const skillRoot = writeSkillRoot("codex-explicit-inferred", [
+    { name: "systematic-debugging", description: "debug" },
+  ]);
+  const skillPath = path.join(skillRoot, "systematic-debugging", "SKILL.md");
+  const file = writeFixture("codex-skill-evidence", [
+    codexMeta(),
+    codexTurnContext(),
+    codexUserMsgEvent("use the debugger", T0),
+    codexSkillBlock("systematic-debugging", T0),
+    codexFunctionCall({
+      name: "exec_command",
+      args: { cmd: `cat ${skillPath}` },
+      ts: T1,
+    }),
+  ]);
+  const out = runAnalyzer(CODEX, file);
+  const hit = out.health?.skills?.find((s) => s.name === "systematic-debugging");
+  assertEqual(hit.explicit_count, 1, "the injected skill remains an explicit call");
+  assertEqual(hit.inferred_count, 1, "the file read remains visible as inferred evidence");
+  assertEqual(hit.count, 1, "both signals in one user turn describe one use episode");
+  assertEqual([...hit.evidence_types].sort().join(","), "explicit,inferred",
+    "the report can explain both evidence sources");
+});
+
+test("codex ignores SKILL.md mentions that are not real file reads [VAL-SKIL-002]", () => {
+  const skillRoot = writeSkillRoot("codex-not-read", [
+    { name: "systematic-debugging", description: "debug" },
+  ]);
+  const skillPath = path.join(skillRoot, "systematic-debugging", "SKILL.md");
+  const file = writeFixture("codex-not-read", [
+    codexMeta(),
+    codexTurnContext(),
+    codexUserMsgEvent("inspect paths", T0),
+    codexFunctionCall({ name: "exec_command", args: { cmd: `echo ${skillPath}` }, ts: T1 }),
+    codexFunctionCall({ name: "exec_command", args: { cmd: `test -f ${skillPath}` }, ts: T2 }),
+  ]);
+  const out = runAnalyzer(CODEX, file);
+  assert(!out.health.skills.some((skill) => skill.name === "systematic-debugging"),
+    "path mentions and existence probes are not skill-use evidence");
+});
+
+test("codex current custom exec events preserve inferred skills and failures [VAL-SKIL-002] [VAL-EVID-001]", () => {
+  const skillRoot = writeSkillRoot("codex-custom-exec", [
+    { name: "systematic-debugging", description: "debug" },
+  ]);
+  const skillPath = path.join(skillRoot, "systematic-debugging", "SKILL.md");
+  const callId = "custom-exec-read";
+  const file = writeFixture("codex-custom-exec", [
+    codexMeta(),
+    codexTurnContext(),
+    codexUserMsgEvent("read then diagnose", T0),
+    codexCustomExecCall({
+      cmd: `sed -n '1,80p' ${skillPath}`,
+      callId,
+      ts: T1,
+      objectLiteral: true,
+    }),
+    codexCustomExecOutput({ callId, output: "Script failed\nProcess exited with code 1", ts: T2 }),
+  ]);
+  const out = runAnalyzer(CODEX, file);
+  const skill = out.health.skills.find((item) => item.name === "systematic-debugging");
+  assertEqual(skill?.inferred_count, 1, "custom exec reads contribute inferred skill evidence");
+  assertEqual(out.health.tool_failures.length, 1, "custom exec failures remain visible");
+  assertEqual(out.health.tool_failures[0].classification, "unknown",
+    "custom exec failures remain neutral");
+});
+
+test("claude inferred skill evidence requires an existing SKILL.md read [VAL-SKIL-002]", () => {
+  const skillRoot = writeSkillRoot("claude-inferred", [
+    { name: "systematic-debugging", description: "debug" },
+  ]);
+  const skillPath = path.join(skillRoot, "systematic-debugging", "SKILL.md");
+  const file = writeFixture("claude-inferred", [
+    claudeUser("diagnose", T0),
+    claudeAssistant({
+      ts: T1,
+      reqId: "r-read-skill",
+      content: [{ type: "tool_use", id: "read-skill", name: "Read", input: { file_path: skillPath } }],
+    }),
+  ]);
+  const out = runAnalyzer(CLAUDE, file);
+  const skill = out.health.skills.find((item) => item.name === "systematic-debugging");
+  assertEqual(skill?.inferred_count, 1, "Claude Read events preserve inferred evidence");
+});
+
+test("multiple explicit invocations remain exact even within one user turn [VAL-SKIL-001]", () => {
+  const file = writeFixture("codex-explicit-multiple", [
+    codexMeta(),
+    codexTurnContext(),
+    codexUserMsgEvent("invoke twice", T0),
+    codexSkillBlock("systematic-debugging", T0),
+    codexSkillBlock("systematic-debugging", T1),
+  ]);
+  const out = runAnalyzer(CODEX, file);
+  const hit = out.health.skills.find((skill) => skill.name === "systematic-debugging");
+  assertEqual(hit.explicit_count, 2, "both explicit injection events remain visible");
+  assertEqual(hit.count, 2, "explicit calls are not collapsed into a turn-level inference episode");
+});
+
+test("non-zero command exits remain raw failures instead of automatic waste [VAL-EVID-001]", () => {
+  const callId = "call-red-test";
+  const file = writeFixture("codex-failure-evidence", [
+    codexMeta(),
+    codexTurnContext(),
+    codexUserMsgEvent("run the failing test first", T0),
+    codexFunctionCall({ name: "exec_command", args: { cmd: "npm test" }, callId, ts: T1 }),
+    codexFunctionCallOutput({
+      callId,
+      output: "Process exited with code 1\nAssertionError: expected red test",
+      ts: T2,
+    }),
+  ]);
+  const out = runAnalyzer(CODEX, file);
+  const failures = out.health?.tool_failures ?? [];
+  assertEqual(failures.length, 1, "the raw non-zero exit must remain visible");
+  assertEqual(failures[0].classification, "unknown",
+    "the deterministic analyzer must not guess whether the failure was expected");
+  assert(!(out.health?.waste_signals ?? []).some((s) => s.type === "tool_failures"),
+    "raw failures must not automatically create a waste verdict");
+});
+
+test("aborted turns and patch failures remain neutral facts [VAL-EVID-001]", () => {
+  const file = writeFixture("codex-neutral-failures", [
+    codexMeta(),
+    codexTurnContext(),
+    codexUserMsgEvent("stop and retry", T0),
+    { type: "event_msg", timestamp: T1, payload: { type: "turn_aborted" } },
+    codexPatchApplyEnd({ success: false, ts: T2 }),
+  ]);
+  const out = runAnalyzer(CODEX, file);
+  const types = (out.health.waste_signals || []).map((signal) => signal.type);
+  assert(!types.includes("turn_aborted"), "an interrupted turn is not automatically waste");
+  assert(!types.includes("patch_apply_failure"), "a patch failure is not automatically waste");
+  assertEqual(out.health.tool_failures[0]?.classification, "unknown",
+    "the patch failure remains available as a neutral raw fact");
+});
+
+test("claude tool errors also keep an unknown classification [VAL-EVID-001]", () => {
+  const file = writeFixture("claude-failure-classification", [
+    claudeUser("run the failing test first", T0),
+    claudeAssistant({
+      ts: T1,
+      reqId: "r-fail",
+      content: [{ type: "tool_use", id: "tu-fail", name: "Bash", input: { command: "npm test" } }],
+    }),
+    claudeToolResult({
+      ts: T2,
+      toolUseId: "tu-fail",
+      isError: true,
+      content: "AssertionError: expected red test",
+    }),
+  ]);
+  const out = runAnalyzer(CLAUDE, file);
+  assertEqual(out.health.tool_failures[0].classification, "unknown",
+    "Claude failures must use the same neutral classification boundary");
+});
+
 // =====================================================================
 // VAL-GROUND-001 — Claude duration from recorded turn_duration
 // =====================================================================
@@ -811,14 +1068,12 @@ test("SKILL.md drops the outdated 'Codex skills always empty / no skill concept'
     "SKILL.md must not claim Codex has no skill concept");
 });
 
-test("SKILL.md documents the newly added analyzer fields [VAL-DOC-001]", () => {
+test("SKILL.md documents the neutral evidence boundary [VAL-EVID-002]", () => {
   const txt = fs.readFileSync(SKILL_MD, "utf8");
-  // Each new signal area should be mentioned somewhere in the doc.
-  const required = ["PR", "attribution", "turn_duration", "away_summary", "aiTitle"];
+  const required = ["explicit_count", "inferred_count", "classification", "skill_usage_events"];
   const missing = required.filter((k) => !txt.includes(k));
-  assert(missing.length === 0, `SKILL.md missing docs for new fields: ${missing.join(", ")}`);
-  // Tool-failure documentation (allow either the field name or phrase).
-  assert(/tool_failures|工具失败/.test(txt), "SKILL.md must document tool failures");
+  assert(missing.length === 0, `SKILL.md missing evidence fields: ${missing.join(", ")}`);
+  assert(/按当前状态回看/.test(txt), "current rules must be labeled as a present-day lookback");
 });
 
 // =====================================================================
@@ -1127,7 +1382,7 @@ test("SKILL.md mandates an independent, zero-context eval subagent [VAL-EVAL-001
 test("SKILL.md scopes recall to all installed skills, execution-eval to invoked-only [VAL-EVAL-002]", () => {
   const txt = fs.readFileSync(SKILL_MD, "utf8");
   assert(/全部已安装\s*skill/.test(txt), "recall must cover 全部已安装 skill");
-  assert(/(本会话.*(调用过|跑过))|(调用过|跑过).*skill/.test(txt),
+  assert(/本会话实际使用/.test(txt),
     "execution eval must be scoped to skills invoked this session");
 });
 
@@ -1140,8 +1395,7 @@ test("SKILL.md requires severity+confidence findings with no pre-filtering [VAL-
 
 test("SKILL.md routes editable in-repo SKILL.md eval findings to skill-body candidates [VAL-CAND-001]", () => {
   const txt = fs.readFileSync(SKILL_MD, "utf8");
-  assert(/editable/.test(txt), "candidate guidance must key on the editable flag");
-  assert(/in-repo\s*SKILL\.md|in-repo SKILL/.test(txt) && /就地优化/.test(txt),
+  assert(/in-repo\s*`?SKILL\.md`?|in-repo SKILL/.test(txt) && /就地优化/.test(txt),
     "editable findings must target the in-repo SKILL.md for in-place optimization");
 });
 
@@ -1149,7 +1403,7 @@ test("SKILL.md forbids edit candidates for external/cached skills [VAL-CAND-002]
   const txt = fs.readFileSync(SKILL_MD, "utf8");
   assert(/不.{0,6}产出编辑候选|不要产出编辑候选/.test(txt),
     "external/cached skills must not yield edit candidates");
-  assert(/更新即被覆盖|下次更新.*覆盖/.test(txt),
+  assert(/更新时会被覆盖|更新即被覆盖|下次更新.*覆盖/.test(txt),
     "rationale (overwritten on update) must be stated");
 });
 
@@ -1172,6 +1426,8 @@ test("substrate tests are wired into test:session-compound + CI [VAL-REL-002]", 
   const pkg = JSON.parse(fs.readFileSync(path.join(REPO_ROOT, "package.json"), "utf8"));
   assert(/session-compound-analyzers\.test\.mjs/.test(pkg.scripts["test:session-compound"] || ""),
     "package.json test:session-compound must point at this file");
+  assert(/session-compound-insights\.test\.mjs/.test(pkg.scripts["test:session-compound"] || ""),
+    "package.json test:session-compound must include the insights pipeline tests");
   const ci = fs.readFileSync(path.join(REPO_ROOT, ".github", "workflows", "test.yml"), "utf8");
   assert(/test:session-compound/.test(ci), "CI must run test:session-compound");
 });
@@ -1380,12 +1636,11 @@ test("deep-review SKILL.md keeps the literal punch-list heading the analyzers ca
     "deep-review's synthesis template must keep the literal '## Deep Review:' heading — the session-compound analyzers match it mechanically");
 });
 
-test("SKILL.md documents skill_timeline / review_syntheses and CI review consumption [VAL-RS-003]", () => {
+test("SKILL.md documents skill_timeline / review_syntheses as traceable evidence [VAL-RS-003]", () => {
   const txt = fs.readFileSync(SKILL_MD, "utf8");
   assert(txt.includes("skill_timeline"), "SKILL.md must document skill_timeline");
   assert(txt.includes("review_syntheses"), "SKILL.md must document review_syntheses");
-  assert(/gh pr view[^\n]*--comments|--comments[^\n]*gh pr view/.test(txt),
-    "SKILL.md must instruct pulling PR review comments (incl. CI reviews) via gh");
+  assert(/用于追溯/.test(txt), "raw evidence must remain traceable instead of becoming a verdict");
 });
 
 // ---------- task-notification filtering + eval polarity contract ----------
@@ -1420,27 +1675,44 @@ test("eval output contract separates polarity from severity with evidence-based 
   const skillMd = fs.readFileSync(SKILL_MD, "utf8");
   assert(skillMd.includes("polarity"), "SKILL.md hard-constraint schema must include polarity");
   const template = fs.readFileSync(
-    path.join(PLUGIN_ROOT, "skills/session-compound/template.html"),
+    path.join(PLUGIN_ROOT, "skills/session-compound/templates/single-session.html"),
     "utf8",
   );
   assert(template.includes("polarity"), "template must render polarity-aware findings");
   assert(/证据强度/.test(template), "template must carry the confidence legend");
 });
 
-test("candidate generation carries explicit veto gates against one-off rules [VAL-CAND-003]", () => {
+test("candidate generation keeps the modern persistence gates [VAL-CAND-003]", () => {
   const txt = fs.readFileSync(SKILL_MD, "utf8");
-  assert(/否决闸门/.test(txt),
-    "5d must define veto gates applied before writing each agent-md candidate");
-  assert(/租金|持续成本/.test(txt),
+  assert(/明确要求长期保持/.test(txt) && /至少两个独立会话/.test(txt),
+    "durable candidates require explicit persistence or repeated independent evidence");
+  assert(/上下文租金|持续成本/.test(txt),
     "gates must frame rule cost as perpetual context rent, not one-time write cost");
-  assert(/已有机制|机制.{0,6}兜底/.test(txt),
+  assert(/现有规则、技能、测试、类型系统、静态检查或审查机制/.test(txt),
     "a problem already caught by an existing mechanism must not become a rule");
-  assert(/一次性/.test(txt) && /零租金|不进 agent 上下文/.test(txt),
-    "one-off frictions are vetoed; mechanism-shaped candidates (tests/CI/hooks) are preferred");
-  assert(/lint/.test(txt) && /越早|最早/.test(txt),
-    "mechanism candidates must prefer the earliest feasible interception point (lint/type/static check before tests before CI)");
-  assert(/技术栈/.test(txt),
-    "the mechanism shape must be chosen per the project's tech stack");
+  assert(/一次性问题/.test(txt), "one-off frictions must be vetoed");
+  assert(/符合技术栈/.test(txt), "mechanism candidates must fit the project stack");
+});
+
+test("SKILL.md requires an explicit mode choice and one report per invocation [VAL-MODE-001]", () => {
+  const txt = fs.readFileSync(SKILL_MD, "utf8");
+  assert(/明确二选一/.test(txt), "every invocation must ask for a mode");
+  assert(/不根据用户措辞猜默认值/.test(txt), "the skill must not silently choose a mode");
+  assert(/不在一次调用中生成两份报告/.test(txt), "one invocation produces one report");
+});
+
+test("SKILL.md uses deterministic report rendering and never edits templates [VAL-MODE-004]", () => {
+  const txt = fs.readFileSync(SKILL_MD, "utf8");
+  assert(/scripts\/render-report\.mjs/.test(txt), "both modes must use the renderer");
+  assert(/模型不编辑模板/.test(txt), "the model must not patch report source");
+});
+
+test("SKILL.md keeps ecosystem search conditional and asset changes opt-in [VAL-CAND-005] [VAL-FLOW-001]", () => {
+  const txt = fs.readFileSync(SKILL_MD, "utf8");
+  assert(/只有在已经确认存在“新增或安装技能”的真实候选后/.test(txt),
+    "ecosystem search must follow a real candidate");
+  assert(/不自动安装技能/.test(txt) && /只有用户明确选择/.test(txt),
+    "generation must not mutate long-term assets");
 });
 
 // ---------- report + cleanup ----------

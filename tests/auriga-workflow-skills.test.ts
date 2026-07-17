@@ -761,28 +761,19 @@ describe("project rule discovery anchors to the repo root", () => {
     );
   });
 
-  test("session-compound routes categorized lessons to consumer-bound rule directories", () => {
+  test("session-compound separates report generation from opt-in asset management", () => {
     const text = read(
       "plugins/auriga-workflow/skills/session-compound/SKILL.md",
     );
-    for (const dir of [
-      "docs/rules/spec/",
-      "docs/rules/arch/",
-      "docs/rules/test/",
-      "docs/rules/review/",
-    ]) {
-      assert.ok(
-        text.includes(dir),
-        `session-compound must offer ${dir} as a sedimentation target`,
-      );
-    }
     assert.ok(
-      text.includes("reviewer-creator"),
-      "session-compound must route new review dimensions through reviewer-creator instead of free-form files",
+      text.includes("documentation-management") &&
+        text.includes("skill-creator") &&
+        text.includes("reviewer-creator"),
+      "selected candidates must route through the appropriate asset-management skill",
     );
     assert.ok(
-      /消费方绑定/.test(text),
-      "session-compound must explain that consumer-bound directories are auto-discovered by downstream skills",
+      /不自动安装技能/.test(text) && /只有用户明确选择/.test(text),
+      "report generation must not mutate long-term assets by default",
     );
   });
 
@@ -1241,8 +1232,8 @@ describe("deep-review modernization contract", () => {
     assert.match(claude.version, /^\d+\.\d+\.\d+$/);
     const [major, minor, patch] = claude.version.split(".").map(Number);
     assert.ok(
-      major > 4 || (major === 4 && (minor > 0 || patch >= 14)),
-      `plugin version ${claude.version} must not regress below 4.0.14`,
+      major > 4 || (major === 4 && (minor > 0 || patch >= 16)),
+      `plugin version ${claude.version} must not regress below 4.0.16`,
     );
   });
 
