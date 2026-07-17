@@ -241,7 +241,7 @@ describe("spec-design skill — repo-check VALs", () => {
       assert.match(text, /完整用户结果/);
       assert.match(text, /模块数|文件数/);
       assert.match(text, /实施手法/);
-      assert.doesNotMatch(text, /验收标准\s*[<>≤>=]+\s*\d+|抽象分支|绞杀榕/);
+      assert.doesNotMatch(text, /验收标准\s*[<>≤=]+\s*\d+|抽象分支|绞杀榕/);
     }
   });
 
