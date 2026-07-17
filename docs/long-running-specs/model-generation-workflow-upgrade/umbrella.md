@@ -22,7 +22,7 @@
 | 16 | [`incremental-impl` 精简](../../worklog/worklog-2026-07-16-refactor-simplify-incremental-impl/) | VAL-IMPL-001..011 | PR #191 首次深入评审完成并修复阻塞项；删除固定规模与派发仪式，保留完整实施单元、依赖顺序、隔离并行和跨运行时能力；模型评测未执行 |
 | 17 | [`session-compound` 精简](../../worklog/worklog-2026-07-17-refactor-modernize-session-compound/) | 见子契约 | PR #193 已合并；保留单会话与近期洞察双模式、增量证据缓存和确定性报告，删除固定候选配额与无条件生态搜索；模型评测未执行 |
 | 18 | [`spec-design` 精简](../../worklog/worklog-2026-07-17-refactor-simplify-spec-design/spec-design-modernization/) | 见子契约 | PR #194 已完成实现并归档子规范；强化价值门禁、事实调查和苏格拉底式目标对齐，精简固定问答与拆分仪式；模型评测未执行 |
-| 19 | `workflow-consolidation/` | 见当前子契约 | 实施中；收敛计划载体、自主执行、缺陷修复顺序与常驻工作流上下文 |
+| 19 | `workflow-consolidation/` | PR #195 | 已完成；收敛计划载体、自主执行、缺陷修复顺序与常驻工作流上下文 |
 
 ## Parent coverage map (父级验收覆盖映射)
 
