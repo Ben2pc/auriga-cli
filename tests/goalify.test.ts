@@ -29,6 +29,15 @@ describe("goalify skill contract", () => {
     assert.match(text, /实质性架构决定，停止并交回用户/);
   });
 
+  test("combines autonomous execution with exactly one planning carrier", () => {
+    const text = readSkill();
+
+    assert.match(text, /可以与计划载体组合的自主执行模式/);
+    assert.match(text, /内置 Plan 还是 `planning-with-files`/);
+    assert.match(text, /用户已经选择时直接沿用，不重复询问/);
+    assert.match(text, /`goalify` 不与它们三选一/);
+  });
+
   test("keeps the goal compact and delegates implementation planning", () => {
     const text = readSkill();
     const contractSection = text.match(/## 组织目标[\s\S]*?## 确定终点/);
@@ -76,6 +85,8 @@ describe("goalify skill contract", () => {
     assert.match(endpoints, /没有未解决的阻塞性评审意见/);
     assert.match(endpoints, /明确授权为达成收敛而再次运行深度评审/);
     assert.match(endpoints, /只有用户明确授权合并时才能采用/);
+    assert.match(endpoints, /默认[^。\n]*归档/);
+    assert.doesNotMatch(endpoints, /无人交互[^。\n]*(?:停止|交回用户)/);
   });
 
   test("dispatches according to runtime capability and requires a bounded handoff", () => {

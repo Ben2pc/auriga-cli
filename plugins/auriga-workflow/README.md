@@ -11,13 +11,13 @@ travel together so they share one distribution model and one install step.
 |---|---|
 | `systematic-debugging` | Evidence-first diagnosis — establishes a repeatable verification path or a production evidence-collection path before permanent repair. |
 | `incremental-impl` | Decomposes approved requirement changes into complete, verifiable implementation units, then coordinates incremental execution and integration. |
-| `test-driven-development` | Minimal behavior-first TDD — consumes acceptance contracts and project test rules. |
+| `test-driven-development` | Minimal behavior-first TDD — requires risk-matched evidence and adds permanent tests only when stable contracts and reliable seams justify their maintenance cost. |
 | `spec-design` | Requirement clarification — a confirmed conversational requirement can be authoritative for simple work; traceable, handed-off, public-contract, or cross-PR work is persisted under `docs/specs/<topic>/` or an explicitly approved `docs/long-running-specs/<topic>/`. |
 | `arch-design` | Technical design clarification — domain models, module boundaries, dependency direction, human-reviewed design records, and migration constraints. |
 | `code-simplify` | Authorized code-level simplification — protects behavior, targets concrete maintenance cost, and supports user-approved code-smell scans. |
 | `session-compound` | Generates either a single-session retrospective or incremental 30-day usage insights as a self-contained HTML report. |
-| `goalify` | Packages a clarified task into a bounded autonomous goal, starting it when the runtime supports goals or returning pasteable `/goal` text. |
-| `deep-review` | Multi-dimensional PR review orchestrator — dispatches parallel fresh-context reviewers per dimension and synthesizes findings into a Blocking / Non-blocking / Architectural punch list. |
+| `goalify` | Adds bounded autonomous execution to the selected Plan or `planning-with-files` carrier, defaulting Ready-time temporary artifacts to archival so unattended runs can continue. |
+| `deep-review` | Local multi-dimensional PR review — required when no CI review exists and optional by user choice when CI review already covers the PR. |
 | `reviewer-creator` | Scaffolds a project reviewer at `docs/rules/review/<name>.md`; `deep-review` hosts supplements in a built-in dimension or dispatches explicit standalone dimensions. |
 | `git-workflow` | The Git lifecycle skill — worktree safety, semantic commits, bilingual PR body contracts, review feedback, and merge readiness. |
 | `documentation-management` | Manages human and Agent documentation as distinct context assets, governs document lifecycle, and promotes durable decisions into `docs/architecture/`. |

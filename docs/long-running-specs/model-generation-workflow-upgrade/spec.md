@@ -12,7 +12,7 @@ Auriga 同时包含自有工作流技能和锁定版本的外部技能。若继�
 
 ## Findings (调研发现)
 
-- 当前仓库维护 18 个自有技能：`plugins/auriga-workflow/skills/` 中有 13 个工作流技能，`plugins/quality-gate-scaffolder/skills/` 中有 5 个质量门禁脚手架技能；它们都通过双运行时插件发布。
+- 当前仓库维护 18 个自有技能，但本轮只评审 `plugins/auriga-workflow/skills/` 中的 13 个核心工作流技能。`plugins/quality-gate-scaffolder/skills/` 中的 5 个质量门禁脚手架技能属于独立插件，用户已确认不在本轮范围。
 - 当前仓库在 `skills-lock.json` 中锁定 8 个外部技能；`systematic-debugging` 已在 PR #177 内化到 `auriga-workflow`，外部 `test-driven-development` 已由精简自有版本替代，`verification-before-completion` 已在当前子项中删除，完成声明职责由常驻工作流规则承担。
 - `extra_plugin_configs.json` 还声明了 5 个具有外部升级边界或可选策略的插件；用户已确认这些插件不属于本轮范围，保持现状且不逐项评审。
 - `docs/architecture/auriga-cli-dev-guide.md` 规定，自有技能的输出契约形成 `spec-design`、`test-driven-development`、`deep-review`、`incremental-impl` 之间的消费链，不能孤立修改。
@@ -44,7 +44,7 @@ Auriga 同时包含自有工作流技能和锁定版本的外部技能。若继�
 
 ### 6. 支持跨 PR 的逐项交付
 
-本总规范跨多个 PR 持续维护，只保存共同目标、全局约束、切片顺序和状态矩阵。每项技能开始实现前仍需在 `docs/specs/` 建立当前 PR 独有的子规范与验收契约；子 PR 完成后将这些产物归档到对应 worklog，并更新本总规范的状态和归档链接。全部子 PR 结束后，由人工决定将本总规范归档或提炼为稳定文档。
+本总规范跨多个 PR 持续维护，只保存共同目标、全局约束、切片顺序和状态矩阵。每项技能开始实现前仍需在 `docs/specs/` 建立当前 PR 独有的子规范与验收契约；普通交互流程在子 PR 进入 Ready 前由人工决定将这些产物归档到对应 worklog、删除，或晋升为长期资料。用户选择 `goalify` 自主推进时，若没有预先指定资料去向则默认归档并继续执行，不为此停下询问。两种流程都要据此更新本总规范的状态和引用。全部子 PR 结束后，由人工决定将本总规范归档或提炼为稳定文档。
 
 ## Out of scope (本次不做)
 
@@ -54,6 +54,7 @@ Auriga 同时包含自有工作流技能和锁定版本的外部技能。若继�
 - 不承诺兼容尚未纳入评审证据的模型或代理宿主。
 - 不因“便于统一管理”而自动内化所有外部技能和插件。
 - 不评审外部或可选插件；它们保持现状，后续如需升级另开独立规范。
+- 不评审 `quality-gate-scaffolder` 独立插件及其 5 个 Scaffold 技能；它们不是本轮核心工作流组合收敛的一部分。
 
 ## Open questions (悬而未决)
 

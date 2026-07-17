@@ -2,6 +2,7 @@ import { test, describe } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
+import matter from "gray-matter";
 
 // Compiled test lives at dist-test/tests/spec-design.test.js; ../.. = repo root.
 const repoRoot = path.resolve(
@@ -280,6 +281,151 @@ describe("spec-design skill — repo-check VALs", () => {
     }
   });
 
+  test("workflow consolidation separates planning carriers from autonomous execution", () => {
+    for (const f of ["AGENTS.md", "AGENTS.template.zh-CN.md", "AGENTS.template.en.md"]) {
+      const text = read(f);
+      assert.match(
+        text,
+        /(?:内置 Plan[^\n]*planning-with-files[^\n]*二选一|choose[^\n]*built-in Plan[^\n]*planning-with-files)/i,
+        `${f} must ask users to choose exactly one planning carrier`,
+      );
+      assert.match(
+        text,
+        /goalify[^\n]*(?:组合|combine)/i,
+        `${f} must describe goalify as composable with the selected planning carrier`,
+      );
+      assert.doesNotMatch(
+        text,
+        /Plan[^\n]*planning-with-files[^\n]*goalify[^\n]*(?:三选一|three|menu)/i,
+        `${f} must not treat goalify as a third planning carrier`,
+      );
+    }
+  });
+
+  test("quick development routing uses semantic outcomes instead of fixed thresholds", () => {
+    const files = [
+      "AGENTS.md",
+      "AGENTS.template.zh-CN.md",
+      "AGENTS.template.en.md",
+      "plugins/auriga-workflow/skills/spec-design/SKILL.md",
+    ];
+    for (const f of files) {
+      const text = read(f);
+      assert.doesNotMatch(
+        text,
+        /三条谓词|three predicates|验收标准\s*[<>≤=]+\s*\d+|acceptance criteria\s*[<>≤=]+\s*\d+|single module/i,
+        `${f} must not route implementation planning by fixed size thresholds`,
+      );
+      assert.doesNotMatch(
+        text,
+        /最后运行全量回归|then run full regression/i,
+        `${f} must not force full regression for every quick change`,
+      );
+    }
+    for (const f of ["AGENTS.template.zh-CN.md", "AGENTS.template.en.md"]) {
+      const text = read(f);
+      assert.match(text, /(?:单一明确结果|single clear outcome)/i);
+      assert.match(text, /(?:跨会话|cross-session)/i);
+      assert.match(text, /(?:完整实施单元|complete implementation unit)/i);
+    }
+  });
+
+  test("workflow entry keeps only durable lifecycle prompts and routing context", () => {
+    for (const f of ["AGENTS.md", "AGENTS.template.zh-CN.md", "AGENTS.template.en.md"]) {
+      const text = read(f);
+      assert.doesNotMatch(
+        text,
+        /合并后主动询问|Post-merge Compounding|proactively ask whether to run `session-compound`/i,
+        `${f} must not interrupt every merge with a compounding prompt`,
+      );
+      assert.match(
+        text,
+        /(?:删除还是归档|delete or archive)/i,
+        `${f} must preserve the PR Ready artifact decision`,
+      );
+      assert.match(text, /\| `docs\/rules\/` \|/);
+      assert.doesNotMatch(text, /\| `docs\/` (?:其他|\(other\))/i);
+      assert.match(
+        text,
+        /(?:评审发现|review findings)[^\n]*(?:技术债务|technical debt)/i,
+        `${f} must make entropy control actionable for review findings`,
+      );
+      assert.doesNotMatch(text, /组件可拆卸|Components are detachable/i);
+      assert.doesNotMatch(text, /\*\*独立评估\*\*|\*\*Independent Evaluation\*\*/i);
+      assert.doesNotMatch(text, /xhigh|workhorse|flagship/i);
+      assert.doesNotMatch(text, /从 main 建分支|Create a branch from main/i);
+      assert.match(text, /(?:基准分支|base branch)/i);
+    }
+  });
+
+  test("bug fixes load diagnosis before test-driven implementation", () => {
+    const debugging = read(
+      "plugins/auriga-workflow/skills/systematic-debugging/SKILL.md",
+    );
+    const tdd = matter(
+      read("plugins/auriga-workflow/skills/test-driven-development/SKILL.md"),
+    );
+    assert.match(
+      tdd.data.description,
+      /(?:根因|诊断)[^；。]*确认|确认[^；。]*(?:根因|诊断)/,
+      "TDD must only claim defect-fix work after diagnosis is established",
+    );
+    assert.match(
+      debugging,
+      /根因[^。\n]*确认[^。\n]*`test-driven-development`|`test-driven-development`[^。\n]*根因[^。\n]*确认/,
+      "systematic-debugging must hand confirmed fixes to TDD",
+    );
+    assert.match(
+      debugging,
+      /`test-driven-development`[^。\n]*(?:证据寿命|永久保护)|(?:证据寿命|永久保护)[^。\n]*`test-driven-development`/,
+      "systematic-debugging must delegate permanent-test decisions to TDD",
+    );
+  });
+
+  test("workflow entry keeps TDD broad and routes local review around CI review", () => {
+    for (const f of ["AGENTS.md", "AGENTS.template.zh-CN.md", "AGENTS.template.en.md"]) {
+      const text = read(f);
+      assert.match(
+        text,
+        /(?:新增行为[^\n]*缺陷修复[^\n]*重构[^\n]*test-driven-development|new behavior[^\n]*defect fixes[^\n]*refactors[^\n]*test-driven-development)/i,
+        `${f} must present TDD as the shared route for new behavior, defect fixes, and refactors`,
+      );
+      assert.match(
+        text,
+        /(?:没有持续集成评审[^\n]*本地[^\n]*deep-review|without CI review[^\n]*local[^\n]*deep-review)/i,
+        `${f} must require local deep-review when no CI review exists`,
+      );
+      assert.match(
+        text,
+        /(?:已有持续集成评审[^\n]*用户决定[^\n]*本地|with CI review[^\n]*user decide[^\n]*local)/i,
+        `${f} must let the user decide whether CI-reviewed PRs also need local review`,
+      );
+    }
+  });
+
+  test("workflow consolidation publishes one scoped release", () => {
+    const packageJson = JSON.parse(read("package.json"));
+    const claudeManifest = JSON.parse(
+      read("plugins/auriga-workflow/.claude-plugin/plugin.json"),
+    );
+    const codexManifest = JSON.parse(
+      read("plugins/auriga-workflow/.codex-plugin/plugin.json"),
+    );
+    const reviewIndex = read(
+      "docs/long-running-specs/model-generation-workflow-upgrade/reviews/README.md",
+    );
+    const umbrella = read(
+      "docs/long-running-specs/model-generation-workflow-upgrade/umbrella.md",
+    );
+
+    assert.equal(packageJson.version, "1.38.1");
+    assert.equal(claudeManifest.version, "4.0.18");
+    assert.equal(codexManifest.version, "4.0.18");
+    assert.match(reviewIndex, /quality-gate-scaffolder[^\n]*本轮范围外/);
+    assert.doesNotMatch(reviewIndex, /scaffold-[^|\n]*\|[^\n]*待评审/);
+    assert.match(umbrella, /workflow-consolidation[^\n]*已完成/);
+  });
+
   test("workflow docs define review/test rule subdirectories and consumers", () => {
     for (const f of ["AGENTS.template.zh-CN.md", "AGENTS.template.en.md"]) {
       const text = read(f);
@@ -302,7 +448,7 @@ describe("spec-design skill — repo-check VALs", () => {
     }
   });
 
-  test("workflow templates keep the unified TDD trigger and refactor boundary", () => {
+  test("workflow templates keep the unified TDD route and the skill keeps refactor protection", () => {
     for (const f of ["AGENTS.md", "AGENTS.template.zh-CN.md", "AGENTS.template.en.md"]) {
       const text = read(f);
       const version = text.match(/v(\d+)\.(\d+)\.(\d+)/);
@@ -317,12 +463,13 @@ describe("spec-design skill — repo-check VALs", () => {
         /不另派[^。\n]*测试|测试设计由当前实现|current implementation Agent owns test design|separate test Agent/i,
         `${f} must not spend workflow context restating the default test-agent behavior`,
       );
-      assert.match(
-        text,
-        /(?:重构[^\n]*保护网|refactor[^\n]*protection)/i,
-        `${f} must preserve the green characterization-test path for refactors`,
-      );
+      assert.match(text, /test-driven-development/);
     }
+    assert.match(
+      read("plugins/auriga-workflow/skills/test-driven-development/SKILL.md"),
+      /重构[^\n]*保护/,
+      "the TDD skill must preserve the green characterization-test path for refactors",
+    );
   });
 
   test("completion evidence is a workflow rule, not an installable skill", () => {
@@ -777,7 +924,7 @@ describe("spec-design skill — repo-check VALs", () => {
     );
     assert.match(text, /# auriga 工作流/);
     assert.match(text, /Interactive CLI/);
-    assert.match(text, /需求澄清：新需求先用 `spec-design`/);
+    assert.match(text, /需求澄清：[^\n]*`spec-design`/);
     assert.match(text, /docs\/rules\/test\//);
     assert.match(text, /docs\/rules\/spec\//);
     assert.match(text, /docs\/rules\/arch\//);

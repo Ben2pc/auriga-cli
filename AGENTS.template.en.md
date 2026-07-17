@@ -1,31 +1,25 @@
 <!-- AURIGA:WORKFLOW:v1 START — Managed block, maintained by auriga-cli. Do not edit by hand; upgrades replace it wholesale. Put project-specific instructions after the END marker below. -->
-# auriga Workflow (v1.19.0)
+# auriga Workflow (v1.20.0)
 
-1. Requirement Clarification: Use `spec-design` to ground new requirements in the actual code and product evidence, judge their value, and align the goal. The value gate asks at most two questions; each includes a recommendation and lower-cost alternative, then exits to proceed, validate first, defer, or decline. For worthwhile work, clarify observable behavior along real decision branches. **spec = why + observable what; arch design = structural how; plan = implementation steps** — requirements do not prescribe technical paths. A change that does not move the external behavior contract may skip the spec, but its technical design may still need architecture clarification.
+1. Requirement clarification: For new or changed externally observable behavior, use `spec-design` first to judge value and align the goal from actual code and product evidence. **spec = why + observable what; arch design = structural how; plan = implementation steps**. A change that preserves the external behavior contract may skip the spec but can still need architecture clarification.
 
-2. Planning: Run `arch-design` first when a new feature spans modules, redraws boundaries, or has a non-obvious approach, and when the user asks to improve an existing architecture or clarify a domain model and its responsibilities. When substantive design decisions exist, produce a human-reviewable `arch_design.md` and obtain user approval before continuing. The quick flow skips only implementation planning; it never bypasses this architecture-clarification gate. Then run scope triage: when all three predicates hold (see "Quick Development Flow"), proceed directly to implementation; otherwise use `AskUserQuestion` / `request_user_input` to present the full execution-tracking menu — built-in Plan (medium complexity), `planning-with-files` (long-running, persistent tracking), `goalify` (autonomous `/goal`).
+2. Architecture and planning: Use `arch-design` when the technical approach is non-obvious, boundaries must change, an existing architecture is being improved, or a domain model needs clarification; substantive designs require user approval before implementation. When planning is needed, ask the user to choose either built-in Plan or `planning-with-files` before implementation. `goalify` is an autonomous execution mode that can combine with either planning carrier and activates only when the user explicitly selects it.
 
-3. Branch first: Create a branch from main before writing code; never commit directly to main. Prefixes: `feat/`, `fix/`, `docs/`, `refactor/`, `chore/`. All git/gh operations go through `git-workflow`.
+3. Git lifecycle: Create a task branch from the repository's agreed base branch before writing code; never commit directly to the base branch. Prefixes: `feat/`, `fix/`, `docs/`, `refactor/`, `chore/`. Route all git/gh operations through `git-workflow`, and open a Draft PR after the first meaningful commit.
 
-4. Commit early: Open a Draft PR right after the first meaningful commit.
+4. Tests and defects: New behavior, defect fixes, and refactors use `test-driven-development` to establish meaningful failing evidence or a behavior-protection net. For defects, use `systematic-debugging` to establish evidence and confirm the root cause before fix implementation.
 
-5. Root-cause before bugfixes: Follow `systematic-debugging` before deciding on a fix.
+5. Incremental implementation: For non-trivial implementation, use `incremental-impl` to first decompose the work into complete implementation units that are verifiable and integrable, then deliver them in dependency order.
 
-6. TDD: Code changes that alter observable behavior follow `test-driven-development`; pure documentation, pure configuration, generated code, and changes without a useful automated seam are exempt. Define testable acceptance criteria before each task and read `docs/rules/test/` before writing tests.
+6. Verify before claiming done: Any "done, fixed, passing, or ready for review" judgment must be based on verification results that match the claim and were obtained after the last relevant change; when evidence is insufficient, state the gap.
 
-7. Incremental implementation: Invoke `incremental-impl` for non-trivial work (multi-file changes, cross-file refactors, cross-cutting changes, or executing an approved plan). First decompose the approved change into complete implementation units by requirement result, verification boundary, and valid intermediate state; then implement them incrementally by dependency. Skip pure documentation, pure configuration, and one clear small edit.
+7. PR readiness: Mark Ready only after completing verification and PR preparation through `git-workflow`. For design artifacts scoped to the current PR (spec.md, task_plan.md, etc.), use `AskUserQuestion` / `request_user_input` to ask the user: delete or archive to `docs/worklog/worklog-<YYYY-MM-DD>-<branch-name>/`. A program spec spanning multiple PRs may remain under `docs/long-running-specs/` and does not participate in the Ready cleanup gate; a human decides when to archive it after all child PRs finish.
 
-8. Verify before claiming done: Any "done, fixed, passing, or ready for review" judgment must be based on verification results that match the claim and were obtained after the last relevant change; when evidence is insufficient, state the gap.
-
-9. PR readiness: Mark Ready only after verification passes, the base branch is confirmed, and the PR body covers the five elements (scope / acceptance criteria / design decisions / risks / TODOs — see `git-workflow`). For design artifacts scoped to the current PR (spec.md, task_plan.md, etc.), use `AskUserQuestion` / `request_user_input` to ask the user: delete or archive to `docs/worklog/worklog-<YYYY-MM-DD>-<branch-name>/`. A program spec spanning multiple PRs may remain under `docs/long-running-specs/` and does not participate in the Ready cleanup gate; a human decides when to archive it after all child PRs finish.
-
-10. PR Review: After Ready, formal review must go through `deep-review` (`/review` remains a lightweight fallback). **Reviewer Agents report every finding with severity + confidence, no pre-filtering** — humans do the filtering.
-
-11. Post-merge Compounding: After the PR merges, proactively ask whether to run `session-compound` to compound the session.
+8. PR review: After Ready, projects without CI review must run a local `deep-review`; with CI review, let the user decide whether local review is also needed. The skill owns routing, output, and rerun authorization.
 
 ## Quick Development Flow (bug fix / small refactor / small feature)
 
-Triggered only when all three predicates hold: (a) single module; (b) acceptance criteria ≤5 bullets; (c) no cross-boundary interface changes (public APIs, schemas, shared modules). If any fails or you're unsure, take the full path. The quick flow skips only implementation planning, never requirement or architecture clarification; branch, Draft PR, TDD, verification, and review rules also stay. For new behavior and bug fixes, move from failing evidence to the minimal implementation; for a small refactor, confirm the behavior protection net and keep it green while changing structure; then run full regression.
+When a task has one single clear outcome, no unresolved product or architecture decision, no need for cross-session tracking, and no need to split into multiple complete implementation units, it may skip planning-carrier selection and proceed directly to implementation. Otherwise choose built-in Plan or `planning-with-files` before implementation. The quick flow never bypasses applicable requirement clarification, architecture approval, testing, verification, or review.
 
 ## Document Conventions
 
@@ -42,29 +36,21 @@ Repo documentation lives under `docs/`, one directory per purpose:
 | `docs/specs/` | Default destination for `spec-design` / `arch-design` outputs; ephemeral dev workspace. **Must be empty by PR Ready**: promote to `docs/architecture/`, archive to worklog, or delete | Dev-only |
 | `docs/long-running-specs/` | Program specs, shared constraints, slice order, and status matrices spanning multiple PRs; acceptance contracts unique to the current PR still belong in `docs/specs/` | Cross-PR; archived manually after all child PRs finish |
 | `docs/architecture/` | Stable design docs + ADRs (`ADR-<n>-<title>.md`) | Long-lived |
-| `docs/` (other) | One directory per new category on demand; don't mix | Varies |
 
-# Harness Principles
+## Harness Principles
 
 - **Enforce constraints via mechanisms, not prompts**: core rules belong in linters / CI / type systems / hooks.
-- **The repo is the single source of truth**: what Agents can't access doesn't exist; plans, design decisions, and tech debt live in the repo as versioned artifacts.
-- **Independent Evaluation**: independent Agents assess test quality and the other formal-review dimensions, so the implementer never makes the final judgment on its own work.
-- **Continuously fight entropy**: pay down tech debt in small, steady increments.
-- **Components are detachable**: each workflow step encodes a "the model isn't good at this" assumption; reassess as models improve, one variable at a time.
-- **Instruction files are directories, not encyclopedias**: keep AGENTS.md lean (~200 lines) as entry and navigation; details go to `docs/`. Use AGENTS.md as the primary file with a `CLAUDE.md -> AGENTS.md` compatibility symlink (`ln -s AGENTS.md CLAUDE.md`).
+- **Keep durable facts in the repository**: current facts, plans, and design decisions needed across sessions must live in versioned assets that Agents can access.
+- **Continuously fight entropy**: when deciding how to handle review findings, pay down small, certain, low-risk technical debt without expanding the current change's scope.
+- **Layer instruction files**: keep AGENTS.md concise and limited to global rules and navigation; independent subpackages maintain their own nearest-scope AGENTS.md with a `CLAUDE.md -> AGENTS.md` compatibility symlink.
 
-# Agent Dispatch Principles
+## Agent Dispatch Principles
 
-| Scenario | Approach |
-|----------|----------|
-| Single-file fix, clear solution | Do it yourself |
-| Parallel read-only tasks (search, analysis) | In-conversation subagents, no isolation |
-| Multiple subagents writing code | `incremental-impl` — defines file ownership, worktree isolation, and integration order |
-| Fresh zero-pollution perspective / cross-model blind-spot coverage | Independent Agent (Reviewer, GPT reviewing Claude, etc.) |
+- The current Agent handles simple, clear work; prefer runtime-native subagents for independent read-only tasks.
+- For multiple writers, use `incremental-impl` to define file ownership, dependencies, integration order, and isolation. Parallel writers use separate worktrees or fully disjoint directories.
+- Use an external Agent only when the user explicitly requests a separate process or the task genuinely needs a cross-model, context-clean perspective.
+- Dispatch with an explicit result, scope, verification method, and output contract. Choose model and reasoning effort by task risk, overriding them only when the runtime supports it.
 
-- **Isolate parallel writes**: independent git worktrees, or fully disjoint directories.
-- **Pick model tier, never hardcode model names**: flagship for architectural judgment / complex coding; workhorse for routine mechanical work. Effort: coding / agentic subtasks `xhigh`, light research `high`, mechanical tasks `medium`.
-- **Dispatch must state explicit acceptance criteria and output format** (shape + scope/length), chosen per task.
 <!-- AURIGA:WORKFLOW:v1 END -->
 
 <!-- Add your project-specific instructions below. The block above is managed by auriga-cli — it is replaced wholesale on upgrade, while anything here is preserved. -->

@@ -51,8 +51,13 @@ describe("auriga-workflow skill contracts", () => {
     assert.match(parsed.data.description, /功能.*缺陷修复.*重构/);
     assert.match(
       parsed.data.description,
-      /纯文档.*纯配置.*生成代码.*没有有效自动化接缝.*不触发/,
-      "frontmatter must preserve the exemption semantics",
+      /判断[^；。]*(?:当前证据|永久测试)|(?:当前证据|永久测试)[^；。]*判断/,
+      "frontmatter must route evidence-lifetime decisions into the skill",
+    );
+    assert.doesNotMatch(
+      parsed.data.description,
+      /没有有效自动化接缝[^；。]*不触发|纯配置[^；。]*不触发/,
+      "lack of an automation seam or a configuration change must not bypass evidence selection",
     );
     for (const anchor of [
       "validation-contract.md",
@@ -73,6 +78,11 @@ describe("auriga-workflow skill contracts", () => {
       /测试类断言[^。\n]*多个测试用例/,
       "one test-oriented validation assertion may require multiple test cases",
     );
+    assert.match(text, /每次改动[^。\n]*验证证据[^。\n]*不等于[^。\n]*新增永久测试/);
+    for (const anchor of ["稳定契约", "真实回归风险", "可靠自动化接缝", "长期收益", "维护成本"]) {
+      assert.ok(text.includes(anchor), `unified TDD must consider ${anchor}`);
+    }
+    assert.match(text, /不满足[^。\n]*当前证据/);
     assert.doesNotMatch(
       text,
       /^## 边界$/m,
@@ -291,7 +301,7 @@ describe("auriga-workflow skill contracts", () => {
       );
     }
     assert.match(text, /只诊断[^\n]{0,40}不(?:实施|修改)/);
-    assert.match(text, /仅在用户授权修复后执行/);
+    assert.match(text, /仅在用户授权修复[^。]*后执行/);
     assert.match(text, /不得记录密钥、令牌、个人信息或完整敏感载荷/);
     assert.match(text, /重新运行最初的问题验证路径/);
     assert.match(text, /删除临时日志、脚本和诊断代码/);
@@ -319,7 +329,7 @@ describe("auriga-workflow skill contracts", () => {
 
     for (const rel of ["AGENTS.md", "AGENTS.template.zh-CN.md", "AGENTS.template.en.md"]) {
       const template = read(rel);
-      assert.match(template, /v1\.19\.0/);
+      assert.match(template, /v1\.20\.0/);
       assert.match(
         template,
         /领域模型|domain model/i,
@@ -327,7 +337,7 @@ describe("auriga-workflow skill contracts", () => {
       );
       assert.match(
         template,
-        /(?:快速流程|quick flow)[^\n]*(?:只跳过实施计划|skips only implementation planning)/i,
+        /(?:快速流程|quick flow)[\s\S]{0,500}(?:不跳过适用的需求澄清、架构确认|never bypasses applicable requirement clarification, architecture approval)/i,
         `${rel} must not let the quick flow bypass architecture clarification`,
       );
     }
@@ -583,14 +593,17 @@ describe("auriga-workflow skill contracts", () => {
       pluginReadme,
       /\| `incremental-impl` \|[^|\n]*requirement changes[^|\n]*implementation units[^|\n]*incremental execution/i,
     );
-    assert.match(zhWorkflow, /incremental-impl[^。\n]*先[^。\n]*完整实施单元[^。\n]*按依赖/);
+    assert.match(
+      zhWorkflow,
+      /incremental-impl[^。\n]*先[^。\n]*完整[^。\n]*实施单元[^。\n]*按依赖/,
+    );
     assert.match(enWorkflow, /incremental-impl[^\n]*decompose[^\n]*complete implementation units[^\n]*dependency/i);
     assert.match(specDesign, /incremental-impl[^\n]*子规范[^\n]*完整[^\n]*实施单元/);
     assert.match(umbrellaTemplate, /incremental-impl[^\n]*子规范[^\n]*完整实施单元/);
     assert.doesNotMatch(specDesign, /incremental-impl[^\n]*(?:第 2 步|同一套切分轴)/);
     assert.doesNotMatch(umbrellaTemplate, /incremental-impl Step 2/);
     for (const workflow of [zhWorkflow, enWorkflow, repoWorkflow]) {
-      assert.match(workflow, /# auriga (?:工作流|Workflow) \(v1\.19\.0\)/);
+      assert.match(workflow, /# auriga (?:工作流|Workflow) \(v1\.20\.0\)/);
     }
     assert.match(reviewIndex, /incremental-impl[^\n]*worklog-2026-07-16-refactor-simplify-incremental-impl\/review\.md/);
     assert.match(programUmbrella, /incremental-impl[^\n]*VAL-IMPL-001\.\.011[^\n]*PR #191/);
@@ -1088,9 +1101,11 @@ describe("deep-review modernization contract", () => {
       `plugins/auriga-workflow/skills/deep-review/references/reviewers/${name}.md`,
     );
 
-  test("first formal review runs automatically and later agent-proposed reruns ask", () => {
+  test("first formal review respects CI routing and later agent-proposed reruns ask", () => {
     const text = deepReview();
-    assert.match(text, /第一次[^。]*直接执行/);
+    assert.match(text, /没有[^。]*持续集成评审[^。]*本地[^。]*直接执行/);
+    assert.match(text, /已有[^。]*持续集成评审[^。]*询问用户[^。]*本地/);
+    assert.match(text, /用户明确要求[^。]*深度审查[^。]*直接执行/);
     assert.match(text, /用户明确要求再次审查[^。]*直接执行/);
     assert.match(text, /代理主动建议重跑[^。]*先询问用户/);
     assert.match(text, /不要[^。]*自动开始下一轮深度审查/);
@@ -1233,7 +1248,7 @@ describe("deep-review modernization contract", () => {
     const [major, minor, patch] = claude.version.split(".").map(Number);
     assert.ok(
       major > 4 || (major === 4 && (minor > 0 || patch >= 16)),
-      `plugin version ${claude.version} must not regress below 4.0.16`,
+      `plugin version ${claude.version} must not regress below 4.0.18`,
     );
   });
 
