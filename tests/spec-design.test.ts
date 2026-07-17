@@ -96,9 +96,12 @@ describe("spec-design skill — repo-check VALs", () => {
     );
     assert.doesNotMatch(text, /## Toolchain/);
     assert.match(text, /一条 VAL[^\n]*不代表一个测试用例/);
-    for (const field of ["Behavior", "Tool", "Evidence"]) {
+    for (const field of ["验收要求", "验证方式", "通过标准"]) {
       assert.ok(text.includes(field), `validation contract must preserve ${field}`);
     }
+    assert.doesNotMatch(text, /Behavior|Tool \(工具\)|Evidence/);
+    assert.match(text, /VAL-<完整语义分类>-<NNN>/);
+    assert.match(text, /编号后增加简短的中文标题/);
     assert.match(text, /具体测试工具[^\n]*test-driven-development/);
   });
 

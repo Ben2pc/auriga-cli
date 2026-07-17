@@ -66,7 +66,7 @@ describe("auriga-workflow skill contracts", () => {
       assert.ok(text.includes(anchor), `unified TDD must keep the ${anchor} contract`);
     }
     assert.match(text, /每条验收断言[^。\n]*不等于单个验证用例/);
-    assert.match(text, /按 `?Tool`? 选择验证方式/);
+    assert.match(text, /按[“`]?验证方式[”`]?选择证据类型/);
     assert.match(text, /按风险[^；。\n]*一个或多个必要用例/);
     assert.match(
       text,

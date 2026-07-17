@@ -21,7 +21,7 @@
 | 15 | [`git-workflow` 精简](../../worklog/worklog-2026-07-16-refactor-simplify-git-workflow/git-workflow-modernization/) | VAL-GIT-001..007 | PR #189 已完成首次深入评审并修复全部确认项；保留 Git 生命周期团队契约，删除通用教学和重复 Hook 细节，Ready 守卫收敛为活动计划范围并补齐安全扫描；模型评测未执行 |
 | 16 | [`incremental-impl` 精简](../../worklog/worklog-2026-07-16-refactor-simplify-incremental-impl/) | VAL-IMPL-001..011 | PR #191 首次深入评审完成并修复阻塞项；删除固定规模与派发仪式，保留完整实施单元、依赖顺序、隔离并行和跨运行时能力；模型评测未执行 |
 | 17 | [`session-compound` 精简](../../worklog/worklog-2026-07-17-refactor-modernize-session-compound/) | 见子契约 | PR #193 已合并；保留单会话与近期洞察双模式、增量证据缓存和确定性报告，删除固定候选配额与无条件生态搜索；模型评测未执行 |
-| 18 | [`spec-design` 精简](reviews/README.md#auriga-自有工作流技能) | VAL-VALUE-001..VAL-RISK-001 | 当前子规范已确认并进入实现；强化价值门禁、事实调查和苏格拉底式目标对齐，精简固定问答与拆分仪式；模型评测未执行 |
+| 18 | [`spec-design` 精简](reviews/README.md#auriga-自有工作流技能) | 见子契约 | 当前子规范已确认并进入实现；强化价值门禁、事实调查和苏格拉底式目标对齐，精简固定问答与拆分仪式；模型评测未执行 |
 | 19 | `workflow-consolidation/` | VAL-MIG-001..005 | 等待前序结论 |
 
 ## Parent coverage map (父级验收覆盖映射)
