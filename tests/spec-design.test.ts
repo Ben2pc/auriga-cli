@@ -377,6 +377,27 @@ describe("spec-design skill — repo-check VALs", () => {
     );
   });
 
+  test("workflow entry keeps TDD broad and routes local review around CI review", () => {
+    for (const f of ["AGENTS.md", "AGENTS.template.zh-CN.md", "AGENTS.template.en.md"]) {
+      const text = read(f);
+      assert.match(
+        text,
+        /(?:新增行为[^\n]*缺陷修复[^\n]*重构[^\n]*test-driven-development|new behavior[^\n]*defect fixes[^\n]*refactors[^\n]*test-driven-development)/i,
+        `${f} must present TDD as the shared route for new behavior, defect fixes, and refactors`,
+      );
+      assert.match(
+        text,
+        /(?:没有持续集成评审[^\n]*本地[^\n]*deep-review|without CI review[^\n]*local[^\n]*deep-review)/i,
+        `${f} must require local deep-review when no CI review exists`,
+      );
+      assert.match(
+        text,
+        /(?:已有持续集成评审[^\n]*用户决定[^\n]*本地|with CI review[^\n]*user decide[^\n]*local)/i,
+        `${f} must let the user decide whether CI-reviewed PRs also need local review`,
+      );
+    }
+  });
+
   test("workflow consolidation publishes one scoped release", () => {
     const packageJson = JSON.parse(read("package.json"));
     const claudeManifest = JSON.parse(

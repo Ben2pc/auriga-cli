@@ -7,7 +7,7 @@
 
 3. Git 生命周期：写码前从仓库约定的基准分支建立任务分支，禁止直接提交基准分支。命名前缀：`feat/`、`fix/`、`docs/`、`refactor/`、`chore/`。所有 git/gh 操作走 `git-workflow`，首个有意义提交后尽早创建 Draft PR。
 
-4. 缺陷与测试：缺陷先用 `systematic-debugging` 建立证据并确认根因，进入修复实现后再用 `test-driven-development` 建立回归保护；新增行为与重构也遵循该测试技能的适用边界。
+4. 测试与缺陷：新增行为、缺陷修复和重构都按 `test-driven-development` 建立有意义的失败证据或行为保护网；其中缺陷在进入修复实现前，先用 `systematic-debugging` 建立证据并确认根因。
 
 5. 增量实现：非平凡实现使用 `incremental-impl` 先拆成完整、可验证、可集成的实施单元，再按依赖增量落地。
 
@@ -15,7 +15,7 @@
 
 7. PR 就绪：按 `git-workflow` 完成验证和拉取请求整理后才标 Ready。当前 PR 的设计产物（spec.md、task_plan.md 等）用 `AskUserQuestion` / `request_user_input` 问用户：删除还是归档到 `docs/worklog/worklog-<YYYY-MM-DD>-<分支名>/`。跨多个 PR 的总规范可保留在 `docs/long-running-specs/`，不受 Ready 清理门禁影响；全部子 PR 结束后由人工决定归档。
 
-8. PR 评审：Ready 后的正式评审必须走 `deep-review`；具体路由、输出和重跑授权由该技能负责。
+8. PR 评审：Ready 后，没有持续集成评审（CI Review）的项目必须在本地运行 `deep-review`；已有持续集成评审时，由用户决定是否还需要本地评审。具体路由、输出和重跑授权由该技能负责。
 
 ## 快速开发流程（缺陷修复 / 小重构 / 小功能）
 

@@ -72,7 +72,7 @@ auriga-cli/
 
 ## Constraints & Invariants / 约束与不变量
 
-- **用户可观察行为**：需要计划的任务仍在实现前选择计划载体；实质性架构决定仍需用户确认；Ready 前仍询问临时资料去向；首次正式评审仍使用 `deep-review`。
+- **用户可观察行为**：需要计划的任务仍在实现前选择计划载体；实质性架构决定仍需用户确认；Ready 前仍询问临时资料去向；没有持续集成评审时必须本地运行 `deep-review`，已有持续集成评审时由用户决定。
 - **公共契约**：受管区块 marker、双语模板安装形态、`CLAUDE.md -> AGENTS.md` 兼容软链接和 Hook 入口不变。
 - **项目规则**：无项目专属架构规则；模板和插件用户可见变化需要同步版本与发布资产。
 - **其他约束**：Claude Code 与 Codex 都必须能理解相同路由；不能依赖某一运行时专属的计划或代理 API 才成立。
@@ -104,11 +104,15 @@ flowchart LR
     Goal[goalify: 用户显式自主模式] -.可组合.-> Plan
     Goal -.可组合.-> Files
     User --> Debug[systematic-debugging: 证据与根因]
-    Debug --> TDD[test-driven-development: 修复与回归保护]
+    Debug --> TDD[test-driven-development: 失败证据与行为保护]
+    Impl -.适用时.-> TDD
     Impl --> Git[git-workflow]
     TDD --> Git
     Git --> Hooks[确定性 PR Hooks]
-    Hooks --> Review[deep-review]
+    Hooks --> CIReview{已有持续集成评审?}
+    CIReview -->|否| Review[本地 deep-review]
+    CIReview -->|是，用户选择| Review
+    CIReview -->|是，用户跳过| Done
     Review --> Done[合并并结束]
     Done -.用户显式请求.-> Compound[session-compound]
 ```
@@ -210,6 +214,8 @@ sequenceDiagram
 - Ready 前继续询问当前拉取请求临时资料的删除或归档去向。
 - 删除合并后固定询问 `session-compound`。
 - 缺陷先诊断根因，进入修复后再加载测试驱动开发。
+- 新增行为、缺陷修复和重构都保留测试驱动开发路由。
+- 没有持续集成评审时必须本地运行深度评审；已有持续集成评审时由用户决定是否仍需本地评审。
 - `docs/rules/` 总入口保留。
 - “持续对抗熵增”保留，并明确用于评审发现的技术债务决策。
 - 其他常驻入口精简、目录和代理分发调整按本设计执行。

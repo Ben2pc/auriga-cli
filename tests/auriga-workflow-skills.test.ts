@@ -1091,9 +1091,11 @@ describe("deep-review modernization contract", () => {
       `plugins/auriga-workflow/skills/deep-review/references/reviewers/${name}.md`,
     );
 
-  test("first formal review runs automatically and later agent-proposed reruns ask", () => {
+  test("first formal review respects CI routing and later agent-proposed reruns ask", () => {
     const text = deepReview();
-    assert.match(text, /第一次[^。]*直接执行/);
+    assert.match(text, /没有[^。]*持续集成评审[^。]*本地[^。]*直接执行/);
+    assert.match(text, /已有[^。]*持续集成评审[^。]*询问用户[^。]*本地/);
+    assert.match(text, /用户明确要求[^。]*深度审查[^。]*直接执行/);
     assert.match(text, /用户明确要求再次审查[^。]*直接执行/);
     assert.match(text, /代理主动建议重跑[^。]*先询问用户/);
     assert.match(text, /不要[^。]*自动开始下一轮深度审查/);

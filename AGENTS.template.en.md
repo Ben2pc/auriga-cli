@@ -7,7 +7,7 @@
 
 3. Git lifecycle: Create a task branch from the repository's agreed base branch before writing code; never commit directly to the base branch. Prefixes: `feat/`, `fix/`, `docs/`, `refactor/`, `chore/`. Route all git/gh operations through `git-workflow`, and open a Draft PR after the first meaningful commit.
 
-4. Defects and tests: For defects, use `systematic-debugging` to establish evidence and confirm the root cause first, then use `test-driven-development` during fix implementation to create regression protection. New behavior and refactors also follow that testing skill when applicable.
+4. Tests and defects: New behavior, defect fixes, and refactors use `test-driven-development` to establish meaningful failing evidence or a behavior-protection net. For defects, use `systematic-debugging` to establish evidence and confirm the root cause before fix implementation.
 
 5. Incremental implementation: For non-trivial implementation, use `incremental-impl` to first decompose the work into complete implementation units that are verifiable and integrable, then deliver them in dependency order.
 
@@ -15,7 +15,7 @@
 
 7. PR readiness: Mark Ready only after completing verification and PR preparation through `git-workflow`. For design artifacts scoped to the current PR (spec.md, task_plan.md, etc.), use `AskUserQuestion` / `request_user_input` to ask the user: delete or archive to `docs/worklog/worklog-<YYYY-MM-DD>-<branch-name>/`. A program spec spanning multiple PRs may remain under `docs/long-running-specs/` and does not participate in the Ready cleanup gate; a human decides when to archive it after all child PRs finish.
 
-8. PR review: Formal review after Ready must use `deep-review`; that skill owns routing, output, and rerun authorization.
+8. PR review: After Ready, projects without CI review must run a local `deep-review`; with CI review, let the user decide whether local review is also needed. The skill owns routing, output, and rerun authorization.
 
 ## Quick Development Flow (bug fix / small refactor / small feature)
 

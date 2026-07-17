@@ -17,7 +17,7 @@ travel together so they share one distribution model and one install step.
 | `code-simplify` | Authorized code-level simplification — protects behavior, targets concrete maintenance cost, and supports user-approved code-smell scans. |
 | `session-compound` | Generates either a single-session retrospective or incremental 30-day usage insights as a self-contained HTML report. |
 | `goalify` | Adds bounded autonomous execution to the selected Plan or `planning-with-files` carrier, starting a goal when supported or returning pasteable `/goal` text. |
-| `deep-review` | Multi-dimensional PR review orchestrator — dispatches parallel fresh-context reviewers per dimension and synthesizes findings into a Blocking / Non-blocking / Architectural punch list. |
+| `deep-review` | Local multi-dimensional PR review — required when no CI review exists and optional by user choice when CI review already covers the PR. |
 | `reviewer-creator` | Scaffolds a project reviewer at `docs/rules/review/<name>.md`; `deep-review` hosts supplements in a built-in dimension or dispatches explicit standalone dimensions. |
 | `git-workflow` | The Git lifecycle skill — worktree safety, semantic commits, bilingual PR body contracts, review feedback, and merge readiness. |
 | `documentation-management` | Manages human and Agent documentation as distinct context assets, governs document lifecycle, and promotes durable decisions into `docs/architecture/`. |
