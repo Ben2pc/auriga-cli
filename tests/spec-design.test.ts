@@ -22,6 +22,26 @@ function markdownSection(text: string, heading: string): string {
   return text.slice(start, nextHeading === -1 ? text.length : nextHeading);
 }
 
+function markdownSubsection(text: string, heading: string): string {
+  const start = text.indexOf(heading);
+  assert.notEqual(start, -1, `missing markdown heading: ${heading}`);
+  const level = heading.match(/^#+/)?.[0].length ?? 1;
+  const bodyStart = start + heading.length;
+  const nextHeading = text.slice(bodyStart).search(
+    new RegExp(`\\n#{1,${level}} `),
+  );
+  return text.slice(
+    start,
+    nextHeading === -1 ? text.length : bodyStart + nextHeading,
+  );
+}
+
+function fencedMarkdownExample(text: string): string {
+  const match = text.match(/```markdown\n([\s\S]*?)\n```/);
+  assert.ok(match, "template must contain one fenced markdown example");
+  return match[1];
+}
+
 describe("spec-design skill — repo-check VALs", () => {
   test("VAL-DEP-003: SKILL.md exists at plugin-bundled path", () => {
     const p = path.join(
@@ -77,29 +97,66 @@ describe("spec-design skill — repo-check VALs", () => {
     }
   });
 
-  test("SKILL.md documents the D1.5 review-aid three-way (skip / playground / static HTML)", () => {
+  test("SKILL.md makes value triage bounded, advisory, and terminal", () => {
     const text = read(
       "plugins/auriga-workflow/skills/spec-design/SKILL.md",
     );
-    assert.ok(text.includes("D1.5"), "must reference D1.5");
-    assert.ok(
-      text.toLowerCase().includes("playground"),
-      "must mention playground option",
-    );
-    assert.ok(
-      /static\s+html/i.test(text),
-      "must mention static HTML option",
-    );
+    const gate = markdownSubsection(text, "#### B1. 价值门禁");
+    assert.match(gate, /默认问一个价值问题/);
+    assert.match(gate, /只有第一轮仍无法选择出口时追加第二个/);
+    assert.match(gate, /最多两轮/);
+    assert.match(gate, /推荐答案和理由/);
+    assert.match(gate, /成本更低的替代/);
+    assert.match(gate, /\| 值得做 \| 继续 B2 的需求对齐 \|/);
+    assert.match(gate, /\| 先验证 \|[^\n]*最低成本实验[^\n]*继续信号和停止信号[^\n]*不直接建设完整功能 \|/);
+    assert.match(gate, /\| 暂缓 \|[^\n]*重新评估[^\n]*停止 \|/);
+    assert.match(gate, /\| 不做 \| 停止规格和实现 \|/);
+    assert.match(gate, /风险、影响和优先级/);
+    assert.doesNotMatch(text, /D1\.5|playground|静态 HTML/i);
   });
 
-  test("validation-contract-template.md ships the ## Toolchain section", () => {
+  test("validation-contract keeps evidence semantics without duplicating a concrete toolchain", () => {
     const text = read(
       "plugins/auriga-workflow/skills/spec-design/references/validation-contract-template.md",
     );
-    assert.ok(
-      text.includes("## Toolchain"),
-      "validation-contract template must include a ## Toolchain section",
+    const example = fencedMarkdownExample(text);
+    assert.doesNotMatch(example, /## Toolchain/);
+    assert.match(text, /一条 VAL[^\n]*不代表一个测试用例/);
+    const assertion = markdownSubsection(
+      example,
+      "### VAL-ALIGNMENT-001 — <简短的中文标题>",
     );
+    const fields = [...assertion.matchAll(/^- \*\*(.+?)\*\*：/gm)].map(
+      (match) => match[1],
+    );
+    assert.deepEqual(fields, ["验收要求", "验证方式", "通过标准"]);
+    assert.equal(
+      (example.match(/^### VAL-[A-Z]+-\d{3} — .+$/gm) ?? []).length,
+      1,
+      "example must use a full semantic category and a Chinese title",
+    );
+    assert.doesNotMatch(example, /Behavior|Tool \(工具\)|Evidence/);
+    assert.match(text, /VAL-<完整语义分类>-<NNN>/);
+    assert.match(text, /编号后增加简短的中文标题/);
+    assert.match(text, /具体测试工具[^\n]*test-driven-development/);
+  });
+
+  test("active long-running validation contract uses readable ids and exactly three Chinese fields", () => {
+    const text = read(
+      "docs/long-running-specs/model-generation-workflow-upgrade/validation-contract.md",
+    );
+    assert.doesNotMatch(text, /^## Toolchain/m);
+    assert.doesNotMatch(text, /^### VAL-(?:INV|REV|MIG|DOC)-/m);
+    assert.doesNotMatch(text, /\*\*(?:Behavior|Tool|Evidence)(?: \([^)]*\))?\*\*:/);
+    const assertions = text.split(/^### /m).slice(1).filter((section) => section.startsWith("VAL-"));
+    assert.ok(assertions.length > 0, "active contract must contain assertions");
+    for (const assertion of assertions) {
+      assert.match(assertion, /^VAL-[A-Z]+-\d{3} — [^\n]+/);
+      const fields = [...assertion.matchAll(/^- \*\*(.+?)\*\*：/gm)].map(
+        (match) => match[1],
+      );
+      assert.deepEqual(fields, ["验收要求", "验证方式", "通过标准"]);
+    }
   });
 
   test("spec-template.md Open questions placeholder requires a deferral owner and reason", () => {
@@ -110,13 +167,82 @@ describe("spec-design skill — repo-check VALs", () => {
       text.includes("## Open questions"),
       "spec template must keep the Open questions section",
     );
-    // The placeholder is authored in Chinese — assert on the contract it
-    // encodes: every open question must name an owner (归属) and a
-    // deferral reason (推迟理由).
     assert.ok(
       /归属/.test(text) && /推迟理由/.test(text),
       "Open questions placeholder must require a named owner and a deferral reason",
     );
+    assert.match(text, /不适用的可选章节[^\n]*删除/);
+    assert.doesNotMatch(text, /不要删掉可选章节/);
+  });
+
+  test("spec-design grounds clarity in facts and uses a semantic alignment gate", () => {
+    const text = read(
+      "plugins/auriga-workflow/skills/spec-design/SKILL.md",
+    );
+    assert.match(text, /事实先于问题/);
+    assert.match(text, /需求是否明确[^。]*不能依赖模型记忆、置信度或主观印象/);
+    assert.match(text, /事实由 Agent 调查，决定由人确认/);
+    assert.match(text, /两个独立且称职的 Agent[^。]*明显不同的用户结果/);
+    assert.match(text, /停止条件不是固定问题数或主观置信度/);
+    assert.doesNotMatch(text, /Q\+GUESS|约 95%|最多约 10 轮|6 行复述/);
+  });
+
+  test("spec-design uses Socratic decision alignment without synthetic options", () => {
+    const text = read(
+      "plugins/auriga-workflow/skills/spec-design/SKILL.md",
+    );
+    const alignment = markdownSubsection(text, "#### B2. 苏格拉底式需求对齐");
+    assert.match(alignment, /一次解决一个决定/);
+    assert.match(alignment, /推荐答案及主要后果/);
+    assert.match(alignment, /每个答案[^。]*原始目标一致/);
+    assert.match(alignment, /不存在会改变用户结果的真实决策分支时[^。]*不提问[^。]*直接给出推荐/);
+    assert.match(text, /用户明确确认前，不进入架构、计划或实现/);
+  });
+
+  test("spec-design persists only when traceability or handoff needs it", () => {
+    const text = read(
+      "plugins/auriga-workflow/skills/spec-design/SKILL.md",
+    );
+    assert.match(text, /当前对话中的用户确认作为权威规格，不强制生成文件/);
+    const persistence = markdownSubsection(text, "#### C1. 选择对话或文件");
+    for (const trigger of [
+      "多个用户可观察结果",
+      "公共接口、共享契约、跨模块行为或实质范围取舍",
+      "跨会话、跨 Agent 或独立评审",
+      "多个提交或拉取请求",
+      "用户明确要求保存规格",
+    ]) {
+      assert.ok(persistence.includes(trigger), `missing persistence trigger: ${trigger}`);
+    }
+    assert.match(text, /文件只保存确认后的结果，不记录冗长问答流水/);
+    assert.match(text, /实现中发现新的产品语义、范围或用户结果歧义时返回本技能澄清/);
+  });
+
+  test("spec template keeps the four required Why decisions", () => {
+    const example = fencedMarkdownExample(read(
+      "plugins/auriga-workflow/skills/spec-design/references/spec-template.md",
+    ));
+    const why = markdownSubsection(example, "## Why (为什么做)");
+    for (const field of ["问题与用户", "事实依据", "价值与时机", "替代方案"]) {
+      assert.match(why, new RegExp(`^- \\*\\*${field}\\*\\*：`, "m"));
+    }
+  });
+
+  test("spec decomposition follows complete user outcomes, not implementation thresholds", () => {
+    const skill = markdownSubsection(
+      read("plugins/auriga-workflow/skills/spec-design/SKILL.md"),
+      "#### C3. 拆分大需求",
+    );
+    const umbrella = read(
+      "plugins/auriga-workflow/skills/spec-design/references/umbrella-template.md",
+    );
+    for (const text of [skill, umbrella]) {
+      assert.match(text, /独立确认、独立验收/);
+      assert.match(text, /完整用户结果/);
+      assert.match(text, /模块数|文件数/);
+      assert.match(text, /实施手法/);
+      assert.doesNotMatch(text, /验收标准\s*[<>≤=]+\s*\d+|抽象分支|绞杀榕/);
+    }
   });
 
   test("VAL-DEP-001: product workflow templates keep the three-stage clarification boundary", () => {
@@ -349,16 +475,16 @@ describe("spec-design skill — repo-check VALs", () => {
     const parentCoverage = markdownSection(umbrella, "## Parent coverage map");
     const parentIds = parentContract.match(/### (VAL-[A-Z]+-\d+)/g)?.map((line) => line.slice(4)) ?? [];
     const requiredChildren: Record<string, string[]> = {
-      "VAL-INV-001": ["待定"],
-      "VAL-INV-002": ["待定"],
-      "VAL-REV-001": ["待定"],
-      "VAL-REV-002": ["待定"],
-      "VAL-REV-003": ["VAL-RISK-001", "VAL-VRSK-001", "VAL-DRISK-001"],
-      "VAL-MIG-001": ["VAL-ASSET-001", "VAL-FLOW-002", "VAL-VAST-001", "VAL-VREF-001", "VAL-ROUT-001..003", "VAL-CUST-002"],
-      "VAL-MIG-002": ["VAL-PUBL-001..002", "VAL-REMOVE-001", "VAL-NOMUTATE-001", "VAL-FLOW-002", "VAL-REL-002", "VAL-VRUL-001", "VAL-VMIG-001", "VAL-PORT-001..002"],
-      "VAL-MIG-003": ["VAL-PUBL-001", "VAL-MANUAL-001", "VAL-RELEASE-001", "VAL-REL-001", "VAL-VREL-001", "VAL-DRREL-001"],
-      "VAL-DOC-001": ["VAL-LIFE-001"],
-      "VAL-DOC-002": ["VAL-LIFE-001", "VAL-DRREL-002"],
+      "VAL-INVENTORY-001": ["待定"],
+      "VAL-INVENTORY-002": ["待定"],
+      "VAL-REVIEW-001": ["待定"],
+      "VAL-REVIEW-002": ["待定"],
+      "VAL-REVIEW-003": ["VAL-RISK-001", "VAL-VRSK-001", "VAL-DRISK-001", "VAL-DOCNT-007", "VAL-RECOVERY-001"],
+      "VAL-MIGRATION-001": ["VAL-ASSET-001", "VAL-FLOW-002", "VAL-VAST-001", "VAL-VREF-001", "VAL-ROUT-001..003", "VAL-CUST-002", "VAL-ALIGNMENT-004", "VAL-DECOMPOSITION-001"],
+      "VAL-MIGRATION-002": ["VAL-PUBL-001..002", "VAL-REMOVE-001", "VAL-NOMUTATE-001", "VAL-FLOW-002", "VAL-REL-002", "VAL-VRUL-001", "VAL-VMIG-001", "VAL-PORT-001..002", "VAL-LIFECYCLE-002"],
+      "VAL-MIGRATION-003": ["VAL-PUBL-001", "VAL-MANUAL-001", "VAL-RELEASE-001", "VAL-REL-001", "VAL-VREL-001", "VAL-DRREL-001", "VAL-DOCNT-008", "VAL-PUBLICATION-001"],
+      "VAL-DOCUMENTATION-001": ["VAL-LIFE-001"],
+      "VAL-DOCUMENTATION-002": ["VAL-LIFE-001", "VAL-DRREL-002", "VAL-DOCNT-009", "VAL-LIFECYCLE-001"],
     };
     assert.deepEqual(Object.keys(requiredChildren).sort(), [...parentIds].sort());
     for (const parentVal of parentIds) {
@@ -485,6 +611,12 @@ describe("spec-design skill — repo-check VALs", () => {
     assert.equal(childCoverage.includes("VAL-PROD-001"), false, "production VALs must not stand in for model evidence");
 
     assert.equal(new Set(childIds).size, childIds.length, "child VAL ids must be unique across archived contracts");
+    const currentSpecContract = read(
+      "docs/worklog/worklog-2026-07-17-refactor-simplify-spec-design/spec-design-modernization/validation-contract.md",
+    );
+    const currentCoverage = markdownSection(currentSpecContract, "## Parent coverage map");
+    assert.doesNotMatch(currentCoverage, /\| planned \|/);
+    assert.match(currentCoverage, /\| VAL-MIGRATION-003 \| VAL-PUBLICATION-001 \| passed \|/);
     const tddCoverage = markdownSection(unifiedTdd, "## Parent coverage map");
     assert.match(tddCoverage, /\| VAL-REV-003 \| VAL-RISK-001 \|/);
     assert.match(tddCoverage, /\| VAL-MIG-001 \| VAL-ASSET-001、VAL-FLOW-002 \|/);

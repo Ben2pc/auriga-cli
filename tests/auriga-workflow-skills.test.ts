@@ -66,7 +66,7 @@ describe("auriga-workflow skill contracts", () => {
       assert.ok(text.includes(anchor), `unified TDD must keep the ${anchor} contract`);
     }
     assert.match(text, /每条验收断言[^。\n]*不等于单个验证用例/);
-    assert.match(text, /按 `?Tool`? 选择验证方式/);
+    assert.match(text, /按[“`]?验证方式[”`]?选择证据类型/);
     assert.match(text, /按风险[^；。\n]*一个或多个必要用例/);
     assert.match(
       text,
@@ -319,7 +319,7 @@ describe("auriga-workflow skill contracts", () => {
 
     for (const rel of ["AGENTS.md", "AGENTS.template.zh-CN.md", "AGENTS.template.en.md"]) {
       const template = read(rel);
-      assert.match(template, /v1\.18\.0/);
+      assert.match(template, /v1\.19\.0/);
       assert.match(
         template,
         /领域模型|domain model/i,
@@ -487,9 +487,9 @@ describe("auriga-workflow skill contracts", () => {
   test("architecture consumers honor the approved design boundary", () => {
     const specDesign = read("plugins/auriga-workflow/skills/spec-design/SKILL.md");
     const incremental = read("plugins/auriga-workflow/skills/incremental-impl/SKILL.md");
-    const handoff = specDesign.match(/\*\*D3\. 交接。\*\*[\s\S]*?## 用户自带 spec 审计/);
+    const handoff = specDesign.match(/### Phase D[\s\S]*?## 交接前检查/);
 
-    assert.ok(handoff, "spec-design must preserve its D3 handoff section");
+    assert.ok(handoff, "spec-design must preserve its Phase D handoff section");
     assert.match(handoff[0], /arch-design[^。\n]*人工确认/);
     assert.match(incremental, /已确认[^。\n]*arch_design\.md[^。\n]*(?:优先|约束)/);
   });
@@ -590,7 +590,7 @@ describe("auriga-workflow skill contracts", () => {
     assert.doesNotMatch(specDesign, /incremental-impl[^\n]*(?:第 2 步|同一套切分轴)/);
     assert.doesNotMatch(umbrellaTemplate, /incremental-impl Step 2/);
     for (const workflow of [zhWorkflow, enWorkflow, repoWorkflow]) {
-      assert.match(workflow, /# auriga (?:工作流|Workflow) \(v1\.18\.0\)/);
+      assert.match(workflow, /# auriga (?:工作流|Workflow) \(v1\.19\.0\)/);
     }
     assert.match(reviewIndex, /incremental-impl[^\n]*worklog-2026-07-16-refactor-simplify-incremental-impl\/review\.md/);
     assert.match(programUmbrella, /incremental-impl[^\n]*VAL-IMPL-001\.\.011[^\n]*PR #191/);
