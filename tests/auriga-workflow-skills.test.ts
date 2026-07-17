@@ -319,7 +319,7 @@ describe("auriga-workflow skill contracts", () => {
 
     for (const rel of ["AGENTS.md", "AGENTS.template.zh-CN.md", "AGENTS.template.en.md"]) {
       const template = read(rel);
-      assert.match(template, /v1\.18\.0/);
+      assert.match(template, /v1\.19\.0/);
       assert.match(
         template,
         /领域模型|domain model/i,
@@ -590,7 +590,7 @@ describe("auriga-workflow skill contracts", () => {
     assert.doesNotMatch(specDesign, /incremental-impl[^\n]*(?:第 2 步|同一套切分轴)/);
     assert.doesNotMatch(umbrellaTemplate, /incremental-impl Step 2/);
     for (const workflow of [zhWorkflow, enWorkflow, repoWorkflow]) {
-      assert.match(workflow, /# auriga (?:工作流|Workflow) \(v1\.18\.0\)/);
+      assert.match(workflow, /# auriga (?:工作流|Workflow) \(v1\.19\.0\)/);
     }
     assert.match(reviewIndex, /incremental-impl[^\n]*worklog-2026-07-16-refactor-simplify-incremental-impl\/review\.md/);
     assert.match(programUmbrella, /incremental-impl[^\n]*VAL-IMPL-001\.\.011[^\n]*PR #191/);

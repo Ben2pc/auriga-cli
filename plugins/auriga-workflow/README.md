@@ -12,7 +12,7 @@ travel together so they share one distribution model and one install step.
 | `systematic-debugging` | Evidence-first diagnosis — establishes a repeatable verification path or a production evidence-collection path before permanent repair. |
 | `incremental-impl` | Decomposes approved requirement changes into complete, verifiable implementation units, then coordinates incremental execution and integration. |
 | `test-driven-development` | Minimal behavior-first TDD — consumes acceptance contracts and project test rules. |
-| `spec-design` | Requirement clarification — produces PR-scoped contracts under `docs/specs/<topic>/`, or an explicitly approved cross-PR program contract under `docs/long-running-specs/<topic>/`. |
+| `spec-design` | Requirement clarification — a confirmed conversational requirement can be authoritative for simple work; traceable, handed-off, public-contract, or cross-PR work is persisted under `docs/specs/<topic>/` or an explicitly approved `docs/long-running-specs/<topic>/`. |
 | `arch-design` | Technical design clarification — domain models, module boundaries, dependency direction, human-reviewed design records, and migration constraints. |
 | `code-simplify` | Authorized code-level simplification — protects behavior, targets concrete maintenance cost, and supports user-approved code-smell scans. |
 | `session-compound` | Generates either a single-session retrospective or incremental 30-day usage insights as a self-contained HTML report. |

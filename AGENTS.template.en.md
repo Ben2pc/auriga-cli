@@ -1,5 +1,5 @@
 <!-- AURIGA:WORKFLOW:v1 START — Managed block, maintained by auriga-cli. Do not edit by hand; upgrades replace it wholesale. Put project-specific instructions after the END marker below. -->
-# auriga Workflow (v1.18.0)
+# auriga Workflow (v1.19.0)
 
 1. Requirement Clarification: Use `spec-design` to ground new requirements in the actual code and product evidence, judge their value, and align the goal. The value gate asks at most two questions; each includes a recommendation and lower-cost alternative, then exits to proceed, validate first, defer, or decline. For worthwhile work, clarify observable behavior along real decision branches. **spec = why + observable what; arch design = structural how; plan = implementation steps** — requirements do not prescribe technical paths. A change that does not move the external behavior contract may skip the spec, but its technical design may still need architecture clarification.
 

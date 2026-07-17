@@ -91,10 +91,6 @@ Agent 根据调查事实建立会改变最终用户结果的决策树，沿依�
 - 不要求所有需求提供精确收入、成本或投入回报数字。
 - 不执行 GPT 5.6 Sol 或 Fable 5 的模型行为评测；本轮依据当前协议职责、社区反馈和技能文本完成精简。
 
-## Open questions (悬而未决)
-
-无。
-
 ## References (参考资料)
 
 - [Matt Pocock `grilling` 当前技能](https://github.com/mattpocock/skills/blob/main/skills/productivity/grilling/SKILL.md)：苏格拉底式追问、事实与决定分离、推荐答案和人工停止门禁的主要参考。

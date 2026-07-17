@@ -12,19 +12,19 @@
 | 规格产物 | VAL-SPECIFICATION-001 ~ 002 |
 | 验收契约 | VAL-VALIDATION-001 |
 | 需求拆分 | VAL-DECOMPOSITION-001 |
-| 生命周期与恢复条件 | VAL-LIFECYCLE-001 ~ 002、VAL-RECOVERY-001 |
+| 生命周期、发布与恢复条件 | VAL-LIFECYCLE-001 ~ 002、VAL-PUBLICATION-001、VAL-RECOVERY-001 |
 
 ## Parent coverage map (父级验收覆盖映射)
 
 | Parent VAL (父级验收项) | Child VAL (子验收项) | Status (状态) |
 |---|---|---|
-| VAL-REV-001 | VAL-RECOVERY-001 | planned |
-| VAL-REV-002 | VAL-ALIGNMENT-001、VAL-SPECIFICATION-001 | planned |
-| VAL-REV-003 | VAL-RECOVERY-001 | planned |
-| VAL-MIG-001 | VAL-ALIGNMENT-004、VAL-DECOMPOSITION-001 | planned |
-| VAL-MIG-002 | VAL-LIFECYCLE-002 | planned |
-| VAL-MIG-003 | VAL-LIFECYCLE-002 | planned |
-| VAL-DOC-002 | VAL-LIFECYCLE-001 | planned |
+| VAL-REVIEW-001 | VAL-RECOVERY-001 | not run |
+| VAL-REVIEW-002 | VAL-ALIGNMENT-001、VAL-SPECIFICATION-001 | passed |
+| VAL-REVIEW-003 | VAL-RECOVERY-001 | passed |
+| VAL-MIGRATION-001 | VAL-ALIGNMENT-004、VAL-DECOMPOSITION-001 | passed |
+| VAL-MIGRATION-002 | VAL-LIFECYCLE-002 | not run |
+| VAL-MIGRATION-003 | VAL-PUBLICATION-001 | passed |
+| VAL-DOCUMENTATION-002 | VAL-LIFECYCLE-001 | passed |
 
 ## Assertions (断言)
 
@@ -92,6 +92,11 @@
 - **验收要求**：技能在 Claude Code 与 Codex 中按可用能力读取 Figma、网页和外部文档，不把某一运行时的工具限制写成通用禁令。
 - **验证方式**：人工审查
 - **通过标准**：技能采用能力检测与安全降级描述，双运行时插件清单保持一致且用户可见说明同步。
+
+### VAL-PUBLICATION-001 — 用户可见变化同步发布资产
+- **验收要求**：工作流模板发生用户可见变化时，命令行版本、工作流版本、双语模板和发布说明同步更新。
+- **验证方式**：仓库契约检查与端到端安装验证
+- **通过标准**：版本资产一致，打包后的安装结果包含本次规格澄清规则，且双语入口不存在旧版本描述。
 
 ### VAL-RECOVERY-001 — 精简必须保留恢复条件
 - **验收要求**：精简记录受影响场景和恢复条件；若价值门禁误拦必做事项、追问持续遗漏关键产品分支，或口头规格造成可追溯性缺口，可以基于真实失败恢复更强约束。
