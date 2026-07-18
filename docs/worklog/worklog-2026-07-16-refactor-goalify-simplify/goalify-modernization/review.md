@@ -55,5 +55,4 @@
 
 - `plugins/auriga-workflow/skills/goalify/SKILL.md`
 - `tests/goalify.test.ts`
-- `docs/worklog/worklog-2026-07-16-refactor-goalify-simplify/goalify-modernization/spec.md`
-- `docs/worklog/worklog-2026-07-16-refactor-goalify-simplify/goalify-modernization/validation-contract.md`
+- [完成态总文档](../../../long-running-specs/model-generation-workflow-upgrade/spec.md)

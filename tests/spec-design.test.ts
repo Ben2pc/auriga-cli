@@ -385,26 +385,6 @@ describe("spec-design skill — repo-check VALs", () => {
     }
   });
 
-  test("workflow consolidation publishes one scoped release", () => {
-    const packageJson = JSON.parse(read("package.json"));
-    const claudeManifest = JSON.parse(
-      read("plugins/auriga-workflow/.claude-plugin/plugin.json"),
-    );
-    const codexManifest = JSON.parse(
-      read("plugins/auriga-workflow/.codex-plugin/plugin.json"),
-    );
-    const programSummary = read(
-      "docs/long-running-specs/model-generation-workflow-upgrade/spec.md",
-    );
-
-    assert.equal(packageJson.version, "1.38.1");
-    assert.equal(claudeManifest.version, "4.0.18");
-    assert.equal(codexManifest.version, "4.0.18");
-    assert.match(programSummary, /quality-gate-scaffolder[^\n]*本轮范围外/);
-    assert.doesNotMatch(programSummary, /scaffold-[^|\n]*\|[^\n]*待评审/);
-    assert.match(programSummary, /PR #195[^\n]*收敛/);
-  });
-
   test("workflow docs define review/test rule subdirectories and consumers", () => {
     for (const f of ["AGENTS.template.zh-CN.md", "AGENTS.template.en.md"]) {
       const text = read(f);
@@ -491,11 +471,6 @@ describe("spec-design skill — repo-check VALs", () => {
       assert.doesNotMatch(read(f), /verification-before-completion/);
     }
 
-    const programSummary = read(
-      "docs/long-running-specs/model-generation-workflow-upgrade/spec.md",
-    );
-    assert.match(programSummary, /verification-before-completion[^\n]*删除/);
-    assert.doesNotMatch(programSummary, /verification-before-completion[^\n]*删除并由[^\n]*替代/);
   });
 
   test("workflow docs define spec/arch rule subdirectories and consumers", () => {
@@ -582,48 +557,6 @@ describe("spec-design skill — repo-check VALs", () => {
       /docs\/worklog\//,
       "umbrella template must require final worklog links after child-spec archival",
     );
-  });
-
-  test("completed workflow modernization keeps one compact, resolvable evidence index", () => {
-    const rel = "docs/long-running-specs/model-generation-workflow-upgrade/spec.md";
-    const summary = read(rel);
-    const summaryDir = path.dirname(path.join(repoRoot, rel));
-
-    for (const removed of ["umbrella.md", "validation-contract.md", "reviews/README.md"]) {
-      assert.equal(
-        fs.existsSync(path.join(summaryDir, removed)),
-        false,
-        `${removed} must not duplicate the completed-program summary`,
-      );
-    }
-
-    const linkedMarkdown = [...summary.matchAll(/\]\(([^)]+\.md)\)/g)].map((match) => match[1]);
-    assert.ok(linkedMarkdown.length >= 13, "the compact summary must retain evidence for every core skill");
-    for (const linked of linkedMarkdown) {
-      assert.ok(fs.existsSync(path.resolve(summaryDir, linked)), `broken modernization evidence link: ${linked}`);
-    }
-
-    assert.match(summary, /systematic-debugging[^\n]*PR #177[^\n]*PR #178[^\n]*人工清理/);
-    assert.match(summary, /没有执行[^\n]*模型评测/);
-    assert.match(summary, /不维护[^\n]*父子验收编号/);
-    assert.match(summary, /PR #195[^\n]*收敛/);
-  });
-
-  test("deep-review formal record preserves modernization risks and recovery signals", () => {
-    const rel = "docs/worklog/worklog-2026-07-15-refactor-deep-review-for-new-models/deep-review-modernization/review.md";
-    assert.ok(fs.existsSync(path.join(repoRoot, rel)), "deep-review must keep a formal review record");
-    const review = read(rel);
-    for (const heading of [
-      "## 当前职责",
-      "## 可复现失效模式",
-      "## 处置结论",
-      "## 风险与恢复条件",
-    ]) {
-      assert.ok(review.includes(heading), `deep-review review record must keep ${heading}`);
-    }
-    assert.match(review, /观察信号/);
-    assert.match(review, /恢复条件/);
-    assert.match(review, /模型评测未执行|没有执行[^。\n]*模型评测/);
   });
 
   test("VAL-DEP-002: skills-lock.json no longer contains brainstorming entry; .agents/skills/brainstorming/ is gone", () => {

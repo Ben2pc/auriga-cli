@@ -61,7 +61,6 @@
 
 ## 参考资料
 
-- [子规范](spec.md)
-- [验收契约](validation-contract.md)
+- [完成态总文档](../../../long-running-specs/model-generation-workflow-upgrade/spec.md)
 - [Superpowers test-driven-development](https://github.com/obra/superpowers/blob/main/skills/test-driven-development/SKILL.md)
 - [Matt Pocock tdd](https://github.com/mattpocock/skills/blob/main/skills/engineering/tdd/SKILL.md)

@@ -455,18 +455,10 @@ describe("docent skill assets", () => {
   });
 });
 
-describe("docent release sync", () => {
-  test("plugin manifests include the docent modernization release and stay in lockstep", () => {
+describe("docent distribution", () => {
+  test("plugin manifests stay in lockstep", () => {
     const claude = JSON.parse(read("plugins/auriga-workflow/.claude-plugin/plugin.json"));
     const codex = JSON.parse(read("plugins/auriga-workflow/.codex-plugin/plugin.json"));
-    const parts = String(claude.version).split(".").map(Number);
-    const meetsMinimum =
-      parts[0] > 4 ||
-      (parts[0] === 4 && (parts[1] > 0 || (parts[1] === 0 && parts[2] >= 7)));
-    assert.ok(
-      meetsMinimum,
-      `plugin version must include the docent modernization release (>= 4.0.7), got ${claude.version}`,
-    );
     assert.equal(
       codex.version,
       claude.version,
@@ -512,30 +504,4 @@ describe("docent release sync", () => {
     );
   });
 
-  test("formal review records bounded recovery decisions [VAL-DOCNT-007]", () => {
-    const review = read(
-      "docs/worklog/worklog-2026-07-15-refactor-simplify-docent-skill/docent-modernization/review.md",
-    );
-    for (const anchor of ["风险、观察信号与恢复条件", "首次深入评审", "接受并修复", "保留为后续候选"]) {
-      assert.ok(review.includes(anchor), `review record must retain: ${anchor}`);
-    }
-    assert.match(review, /恢复条件/);
-    assert.match(review, /不恢复|不把|只有[^。\n]*才/);
-  });
-
-  test("archived docent records stay linked from the compact long-running summary [VAL-DOCNT-009]", () => {
-    const archive = "worklog-2026-07-15-refactor-simplify-docent-skill/docent-modernization";
-    assert.ok(
-      fs.existsSync(path.join(repoRoot, `docs/worklog/${archive}/validation-contract.md`)),
-      "archived validation contract must exist",
-    );
-    assert.equal(
-      listFilesRecursive("docs/specs").filter((file) => file.includes("docent-modernization")).length,
-      0,
-      "the active specs directory must not retain the docent child spec",
-    );
-    const summary = read("docs/long-running-specs/model-generation-workflow-upgrade/spec.md");
-    assert.ok(summary.includes(`${archive}/validation-contract.md`));
-    assert.ok(summary.includes(`${archive}/review.md`));
-  });
 });

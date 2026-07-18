@@ -38,7 +38,6 @@ PR #191 的第一次正式深入评审使用四个彼此隔离的内置评审上
 
 ## 参考资料
 
-- [`spec.md`](spec.md)
-- [`validation-contract.md`](validation-contract.md)
+- [完成态总文档](../../long-running-specs/model-generation-workflow-upgrade/spec.md)
 - [`incremental-impl/SKILL.md`](../../../plugins/auriga-workflow/skills/incremental-impl/SKILL.md)
 - [PR #191](https://github.com/Ben2pc/auriga-cli/pull/191)
