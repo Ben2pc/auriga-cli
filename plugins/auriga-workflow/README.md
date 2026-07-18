@@ -21,7 +21,7 @@ travel together so they share one distribution model and one install step.
 | `reviewer-creator` | Scaffolds a project reviewer at `docs/rules/review/<name>.md`; `deep-review` hosts supplements in a built-in dimension or dispatches explicit standalone dimensions. |
 | `git-workflow` | The Git lifecycle skill — worktree safety, semantic commits, bilingual PR body contracts, review feedback, and merge readiness. |
 | `documentation-management` | Manages human and Agent documentation as distinct context assets, governs document lifecycle, and promotes durable decisions into `docs/architecture/`. |
-| `docent` | Explicit-invocation code docent — a single dedicated subagent locates and reads the code behind a natural-language question (or path), then emits a self-contained interactive HTML walkthrough with file:line anchors. |
+| `docent` | Explicit-invocation code docent — a single dedicated subagent explains existing code, modules, or components through current-architecture maps, key relationships, and file:line evidence in a self-contained interactive HTML report. |
 
 ## Hooks
 

@@ -3,6 +3,21 @@ function escapeXml(s) {
     .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
 
+/* 图中的跳转只能指向当前报告内的章节，不能成为任意 URL 执行入口。 */
+function safeFragmentHref(value) {
+  const href = String(value || "");
+  return /^#[A-Za-z][A-Za-z0-9_.:-]*$/.test(href) ? escapeXml(href) : "";
+}
+
+function svgLinkOpen(value) {
+  const href = safeFragmentHref(value);
+  return href ? `<a href="${href}">` : "";
+}
+
+function svgLinkClose(value) {
+  return safeFragmentHref(value) ? "</a>" : "";
+}
+
 function textWidth(label) {
   let w = 0;
   for (const ch of String(label)) w += ch.charCodeAt(0) > 0x2e80 ? 14 : 7.5;
@@ -27,8 +42,8 @@ function svgWarnLine(skipped, y) {
 
 /**
  * 时序图。data = {
- *   participants: [{ id, label, anchor? }],
- *   messages: [{ from, to, label, kind?: "return", anchor? }],   // from === to 画自环
+ *   participants: [{ id, label, anchor?, href? }],
+ *   messages: [{ from, to, label, kind?: "return", anchor?, href? }],   // from === to 画自环
  * }
  */
 function renderSequenceSvg(data) {
@@ -60,12 +75,14 @@ function renderSequenceSvg(data) {
       ` stroke="var(--hairline, #e6dfd8)" stroke-dasharray="4 4"/>`;
   });
   ps.forEach((p, i) => {
+    s += svgLinkOpen(p.href);
     s += `<rect x="${cx(i) - headW / 2}" y="${padY}" width="${headW}" height="${headH - 8}" rx="8"` +
       ` fill="var(--card, #efe9de)" stroke="var(--hairline, #e6dfd8)"/>`;
     s += `<text x="${cx(i)}" y="${padY + 21}" text-anchor="middle" font-weight="600"` +
       ` fill="var(--ink, #141413)">` +
       (p.anchor ? `<title>${escapeXml(p.anchor)}</title>` : "") +
       `${escapeXml(p.label)}</text>`;
+    s += svgLinkClose(p.href);
   });
   msgs.forEach((m, k) => {
     const y = padY + headH + rowH * (k + 1) - 14;
@@ -73,6 +90,7 @@ function renderSequenceSvg(data) {
     const label = escapeXml(m.label) + (m.anchor ? "  ·  " + escapeXml(m.anchor) : "");
     const stroke = ` stroke="var(--body, #3d3d3a)" marker-end="url(#dArr)"` +
       (m.kind === "return" ? ` stroke-dasharray="6 4"` : "");
+    s += svgLinkOpen(m.href);
     if (m.from === m.to) {
       const x = cx(idx[m.from]);
       s += `<path d="M ${x} ${y - 6} h 46 v 16 h -46" fill="none"${stroke}/>`;
@@ -87,6 +105,7 @@ function renderSequenceSvg(data) {
       minX = Math.min(minX, (x1 + x2) / 2 - half);
       maxX = Math.max(maxX, (x1 + x2) / 2 + half);
     }
+    s += svgLinkClose(m.href);
   });
   if (skipped.length) s += svgWarnLine(skipped, height - 6);
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${minX} 0 ${maxX - minX} ${height}"` +
@@ -96,7 +115,7 @@ function renderSequenceSvg(data) {
 
 /**
  * 分层流程图（也可表达状态图：节点为状态、边为迁移）。data = {
- *   layers: [[{ id, label, anchor?, kind?: "decision" | "terminal" }]],  // 每层一行
+ *   layers: [[{ id, label, anchor?, href?, kind?: "decision" | "terminal" }]],  // 每层一行
  *   edges: [{ from, to, label? }],
  * }
  * 渲染保证：同位 label 围绕中点竖向错峰；viewBox 按最长 label 自动加宽（不裁剪）；
@@ -128,6 +147,7 @@ function renderFlowSvg(data) {
       const decision = n.kind === "decision";
       const rx = n.kind === "terminal" ? nodeH / 2 : decision ? 14 : 8;
       const stroke = decision ? "var(--accent-amber, #e8a55a)" : "var(--hairline, #e6dfd8)";
+      nodes += svgLinkOpen(n.href);
       nodes += `<rect x="${x}" y="${y}" width="${w}" height="${nodeH}" rx="${rx}"` +
         ` fill="var(--card, #efe9de)" stroke="${stroke}" stroke-width="${decision ? 1.6 : 1}"/>`;
       const mid = x + w / 2;
@@ -140,6 +160,7 @@ function renderFlowSvg(data) {
         nodes += `<text x="${mid}" y="${y + 27}" text-anchor="middle" font-weight="600"` +
           ` fill="var(--ink, #141413)">${escapeXml(n.label)}</text>`;
       }
+      nodes += svgLinkClose(n.href);
       x += w + gap;
     }
   });
