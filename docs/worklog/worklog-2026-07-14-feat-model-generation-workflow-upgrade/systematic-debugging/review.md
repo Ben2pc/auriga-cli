@@ -47,9 +47,9 @@
 - Git 生命周期守卫全部通过，包含长期总规范在两条 Ready 路径下均不阻塞的回归场景。
 - 真实安装包端到端测试 8/8 通过，覆盖远端分支获取、预设安装、筛选安装、插件安装和完整安装。
 
-PR #178 取消自动迁移的最终契约已经压缩进[完成态总文档](../../../long-running-specs/model-generation-workflow-upgrade/spec.md)，不用这里的历史计数代替。
+PR #178 取消自动迁移的最终契约已经压缩进[完成态归档](../../worklog-2026-07-18-refactor-compact-specs-review-docent/model-generation-workflow-upgrade/spec.md)，不用这里的历史计数代替。
 
 ## 参考资料
 
-- [完成态总文档](../../../long-running-specs/model-generation-workflow-upgrade/spec.md)
+- [完成态归档](../../worklog-2026-07-18-refactor-compact-specs-review-docent/model-generation-workflow-upgrade/spec.md)
 - [ADR-002](../../../architecture/ADR-002-internalize-systematic-debugging.md)

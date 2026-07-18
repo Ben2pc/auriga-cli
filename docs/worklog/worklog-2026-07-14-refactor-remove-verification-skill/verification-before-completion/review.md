@@ -34,7 +34,7 @@
 
 ## 参考资料
 
-- [完成态总文档](../../../long-running-specs/model-generation-workflow-upgrade/spec.md)
+- [完成态归档](../../worklog-2026-07-18-refactor-compact-specs-review-docent/model-generation-workflow-upgrade/spec.md)
 - `.agents/skills/verification-before-completion/SKILL.md`
 - `plugins/auriga-workflow/skills/incremental-impl/SKILL.md`
 - `plugins/auriga-workflow/skills/test-driven-development/SKILL.md`
