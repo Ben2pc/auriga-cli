@@ -15,15 +15,21 @@
 
 ## 拼装：scripts/assemble.sh
 
-默认生成 `body 片段`与 `figures.json` 两个文件，并把 custom.css 参数传空。正文只能包含结构化 HTML、经过转义的仓库文本和图容器，不能包含脚本或事件处理器。只有偏离固定页面基线能明确改善当前理解问题时，才额外写 `custom.css`：
+每份报告先创建一个权限隔离的临时目录，并记录命令返回的真实路径：
 
 ```sh
-sh <skill-dir>/scripts/assemble.sh /tmp/docent-body.html /tmp/docent-<主题slug>.html "" "<报告标题>" "<lang>" /tmp/docent-figures.json
+mktemp -d "${TMPDIR:-/tmp}/docent.XXXXXX"
 ```
 
-`<skill-dir>` 是本 skill 的安装目录绝对路径，由派遣方在任务里提供——执行前必须替换成实际路径，不能照抄占位符。第 3~5 参可选：确需定制时把第 3 参换成 CSS 文件路径；第 5 参 `lang` 默认 `zh`，**报告语言不是中文时必须显式传**（如 `en`），与"报告语言跟随对话语言"的硬性约束对齐。标题会做 HTML 转义；输出路径不得与任何输入相同（脚本会拒绝）。
+用文件编辑工具在这个 `<work-dir>` 中分别写 `body.html`、`title.txt`、`figures.json`，只有偏离固定页面基线能明确改善当前理解问题时才增加 `custom.css`。正文只能包含结构化 HTML、经过转义的仓库文本和图容器，不能包含脚本或事件处理器。然后用固定路径参数拼装：
 
-脚本会验证正文与定制 CSS、为图形 JSON 做安全序列化、注入内容安全策略，再把四件固定资产拼成完整文档。不要自己手拼文档骨架、在正文加入脚本或重打资产内容。没有图时可以省略最后一个参数。
+```sh
+sh "<skill-dir>/scripts/assemble.sh" "<work-dir>/body.html" "<work-dir>/report.html" "" "<work-dir>/title.txt" "<lang>" "<work-dir>/figures.json"
+```
+
+`<skill-dir>` 是派遣方提供的技能安装目录，`<work-dir>` 是刚才 `mktemp -d` 返回的目录；执行前必须替换为真实路径，不能照抄占位符。标题只写进 `title.txt`，不要把仓库文本、文件名或标题拼进 Shell 命令。第 3~6 参可选：确需定制时把第 3 参换成 CSS 文件路径；第 5 参 `lang` 默认 `zh`，**报告语言不是中文时必须显式传**（如 `en`）。输出路径不得与任何输入相同（脚本会拒绝）。
+
+脚本会验证正文与定制 CSS、检查图形结构和目标容器、从验证后的不可变快照组装、为图形 JSON 做安全序列化并注入内容安全策略。单张图在浏览器中意外渲染失败时会显示可见提示，不会阻断后续图。不要自己手拼文档骨架、在正文加入脚本或重打资产内容。没有图时可以省略最后一个参数。
 
 ## 渲染器数据契约
 
