@@ -39,7 +39,7 @@ function sectionBetween(text: string, start: string, end: string): string {
 }
 
 describe("docent skill assets", () => {
-  // VAL-DOCNT-001 — explicit invocation, one dedicated Agent, bounded fallback
+  // Explicit invocation and one dedicated Agent with an explicit handoff.
   test("SKILL.md exists with valid frontmatter and explicit-only invocation", () => {
     const raw = read(`${SKILL_DIR}/SKILL.md`);
     const parsed = matter(raw);
@@ -62,23 +62,48 @@ describe("docent skill assets", () => {
     const execution = sectionBetween(parsed.content, "## 执行模型：单个专职子代理", "## 子代理工作流");
     assert.match(execution, /一个[^。\n]*专职子代理|单个专职子代理/);
     assert.match(execution, /全过程[^。\n]*子代理内部/);
-    assert.match(execution, /不支持派遣子代理[\s\S]{0,180}主对话[\s\S]{0,180}提醒用户/);
+    assert.match(
+      execution,
+      /派遣[^。\n]*SKILL\.md[^。\n]*子代理工作流/,
+      "the dispatch packet must tell the isolated Agent where to load its complete workflow",
+    );
+    assert.match(
+      execution,
+      /子代理[^。\n]*(?:不得|不要)[^。\n]*派遣/,
+      "the dedicated report Agent must not recursively dispatch another Agent",
+    );
+    assert.match(
+      execution,
+      /不支持派遣子代理[\s\S]{0,180}(?:停止|无法执行|不能执行)/,
+      "a runtime without subagents must stop instead of consuming the main conversation",
+    );
+    assert.doesNotMatch(
+      execution,
+      /不支持派遣子代理[\s\S]{0,180}主对话内完成/,
+      "the main Agent must not silently absorb the isolated reading workflow",
+    );
   });
 
-  // VAL-DOCNT-002..005 — keep the comprehension contract, but make history,
-  // hands-on verification, search methods, and visual customization conditional.
+  // Keep the comprehension contract, but make history, hands-on verification,
+  // search methods, and visual customization conditional.
   test("skill separates core report content from conditional tools and presentation", () => {
     const htmlAssets = listFilesRecursive(SKILL_DIR).filter((f) => f.endsWith(".html"));
     assert.deepEqual(htmlAssets, [], "docent must not ship a fixed HTML template asset");
     const text = read(`${SKILL_DIR}/SKILL.md`);
     const core = sectionBetween(text, "#### 核心内容", "#### 条件内容");
     for (const item of [
+      "阅读目标",
       "为什么存在",
-      "入口与主流程",
+      "当前架构总览",
       "代码地图",
+      "核心概念",
+      "关键路径",
+      "代码证据",
       "数据或状态",
       "相邻契约",
+      "容易误改",
       "阅读足迹",
+      "未知",
       "如何验证理解",
     ]) {
       assert.ok(core.includes(item), `core report contract must retain: ${item}`);
@@ -90,8 +115,8 @@ describe("docent skill assets", () => {
     assert.ok(text.includes("自包含"), "SKILL.md must require a self-contained offline HTML");
     assert.ok(text.includes("阅读足迹"), "SKILL.md must require the reading-footprint section");
     assert.ok(
-      /至少一张/.test(text) && /时序图|流程图|状态图/.test(text),
-      "SKILL.md must hard-require at least one standard software-engineering diagram for the main flow",
+      /至少(?:用)?一张/.test(text) && /时序图|流程图|状态图/.test(text) && /依赖图|组件图/.test(text),
+      "SKILL.md must require a primary relationship diagram chosen for the question",
     );
     assert.ok(
       text.includes("架构总览"),
@@ -99,6 +124,11 @@ describe("docent skill assets", () => {
     );
     assert.match(core, /可运行或可操作[\s\S]{0,120}端到端/);
     assert.match(core, /否则[\s\S]{0,140}(自动化测试|静态检查|人工核对)/);
+    assert.match(
+      text,
+      /不是[^。\n]*(代码审查|架构评审)[\s\S]{0,180}(arch-design|架构设计)/,
+      "Docent must explain current code without silently becoming a redesign workflow",
+    );
     const conditional = sectionBetween(text, "#### 条件内容", "### 4. 生成 HTML 报告");
     assert.match(conditional, /历史演化[\s\S]{0,120}(按需|条件)/, "git history must be conditional");
     assert.match(
@@ -106,7 +136,7 @@ describe("docent skill assets", () => {
       /人工端到端体验[\s\S]{0,180}(可运行|可操作)/,
       "hands-on verification must require a runnable or operable entry point",
     );
-    const locating = sectionBetween(text, "### 1. 定位", "### 2. 通读");
+    const locating = sectionBetween(text, "### 1. 定位", "### 2. 建立当前状态模型");
     assert.match(locating, /按问题从定位工具箱/, "search methods must be selected as needed");
     assert.match(locating, /不机械地全部执行/);
     assert.doesNotMatch(
@@ -136,7 +166,7 @@ describe("docent skill assets", () => {
     assert.doesNotMatch(visualContract, /先用文件编辑工具写出两个片段|配色与字体[^。\n]*而非默认值/);
   });
 
-  // VAL-DOCNT-006 — dual-agent portability conventions
+  // Dual-agent portability conventions.
   test("skill files follow agent-portability conventions", () => {
     const files = listFilesRecursive(SKILL_DIR).filter((f) => f.endsWith(".md"));
     assert.ok(files.length > 0, "docent skill files must exist");
@@ -156,7 +186,7 @@ describe("docent skill assets", () => {
     }
   });
 
-  // VAL-DOCNT-005 — bundled visual baseline reference, referenced by SKILL.md
+  // Bundled visual baseline reference, referenced by SKILL.md.
   test("design guidelines reference is bundled and wired into SKILL.md", () => {
     const ref = `${SKILL_DIR}/references/design-guidelines.md`;
     assert.ok(
@@ -197,9 +227,24 @@ describe("docent skill assets", () => {
     }
 
     const guide = read(`${SKILL_DIR}/references/components.md`);
-    for (const name of ["assets/tokens.css", "assets/components.css", "assets/renderers.js"]) {
+    for (const name of [
+      "assets/tokens.css",
+      "assets/components.css",
+      "assets/renderers.js",
+      "assets/bootstrap.js",
+    ]) {
       assert.ok(guide.includes(name), `components.md must reference ${name} by name`);
     }
+    assert.match(
+      guide,
+      /mktemp -d[\s\S]{0,500}title\.txt/,
+      "assembly inputs must live in a private per-report directory and carry the title as data",
+    );
+    assert.doesNotMatch(
+      guide,
+      /assemble\.sh[^\n]*"<报告标题>"/,
+      "repository-derived titles must not be interpolated into a shell command",
+    );
     const skill = read(`${SKILL_DIR}/SKILL.md`);
     assert.ok(
       skill.includes("scripts/assemble.sh") && skill.includes("拼装"),
@@ -217,7 +262,7 @@ describe("docent skill assets", () => {
 
     const seq = exports.renderSequenceSvg({
       participants: [
-        { id: "cli", label: "CLI", anchor: "src/cli.ts:10" },
+        { id: "cli", label: "CLI", anchor: "src/cli.ts:10", href: "#sec-cli" },
         { id: "gh", label: "GitHub <raw>" },
       ],
       messages: [
@@ -234,10 +279,11 @@ describe("docent skill assets", () => {
       "return-kind messages must render as dashed arrows",
     );
     assert.ok(seq.includes("<title>src/cli.ts:10</title>"), "participant anchors must render as titles");
+    assert.ok(seq.includes('href="#sec-cli"'), "participant nodes must link to their explanation section");
 
     const flow = exports.renderFlowSvg({
       layers: [
-        [{ id: "a", label: "入口", anchor: "src/utils.ts:239" }],
+        [{ id: "a", label: "入口", anchor: "src/utils.ts:239", href: "#sec-entry" }],
         [{ id: "b", label: "环境变量覆盖?", kind: "decision" }],
         [{ id: "c", label: "用 tag" }, { id: "d", label: "用 main" }],
       ],
@@ -254,6 +300,12 @@ describe("docent skill assets", () => {
       "decision nodes must render with the amber accent stroke",
     );
     assert.ok(flow.includes("src/utils.ts:239"), "node anchors must render as a second line");
+    assert.ok(flow.includes('href="#sec-entry"'), "flow nodes must link to their explanation section");
+    const unsafeLink = exports.renderFlowSvg({
+      layers: [[{ id: "a", label: "A", href: "javascript:alert(1)" }]],
+      edges: [],
+    });
+    assert.ok(!unsafeLink.includes("javascript:"), "diagram links must be limited to local fragments");
     // node width must accommodate the anchor line, not just the label
     const anchored = exports.renderFlowSvg({
       layers: [[{ id: "a", label: "A", anchor: "plugins/auriga-workflow/skills/docent/SKILL.md:81" }]],
@@ -302,6 +354,39 @@ describe("docent skill assets", () => {
     });
     assert.ok(badSeq.includes("跳过"), "unknown participant ids must surface as a visible warning");
     assert.ok(!badSeq.includes("NaN"), "unknown participant ids must not emit NaN geometry");
+  });
+
+  test("figure bootstrap isolates one renderer failure from later figures", () => {
+    const bootstrap = read(`${SKILL_DIR}/assets/bootstrap.js`);
+    const source = {
+      textContent: JSON.stringify([
+        { target: "bad", type: "flow", data: { fail: true } },
+        { target: "good", type: "flow", data: { fail: false } },
+      ]),
+    };
+    const targets = new Map([
+      ["bad", { innerHTML: "", textContent: "" }],
+      ["good", { innerHTML: "", textContent: "" }],
+    ]);
+    const document = {
+      getElementById(id: string) {
+        if (id === "docent-figures") return source;
+        return targets.get(id) ?? null;
+      },
+    };
+    const errors: unknown[] = [];
+    const fakeConsole = { error: (...args: unknown[]) => errors.push(args) };
+    const run = new Function("document", "console", "renderSequenceSvg", "renderFlowSvg", bootstrap);
+
+    assert.doesNotThrow(() =>
+      run(document, fakeConsole, () => "<svg></svg>", (data: { fail: boolean }) => {
+        if (data.fail) throw new Error("boom");
+        return "<svg id=\"rendered\"></svg>";
+      }),
+    );
+    assert.match(targets.get("bad")!.textContent, /渲染失败/);
+    assert.match(targets.get("good")!.innerHTML, /rendered/);
+    assert.equal(errors.length, 1, "the failed figure must still be diagnosable");
   });
 
   // Regression: edge-label collisions, viewBox clipping, and skip-layer edges
@@ -402,24 +487,54 @@ describe("docent skill assets", () => {
     try {
       const body = path.join(tmp, "body.html");
       const custom = path.join(tmp, "custom.css");
+      const title = path.join(tmp, "title.txt");
+      const figures = path.join(tmp, "figures.json");
       const out = path.join(tmp, "report.html");
       fs.writeFileSync(
         body,
-        `<h1>冒烟</h1><div id="f"></div><script>document.getElementById("f").innerHTML = renderFlowSvg({layers:[[{id:"a",label:"节点"}]],edges:[]});</script>`,
+        `<h1>冒烟</h1><section id="sec-entry"><div id="f"></div></section>`,
       );
-      fs.writeFileSync(custom, "h1{color:var(--primary)}");
-      execFileSync("sh", [script, body, out, custom, "冒烟标题"]);
+      fs.writeFileSync(custom, "h1{color:var(--primary);mask-image:url( #local-mask)}");
+      fs.writeFileSync(title, "冒烟标题");
+      fs.writeFileSync(
+        figures,
+        JSON.stringify([
+          {
+            target: "f",
+            type: "flow",
+            data: {
+              layers: [[{ id: "a", label: "节点", anchor: "src/a.ts:1", href: "#sec-entry" }]],
+              edges: [],
+            },
+          },
+        ]),
+      );
+      execFileSync("sh", [script, body, out, custom, title, "zh", figures]);
 
       const html = fs.readFileSync(out, "utf-8");
       assert.ok(html.startsWith("<!doctype html>"), "output must be a complete HTML document");
       assert.ok(html.includes("--primary:"), "output must inline the design tokens");
       assert.ok(html.includes("file-tree"), "output must inline the component CSS");
-      assert.ok(html.includes("h1{color:var(--primary)}"), "output must inline the custom CSS");
+      assert.ok(
+        html.includes("h1{color:var(--primary);mask-image:url( #local-mask)}"),
+        "output must inline the custom CSS and allow local fragment URLs",
+      );
       assert.ok(html.includes("冒烟标题"), "output must carry the title");
       assert.ok(
         html.indexOf("function renderFlowSvg") < html.indexOf("<h1>冒烟</h1>"),
-        "renderers must be defined in <head> before the body so inline calls work",
+        "renderers must be defined before the report body",
       );
+      assert.ok(html.includes("function renderDocentFigures"), "output must inline the fixed figure bootstrap");
+      assert.ok(
+        html.includes('"href":"#sec-entry"'),
+        "safe figure data must preserve the local explanation target for the fixed bootstrap",
+      );
+      assert.match(
+        html,
+        /Content-Security-Policy[^>]+script-src 'nonce-[a-f0-9]+'/,
+        "output must constrain scripts with a per-report content-security-policy nonce",
+      );
+      assert.ok(!html.includes("script-src 'unsafe-inline'"), "report scripts must not rely on unsafe-inline");
       assert.ok(
         !/(?:src|href)\s*=\s*["']https?:\/\//.test(html),
         "output must stay offline self-contained",
@@ -437,9 +552,15 @@ describe("docent skill assets", () => {
         () => execFileSync("sh", [script, body, out, path.join(tmp, "missing.css")], { stdio: "pipe" }),
         "missing custom css must fail fast",
       );
+      assert.throws(
+        () => execFileSync("sh", [script, body, title, "", title], { stdio: "pipe" }),
+        "output path equal to the title input must be rejected",
+      );
       // defaults + escaping: no custom css, hostile title
       const out2 = path.join(tmp, "report2.html");
-      execFileSync("sh", [script, body, out2, "", '</title><script>alert(1)</script>']);
+      const marker = path.join(tmp, "must-not-exist");
+      fs.writeFileSync(title, `</title><script>alert(1)</script>$(touch ${marker})`);
+      execFileSync("sh", [script, body, out2, "", title]);
       const html2 = fs.readFileSync(out2, "utf-8");
       assert.ok(html2.includes('lang="zh"'), "lang must default to zh");
       assert.ok(
@@ -447,8 +568,109 @@ describe("docent skill assets", () => {
         "title must be HTML-escaped, not injected verbatim",
       );
       assert.ok(html2.includes("&lt;/title&gt;"), "escaped title must survive in the output");
+      assert.ok(!fs.existsSync(marker), "title contents must never be evaluated by the shell");
       assert.ok(html2.includes("max-width: 1120px"), "reports without custom CSS must include the page baseline");
       assert.ok(html2.includes("prefers-reduced-motion"), "the page baseline must respect reduced motion");
+
+      const cspNonce = /script-src 'nonce-([^']+)'/.exec(html)?.[1];
+      assert.ok(cspNonce, "the content-security-policy must declare a script nonce");
+      const scriptNonces = [...html.matchAll(/<script\b[^>]*\bnonce="([^"]+)"/g)].map((m) => m[1]);
+      assert.ok(scriptNonces.length >= 2, "the report must contain the fixed executable scripts");
+      assert.ok(
+        scriptNonces.every((nonce) => nonce === cspNonce),
+        "every inline script must use the nonce declared by the content-security-policy",
+      );
+
+      // repository-derived text must be escaped by the generator. The assembler
+      // fails closed when active HTML reaches the body fragment by mistake.
+      const activeBody = path.join(tmp, "active-body.html");
+      fs.writeFileSync(activeBody, '<p>bad</p><script>alert(1)</script>');
+      assert.throws(
+        () => execFileSync("sh", [script, activeBody, out], { stdio: "pipe" }),
+        "body fragments containing scripts must be rejected",
+      );
+      fs.writeFileSync(activeBody, '<div onclick="alert(1)">bad</div>');
+      fs.writeFileSync(out, "sentinel");
+      assert.throws(
+        () => execFileSync("sh", [script, activeBody, out], { stdio: "pipe" }),
+        "body fragments containing event handlers must be rejected",
+      );
+      assert.equal(
+        fs.readFileSync(out, "utf8"),
+        "sentinel",
+        "validation failure must leave an existing report unchanged",
+      );
+
+      fs.writeFileSync(
+        activeBody,
+        '<pre><code>button.onclick = handleTap;\nonboarding=enabled</code></pre><div id="f"></div>',
+      );
+      assert.doesNotThrow(
+        () => execFileSync("sh", [script, activeBody, out, "", title, "zh", figures], { stdio: "pipe" }),
+        "code evidence and ordinary text that contain on* substrings must remain valid",
+      );
+
+      fs.writeFileSync(activeBody, '<a href="https&#58;//example.com/leak">bad</a>');
+      assert.throws(
+        () => execFileSync("sh", [script, activeBody, out, "", title], { stdio: "pipe" }),
+        "entity-encoded external links must be rejected",
+      );
+
+      const activeCss = path.join(tmp, "active.css");
+      fs.writeFileSync(activeCss, '</style><script>alert(1)</script>');
+      assert.throws(
+        () => execFileSync("sh", [script, body, out, activeCss], { stdio: "pipe" }),
+        "custom CSS must not be able to break out of the style element",
+      );
+      fs.writeFileSync(activeCss, 'main{background-image:url("https://example.com/leak.png")}');
+      assert.throws(
+        () => execFileSync("sh", [script, body, out, activeCss, title], { stdio: "pipe" }),
+        "custom CSS must reject external resources",
+      );
+
+      const hostileFigures = path.join(tmp, "hostile-figures.json");
+      fs.writeFileSync(
+        hostileFigures,
+        JSON.stringify([{ target: "f", type: "flow", data: { layers: [[{ id: "x", label: "</script><script>alert(1)</script>" }]], edges: [] } }]),
+      );
+      const out3 = path.join(tmp, "report3.html");
+      fs.writeFileSync(title, "safe");
+      execFileSync("sh", [script, body, out3, "", title, "zh", hostileFigures]);
+      const html3 = fs.readFileSync(out3, "utf-8");
+      assert.ok(
+        !html3.includes("</script><script>alert(1)</script>"),
+        "figure JSON must not terminate its inert script element",
+      );
+      assert.ok(html3.includes("\\u003c/script"), "hostile figure text must stay encoded as data");
+
+      fs.writeFileSync(
+        hostileFigures,
+        JSON.stringify([{ target: "f", type: "flow", data: { layers: "oops", edges: [] } }]),
+      );
+      assert.throws(
+        () => execFileSync("sh", [script, body, out3, "", title, "zh", hostileFigures], { stdio: "pipe" }),
+        "malformed nested figure data must be rejected before browser rendering",
+      );
+
+      fs.writeFileSync(
+        hostileFigures,
+        JSON.stringify([
+          { target: "f", type: "sequence", data: { participants: "oops", messages: [] } },
+        ]),
+      );
+      assert.throws(
+        () => execFileSync("sh", [script, body, out3, "", title, "zh", hostileFigures], { stdio: "pipe" }),
+        "malformed sequence data must be rejected before browser rendering",
+      );
+
+      fs.writeFileSync(
+        hostileFigures,
+        JSON.stringify([{ target: "missing", type: "flow", data: { layers: [], edges: [] } }]),
+      );
+      assert.throws(
+        () => execFileSync("sh", [script, body, out3, "", title, "zh", hostileFigures], { stdio: "pipe" }),
+        "figure targets that are absent from the body must fail assembly",
+      );
     } finally {
       fs.rmSync(tmp, { recursive: true, force: true });
     }
