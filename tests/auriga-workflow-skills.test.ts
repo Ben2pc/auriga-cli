@@ -517,11 +517,8 @@ describe("auriga-workflow skill contracts", () => {
     const reviewRecord = read(
       "docs/worklog/worklog-2026-07-16-refactor-simplify-incremental-impl/review.md",
     );
-    const reviewIndex = read(
-      "docs/long-running-specs/model-generation-workflow-upgrade/reviews/README.md",
-    );
-    const programUmbrella = read(
-      "docs/long-running-specs/model-generation-workflow-upgrade/umbrella.md",
+    const programSummary = read(
+      "docs/long-running-specs/model-generation-workflow-upgrade/spec.md",
     );
     const zhWorkflow = read("AGENTS.template.zh-CN.md");
     const enWorkflow = read("AGENTS.template.en.md");
@@ -605,8 +602,8 @@ describe("auriga-workflow skill contracts", () => {
     for (const workflow of [zhWorkflow, enWorkflow, repoWorkflow]) {
       assert.match(workflow, /# auriga (?:工作流|Workflow) \(v1\.20\.0\)/);
     }
-    assert.match(reviewIndex, /incremental-impl[^\n]*worklog-2026-07-16-refactor-simplify-incremental-impl\/review\.md/);
-    assert.match(programUmbrella, /incremental-impl[^\n]*VAL-IMPL-001\.\.011[^\n]*PR #191/);
+    assert.match(programSummary, /incremental-impl[^\n]*PR #191/);
+    assert.match(programSummary, /worklog-2026-07-16-refactor-simplify-incremental-impl\/review\.md/);
     for (const heading of [
       "## 当前职责",
       "## 可复现失效模式",

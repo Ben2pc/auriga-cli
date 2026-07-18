@@ -1,70 +1,56 @@
-# 新一代模型工作流升级 — Spec (新一代模型工作流升级 — 规范)
+# 新一代模型工作流升级（完成态摘要）
 
-> 面向 GPT 5.6 Sol 与 Fable 5，重新评估 Auriga 的每一项工作流约束与技能资产，减少对模型原生能力的重复干预。
+> 面向 GPT 5.6 Sol 与 Fable 5 的工作流重构已经完成。本文件只保留仍需跨会话查询的共同结论和证据入口；每个子项目的规格、验收契约与评审过程以对应 `docs/worklog/` 为准。
 
-## Why (为什么做)
+## 当前状态
 
-新一代编码模型的规划、工具使用、代理协作和长程执行能力正在增强。过去为了补偿模型能力不足而加入的强制提问、固定阶段、重复验证和复杂代理编排，可能从质量保障变成额外延迟、令牌消耗与决策干扰。
+- 13 个 Auriga 核心工作流技能已逐项处理，组合工作流已在 PR #195 收敛。
+- `quality-gate-scaffolder` 及其 5 个脚手架技能、其他插件和可选能力不在本轮范围。
+- 本轮没有执行 GPT 5.6 Sol 或 Fable 5 的统一模型评测。处置结论来自实际使用反馈、代码与机制边界、产物价值和维护成本，不能引用为模型能力基准。
+- 用户已选择压缩而非归档本总规范；后续复核只更新本文件，不恢复完成态验收矩阵。
 
-Auriga 同时包含自有工作流技能和锁定版本的外部技能。若继续依赖外部技能，Auriga 无法独立控制其行为、兼容性与升级节奏；若未经评估就全部内化，又会扩大长期维护面。因此需要逐项举证，重新决定纳入范围的技能应删除、保留、精简、内化、合并或由确定性机制替代。外部与可选插件不属于本轮技能升级范围，仅在索引中保留清单。
+## 共同结论
 
-本计划采用“逐项评审、逐项落地、逐项合入”的节奏，不预设默认删除或默认保留。进入深入评审的结论以目标模型证据、确定性机制职责和维护成本共同决定；用户明确按分发与触发边界保留、并跳过深入评审的工具型技能，必须单独记录该边界、风险和重新评估条件，不能把范围决策表述成模型能力证据。
+1. 工作流只保留产品语义、人工确认、持久契约、独立评估和确定性机制无法稳定替代的职责，不用固定仪式补偿旧模型能力。
+2. 默认安装不等于默认执行。显式工具型技能可以保留，但不能变成每个任务的强制步骤。
+3. 需求规格、架构设计、实施单元、测试证据、正式评审和 Git 生命周期各自负责一个边界，避免重复触发与循环派遣。
+4. Claude Code 与 Codex 共用行为契约；运行时差异使用最小适配，不扩散成所有运行时的负担。
+5. 当前事实留在技能、工作流模板和确定性机制中；本目录不复制已经落地的规则正文。
 
-## Findings (调研发现)
+## Auriga 核心技能处置索引
 
-- 当前仓库维护 18 个自有技能，但本轮只评审 `plugins/auriga-workflow/skills/` 中的 13 个核心工作流技能。`plugins/quality-gate-scaffolder/skills/` 中的 5 个质量门禁脚手架技能属于独立插件，用户已确认不在本轮范围。
-- 当前仓库在 `skills-lock.json` 中锁定 8 个外部技能；`systematic-debugging` 已在 PR #177 内化到 `auriga-workflow`，外部 `test-driven-development` 已由精简自有版本替代，`verification-before-completion` 已在当前子项中删除，完成声明职责由常驻工作流规则承担。
-- `extra_plugin_configs.json` 还声明了 5 个具有外部升级边界或可选策略的插件；用户已确认这些插件不属于本轮范围，保持现状且不逐项评审。
-- `docs/architecture/auriga-cli-dev-guide.md` 规定，自有技能的输出契约形成 `spec-design`、`test-driven-development`、`deep-review`、`incremental-impl` 之间的消费链，不能孤立修改。
-- `README.zh-CN.md` 明确列出 `obra/superpowers` 与 `mattpocock/skills` 是当前工作流的灵感来源；后续评审需要区分“理念参考”与“运行时依赖”。
-- 用户在 2026-07-14 提供的 X 搜索快照显示，社区对新模型是否仍需要复杂工作流存在明显分歧；这些帖子可以提供假设，但不能替代可复现的模型行为证据。
-- 仓库不存在 `docs/rules/spec/`，本规范没有额外的项目专属规范规则。
+| 技能 | 结论与实现 | 详细证据 |
+|---|---|---|
+| `arch-design` | 精简；强化架构与领域模型触发、人工评审和技术质量目标（PR #183） | [评审记录](../../worklog/worklog-2026-07-14-refactor-simplify-arch-design/arch-design-modernization/review.md) |
+| `code-simplify` | 精简；保留授权边界、行为保护和维护成本判断（PR #184） | [评审记录](../../worklog/worklog-2026-07-15-refactor-simplify-code-simplify-skill/code-simplify-modernization/review.md) |
+| `deep-review` | 精简；保留独立审查维度与扩展协议（PR #185） | [评审记录](../../worklog/worklog-2026-07-15-refactor-deep-review-for-new-models/deep-review-modernization/review.md) |
+| `docent` | 精简；保留显式调用、上下文隔离和可视化离线制品（PR #186）；当前分支再次复核 | [评审记录](../../worklog/worklog-2026-07-15-refactor-simplify-docent-skill/docent-modernization/review.md) · [验收契约](../../worklog/worklog-2026-07-15-refactor-simplify-docent-skill/docent-modernization/validation-contract.md) |
+| `documentation-management` | 由 `documentation-and-adrs` 重命名并精简为文档资产与长期上下文治理（PR #188） | [评审记录](../../worklog/worklog-2026-07-16-refactor-documentation-management/documentation-management/review.md) |
+| `git-workflow` | 精简；保留团队交付契约，删除通用 Git 教学（PR #189） | [评审记录](../../worklog/worklog-2026-07-16-refactor-simplify-git-workflow/git-workflow-modernization/review.md) |
+| `goalify` | 精简；保留显式自主运行、架构人工门禁和评审收敛（PR #190） | [评审记录](../../worklog/worklog-2026-07-16-refactor-goalify-simplify/goalify-modernization/review.md) |
+| `incremental-impl` | 精简为完整实施单元的拆分与增量落地，派发降为可选方式（PR #191） | [评审记录](../../worklog/worklog-2026-07-16-refactor-simplify-incremental-impl/review.md) · [验收契约](../../worklog/worklog-2026-07-16-refactor-simplify-incremental-impl/validation-contract.md) |
+| `reviewer-creator` | 精简；保留项目审查者协议，删除固定检查项和重复注册表（PR #192） | [评审记录](../../worklog/worklog-2026-07-16-refactor-simplify-reviewer-creator/reviewer-creator-modernization/review.md) |
+| `session-compound` | 精简；保留单会话与近期洞察模式、增量证据缓存和确定性报告（PR #193） | [评审记录](../../worklog/worklog-2026-07-17-refactor-modernize-session-compound/review.md) |
+| `spec-design` | 精简；保留价值判断、事实调查、目标对齐和验收契约（PR #194） | [评审记录](../../worklog/worklog-2026-07-17-refactor-simplify-spec-design/spec-design-modernization/review.md) |
+| `systematic-debugging` | 内化；PR #177 落地，PR #178 取消自动迁移并改为团队人工清理 | [评审记录](../../worklog/worklog-2026-07-14-feat-model-generation-workflow-upgrade/systematic-debugging/review.md) |
+| `test-driven-development` | 精简并内化，合并原 `test-designer`，按证据生命周期决定是否新增永久测试（PR #179） | [评审记录](../../worklog/worklog-2026-07-14-refactor-simplify-tdd-skill/unified-tdd-skill/review.md) |
 
-## What (做什么)
+## 其他资产处置
 
-### 1. 建立统一评审口径
+| 资产 | 处置 |
+|---|---|
+| `verification-before-completion` | 删除（PR #181）；完成声明由常驻工作流规则与确定性机制承担。[评审记录](../../worklog/worklog-2026-07-14-refactor-remove-verification-skill/verification-before-completion/review.md) |
+| `planning-with-files`、`playwright-cli` | 保留为按场景显式使用的外部能力；默认安装不等于默认执行。 |
+| 6 个外部推荐技能 | 保留为主工作流外的选装能力，未做目标模型深入评审。 |
+| 所有插件与 `quality-gate-scaffolder` | 本轮范围外；保持独立发布与升级边界。 |
 
-每个纳入范围的技能都使用同一份评审结构，至少回答它解决的模型失效模式、该失效模式在目标模型上是否仍可复现、约束是否产生反作用、是否依赖确定性机制、是否需要持久产物，以及 Auriga 是否必须掌握其维护权。
+## 后续复核条件
 
-### 2. 逐项给出处置结论
+只有出现以下情况才重新打开对应技能的设计，而不是恢复整套旧流程：
 
-每项进入深入评审的技能必须得到且只得到一个主结论：删除、保留、精简、内化、合并或由机制替代。用户明确决定保留的工具型技能，如果不是每个任务的强制步骤，可以按实际分发与触发边界记录理由后跳过深入评审；默认安装不等于默认执行，二者必须分别说明。这类范围决策不要求目标模型评测，但仍必须记录适用运行时、已知风险和重新评估触发条件。
+- 技能开始自动触发、成为每个任务的强制步骤，或明显增加无关上下文与交互成本。
+- 精简后持续遗漏同一类重要风险、人工确认或可追溯证据。
+- Claude Code、Codex 或目标模型的工具、子代理、插件和校验能力发生实质变化。
+- 外部资产职责或维护权变化，导致核心路径重新依赖不可控行为。
 
-### 3. 同时评估组合效应
-
-除单项评审外，还要识别技能之间重复触发、相互递归、职责重叠和产物契约耦合。最终工作流不能因为多项单独合理的技能叠加，而重新形成过度规划、过度提问或过度派遣。
-
-### 4. 控制外部资产风险
-
-对于不受 Auriga 控制但仍属于核心路径的外部技能，必须明确选择继续依赖、内化后维护、缩减为本地规则，或淘汰。内化不是默认答案，只有当核心行为不可替代且上游漂移风险高于本地维护成本时才采用。
-
-### 5. 保持双运行时可用
-
-保留下来的核心工作流必须分别说明在 Claude Code 与 Codex 中的触发和执行边界。运行时原生能力不对称时，允许使用最小的适配层，但不能把某一运行时的限制扩散成所有运行时的通用负担。
-
-### 6. 支持跨 PR 的逐项交付
-
-本总规范跨多个 PR 持续维护，只保存共同目标、全局约束、切片顺序和状态矩阵。每项技能开始实现前仍需在 `docs/specs/` 建立当前 PR 独有的子规范与验收契约；普通交互流程在子 PR 进入 Ready 前由人工决定将这些产物归档到对应 worklog、删除，或晋升为长期资料。用户选择 `goalify` 自主推进时，若没有预先指定资料去向则默认归档并继续执行，不为此停下询问。两种流程都要据此更新本总规范的状态和引用。全部子 PR 结束后，由人工决定将本总规范归档或提炼为稳定文档。
-
-## Out of scope (本次不做)
-
-- 不在单项评审完成前批量重写所有技能。
-- 不把社区观点直接当作模型能力结论。
-- 不在本规范阶段决定具体文件结构、函数实现或安装器改法。
-- 不承诺兼容尚未纳入评审证据的模型或代理宿主。
-- 不因“便于统一管理”而自动内化所有外部技能和插件。
-- 不评审外部或可选插件；它们保持现状，后续如需升级另开独立规范。
-- 不评审 `quality-gate-scaffolder` 独立插件及其 5 个 Scaffold 技能；它们不是本轮核心工作流组合收敛的一部分。
-
-## Open questions (悬而未决)
-
-1. 评审使用的具体模型调用方式、任务样本和成本记录格式归属 plan；规范阶段只要求证据可复现，推迟是为了避免提前锁死评测工具。
-2. 外部资产内化后的许可证保留、来源标注和更新同步方式归属 plan；需要在确定首批内化候选后按其许可证分别设计。
-
-## References (参考资料 — 可选；澄清期间用户给过任何外链时必填)
-
-- 用户于 2026-07-14 提供的 X 搜索快照：用于提出“复杂技能可能干扰新模型”的待验证假设。
-- `README.zh-CN.md`：当前工作流灵感来源与安装分类。
-- `docs/architecture/auriga-cli-dev-guide.md`：自有技能、外部技能、插件的维护与发布边界。
-- [obra/superpowers](https://github.com/obra/superpowers)：`systematic-debugging`、`test-driven-development` 与 `verification-before-completion` 的历史来源；当前锁定技能已不再依赖该仓库。
-- [mattpocock/skills](https://github.com/mattpocock/skills)：用户将逐步提供的对照技能来源之一。
+具体恢复条件与历史决定以表格链接的评审记录为准。本摘要不维护父子验收编号、逐项测试结果或发布补丁版本，避免与归档证据和当前代码形成多份事实源。

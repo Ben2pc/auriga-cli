@@ -523,7 +523,7 @@ describe("docent release sync", () => {
     assert.match(review, /不恢复|不把|只有[^。\n]*才/);
   });
 
-  test("archived docent records stay linked from the long-running indexes [VAL-DOCNT-009]", () => {
+  test("archived docent records stay linked from the compact long-running summary [VAL-DOCNT-009]", () => {
     const archive = "worklog-2026-07-15-refactor-simplify-docent-skill/docent-modernization";
     assert.ok(
       fs.existsSync(path.join(repoRoot, `docs/worklog/${archive}/validation-contract.md`)),
@@ -534,9 +534,8 @@ describe("docent release sync", () => {
       0,
       "the active specs directory must not retain the docent child spec",
     );
-    const umbrella = read("docs/long-running-specs/model-generation-workflow-upgrade/umbrella.md");
-    const index = read("docs/long-running-specs/model-generation-workflow-upgrade/reviews/README.md");
-    assert.ok(umbrella.includes(`${archive}/validation-contract.md`));
-    assert.ok(index.includes(`${archive}/review.md`));
+    const summary = read("docs/long-running-specs/model-generation-workflow-upgrade/spec.md");
+    assert.ok(summary.includes(`${archive}/validation-contract.md`));
+    assert.ok(summary.includes(`${archive}/review.md`));
   });
 });
