@@ -170,14 +170,20 @@ describe("spec-design skill — repo-check VALs", () => {
     assert.doesNotMatch(text, /Q\+GUESS|约 95%|最多约 10 轮|6 行复述/);
   });
 
-  test("spec-design uses Socratic decision alignment without synthetic options", () => {
+  test("spec-design uses dependency-aware Socratic rounds without synthetic options", () => {
     const text = read(
       "plugins/auriga-workflow/skills/spec-design/SKILL.md",
     );
     const alignment = markdownSubsection(text, "#### B2. 苏格拉底式需求对齐");
-    assert.match(alignment, /一次解决一个决定/);
-    assert.match(alignment, /推荐答案及主要后果/);
-    assert.match(alignment, /每个答案[^。]*原始目标一致/);
+    assert.match(alignment, /决策依赖图/);
+    assert.match(alignment, /同一轮[^。]*互不依赖/);
+    assert.match(alignment, /每轮最多三个/);
+    assert.match(alignment, /依赖本轮[^。]*后续轮次/);
+    assert.match(alignment, /推荐答案、理由和主要后果/);
+    assert.match(alignment, /每轮回答[^。]*原始目标一致/);
+    assert.match(alignment, /廉价事实[^。]*当前 Agent/);
+    assert.match(alignment, /独立且耗时[^。]*子代理/);
+    assert.match(alignment, /只阻塞[^。]*下游问题/);
     assert.match(alignment, /不存在会改变用户结果的真实决策分支时[^。]*不提问[^。]*直接给出推荐/);
     assert.match(text, /用户明确确认前，不进入架构、计划或实现/);
   });
