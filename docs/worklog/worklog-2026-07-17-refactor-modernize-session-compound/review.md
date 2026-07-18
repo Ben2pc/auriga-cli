@@ -49,7 +49,6 @@ PR #193 的首次深入评审后修复了确认的阻塞和高优先级问题，
 
 ## References（参考资料）
 
-- [规格](spec.md)
-- [验收契约](validation-contract.md)
+- [完成态归档](../worklog-2026-07-18-refactor-compact-specs-review-docent/model-generation-workflow-upgrade/spec.md)
 - [架构设计](arch_design.md)
 - [PR #193](https://github.com/Ben2pc/auriga-cli/pull/193)

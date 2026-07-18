@@ -504,33 +504,16 @@ describe("auriga-workflow skill contracts", () => {
     assert.match(incremental, /已确认[^。\n]*arch_design\.md[^。\n]*(?:优先|约束)/);
   });
 
-  test("incremental-impl traces VAL-IMPL-001..011 to requirement-led implementation units", () => {
+  test("incremental-impl keeps requirement-led implementation unit contracts", () => {
     const text = read("plugins/auriga-workflow/skills/incremental-impl/SKILL.md");
-    const contract = read(
-      "docs/worklog/worklog-2026-07-16-refactor-simplify-incremental-impl/validation-contract.md",
-    );
     const pluginReadme = read("plugins/auriga-workflow/README.md");
     const specDesign = read("plugins/auriga-workflow/skills/spec-design/SKILL.md");
     const umbrellaTemplate = read(
       "plugins/auriga-workflow/skills/spec-design/references/umbrella-template.md",
     );
-    const reviewRecord = read(
-      "docs/worklog/worklog-2026-07-16-refactor-simplify-incremental-impl/review.md",
-    );
-    const reviewIndex = read(
-      "docs/long-running-specs/model-generation-workflow-upgrade/reviews/README.md",
-    );
-    const programUmbrella = read(
-      "docs/long-running-specs/model-generation-workflow-upgrade/umbrella.md",
-    );
     const zhWorkflow = read("AGENTS.template.zh-CN.md");
     const enWorkflow = read("AGENTS.template.en.md");
     const repoWorkflow = read("AGENTS.md");
-
-    for (let index = 1; index <= 11; index += 1) {
-      const id = `VAL-IMPL-${String(index).padStart(3, "0")}`;
-      assert.match(contract, new RegExp(`\\| ${id} \\|`), `${id} must remain traceable`);
-    }
 
     // VAL-IMPL-001: consume approved inputs without silently reopening upstream decisions.
     assert.match(text, /用户最新决定[^。]*验收契约[^。]*arch_design\.md[^。]*当前计划/);
@@ -605,22 +588,6 @@ describe("auriga-workflow skill contracts", () => {
     for (const workflow of [zhWorkflow, enWorkflow, repoWorkflow]) {
       assert.match(workflow, /# auriga (?:工作流|Workflow) \(v1\.20\.0\)/);
     }
-    assert.match(reviewIndex, /incremental-impl[^\n]*worklog-2026-07-16-refactor-simplify-incremental-impl\/review\.md/);
-    assert.match(programUmbrella, /incremental-impl[^\n]*VAL-IMPL-001\.\.011[^\n]*PR #191/);
-    for (const heading of [
-      "## 当前职责",
-      "## 可复现失效模式",
-      "## 目标模型证据",
-      "## 与其他资产的关系",
-      "## 处置结论",
-      "## 风险与恢复条件",
-      "## 参考资料",
-    ]) {
-      assert.ok(reviewRecord.includes(heading), `review record must preserve ${heading}`);
-    }
-    assert.match(reviewRecord, /(?:未执行[^。]*模型行为评测|模型行为评测[^。]*未执行)/);
-    assert.match(reviewRecord, /观察信号|如果正式评审|如果多写者/);
-    assert.match(reviewRecord, /恢复|加强|补充/);
     assert.doesNotMatch(zhWorkflow, /判定 XS/);
     assert.doesNotMatch(enWorkflow, /rates the work XS/);
   });

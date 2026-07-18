@@ -65,4 +65,4 @@
 - `plugins/auriga-workflow/scripts/pr-create-guard.mjs`
 - `plugins/auriga-workflow/scripts/pr-ready-guard.mjs`
 - `plugins/auriga-workflow/scripts/pr-merge-guard.mjs`
-- `docs/long-running-specs/model-generation-workflow-upgrade/`
+- [完成态归档](../../worklog-2026-07-18-refactor-compact-specs-review-docent/model-generation-workflow-upgrade/spec.md)

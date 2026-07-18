@@ -50,6 +50,5 @@
 
 ## 参考资料
 
-- [子规范](spec.md)
-- [验收契约](validation-contract.md)
+- [完成态归档](../../worklog-2026-07-18-refactor-compact-specs-review-docent/model-generation-workflow-upgrade/spec.md)
 - [当前技能](../../../../plugins/auriga-workflow/skills/arch-design/SKILL.md)

@@ -45,7 +45,6 @@ PR #185 的首次正式深入评审覆盖需求、正确性、测试、文档、
 
 ## 参考资料
 
-- [子规范](spec.md)
-- [验收契约](validation-contract.md)
+- [完成态归档](../../worklog-2026-07-18-refactor-compact-specs-review-docent/model-generation-workflow-upgrade/spec.md)
 - `plugins/auriga-workflow/skills/deep-review/SKILL.md`
 - `plugins/auriga-workflow/skills/reviewer-creator/SKILL.md`
