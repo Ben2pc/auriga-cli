@@ -122,6 +122,9 @@ describe("docent skill assets", () => {
       text.includes("架构总览"),
       "SKILL.md must require an architecture overview diagram on the first screen",
     );
+    assert.match(text, /代码实体命名[^。]*同时适用于[^。]*文字描述[^。]*图/);
+    assert.match(text, /同一实体[^。]*(?:正文|标题)[^。]*图中[^。]*保持一致/);
+    assert.match(text, /现有[^。]*(?:模块|类)[^。]*原始标识符[^。]*不[^。]*翻译/);
     assert.match(core, /可运行或可操作[\s\S]{0,120}端到端/);
     assert.match(core, /否则[\s\S]{0,140}(自动化测试|静态检查|人工核对)/);
     assert.match(
