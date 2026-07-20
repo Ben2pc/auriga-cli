@@ -379,6 +379,7 @@ describe("auriga-workflow skill contracts", () => {
   });
 
   test("arch-design template makes current and target architecture easy to compare", () => {
+    const skill = read("plugins/auriga-workflow/skills/arch-design/SKILL.md");
     const template = read(
       "plugins/auriga-workflow/skills/arch-design/references/arch-design-template.md",
     );
@@ -402,6 +403,11 @@ describe("auriga-workflow skill contracts", () => {
     for (const diagram of ["C4", "sequenceDiagram", "stateDiagram-v2", "erDiagram", "classDiagram"]) {
       assert.ok(template.includes(diagram), `arch-design template must cue ${diagram}`);
     }
+    assert.match(skill, /代码实体命名[^。]*同时适用于[^。]*文字描述[^。]*图/);
+    assert.match(skill, /已有[^。]*(?:模块|类)[^。]*仓库[^。]*原始标识符/);
+    assert.match(skill, /本次设计新增[^。]*设计上下文[^。]*标识符/);
+    assert.match(skill, /同一实体[^。]*(?:正文|接口草图)[^。]*图中[^。]*一致/);
+    assert.match(skill, /代码实体[^。]*不[^。]*翻译/);
   });
 
   test("arch-design makes technical quality and code-level flows reviewable", () => {
