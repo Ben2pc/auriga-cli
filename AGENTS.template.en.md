@@ -1,5 +1,5 @@
 <!-- AURIGA:WORKFLOW:v1 START — Managed block, maintained by auriga-cli. Do not edit by hand; upgrades replace it wholesale. Put project-specific instructions after the END marker below. -->
-# auriga Workflow (v1.20.0)
+# auriga Workflow (v1.21.0)
 
 1. Requirement clarification: For new or changed externally observable behavior, use `spec-design` first to judge value and align the goal from actual code and product evidence. **spec = why + observable what; arch design = structural how; plan = implementation steps**. A change that preserves the external behavior contract may skip the spec but can still need architecture clarification.
 
@@ -42,7 +42,7 @@ Repo documentation lives under `docs/`, one directory per purpose:
 - **Enforce constraints via mechanisms, not prompts**: core rules belong in linters / CI / type systems / hooks.
 - **Keep durable facts in the repository**: current facts, plans, and design decisions needed across sessions must live in versioned assets that Agents can access.
 - **Continuously fight entropy**: when deciding how to handle review findings, pay down small, certain, low-risk technical debt without expanding the current change's scope.
-- **Layer instruction files**: keep AGENTS.md concise and limited to global rules and navigation; independent subpackages maintain their own nearest-scope AGENTS.md with a `CLAUDE.md -> AGENTS.md` compatibility symlink.
+- **Layer context, load on demand**: a rule belongs to the scope it actually governs; keep the root `AGENTS.md` to global rules and an index. A subpackage, or a directory with its own toolchain and conventions, maintains its own `AGENTS.md` plus a `CLAUDE.md -> AGENTS.md` compatibility symlink. Runtimes differ in how much of a sub-scope they auto-load, so anything pushed down must also be pointed at by a one-line index in the parent `AGENTS.md` — never assume it will be read automatically. See `documentation-management` for the layering criteria.
 
 ## Agent Dispatch Principles
 

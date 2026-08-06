@@ -18,7 +18,7 @@ Auriga's harness design is inspired by several open-source skill and agent-workf
 |---|---|
 | **Workflow** | `AGENTS.md` auriga workflow: requirement clarification -> TDD -> Review, Harness principles, Subagent usage guide |
 | **Skills** | External development process skills — planning and playwright (`systematic-debugging`, TDD, spec authoring, architecture design, and completion-evidence discipline ship inside the workflow or `auriga-workflow` plugin) |
-| **Recommended Skills** | Optional utility skills (e.g. `codex-agent`, `claude-code-agent`) you can add on top of the workflow skills |
+| **Recommended Skills** | Optional utility skills (e.g. `frontend-design`, `deprecation-and-migration`) you can add on top of the workflow skills |
 | **Plugins** | Recommended Claude Code and Codex plugins — skill-creator, claude-md-management, playground, codex, auriga-workflow, auriga-notify, session-instructions-loader |
 
 ## Quick Start
@@ -84,7 +84,7 @@ Interactive menu — select what to install:
 ```
 ? Select what to install:
   ◉ Recommended preset — AGENTS.md/CLAUDE.md + workflow skills + auriga-workflow plugin
-  ◯ Optional skills — opt-in utility skills (claude-code-agent, codex-agent...)
+  ◯ Optional skills — opt-in utility skills (frontend-design, design-taste-frontend...)
   ◯ Other plugins — everything except auriga-workflow (auriga-notify, skill-creator, codex...)
 ```
 
@@ -113,8 +113,6 @@ Installs selected skills via `npx skills add`, targeting both Claude Code and Co
 
 | Skill | Source | Description |
 |---|---|---|
-| claude-code-agent | [Ben2pc/g-claude-code-plugins](https://github.com/Ben2pc/g-claude-code-plugins) | Delegate coding, review, diagnosis, and planning to standalone Claude Code sessions |
-| codex-agent | [Ben2pc/g-claude-code-plugins](https://github.com/Ben2pc/g-claude-code-plugins) | Delegate to Codex sessions for cross-model coverage |
 | deprecation-and-migration | [addyosmani/agent-skills](https://github.com/addyosmani/agent-skills) | Sunset, replace, or migrate legacy code — deprecation discipline |
 | design-taste-frontend | [Leonxlnx/taste-skill](https://github.com/Leonxlnx/taste-skill) | Senior UI/UX engineer with metric-based design rules and strict component architecture |
 | frontend-design | [anthropics/skills](https://github.com/anthropics/skills) | Distinctive, production-grade frontend UI generation that avoids generic AI aesthetics |

@@ -187,11 +187,11 @@ describe("buildDefaultApplyHandlers — recommended-skill", () => {
       cwd: "/proj",
       pluginAgentsByName: new Map(),
     });
-    await handlers["recommended-skill"]("install", "codex-agent", noopLog());
+    await handlers["recommended-skill"]("install", "frontend-design", noopLog());
     assert.equal(calls.installRecommendedSkills.length, 1);
     assert.equal(calls.installSkills.length, 0);
     const opts = calls.installRecommendedSkills[0].opts as { selected: string[] };
-    assert.deepEqual(opts.selected, ["codex-agent"]);
+    assert.deepEqual(opts.selected, ["frontend-design"]);
   });
 
   test("uninstall → routes to uninstallSkill (shared store)", async () => {
@@ -202,9 +202,9 @@ describe("buildDefaultApplyHandlers — recommended-skill", () => {
       cwd: "/proj",
       pluginAgentsByName: new Map(),
     });
-    await handlers["recommended-skill"]("uninstall", "codex-agent", noopLog());
+    await handlers["recommended-skill"]("uninstall", "frontend-design", noopLog());
     assert.equal(calls.uninstallSkill.length, 1);
-    assert.equal(calls.uninstallSkill[0].name, "codex-agent");
+    assert.equal(calls.uninstallSkill[0].name, "frontend-design");
   });
 });
 
@@ -322,7 +322,7 @@ describe("buildDefaultApplyHandlers — scope forwarding on uninstall", () => {
       cwd: "/proj",
       pluginAgentsByName: new Map(),
     });
-    await handlers["recommended-skill"]("uninstall", "codex-agent", {
+    await handlers["recommended-skill"]("uninstall", "frontend-design", {
       onLog: () => {},
       scope: "user",
     });

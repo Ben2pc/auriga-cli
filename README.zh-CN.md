@@ -18,7 +18,7 @@ Auriga 的 harness 设计受以下几个开源 skill 与 Agent 工作流项目�
 |---|---|
 | **Workflow** | `AGENTS.md` 里的 auriga 工作流：需求澄清 → TDD → Review，Harness 原则，Subagent 使用指南 |
 | **Skills** | 外部开发流程 skills —— planning 与 playwright（`systematic-debugging`、TDD、spec 撰写、架构设计与完成声明纪律由工作流或 `auriga-workflow` 插件提供）|
-| **Recommended Skills** | 可选的工具类 skills（如 `codex-agent`、`claude-code-agent`），在 workflow skills 之外按需追加 |
+| **Recommended Skills** | 可选的工具类 skills（如 `frontend-design`、`deprecation-and-migration`），在 workflow skills 之外按需追加 |
 | **Plugins** | 推荐的 Claude Code 和 Codex 插件 —— skill-creator、claude-md-management、playground、codex、auriga-workflow、auriga-notify、session-instructions-loader |
 
 ## 快速开始
@@ -84,7 +84,7 @@ npx auriga-cli
 ```
 ? Select what to install:
   ◉ Recommended preset — AGENTS.md/CLAUDE.md + workflow skills + auriga-workflow plugin
-  ◯ Optional skills — opt-in utility skills (claude-code-agent, codex-agent...)
+  ◯ Optional skills — opt-in utility skills (frontend-design, design-taste-frontend...)
   ◯ Other plugins — everything except auriga-workflow (auriga-notify, skill-creator, codex...)
 ```
 
@@ -113,8 +113,6 @@ npx auriga-cli
 
 | Skill | 来源 | 说明 |
 |---|---|---|
-| claude-code-agent | [Ben2pc/g-claude-code-plugins](https://github.com/Ben2pc/g-claude-code-plugins) | 通过 Claude Code Agent SDK 把任务委派给独立 Claude Code 会话 |
-| codex-agent | [Ben2pc/g-claude-code-plugins](https://github.com/Ben2pc/g-claude-code-plugins) | 委派给 Codex 会话，做跨模型覆盖 |
 | deprecation-and-migration | [addyosmani/agent-skills](https://github.com/addyosmani/agent-skills) | 废弃与迁移流程 —— 安全地下线、替换或迁移遗留代码 |
 | design-taste-frontend | [Leonxlnx/taste-skill](https://github.com/Leonxlnx/taste-skill) | 高阶 UI/UX 工程师 —— 度量化设计规则与严格的组件架构约束 |
 | frontend-design | [anthropics/skills](https://github.com/anthropics/skills) | 生成有辨识度、production 级的前端界面，避开常见 AI 同质化美学 |
