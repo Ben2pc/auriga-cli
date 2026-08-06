@@ -329,7 +329,7 @@ describe("auriga-workflow skill contracts", () => {
 
     for (const rel of ["AGENTS.md", "AGENTS.template.zh-CN.md", "AGENTS.template.en.md"]) {
       const template = read(rel);
-      assert.match(template, /v1\.20\.0/);
+      assert.match(template, /v1\.21\.0/);
       assert.match(
         template,
         /领域模型|domain model/i,
@@ -592,7 +592,7 @@ describe("auriga-workflow skill contracts", () => {
     assert.doesNotMatch(specDesign, /incremental-impl[^\n]*(?:第 2 步|同一套切分轴)/);
     assert.doesNotMatch(umbrellaTemplate, /incremental-impl Step 2/);
     for (const workflow of [zhWorkflow, enWorkflow, repoWorkflow]) {
-      assert.match(workflow, /# auriga (?:工作流|Workflow) \(v1\.20\.0\)/);
+      assert.match(workflow, /# auriga (?:工作流|Workflow) \(v1\.21\.0\)/);
     }
     assert.doesNotMatch(zhWorkflow, /判定 XS/);
     assert.doesNotMatch(enWorkflow, /rates the work XS/);

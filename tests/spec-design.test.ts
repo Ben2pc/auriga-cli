@@ -391,6 +391,37 @@ describe("spec-design skill — repo-check VALs", () => {
     }
   });
 
+  test("workflow entry requires layered context instead of one monolithic file", () => {
+    for (const f of ["AGENTS.md", "AGENTS.template.zh-CN.md", "AGENTS.template.en.md"]) {
+      const text = read(f);
+      assert.match(
+        text,
+        /(?:最近作用域[^\n]*`AGENTS\.md`|nearest-scope `AGENTS\.md`)/i,
+        `${f} must state that Agents load the nearest-scope AGENTS.md`,
+      );
+      assert.match(
+        text,
+        /(?:根 `AGENTS\.md` 只保留全局规则和索引导航|Keep the root `AGENTS\.md` to global rules and index-style navigation)/i,
+        `${f} must keep the root instruction file to global rules plus navigation`,
+      );
+      assert.match(
+        text,
+        /(?:在该目录建立 `AGENTS\.md`|create an `AGENTS\.md` there)/i,
+        `${f} must require pushing locally scoped detail into a subdirectory AGENTS.md`,
+      );
+      assert.match(
+        text,
+        /(?:成体系的长内容写进对应作用域的 `docs\/`|Put long, structured content in the `docs\/` of the matching scope)/i,
+        `${f} must route long-form content into the matching scope's docs/`,
+      );
+      assert.match(
+        text,
+        /(?:单行索引|one-line index)/i,
+        `${f} must require a one-line index pointing at deferred content`,
+      );
+    }
+  });
+
   test("workflow docs define review/test rule subdirectories and consumers", () => {
     for (const f of ["AGENTS.template.zh-CN.md", "AGENTS.template.en.md"]) {
       const text = read(f);
