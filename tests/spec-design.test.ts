@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import matter from "gray-matter";
+import { parseMarkers, hashBlock } from "../src/workflow-markers.js";
 
 // Compiled test lives at dist-test/tests/spec-design.test.js; ../.. = repo root.
 const repoRoot = path.resolve(
@@ -391,33 +392,94 @@ describe("spec-design skill — repo-check VALs", () => {
     }
   });
 
+  // Skeleton anchors, not verbatim prose: each regex pins the load-bearing
+  // tokens of the layering rule and tolerates rewording between them. The
+  // language is selected per file so a zh paragraph pasted into the en
+  // template (or vice versa) fails instead of matching the other branch.
+  const LAYERING_ANCHORS: Record<string, RegExp[]> = {
+    "zh-CN": [
+      /根 `AGENTS\.md`[^\n]*全局规则[^\n]*索引/,
+      /子包[^\n]*`AGENTS\.md`[^\n]*`CLAUDE\.md -> AGENTS\.md`/,
+      /运行时[^\n]*不一致[^\n]*单行索引/,
+    ],
+    en: [
+      /root `AGENTS\.md`[^\n]*global rules[^\n]*index/i,
+      /subpackage[^\n]*`AGENTS\.md`[^\n]*`CLAUDE\.md -> AGENTS\.md`/i,
+      /[Rr]untimes differ[^\n]*one-line index/,
+    ],
+  };
+
   test("workflow entry requires layered context instead of one monolithic file", () => {
+    const byFile: Array<[string, string]> = [
+      ["AGENTS.md", "zh-CN"],
+      ["AGENTS.template.zh-CN.md", "zh-CN"],
+      ["AGENTS.template.en.md", "en"],
+    ];
+    for (const [f, lang] of byFile) {
+      const text = read(f);
+      for (const re of LAYERING_ANCHORS[lang]) {
+        assert.match(text, re, `${f} must carry the layered-context rule (${lang}): ${re}`);
+      }
+      // The rule must not be undercut by an escape hatch in the same file.
+      assert.doesNotMatch(
+        text,
+        /(?:堆进根文件|全部(?:写|放)进根 `AGENTS\.md`|pile everything into the root)/i,
+        `${f} must not offer an opt-out from layering`,
+      );
+    }
+  });
+
+  // Structural invariants of the repo's own installed sample. These replace
+  // per-sentence prose assertions: they catch *any* drift in the managed
+  // block, not just the phrases someone remembered to pin.
+  test("root AGENTS.md stays a faithful, self-consistent installed sample", () => {
+    const root = parseMarkers(read("AGENTS.md"));
+    const zh = parseMarkers(read("AGENTS.template.zh-CN.md"));
+    assert.equal(root.kind, "marked", "root AGENTS.md must carry managed markers");
+    assert.equal(zh.kind, "marked", "zh template must carry managed markers");
+
+    // The root file is the zh template plus repo-specific rules below END.
+    assert.equal(
+      root.blockBody,
+      zh.blockBody,
+      "root AGENTS.md managed block must match AGENTS.template.zh-CN.md byte for byte",
+    );
+
+    // A stale END hash makes installWorkflow treat this repo's own sample as
+    // hand-edited, producing a spurious .bak and warning.
+    assert.equal(
+      root.endHash,
+      hashBlock(root.blockBody),
+      "root AGENTS.md END marker hash must match its managed block; recompute it after editing",
+    );
+  });
+
+  // Single source for the workflow contract version: read it from the zh
+  // template, then require the other entrypoints to agree. Bumping the
+  // version must not require editing version literals in tests.
+  test("workflow contract version is declared consistently across entrypoints", () => {
+    const headerRe = /^#\s+auriga\s+(?:Workflow|工作流)\s*\(v(\d+\.\d+\.\d+)\)/m;
+    const declared = read("AGENTS.template.zh-CN.md").match(headerRe);
+    assert.ok(declared, "AGENTS.template.zh-CN.md must declare the workflow contract version");
+    const version = declared[1];
+
+    for (const f of ["AGENTS.md", "AGENTS.template.en.md"]) {
+      const found = read(f).match(headerRe);
+      assert.ok(found, `${f} must declare the workflow contract version`);
+      assert.equal(found[1], version, `${f} must declare workflow version v${version}`);
+    }
+  });
+
+  // The layering rule's own detail lives in documentation-management; the
+  // workflow entry must point at it rather than restate it (which is what the
+  // rule itself prescribes).
+  test("workflow entry defers layering detail instead of restating it", () => {
     for (const f of ["AGENTS.md", "AGENTS.template.zh-CN.md", "AGENTS.template.en.md"]) {
       const text = read(f);
       assert.match(
         text,
-        /(?:最近作用域[^\n]*`AGENTS\.md`|nearest-scope `AGENTS\.md`)/i,
-        `${f} must state that Agents load the nearest-scope AGENTS.md`,
-      );
-      assert.match(
-        text,
-        /(?:根 `AGENTS\.md` 只保留全局规则和索引导航|Keep the root `AGENTS\.md` to global rules and index-style navigation)/i,
-        `${f} must keep the root instruction file to global rules plus navigation`,
-      );
-      assert.match(
-        text,
-        /(?:在该目录建立 `AGENTS\.md`|create an `AGENTS\.md` there)/i,
-        `${f} must require pushing locally scoped detail into a subdirectory AGENTS.md`,
-      );
-      assert.match(
-        text,
-        /(?:成体系的长内容写进对应作用域的 `docs\/`|Put long, structured content in the `docs\/` of the matching scope)/i,
-        `${f} must route long-form content into the matching scope's docs/`,
-      );
-      assert.match(
-        text,
-        /(?:单行索引|one-line index)/i,
-        `${f} must require a one-line index pointing at deferred content`,
+        /documentation-management/,
+        `${f} must index documentation-management as the layering source of truth`,
       );
     }
   });

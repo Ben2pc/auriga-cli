@@ -37,14 +37,12 @@
 | `docs/long-running-specs/` | 跨多个 PR 的总规范、共同约束、切片顺序和状态矩阵；当前 PR 的独立验收契约仍放 `docs/specs/` | 跨 PR；全部子 PR 结束后人工归档 |
 | `docs/architecture/` | 稳定设计文档 + ADR（`ADR-<序号>-<标题>.md`） | 长期 |
 
-每个文件只承载一个主题，靠目录和索引组织，不要把不同用途堆进同一个大文件。
-
 ## 运行框架原则
 
 - **约束靠机制执行，不靠提示词**：核心规则尽量用 linter / CI / 类型系统 / hook 执行。
 - **仓库保存长期事实**：需要跨会话使用的当前事实、计划和设计决定必须存在于 Agent 可访问的版本化资产中。
 - **持续对抗熵增**：处理评审发现时，在不扩大当前改动范围的前提下，持续偿还确定、低风险的小额技术债务。
-- **上下文分层，按需加载**：Agent 在某个目录工作时会自动加载最近作用域的 `AGENTS.md`，所以规则应当放在它实际约束的范围内，而不是全部堆进根文件。根 `AGENTS.md` 只保留全局规则和索引导航；当某个子包、子系统或目录有了自己的工具链、约定或只在局部生效的细节，就在该目录建立 `AGENTS.md` 并配 `CLAUDE.md -> AGENTS.md` 兼容软链，把细节下沉过去。成体系的长内容写进对应作用域的 `docs/`，由最近作用域的 `AGENTS.md` 用单行索引指向，让 Agent 需要时再读取。
+- **上下文分层，按需加载**：规则写在它实际约束的作用域里，根 `AGENTS.md` 只放全局规则和索引。子包或有独立工具链、独立约定的目录维护自己的 `AGENTS.md`，并配 `CLAUDE.md -> AGENTS.md` 兼容软链。运行时对子作用域指令的自动加载范围并不一致，所以下沉的内容必须同时由上层 `AGENTS.md` 单行索引指向，不能假设它一定会被自动读取。分层判据见 `documentation-management`。
 
 ## Agent 分发原则
 
@@ -53,7 +51,7 @@
 - 只有用户明确要求独立进程，或任务确实需要跨模型、零污染的新视角时，才使用外部 Agent。
 - 派遣时明确结果目标、范围、验证方式和输出要求；模型与推理强度按任务风险选择，并在运行时支持时覆盖。
 
-<!-- AURIGA:WORKFLOW:v1 END sha256=821c4f90d684c5ff -->
+<!-- AURIGA:WORKFLOW:v1 END sha256=2b4c66cd40f16bac -->
 
 <!-- 在下方添加你的工程专属规则。上方受管区块由 auriga-cli 维护,升级时整块替换;此处内容会被保留。 -->
 
@@ -77,6 +75,7 @@
 - `plugins/session-instructions-loader/` 负责 Codex SessionStart 的祖先指令注入。
 - `.codex/session-instructions-loader.json` 在这个仓库里有意设置为 `{ "ancestorLevel": 1 }`；不要重新加回 `.claude/CLAUDE.md` 的额外注入。
 - `.claude/` 只保留本地设置和外部 skill 的符号链接。不要重新引入 `.claude/AGENTS.md` 或 `.claude/CLAUDE.md` 兼容项。
+- `ui/` 是独立工具链的 Web UI 子项目，规则见 `ui/AGENTS.md`；改动该目录前先读它。
 
 这个区域的关键测试：
 
@@ -128,12 +127,7 @@ npm run test:git-guards
 
 ## 文档规则
 
-- 当前 PR 独有的活动规划 / 设计产物只在开发期间放在 `docs/specs/`。
-- PR Ready 时要求 `docs/specs/` 为空：要么晋升到 `docs/architecture/`，要么归档到 `docs/worklog/worklog-<YYYY-MM-DD>-<branch-name>/`，要么删除。
-- 跨多个 PR 的总规范放在 `docs/long-running-specs/`；它不受单个 PR 的 Ready 清理门禁影响，全部子 PR 结束后由人工归档。
-- 稳定的模块和流程文档放在 `docs/architecture/`、`docs/rules/`、`docs/runbooks/`，或者其他按用途划分的目录下。
-- `docs/rules/review/` 放的是给 `deep-review` 使用的项目自定义 reviewer。
-- `docs/rules/test/` 放的是项目测试规则；`test-driven-development` 在写测试前必须先检查相关文件。
+各目录的用途和生命周期见上方受管区块的「文档规范」表，这里不重复。本仓库额外使用 `docs/runbooks/` 存放操作手册。
 
 ## 编辑指引
 

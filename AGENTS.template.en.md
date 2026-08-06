@@ -37,14 +37,12 @@ Repo documentation lives under `docs/`, one directory per purpose:
 | `docs/long-running-specs/` | Program specs, shared constraints, slice order, and status matrices spanning multiple PRs; acceptance contracts unique to the current PR still belong in `docs/specs/` | Cross-PR; archived manually after all child PRs finish |
 | `docs/architecture/` | Stable design docs + ADRs (`ADR-<n>-<title>.md`) | Long-lived |
 
-One file carries one topic; organize by directory and index instead of piling different purposes into one large file.
-
 ## Harness Principles
 
 - **Enforce constraints via mechanisms, not prompts**: core rules belong in linters / CI / type systems / hooks.
 - **Keep durable facts in the repository**: current facts, plans, and design decisions needed across sessions must live in versioned assets that Agents can access.
 - **Continuously fight entropy**: when deciding how to handle review findings, pay down small, certain, low-risk technical debt without expanding the current change's scope.
-- **Layer context, load on demand**: an Agent working in a directory automatically loads the nearest-scope `AGENTS.md`, so a rule belongs to the scope it actually governs instead of being piled into the root file. Keep the root `AGENTS.md` to global rules and index-style navigation; once a subpackage, subsystem, or directory has its own toolchain, conventions, or locally scoped detail, create an `AGENTS.md` there with a `CLAUDE.md -> AGENTS.md` compatibility symlink and push that detail down. Put long, structured content in the `docs/` of the matching scope and point at it with a one-line index from the nearest-scope `AGENTS.md`, so Agents read it only when they need it.
+- **Layer context, load on demand**: a rule belongs to the scope it actually governs; keep the root `AGENTS.md` to global rules and an index. A subpackage, or a directory with its own toolchain and conventions, maintains its own `AGENTS.md` plus a `CLAUDE.md -> AGENTS.md` compatibility symlink. Runtimes differ in how much of a sub-scope they auto-load, so anything pushed down must also be pointed at by a one-line index in the parent `AGENTS.md` — never assume it will be read automatically. See `documentation-management` for the layering criteria.
 
 ## Agent Dispatch Principles
 
