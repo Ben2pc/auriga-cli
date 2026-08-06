@@ -421,9 +421,11 @@ describe("spec-design skill — repo-check VALs", () => {
         assert.match(text, re, `${f} must carry the layered-context rule (${lang}): ${re}`);
       }
       // The rule must not be undercut by an escape hatch in the same file.
+      // This closes known reversals only — a negative assertion cannot
+      // enumerate every way prose could weaken the rule.
       assert.doesNotMatch(
         text,
-        /(?:堆进根文件|全部(?:写|放)进根 `AGENTS\.md`|pile everything into the root)/i,
+        /(?:堆进根|全部(?:写|放)进根|pile (?:everything|it all) into the root|all in(?:to)? the root `AGENTS\.md`)/i,
         `${f} must not offer an opt-out from layering`,
       );
     }
