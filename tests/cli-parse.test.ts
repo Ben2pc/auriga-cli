@@ -59,12 +59,12 @@ describe("parseArgs", () => {
         filter: ["planning-with-files", "playwright-cli"],
       },
     });
-    assert.deepEqual(installArgs(["recommended", "--recommended-skill", "codex-agent"]), {
+    assert.deepEqual(installArgs(["recommended", "--recommended-skill", "frontend-design"]), {
       command: "install",
       install: {
         all: false,
         type: "recommended",
-        filter: ["codex-agent"],
+        filter: ["frontend-design"],
       },
     });
     assert.deepEqual(installArgs(["plugins", "--scope", "user", "--plugin", "auriga-workflow"]), {
@@ -143,7 +143,7 @@ describe("parseArgs", () => {
     expectParseError(["install", "--all", "recommended"], /--all is atomic; no extra types or filters/i);
     expectParseError(["install", "--all", "--skill", "planning-with-files"], /--all is atomic; no extra types or filters/i);
     expectParseError(["install", "workflow", "--skill", "planning-with-files"], /--skill requires 'install skills'/i);
-    expectParseError(["install", "--recommended-skill", "codex-agent"], /--recommended-skill requires 'install recommended'/i);
+    expectParseError(["install", "--recommended-skill", "frontend-design"], /--recommended-skill requires 'install recommended'/i);
     expectParseError(["install", "workflow", "--plugin", "auriga-workflow"], /--plugin requires 'install plugins'/i);
     expectParseError(["install", "skills", "--lang", "en"], /--lang\/--cwd only apply to workflow/i);
     expectParseError(["install", "workflow", "--scope", "user"], /--scope does not apply to workflow/i);
@@ -189,7 +189,7 @@ describe("parseArgs", () => {
   // Covers spec §7 catalog-backed validation, strict value validation, and guide arity fail-fast.
   test("validates names, language, scope, cwd, and guide arity", () => {
     expectParseError(["install", "skills", "--skill", "foo"], /unknown skill 'foo'; available: .*planning-with-files/i);
-    expectParseError(["install", "recommended", "--recommended-skill", "foo"], /available: .*codex-agent/i);
+    expectParseError(["install", "recommended", "--recommended-skill", "foo"], /available: .*frontend-design/i);
     expectParseError(["install", "plugins", "--plugin", "foo"], /available: .*auriga-workflow/i);
     expectParseError(["install", "skills", "--skill", "incremental-impl"], /auriga-workflow/i);
     expectParseError(

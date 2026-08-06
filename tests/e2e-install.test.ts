@@ -315,15 +315,15 @@ describe(
       );
     });
 
-    test("install recommended --recommended-skill codex-agent → only codex-agent lands", { timeout: TIMEOUT }, () => {
+    test("install recommended --recommended-skill frontend-design → only frontend-design lands", { timeout: TIMEOUT }, () => {
       const proj = setupProject(tarballPath!);
-      const r = runCli(proj, ["install", "recommended", "--recommended-skill", "codex-agent"]);
+      const r = runCli(proj, ["install", "recommended", "--recommended-skill", "frontend-design"]);
       assert.equal(
         r.status,
         0,
         `install recommended exited ${r.status}.\nstdout: ${r.stdout}\nstderr: ${r.stderr}`,
       );
-      assert.ok(findSkillFile(proj, "codex-agent"), "codex-agent SKILL.md missing");
+      assert.ok(findSkillFile(proj, "frontend-design"), "frontend-design SKILL.md missing");
     });
 
     test(

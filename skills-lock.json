@@ -1,18 +1,6 @@
 {
   "version": 1,
   "skills": {
-    "claude-code-agent": {
-      "source": "Ben2pc/g-claude-code-plugins",
-      "sourceType": "github",
-      "skillPath": "skills/claude-code-agent/SKILL.md",
-      "computedHash": "16cfeb17ec5488b9455f5cfa2be2f73146ebd8eb9f73cefb2d87b37d7e43cd9c"
-    },
-    "codex-agent": {
-      "source": "Ben2pc/g-claude-code-plugins",
-      "sourceType": "github",
-      "skillPath": "skills/codex-agent/SKILL.md",
-      "computedHash": "160315229913b882dd22202f942adf3a316692cc3376eb189da0dda2203a294b"
-    },
     "deprecation-and-migration": {
       "source": "addyosmani/agent-skills",
       "sourceType": "github",

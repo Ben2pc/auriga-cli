@@ -60,12 +60,13 @@ describe("generateCatalog (build-time)", () => {
     assertEntriesShape(catalog.workflowSkills, "workflowSkills");
   });
 
-  test("recommended skills: 6 entries (cross-model delegators + frontend skills + deprecation-and-migration); documentation management is owned by auriga-workflow", () => {
-    assert.equal(catalog.recommendedSkills.length, 6);
+  // The cross-model delegators (claude-code-agent / codex-agent) were dropped
+  // when their upstream source removed them; documentation management is owned
+  // by auriga-workflow.
+  test("recommended skills: 4 entries (frontend skills + deprecation-and-migration)", () => {
+    assert.equal(catalog.recommendedSkills.length, 4);
     const names = catalog.recommendedSkills.map((e) => e.name).sort();
     assert.deepEqual(names, [
-      "claude-code-agent",
-      "codex-agent",
       "deprecation-and-migration",
       "design-taste-frontend",
       "frontend-design",
