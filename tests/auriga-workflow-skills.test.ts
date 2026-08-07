@@ -219,8 +219,32 @@ describe("auriga-workflow skill contracts", () => {
     assert.match(skill, /`CLAUDE\.md -> AGENTS\.md` 兼容软链/);
     assert.match(skill, /仓库根只放全局规则与导航/);
     assert.match(skill, /子包[^。\n]*自己的根目录维护 `AGENTS\.md`/);
-    assert.match(skill, /最近的适用作用域[^。\n]*`AGENTS\.md` 建立索引/);
+    // Layered loading: the parent one-line pointer to a sub-scope AGENTS.md is
+    // a load-bearing mechanism (runtimes don't reliably auto-load sub-scopes);
+    // every other doc index is a nice-to-have bounded by token cost.
+    assert.match(skill, /子作用域 `AGENTS\.md` 必须由父级[^。\n]*单行指针/);
+    assert.match(skill, /索引是可选优化[^。\n]*不是义务/);
+    assert.match(skill, /过长的索引[^。\n]*反渐进式披露/);
+    assert.doesNotMatch(
+      skill,
+      /(?:所有|全部|每个)[^\n。]{0,10}文档[^\n。]{0,10}(?:必须|都要)[^\n。]{0,8}索引/,
+      "general doc indexing must stay optional, never a blanket mandate",
+    );
     assert.match(skill, /最近公共祖先/);
+    // Content focus: docs carry what code cannot express; code-level detail
+    // sinks to inline comments; doc debt is technical debt in context terms.
+    assert.match(skill, /文档债是技术债/);
+    assert.match(skill, /消耗 token/);
+    assert.match(skill, /代码推不出来的事实/);
+    assert.match(skill, /下沉为行内注释/);
+    assert.match(skill, /为什么 > 是什么/);
+    // Audience signal: traditional names default to human readers; human docs
+    // lead with overview + diagrams.
+    assert.match(skill, /`README\.md`[^。\n]*默认面向人类/);
+    assert.match(skill, /以 overview 为主[^。\n]*图/);
+    assert.match(standards, /为什么 > 是什么/);
+    assert.match(standards, /单行指针/);
+    assert.match(standards, /行内注释/);
     assert.match(skill, /ADR 可以同时服务人类与 Agent/);
     assert.match(standards, /架构文档、接口契约、schema、ADR 等资料[^。]*不套用提示词结构/);
     assert.match(standards, /仅对提示词、项目规则和标准操作流程等行为指令/);
@@ -1308,6 +1332,21 @@ describe("deep-review modernization contract", () => {
     assert.match(text, /Codex：[\s\S]*quick_validate\.py/);
     assert.match(text, /两种验证器可用时都运行/);
     assert.match(text, /不要每次审查抓取全部官方文档/);
+  });
+
+  test("skill and plugin review covers context engineering of instruction assets", () => {
+    const text = reviewer("skill-plugin-quality");
+    // The four reportable finding classes for instruction entry points.
+    assert.match(text, /分层错位/);
+    assert.match(text, /披露失败/);
+    assert.match(text, /内容焦点/);
+    assert.match(text, /受众错位/);
+    // The parent pointer is load-bearing; a general index stays optional so
+    // this reviewer never becomes an index-mandating size cop.
+    assert.match(text, /缺少父级单行指针[^。\n]*承重缺陷/);
+    assert.match(text, /索引是可选优化[^。\n]*缺索引不是缺陷/);
+    // Boundary against double-reporting with the docs reviewer.
+    assert.match(text, /交给 `docs-sync`/);
   });
 
   test("synthesis preserves sources, validation needs, gaps and read-only authority", () => {
