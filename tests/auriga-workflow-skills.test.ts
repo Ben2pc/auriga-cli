@@ -246,6 +246,13 @@ describe("auriga-workflow skill contracts", () => {
     assert.match(standards, /单行指针/);
     assert.match(standards, /行内注释/);
     assert.match(skill, /ADR 可以同时服务人类与 Agent/);
+    // Archiving is a governance action (link repair + promotion check), never
+    // a bare file move; the trigger sites below route here.
+    assert.match(skill, /归档是治理动作[^。\n]*不是直接移动文件/);
+    const gitWorkflow = read("plugins/auriga-workflow/skills/git-workflow/SKILL.md");
+    assert.match(gitWorkflow, /晋升、归档或删除[^。\n]*`documentation-management`/);
+    const specDesign = read("plugins/auriga-workflow/skills/spec-design/SKILL.md");
+    assert.match(specDesign, /归档或晋升[^。\n]*`documentation-management`/);
     assert.match(standards, /架构文档、接口契约、schema、ADR 等资料[^。]*不套用提示词结构/);
     assert.match(standards, /仅对提示词、项目规则和标准操作流程等行为指令/);
     assert.match(skill, /docs-sync[^。\n]*独立审查/);
