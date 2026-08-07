@@ -395,15 +395,20 @@ function formatReadyBlockMessage(artifacts, route) {
   const promoteable = artifacts.activeSpecs.length > 0;
   const archiveTarget = "docs/worklog/worklog-<YYYY-MM-DD>-<branch>/";
 
+  // Route the execution through the documentation-management skill: archiving
+  // is a governance action (promotion check + link repair), and this message
+  // fires at the exact moment an agent would otherwise bare-`mv` the specs.
+  const routeHint =
+    "execute via the documentation-management skill, not a bare file move";
   let remediation;
   if (route === "create-nondraft") {
     const promoteHint = promoteable ? "promote to docs/architecture/, " : "";
     remediation =
-      `Resolve before \`gh pr create\` without --draft: ${promoteHint}archive to ${archiveTarget}, or delete. Alternatively, pass --draft to defer the Ready transition to a separate \`gh pr ready\`.`;
+      `Resolve before \`gh pr create\` without --draft: ${promoteHint}archive to ${archiveTarget}, or delete — ${routeHint}. Alternatively, pass --draft to defer the Ready transition to a separate \`gh pr ready\`.`;
   } else {
     remediation = promoteable
-      ? `Resolve before marking ready: promote to docs/architecture/, archive to ${archiveTarget}, or delete.`
-      : `Archive to ${archiveTarget} or delete before marking ready.`;
+      ? `Resolve before marking ready: promote to docs/architecture/, archive to ${archiveTarget}, or delete — ${routeHint}.`
+      : `Archive to ${archiveTarget} or delete before marking ready — ${routeHint}.`;
   }
   return `${parts.join("; ")}. ${remediation}`;
 }

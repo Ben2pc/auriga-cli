@@ -227,6 +227,20 @@ const cases = [
     expect: { status: 2, stderrIncludes: "promote to docs/architecture/" },
   },
   {
+    // Archiving is a governance action (promotion check + link repair); the
+    // hook fires at the exact moment an agent would otherwise `mv` the specs,
+    // so its remediation must route through the documentation-management skill.
+    name: "remediation routes archive/promote through documentation-management",
+    setup: () => {
+      const dir = makeRepo();
+      const activeDir = path.join(dir, "docs", "specs");
+      fs.mkdirSync(activeDir, { recursive: true });
+      fs.writeFileSync(path.join(activeDir, "feature-x-design.md"), "# spec\n");
+      return { cwd: dir, cmd: "gh pr ready" };
+    },
+    expect: { status: 2, stderrIncludes: "documentation-management" },
+  },
+  {
     name: "empty docs/specs/ does NOT block",
     setup: () => {
       const dir = makeRepo();
