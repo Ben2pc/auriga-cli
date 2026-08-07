@@ -199,7 +199,7 @@ npx skills update --project
 
 ## Web UI 手动验证
 
-在 PR Ready 之前（并且在合并前再次执行），凡是改动 `src/state.ts`、`src/scan-catalog.ts`、`src/server.ts`、`src/api-types.ts`、`src/build/generate-catalog.ts`、`ui/`，或者任何流向 `dist/catalog.json` / runtime content fetch 的输入（`AGENTS.template.*.md`、`.claude-plugin/marketplace.json`、`.agents/plugins/marketplace.json`、`extra_plugin_configs.json`、`skills-lock.json`、`plugins/<name>/.claude-plugin/plugin.json`、`plugins/<name>/.codex-plugin/plugin.json`、plugin `hooks/hooks.json`），都要从三个 project root 启动已安装的 `web-ui`，并逐行肉眼检查。自动化的 `tests/tarball-shape.test.ts` 只覆盖构建期 tarball-shape 契约；这个手动步骤覆盖的是在真实安装状态下的 runtime 行为，没法靠单元测试为每种 project shape 都构造完整 hermetic fixture。
+按需执行，不是 Ready 门禁。当改动实质影响 Web UI 的运行时行为（`src/state.ts`、`src/scan-catalog.ts`、`src/server.ts`、`src/api-types.ts`、`ui/` 等），且单元测试与 `tests/tarball-shape.test.ts` 无法给出信心时，可从三个 project root 启动已安装的 `web-ui` 人工核对——手动步骤覆盖的是真实安装状态下的 runtime 行为，单元测试难以为每种 project shape 构造完整 hermetic fixture。
 
 1. `~/` —— 暴露 scope boundary 的边角情况（例如 `<proj>/.claude/CLAUDE.md` 折叠到 `$HOME/.claude/CLAUDE.md`）
 2. `~/Workspace/`（或者任何不是 auriga-cli 父目录的位置）——“什么都没安装”的基线状态

@@ -24,4 +24,4 @@ npm --prefix ui build  # tsc && vite build
 
 `ui/` 不随 npm tarball 发布，只作为 Release asset。因此运行时读取路径不能假设 `ui/` 存在于已安装的包里——这类回归由 `../tests/tarball-shape.test.ts` 约束。
 
-改动本目录、`../src/server.ts`、`../src/state.ts` 或任何流向 `dist/catalog.json` 的输入后，PR Ready 前要按 `../docs/architecture/auriga-cli-dev-guide.md` 的「手工 Web UI 检查」一节，从三个 project root 启动已安装的 `web-ui` 逐行核对。
+对本目录或 `../src/server.ts` 的实质行为改动，若自动化测试无法给出信心，可按需参照 `../docs/architecture/auriga-cli-dev-guide.md` 的「Web UI 手动验证」一节人工核对；这不是 Ready 门禁。
