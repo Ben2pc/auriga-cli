@@ -170,7 +170,7 @@ npm test         # tsc -p tsconfig.test.json → dist-test/，然后 node --test
                  #   单元 + 集成测试在 tests/ 里。测试文件白名单手工维护在 package.json 的
                  #   `test` / `test:watch` scripts 里——新增测试文件时要把它们加进去。
 
-npm run test:e2e # 完整的 tarball install e2e（约 90-120s）。会打包真实的 npm
+npm run test:e2e # tarball install e2e（约 1-2 分钟；每个安装面一个代表场景，组合逻辑由单元测试覆盖）。会打包真实的 npm
                  # tarball，安装进 scratch project，在 GitHub content 上运行
                  # `auriga-cli install`，并把内容 pin 到 HEAD SHA。pretest hook 会先跑
                  # `npm run build`，确保 tarball 始终反映当前 src/。需要 HEAD 已推送

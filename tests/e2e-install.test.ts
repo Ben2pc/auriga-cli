@@ -11,7 +11,7 @@ import { after, before, describe, test } from "node:test";
 // Unit tests mock fetch + installer modules; entrypoint.test.ts covers
 // the bin-symlink path on the raw dist/cli.js. What nothing covers is
 // "take the ACTUAL npm tarball we'd publish, install it into a clean
-// project, spawn `auriga-cli install --all` against real GitHub content
+// project, spawn `auriga-cli install` against real GitHub content
 // pinned to the current HEAD SHA, and assert files land correctly".
 //
 // The gap matters because our content-fetch path couples the published
@@ -20,11 +20,18 @@ import { after, before, describe, test } from "node:test";
 // Before this test, the only way to validate that coupling end-to-end
 // was to publish to npm and try it — the worst possible discovery path.
 //
-// This test is LOCAL-ONLY for now (dev runs it after `git push`):
+// Deliberately slim: one scenario per install surface (workflow content
+// fetch, external skill via the skills CLI, plugin via the Claude
+// marketplace). Category composition (`install --all`, recommended
+// filters) and the legacy-notify migration are unit-covered
+// (cli-parse / apply-handlers / plugins tests); repeating them here
+// only added minutes of runtime and clones of slow external repos —
+// planning-with-files in particular flaked on unauthenticated GitHub
+// rate limits.
+//
+// Run after `git push` (the suite skips on unpushed HEAD):
 //   npm run test:e2e
-// It's NOT in `npm test` because it takes ~1-2 minutes and requires
-// network access. A follow-up release workflow will wire the same test
-// into a tag-push publish gate.
+// Not in `npm test`: requires network. release.yml runs it at tag time.
 
 // `npm run test:e2e` always runs from the repo root (same contract as
 // `npm test`). We rely on this to resolve relative npm/git commands.
@@ -152,10 +159,6 @@ describe(
       return spawnSync(bin, args, { cwd: proj, encoding: "utf-8", env });
     }
 
-    function isClaudeMarketplaceMissingPlugin(output: string, pluginName: string): boolean {
-      return new RegExp(`Plugin "${pluginName}" not found in marketplace "auriga-cli"`).test(output);
-    }
-
     // Skills materialize at `.agents/skills/<name>` OR `.claude/skills/<name>`
     // depending on the upstream `skills` CLI's convention. Check both
     // so the assertion survives a benign path-convention bump.
@@ -177,8 +180,7 @@ describe(
     // registry or GitHub can in principle hang (registry slow-lane,
     // `claude plugins install` waiting on auth prompt on some CLI
     // versions). Without a timeout the suite hangs indefinitely,
-    // which is nasty for a release gate. 180s per test is generous
-    // for the 30-40s `install skills` / `install --all` scenarios.
+    // which is nasty for a release gate.
     const TIMEOUT = 180_000;
 
     before(() => {
@@ -290,42 +292,6 @@ describe(
       assert.equal(fs.readlinkSync(claudeMd), "AGENTS.md");
     });
 
-    test("install skills → WORKFLOW_SKILLS land without modifying a retired user copy", { timeout: TIMEOUT }, () => {
-      const proj = setupProject(tarballPath!);
-      const retiredSkill = path.join(
-        proj,
-        ".agents",
-        "skills",
-        "verification-before-completion",
-        "SKILL.md",
-      );
-      fs.mkdirSync(path.dirname(retiredSkill), { recursive: true });
-      fs.writeFileSync(retiredSkill, "# team-managed retired copy\n");
-      const r = runCli(proj, ["install", "skills"]);
-      assert.equal(
-        r.status,
-        0,
-        `install skills exited ${r.status}.\nstdout: ${r.stdout}\nstderr: ${r.stderr}`,
-      );
-      assert.ok(findSkillFile(proj, "planning-with-files"), "planning-with-files SKILL.md missing");
-      assert.equal(
-        fs.readFileSync(retiredSkill, "utf-8"),
-        "# team-managed retired copy\n",
-        "installing the remaining workflow skills must not modify a retired user-managed copy",
-      );
-    });
-
-    test("install recommended --recommended-skill frontend-design → only frontend-design lands", { timeout: TIMEOUT }, () => {
-      const proj = setupProject(tarballPath!);
-      const r = runCli(proj, ["install", "recommended", "--recommended-skill", "frontend-design"]);
-      assert.equal(
-        r.status,
-        0,
-        `install recommended exited ${r.status}.\nstdout: ${r.stdout}\nstderr: ${r.stderr}`,
-      );
-      assert.ok(findSkillFile(proj, "frontend-design"), "frontend-design SKILL.md missing");
-    });
-
     test(
       "install plugins --plugin auriga-workflow → plugin registered without modifying standalone skills",
       { skip: CLAUDE_AVAILABLE ? undefined : "requires 'claude' CLI", timeout: TIMEOUT },
@@ -364,78 +330,19 @@ describe(
       },
     );
 
-    test(
-      "install plugins --plugin auriga-notify → plugin registered + legacy notify config migrated",
-      { skip: CLAUDE_AVAILABLE ? undefined : "requires 'claude' CLI", timeout: TIMEOUT },
-      (t) => {
-        const proj = setupProject(tarballPath!);
-        const legacyDir = path.join(proj, ".claude", "hooks", "notify");
-        fs.mkdirSync(legacyDir, { recursive: true });
-        fs.writeFileSync(path.join(legacyDir, "config.json"), JSON.stringify({ title: "legacy" }));
-        fs.writeFileSync(path.join(legacyDir, "icon.png"), "legacy-icon");
-        fs.writeFileSync(
-          path.join(proj, ".claude", "settings.json"),
-          JSON.stringify({
-            hooks: {
-              Notification: [
-                {
-                  hooks: [
-                    {
-                      type: "command",
-                      command: "node .claude/hooks/notify/index.mjs",
-                      _marker: "auriga:notify",
-                    },
-                  ],
-                },
-              ],
-            },
-          }),
-        );
-
-        const r = runCli(proj, ["install", "plugins", "--plugin", "auriga-notify"]);
-        if (r.status !== 0 && isClaudeMarketplaceMissingPlugin(r.stderr, "auriga-notify")) {
-          t.skip("auriga-notify is present on this PR branch but not yet in the Claude marketplace default branch");
-          return;
-        }
-        assert.equal(
-          r.status,
-          0,
-          `install plugins exited ${r.status}.\nstdout: ${r.stdout}\nstderr: ${r.stderr}`,
-        );
-
-        const settings = path.join(proj, ".claude", "settings.json");
-        assert.ok(fs.existsSync(settings), ".claude/settings.json missing");
-        const content = fs.readFileSync(settings, "utf-8");
-        assert.match(content, /auriga-notify/, "auriga-notify not mentioned in .claude/settings.json");
-
-        const pluginConfigDir = path.join(proj, ".claude", "auriga-notify");
-        assert.equal(
-          fs.readFileSync(path.join(pluginConfigDir, "config.json"), "utf-8"),
-          JSON.stringify({ title: "legacy" }),
-          "legacy notify config.json was not preserved under the plugin config dir",
-        );
-        assert.equal(
-          fs.readFileSync(path.join(pluginConfigDir, "icon.png"), "utf-8"),
-          "legacy-icon",
-          "legacy notify icon.png was not preserved under the plugin config dir",
-        );
-        assert.equal(fs.existsSync(legacyDir), false, "legacy .claude/hooks/notify dir should be removed");
-
-        const parsed = JSON.parse(content) as {
-          hooks?: Record<string, Array<{ hooks: Array<{ _marker?: string }> }>>;
-        };
-        const markers = Object.values(parsed.hooks ?? {})
-          .flatMap((events) => events.flatMap((e) => e.hooks.map((h) => h._marker)));
-        assert.equal(
-          markers.some((m) => typeof m === "string" && m.includes("notify")),
-          false,
-          `legacy auriga:notify marker should be removed, got ${JSON.stringify(markers)}`,
-        );
-      },
-    );
-
-    test("install skills --skill playwright-cli → filter actually filters (other skills absent)", { timeout: TIMEOUT }, () => {
+    test("install skills --skill playwright-cli → filter filters, retired user copy untouched", { timeout: TIMEOUT }, () => {
       const proj = setupProject(tarballPath!);
+      // A retired, user-managed skill copy sits next to the install
+      // target; the installer must leave it byte-identical.
+      const retiredSkill = path.join(
+        proj,
+        ".agents",
+        "skills",
+        "verification-before-completion",
+        "SKILL.md",
+      );
+      fs.mkdirSync(path.dirname(retiredSkill), { recursive: true });
+      fs.writeFileSync(retiredSkill, "# team-managed retired copy\n");
       const r = runCli(proj, ["install", "skills", "--skill", "playwright-cli"]);
       assert.equal(
         r.status,
@@ -452,64 +359,11 @@ describe(
         !findSkillDir(proj, "planning-with-files"),
         "non-selected skill leaked through filter: planning-with-files",
       );
+      assert.equal(
+        fs.readFileSync(retiredSkill, "utf-8"),
+        "# team-managed retired copy\n",
+        "installing a workflow skill must not modify a retired user-managed copy",
+      );
     });
-
-    test(
-      "install --all → workflow + skills + default plugins present, opt-in notify absent",
-      { skip: CLAUDE_AVAILABLE ? undefined : "requires 'claude' CLI", timeout: TIMEOUT },
-      (t) => {
-        const proj = setupProject(tarballPath!);
-        const r = runCli(proj, ["install", "--all"]);
-        // `install --all` may exit 2 on partial success. Accept 0 as
-        // strict pass, 2 as soft pass only if every must-have category
-        // artifact landed — per-category assertions below catch the
-        // silent-failure regression where one category errors inside
-        // the loop and the test otherwise accepts "mostly green".
-        if (r.status !== 0 && r.status !== 2) {
-          assert.fail(`install --all exited ${r.status}.\nstdout: ${r.stdout}\nstderr: ${r.stderr}`);
-        }
-
-        const agentsMd = path.join(proj, "AGENTS.md");
-        assert.ok(fs.existsSync(agentsMd) && fs.statSync(agentsMd).size > 0, "AGENTS.md missing/empty (workflow category)");
-
-        assert.ok(findSkillFile(proj, "planning-with-files"), "planning-with-files SKILL.md missing (skills category)");
-
-        // Plugins category: `.claude/settings.json` exists AND mentions
-        // every default-on plugin. Gated above by CLAUDE_AVAILABLE so
-        // claude plugins install can actually write it.
-        const settings = path.join(proj, ".claude", "settings.json");
-        assert.ok(fs.existsSync(settings), ".claude/settings.json missing (plugins category)");
-        const settingsContent = fs.readFileSync(settings, "utf-8");
-        for (const pluginName of ["auriga-workflow", "quality-gate-scaffolder"]) {
-          // Skip in the pre-merge window where the plugin is present on this
-          // PR branch but not yet in the Claude marketplace default branch
-          // (see the --plugin test).
-          if (
-            !settingsContent.includes(pluginName)
-            && isClaudeMarketplaceMissingPlugin(r.stderr, pluginName)
-          ) {
-            t.skip(
-              `${pluginName} is present on this PR branch but not yet in the Claude marketplace default branch`,
-            );
-            return;
-          }
-          assert.match(
-            settingsContent,
-            new RegExp(pluginName),
-            `${pluginName} plugin not registered in settings.json (default plugin selection regressed)`,
-          );
-        }
-        assert.doesNotMatch(
-          settingsContent,
-          /auriga-notify/,
-          "auriga-notify is opt-in and must not be installed by install --all",
-        );
-        assert.equal(
-          fs.existsSync(path.join(proj, ".claude", "auriga-notify")),
-          false,
-          "auriga-notify config dir should not be created by install --all",
-        );
-      },
-    );
   },
 );
