@@ -129,7 +129,7 @@ description: 基于实际代码与产品事实澄清新增或改变外部可见�
 
 只有当一个部分能够形成独立确认、独立验收且不误导总体目标的完整用户结果时，才拆成子规范。文件数、模块数、代码行数和实施手法不是需求拆分标准。
 
-工作明确跨多个 PR 时，先取得用户明确确认长期生命周期，再把总规范、共同约束和状态放入 `docs/long-running-specs/<topic>/`。每个子规范复制或派生所有适用的长期 VAL，并在 `umbrella.md` 维护父子覆盖关系。长期规范不能替代或绕过当前子 PR 的 `docs/specs/<child-topic>/` 契约和 Ready 生命周期；全部子 PR 结束后由人工决定长期规范的归档或晋升。
+工作明确跨多个 PR 时，先取得用户明确确认长期生命周期，再把总规范、共同约束和状态放入 `docs/long-running-specs/<topic>/`。每个子规范复制或派生所有适用的长期 VAL，并在 `umbrella.md` 维护父子覆盖关系。长期规范不能替代或绕过当前子 PR 的 `docs/specs/<child-topic>/` 契约和 Ready 生命周期；全部子 PR 结束后由人工决定长期规范的归档或晋升，执行时走 `documentation-management`，不直接移动文件。
 
 ### Phase D — 确认与交接
 

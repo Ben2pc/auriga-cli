@@ -431,6 +431,35 @@ describe("spec-design skill — repo-check VALs", () => {
     }
   });
 
+  // Rule 7 owns the archive decision, but skills only load on demand — the
+  // always-loaded workflow entry must carry the routing itself: archiving is
+  // a governance action executed via documentation-management, never a bare
+  // file move.
+  const ARCHIVE_ROUTING_ANCHORS: Record<string, RegExp[]> = {
+    "zh-CN": [/归档[^\n]*`documentation-management`[^\n]*不直接移动文件/],
+    en: [
+      /archiv\w*[^\n]*`documentation-management`[^\n]*(?:instead of|rather than|not|never)[^\n]*mov\w+ files/i,
+    ],
+  };
+
+  test("workflow entry routes spec archiving through documentation-management", () => {
+    const byFile: Array<[string, string]> = [
+      ["AGENTS.md", "zh-CN"],
+      ["AGENTS.template.zh-CN.md", "zh-CN"],
+      ["AGENTS.template.en.md", "en"],
+    ];
+    for (const [f, lang] of byFile) {
+      const text = read(f);
+      for (const re of ARCHIVE_ROUTING_ANCHORS[lang]) {
+        assert.match(
+          text,
+          re,
+          `${f} must route spec archiving through documentation-management (${lang}): ${re}`,
+        );
+      }
+    }
+  });
+
   // Structural invariants of the repo's own installed sample. These replace
   // per-sentence prose assertions: they catch *any* drift in the managed
   // block, not just the phrases someone remembered to pin.
