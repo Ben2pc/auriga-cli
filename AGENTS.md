@@ -121,9 +121,7 @@ npm run test:session-instructions-loader
 npm run test:git-guards
 ```
 
-`npm run test:e2e` 很慢，而且依赖网络。普通的文档、测试、注释，或者只改仓库指令时，不要默认运行它。只有当变更会影响 tarball/package 形态、`package.json` 版本或 bin 元数据、`fetchContentRoot()` / runtime content fetch、workflow/skill/plugin 的安装行为、marketplace 安装路径，或者在准备发布前，才运行它。它要求当前 HEAD 已经推送，因为它会安装 tarball，并抓取固定到分支 HEAD 的 GitHub 内容。
-
-在把 PR 标记为 Ready 之前，任何会影响 Web UI state/catalog inputs 的变更，都还要按 `docs/architecture/auriga-cli-dev-guide.md` 里的说明做一次手工 Web UI 检查。
+`npm run test:e2e` 依赖网络（约 1-2 分钟，每个安装面一个代表场景）。普通的文档、测试、注释，或者只改仓库指令时，不要默认运行它。只有当变更会影响 tarball/package 形态、`package.json` 版本或 bin 元数据、`fetchContentRoot()` / runtime content fetch、workflow/skill/plugin 的安装行为、marketplace 安装路径，或者在准备发布前，才运行它。它要求当前 HEAD 已经推送，因为它会安装 tarball，并抓取固定到分支 HEAD 的 GitHub 内容。
 
 ## 文档规则
 
