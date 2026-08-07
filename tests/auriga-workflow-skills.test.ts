@@ -253,6 +253,10 @@ describe("auriga-workflow skill contracts", () => {
     assert.match(gitWorkflow, /晋升、归档或删除[^。\n]*`documentation-management`/);
     const specDesign = read("plugins/auriga-workflow/skills/spec-design/SKILL.md");
     assert.match(specDesign, /归档或晋升[^。\n]*`documentation-management`/);
+    const goalify = read("plugins/auriga-workflow/skills/goalify/SKILL.md");
+    assert.match(goalify, /归档用 `documentation-management` 执行[^。\n]*不直接移动文件/);
+    const archDesign = read("plugins/auriga-workflow/skills/arch-design/SKILL.md");
+    assert.match(archDesign, /晋升与归档用 `documentation-management` 执行[^。\n]*不直接移动文件/);
     assert.match(standards, /架构文档、接口契约、schema、ADR 等资料[^。]*不套用提示词结构/);
     assert.match(standards, /仅对提示词、项目规则和标准操作流程等行为指令/);
     assert.match(skill, /docs-sync[^。\n]*独立审查/);

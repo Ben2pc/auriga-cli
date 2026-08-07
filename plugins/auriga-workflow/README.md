@@ -106,8 +106,9 @@ so both must enforce the same structural baseline:
    attestations, under the plan directory named by that pointer. Inactive plan
    directories and legacy root `task_plan.md`, `findings.md`, and `progress.md`
    files are intentionally ignored. Archive reusable active-plan documents to
-   `docs/worklog/worklog-<YYYY-MM-DD>-<branch-name>/`, then remove the pointer
-   and active directory before ready.
+   `docs/worklog/worklog-<YYYY-MM-DD>-<branch-name>/` via the
+   `documentation-management` skill, then remove the pointer and active
+   directory before ready.
 2. **Unfinalized active specs under `docs/specs/`** (both routes): the dev-only
    temp workspace for `spec-design` / `arch-design` outputs; by PR Ready every
    spec must be promoted to `docs/architecture/`, archived to `docs/worklog/`,
