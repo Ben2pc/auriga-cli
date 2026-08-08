@@ -124,7 +124,7 @@ Supports both project and global installation scopes.
 
 Installs selected plugins for Claude Code, Codex, or both. Claude Code uses `claude plugins install` and honors `--scope project|user`; Codex registers the marketplace via `codex plugin marketplace add/upgrade` (the right one is picked by reading `~/.codex/config.toml`), then installs each selected plugin with the native `codex plugin add <plugin>@<marketplace>` command. The Codex path requires a Codex CLI new enough to expose `codex plugin add`; on older versions the Codex-side install aborts with an upgrade hint.
 
-The four plugins maintained in this repository — `auriga-workflow`, `quality-gate-scaffolder`, `session-instructions-loader`, and `auriga-notify` — ship a root `plugin.json` compatible with [Agent Plugins 1.0.0](https://agent-plugins.org/specification). Standard clients discover portable components only from the fixed `skills/` and `mcp.json` locations. Hooks and interface metadata remain host-specific in the Claude Code and Codex manifests, so a standard package identity does not expand the runtime support shown below.
+The four plugins maintained in this repository — `auriga-workflow`, `quality-gate-scaffolder`, `session-instructions-loader`, and `auriga-notify` — ship a root `plugin.json` compatible with [Agent Plugins 1.0.0](https://agent-plugins.org/specification). Standard clients discover portable components only from the fixed `skills/` and `mcp.json` locations. Hooks remain in the conventional `hooks/hooks.json` registry, while host-specific interface metadata and explicit hook paths stay in the applicable Claude Code or Codex manifest. A standard package identity therefore does not expand the runtime support shown below.
 
 `auriga-workflow` only provides plugin-bundled skills; it never scans, modifies, or deletes same-name skills installed previously as standalone copies. After a team upgrade, verify the plugin skill first, then remove obsolete copies and lock entries with `npx skills remove <skill-name>` or by hand. This small-team transition is coordinated directly instead of maintaining an automatic cleanup state machine in the installer.
 
@@ -150,7 +150,7 @@ npx -y auriga-cli install plugins --agent codex --plugin session-instructions-lo
 ## Requirements
 
 - Node.js >= 18
-- [Claude Code](https://docs.anthropic.com/en/docs/claude-code) (required for the Plugins module)
+- [Claude Code](https://docs.anthropic.com/en/docs/claude-code) (required only when installing Claude-target plugins)
 - Codex CLI (required only for `install plugins --agent codex|both`)
 - [Homebrew](https://brew.sh) (recommended for the `auriga-notify` plugin to use `alerter`)
 

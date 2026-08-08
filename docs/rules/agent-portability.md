@@ -18,7 +18,7 @@ auriga-cli 的技能和插件要服务使用**不同编码 Agent** 的同事 —
 
 6. **散文里不枚举 Agent。** "粘回 Claude / Codex" 会随第三个 Agent 的出现而过期 —— 写 "the Agent"。
 
-7. **Agent Plugins 1.0.0 的可移植核心与宿主能力分层维护。** auriga-cli 自有插件必须在插件根目录提供根 `plugin.json`，并遵守闭合顶层字段；标准组件只从固定的 `skills/` 与 `mcp.json` 发现，缺少任一位置都是合法状态。hooks、interface 等宿主专属能力继续放在 `.claude-plugin/plugin.json`、`.codex-plugin/plugin.json` 或标准 `extensions` 下，不能复制到标准清单顶层，也不能把标准包身份误写成跨宿主行为支持。
+7. **Agent Plugins 1.0.0 的可移植核心与宿主能力分层维护。** auriga-cli 自有插件必须在插件根目录提供根 `plugin.json`，并遵守闭合顶层字段；标准组件只从固定的 `skills/` 与 `mcp.json` 发现，缺少任一位置都是合法状态。Hook 注册表放在 `hooks/hooks.json`；`interface`、Hook 路径等宿主专属覆盖字段继续放在适用的 `.claude-plugin/plugin.json`、`.codex-plugin/plugin.json` 或标准 `extensions` 下。它们都不能复制到标准清单顶层，也不能把标准包身份误写成跨宿主行为支持。
 
 ## 合理例外
 

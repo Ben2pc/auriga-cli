@@ -73,7 +73,7 @@
 - `src/workflow-markers.ts` 负责受管区块 marker 协议。
 - `plugins/auriga-workflow/` 负责 workflow skills 和 git 生命周期钩子。
 - `plugins/session-instructions-loader/` 负责 Codex SessionStart 的祖先指令注入。
-- `plugins/<name>/plugin.json` 是自有插件的 Agent Plugins 1.0.0 根 `plugin.json`：标准组件只从固定的 `skills/` 与 `mcp.json` 发现；hooks、interface 等宿主专属能力继续由宿主清单 `.claude-plugin/plugin.json`、`.codex-plugin/plugin.json` 或标准 `extensions` 承载。
+- `plugins/<name>/plugin.json` 是自有插件的 Agent Plugins 1.0.0 根 `plugin.json`：标准组件只从固定的 `skills/` 与 `mcp.json` 发现；Hook 注册表通过 `hooks/hooks.json` 分发，`interface`、Hook 路径等宿主专属覆盖字段放在适用的 `.claude-plugin/plugin.json`、`.codex-plugin/plugin.json` 或标准 `extensions` 中。
 - `.codex/session-instructions-loader.json` 在这个仓库里有意设置为 `{ "ancestorLevel": 1 }`；不要重新加回 `.claude/CLAUDE.md` 的额外注入。
 - `.claude/` 只保留本地设置和外部 skill 的符号链接。不要重新引入 `.claude/AGENTS.md` 或 `.claude/CLAUDE.md` 兼容项。
 - `ui/` 是独立工具链的 Web UI 子项目，规则见 `ui/AGENTS.md`；改动该目录前先读它。

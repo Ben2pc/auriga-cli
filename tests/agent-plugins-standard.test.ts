@@ -5,6 +5,15 @@ import { describe, test } from "node:test";
 
 const repoRoot = path.resolve(new URL(".", import.meta.url).pathname, "..", "..");
 const schemaUri = "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json";
+const nativeManifestPaths = [
+  ".claude-plugin/plugin.json",
+  ".codex-plugin/plugin.json",
+] as const;
+
+const localizedNativeDescriptions: Record<string, string> = {
+  "quality-gate-scaffolder/.codex-plugin/plugin.json":
+    "为 Swift iOS、Kotlin Android、Python 后端、TypeScript 前端和 Node 工具项目搭建仓库质量门禁。",
+};
 
 type JsonObject = Record<string, unknown>;
 
@@ -160,14 +169,71 @@ describe("Agent Plugins 1.0.0 package contract", () => {
 
       for (const nativePath of plugin.nativeManifests) {
         const nativeManifest = readJson(`plugins/${plugin.name}/${nativePath}`);
-        assert.equal(nativeManifest.name, manifest.name, `${plugin.name} name must stay aligned`);
+        for (const field of ["name", "version", "homepage", "repository", "license"]) {
+          assert.equal(
+            nativeManifest[field],
+            manifest[field],
+            `${plugin.name} ${field} must stay aligned in ${nativePath}`,
+          );
+        }
+
+        assertPlainObject(manifest.author, `${plugin.name}/plugin.json.author`);
+        assertPlainObject(nativeManifest.author, `${plugin.name}/${nativePath}.author`);
+        for (const field of ["name", "email"]) {
+          assert.equal(
+            nativeManifest.author[field],
+            manifest.author[field],
+            `${plugin.name} author.${field} must stay aligned in ${nativePath}`,
+          );
+        }
+        if ("url" in nativeManifest.author) {
+          assert.equal(
+            nativeManifest.author.url,
+            manifest.author.url,
+            `${plugin.name} author.url must stay aligned in ${nativePath}`,
+          );
+        }
+
+        const expectedDescription =
+          localizedNativeDescriptions[`${plugin.name}/${nativePath}`] ?? manifest.description;
         assert.equal(
-          nativeManifest.version,
-          manifest.version,
-          `${plugin.name} version must stay aligned`,
+          nativeManifest.description,
+          expectedDescription,
+          `${plugin.name} description must stay aligned or use an approved localization in ${nativePath}`,
         );
       }
     }
+  });
+
+  test("VAL-PORTABILITY-003 and VAL-COMPATIBILITY-003: portable components and native host scope stay bounded", () => {
+    for (const plugin of plugins) {
+      for (const nativePath of nativeManifestPaths) {
+        assert.equal(
+          fs.existsSync(path.join(repoRoot, "plugins", plugin.name, nativePath)),
+          (plugin.nativeManifests as readonly string[]).includes(nativePath),
+          `${plugin.name} native host scope drifted at ${nativePath}`,
+        );
+      }
+
+      assert.equal(
+        fs.existsSync(path.join(repoRoot, "plugins", plugin.name, "mcp.json")),
+        false,
+        `${plugin.name} must not add an MCP server in this migration`,
+      );
+    }
+
+    const sessionLoader = readJson("plugins/session-instructions-loader/plugin.json");
+    assert.match(
+      String(sessionLoader.description),
+      /Codex-only/,
+      "session-instructions-loader must declare its Codex-only scope",
+    );
+    const notify = readJson("plugins/auriga-notify/plugin.json");
+    assert.match(
+      String(notify.description),
+      /Claude Code/,
+      "auriga-notify must declare its Claude Code-only scope",
+    );
   });
 
   test("VAL-DISCOVERY-001/002: standard fixed locations expose the expected Skills only", () => {
@@ -230,15 +296,27 @@ describe("Agent Plugins 1.0.0 package contract", () => {
         `${label} must cover Skills fixed location`,
       );
       assert.match(text, /`mcp\.json`/, `${label} must cover the MCP fixed location`);
+    }
+
+    for (const [label, text] of [
+      ["repository agent instructions", agentInstructions],
+      ["English README", readme],
+      ["Chinese README", readmeZh],
+      ["agent portability rules", portability],
+      ["developer guide", developerGuide],
+    ]) {
+      assert.match(text, /`hooks\/hooks\.json`/, `${label} must identify the hook registry`);
       assert.match(
         text,
-        /宿主[^。\n]*(?:清单|扩展)|client-specific|host-specific/i,
+        /宿主专属|host-specific/i,
         `${label} must separate host-specific capabilities`,
       );
     }
 
     assert.match(reviewer, /闭合[^。\n]*顶层字段|顶层字段[^。\n]*闭合/);
     assert.match(reviewer, /`extensions`/);
+    assert.match(reviewer, /`\.claude-plugin\/plugin\.json`/);
+    assert.match(reviewer, /`\.codex-plugin\/plugin\.json`/);
 
     for (const plugin of plugins) {
       assert.ok(readme.includes(plugin.name), `README.md must list ${plugin.name}`);

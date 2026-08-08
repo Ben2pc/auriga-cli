@@ -2,7 +2,7 @@
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "session-instructions-loader",
   "version": "1.0.4",
-  "description": "SessionStart hook that injects ancestor AGENTS.md files and repo-configured instruction files.",
+  "description": "Codex-only SessionStart hook that injects ancestor AGENTS.md files and repo-configured instruction files.",
   "author": {
     "name": "Ben2pc",
     "email": "pangcheng33@gmail.com",
