@@ -87,7 +87,7 @@ describe("quality-gate-scaffolder 插件契约", () => {
     );
 
     assert.equal(codexManifest.version, claudeManifest.version);
-    assert.equal(codexManifest.version, "0.2.1");
+    assert.equal(codexManifest.version, "0.2.2");
   });
 
   test("每个受支持技术栈都有一个脚手架技能", () => {

@@ -1,6 +1,6 @@
 {
   "name": "quality-gate-scaffolder",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "为 Swift iOS、Kotlin Android、Python 后端、TypeScript 前端和 Node 工具项目搭建仓库质量门禁。",
   "author": {
     "name": "Ben2pc",

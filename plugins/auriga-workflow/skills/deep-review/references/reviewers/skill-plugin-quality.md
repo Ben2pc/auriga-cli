@@ -30,6 +30,7 @@ value: "用项目规则和官方验证器发现代理扩展资产的结构缺陷
 
 | 目标 | 典型证据 | 应用范围 |
 |---|---|---|
+| Agent Plugins 1.0.0 | 插件根 `plugin.json`、固定 `skills/`、`mcp.json` | 可移植核心规范与项目规则 |
 | Claude Code | `.claude-plugin/`、Claude 专属 agents / hooks / settings | Claude 规则与项目规则 |
 | Codex | `.codex-plugin/`、Codex 插件接口、Codex 配置 | Codex 规则与项目规则 |
 | 双运行时 | 两份清单、统一技能、项目明确兼容两者 | 两边共同契约和各自入口 |
@@ -54,11 +55,13 @@ value: "用项目规则和官方验证器发现代理扩展资产的结构缺陷
 
 ## Checklist — plugin and marketplace
 
-1. `.claude-plugin/plugin.json` 与 `.codex-plugin/plugin.json` 是各自运行时的一等入口；只要求目标运行时需要的清单。
-2. JSON 可解析，必填字段、路径和组件类型满足当前平台规则；引用目录实际随插件发布。
-3. 双运行时插件的名称、版本、描述和共享组件保持一致，平台专属字段可以不同。
-4. 市场条目的名称与源路径正确指向插件；是否需要市场版本字段和何时升级，遵循**当前仓库的版本规则**，不是通用硬规则。
-5. 插件内容变化后，仓库要求的 manifest version、市场清单、发布说明或安装测试按项目契约同步。
+1. auriga-cli 自有插件以根 `plugin.json` 声明 Agent Plugins 1.0.0 可移植身份；校验 canonical `$schema`、必填字段、名称约束、类型，以及闭合顶层字段。宿主专属数据只能放在标准 `extensions` 或原生清单，不能混入标准顶层。
+2. 标准组件只从固定的 `skills/` 与 `mcp.json` 发现；缺少某类组件合法。不能依赖清单内联路径，也不能把 hooks、agents、commands 或 interface 当成 v1 可移植组件。
+3. `.claude-plugin/plugin.json` 与 `.codex-plugin/plugin.json` 是各自运行时的一等入口；只要求目标运行时需要的清单，新增根清单不能代替宿主 hooks 与 interface。
+4. JSON 可解析，必填字段、路径和组件类型满足对应标准或平台规则；引用目录实际随插件发布。
+5. 同一插件的根清单与原生清单名称、版本和语义身份保持一致，平台专属字段可以不同。
+6. 市场条目的名称与源路径正确指向插件；是否需要市场版本字段和何时升级，遵循**当前仓库的版本规则**，不是通用硬规则。
+7. 插件内容变化后，仓库要求的 manifest version、市场清单、发布说明或安装测试按项目契约同步。
 
 ## Checklist — agents, hooks, MCP
 
@@ -102,11 +105,12 @@ python3 <validator> <SKILL.md 所在目录>
 | 信号 | 重点 |
 |---|---|
 | `**/SKILL.md` | frontmatter、触发描述、引用、双验证器 |
-| `.claude-plugin/plugin.json`、`.codex-plugin/plugin.json` | 平台清单、共享字段、路径与版本 |
+| 插件根 `plugin.json` | Agent Plugins 1.0.0 Schema、固定组件位置、标准与宿主边界 |
+| `.claude-plugin/plugin.json`、`.codex-plugin/plugin.json` | 宿主清单、共享字段、路径与版本 |
 | `**/marketplace.json` | 名称、源路径、项目版本规则 |
 | `**/agents/*` | 目标平台格式、描述与提示引用 |
 | hooks 配置 | 事件、匹配器、输入输出、脚本路径 |
-| `.mcp.json` 或 `mcpServers` | 传输与发现结构 |
+| `mcp.json`、`.mcp.json` 或 `mcpServers` | 标准或宿主传输与发现结构 |
 | `AGENTS.md`、`CLAUDE.md` | Auriga 双入口与主文件关系 |
 
 ## Worked scenarios
@@ -115,6 +119,7 @@ python3 <validator> <SKILL.md 所在目录>
 2. 某 Claude 专属插件只有 `.claude-plugin/plugin.json`，项目没有宣称 Codex 支持。不因缺少 Codex 清单报告。
 3. 平台新增了本文件没列出的钩子事件。按需查官方文档；若合法，不把“缓存清单没有”作为目标差异缺陷。
 4. Auriga 根目录只有 `AGENTS.md`，没有 `CLAUDE.md` 或兼容软链。按项目规范报告阻塞。
+5. 某 hook-only 插件具有合法根 `plugin.json`，但没有 `skills/` 或 `mcp.json`。不因缺少可移植组件报告；继续检查宿主清单是否保留实际 hook 行为。
 
 ## Output contract
 
