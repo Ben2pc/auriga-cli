@@ -18,11 +18,13 @@ auriga-cli 的技能和插件要服务使用**不同编码 Agent** 的同事 —
 
 6. **散文里不枚举 Agent。** "粘回 Claude / Codex" 会随第三个 Agent 的出现而过期 —— 写 "the Agent"。
 
+7. **Agent Plugins 1.0.0 的可移植核心与宿主能力分层维护。** auriga-cli 自有插件必须在插件根目录提供根 `plugin.json`，并遵守闭合顶层字段；标准组件只从固定的 `skills/` 与 `mcp.json` 发现，缺少任一位置都是合法状态。Hook 注册表放在 `hooks/hooks.json`；`interface`、Hook 路径等宿主专属覆盖字段继续放在适用的 `.claude-plugin/plugin.json`、`.codex-plugin/plugin.json` 或标准 `extensions` 下。它们都不能复制到标准清单顶层，也不能把标准包身份误写成跨宿主行为支持。
+
 ## 合理例外
 
 下列是真正的 Agent 专属,保留它们是正确的,不算违反约定:
 
-- **成对的分运行时实现** —— `analyzers/claude-code.mjs` 配 `analyzers/codex.mjs`、`.claude-plugin/` 配 `.codex-plugin/` manifest。
+- **成对的分运行时实现** —— `analyzers/claude-code.mjs` 配 `analyzers/codex.mjs`、`.claude-plugin/` 配 `.codex-plugin/` manifest；这些宿主清单是根 `plugin.json` 之外的运行时入口，不属于 Agent Plugins 1.0.0 可移植核心。
 - **`${CLAUDE_PLUGIN_ROOT}`** —— Codex 故意镜像了这个替换,两端通用,无需改写。
 - **设计上就锁定单一 Agent 的技能/插件** —— 例如 `auriga-notify` 按设计仅 Claude Code。这种情况要在描述里**明确写出该范围**,不要假装可移植。
 

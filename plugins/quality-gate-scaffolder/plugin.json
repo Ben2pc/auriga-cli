@@ -1,12 +1,20 @@
 {
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "quality-gate-scaffolder",
   "version": "0.2.2",
   "description": "Scaffold stack-specific repository quality gates for Swift iOS, Kotlin Android, Python backend, TypeScript frontend, and Node tool projects.",
   "author": {
     "name": "Ben2pc",
-    "email": "pangcheng33@gmail.com"
+    "email": "pangcheng33@gmail.com",
+    "url": "https://github.com/Ben2pc"
   },
   "homepage": "https://github.com/Ben2pc/auriga-cli/tree/main/plugins/quality-gate-scaffolder",
   "repository": "https://github.com/Ben2pc/auriga-cli",
-  "license": "MIT"
+  "license": "MIT",
+  "keywords": [
+    "quality-gates",
+    "lint",
+    "ci",
+    "github-actions"
+  ]
 }
