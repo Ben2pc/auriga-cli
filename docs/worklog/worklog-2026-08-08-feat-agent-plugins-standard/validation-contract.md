@@ -1,5 +1,7 @@
 # Validation Contract — Agent Plugins 1.0.0 全量兼容（验收契约 — Agent Plugins 1.0.0 full compatibility）
 
+> 已于 2026-08-08 归档，作为 PR #203 的历史验收记录；当前自动化契约以 `tests/agent-plugins-standard.test.ts` 为准。
+>
 > 与 spec.md 配套：spec.md 描述 why + 用户可观察的 what；本文件描述什么算通过。
 > 一条 VAL 不等于一个验证用例。
 

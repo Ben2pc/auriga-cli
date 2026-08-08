@@ -1,5 +1,7 @@
 # Agent Plugins 1.0.0 全量兼容 — Spec（Agent Plugins 1.0.0 full compatibility — 规范）
 
+> 已于 2026-08-08 归档，作为 PR #203 的历史设计记录；当前事实以插件清单、契约测试和稳定工程文档为准。
+>
 > 让 auriga-cli 当前发布的全部四个插件在同一次交付中成为合法的 Agent Plugins 1.0.0 包，同时保持现有 Claude Code 与 Codex 安装和运行行为不变。
 
 ## Why (为什么做)
