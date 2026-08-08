@@ -205,6 +205,9 @@ describe("Agent Plugins 1.0.0 package contract", () => {
   });
 
   test("VAL-GOVERNANCE-001: project guidance and review recognize the portable core", () => {
+    const agentInstructions = read("AGENTS.md");
+    const readme = read("README.md");
+    const readmeZh = read("README.zh-CN.md");
     const portability = read("docs/rules/agent-portability.md");
     const developerGuide = read("docs/architecture/auriga-cli-dev-guide.md");
     const reviewer = read(
@@ -212,13 +215,20 @@ describe("Agent Plugins 1.0.0 package contract", () => {
     );
 
     for (const [label, text] of [
+      ["repository agent instructions", agentInstructions],
+      ["English README", readme],
+      ["Chinese README", readmeZh],
       ["agent portability rules", portability],
       ["developer guide", developerGuide],
       ["skill-plugin-quality reviewer", reviewer],
     ]) {
       assert.match(text, /Agent Plugins 1\.0\.0/, `${label} must name the portable standard`);
       assert.match(text, /根 `plugin\.json`|root `plugin\.json`/, `${label} must cover root manifest`);
-      assert.match(text, /固定[^。\n]*`skills\/`|`skills\/`[^。\n]*固定/, `${label} must cover Skills fixed location`);
+      assert.match(
+        text,
+        /固定[^。\n]*`skills\/`|`skills\/`[^。\n]*固定|fixed[^.\n]*`skills\/`|`skills\/`[^.\n]*fixed/i,
+        `${label} must cover Skills fixed location`,
+      );
       assert.match(text, /`mcp\.json`/, `${label} must cover the MCP fixed location`);
       assert.match(
         text,
@@ -229,5 +239,10 @@ describe("Agent Plugins 1.0.0 package contract", () => {
 
     assert.match(reviewer, /闭合[^。\n]*顶层字段|顶层字段[^。\n]*闭合/);
     assert.match(reviewer, /`extensions`/);
+
+    for (const plugin of plugins) {
+      assert.ok(readme.includes(plugin.name), `README.md must list ${plugin.name}`);
+      assert.ok(readmeZh.includes(plugin.name), `README.zh-CN.md must list ${plugin.name}`);
+    }
   });
 });
