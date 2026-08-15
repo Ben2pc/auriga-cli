@@ -11,7 +11,7 @@ value: "用项目规则和官方验证器发现代理扩展资产的结构缺陷
 
 ## Scope
 
-先识别差异面向 Claude Code、Codex 或两者，再应用对应项目规则、仓库测试和平台约束。不要默认每个资产都必须跨平台；Auriga 自身明确面向两种运行时，因此它的技能与插件需要同时验证。
+先识别差异面向 Claude Code、Codex、Cursor 或其中若干宿主，再应用对应项目规则、仓库测试和平台约束。不要默认每个资产都必须跨平台；`auriga-workflow` 与 `quality-gate-scaffolder` 会进入这三个安装面，因此它们的技能与插件需要同时验证。
 
 本审查者负责结构、发现、清单、引用、指令资产的上下文工程和多运行时兼容性。命令执行、钩子权限、提示注入、秘密和工具能力风险交给 `security`。
 
@@ -33,6 +33,7 @@ value: "用项目规则和官方验证器发现代理扩展资产的结构缺陷
 | Agent Plugins 1.0.0 | 插件根 `plugin.json`、固定 `skills/`、`mcp.json` | 可移植核心规范与项目规则 |
 | Claude Code | `.claude-plugin/`、Claude 专属 agents / hooks / settings | Claude 规则与项目规则 |
 | Codex | `.codex-plugin/`、Codex 插件接口、Codex 配置 | Codex 规则与项目规则 |
+| Cursor | `.cursor-plugin/`、Cursor 市场清单与插件钩子 | Cursor 规则与项目规则 |
 | 双运行时 | 两份清单、统一技能、项目明确兼容两者 | 两边共同契约和各自入口 |
 | 项目本地 | `docs/rules/review/` 等只由当前仓库消费的资产 | 项目协议优先，不强加发布市场规则 |
 
@@ -57,7 +58,7 @@ value: "用项目规则和官方验证器发现代理扩展资产的结构缺陷
 
 1. auriga-cli 自有插件以根 `plugin.json` 声明 Agent Plugins 1.0.0 可移植身份；校验 canonical `$schema`、必填字段、名称约束、类型，以及闭合顶层字段。宿主专属数据只能放在标准 `extensions` 或原生清单，不能混入标准顶层。
 2. 标准组件只从固定的 `skills/` 与 `mcp.json` 发现；缺少某类组件合法。不能依赖清单内联路径，也不能把 hooks、agents、commands 或 interface 当成 v1 可移植组件。
-3. `.claude-plugin/plugin.json` 与 `.codex-plugin/plugin.json` 是各自运行时的一等入口；只要求目标运行时需要的清单，新增根清单不能代替宿主 hooks 与 interface。
+3. `.claude-plugin/plugin.json`、`.codex-plugin/plugin.json` 与 `.cursor-plugin/plugin.json` 是各自运行时的一等入口；只要求目标运行时需要的清单，新增根清单不能代替宿主 hooks 与 interface。
 4. JSON 可解析，必填字段、路径和组件类型满足对应标准或平台规则；引用目录实际随插件发布。
 5. 同一插件的根清单与原生清单名称、版本和语义身份保持一致，平台专属字段可以不同。
 6. 市场条目的名称与源路径正确指向插件；是否需要市场版本字段和何时升级，遵循**当前仓库的版本规则**，不是通用硬规则。
@@ -106,7 +107,7 @@ python3 <validator> <SKILL.md 所在目录>
 |---|---|
 | `**/SKILL.md` | frontmatter、触发描述、引用、双验证器 |
 | 插件根 `plugin.json` | Agent Plugins 1.0.0 Schema、固定组件位置、标准与宿主边界 |
-| `.claude-plugin/plugin.json`、`.codex-plugin/plugin.json` | 宿主清单、共享字段、路径与版本 |
+| `.claude-plugin/plugin.json`、`.codex-plugin/plugin.json`、`.cursor-plugin/plugin.json` | 宿主清单、共享字段、路径与版本 |
 | `**/marketplace.json` | 名称、源路径、项目版本规则 |
 | `**/agents/*` | 目标平台格式、描述与提示引用 |
 | hooks 配置 | 事件、匹配器、输入输出、脚本路径 |

@@ -1,0 +1,23 @@
+{
+  "name": "auriga-cli",
+  "owner": {
+    "name": "Ben2pc",
+    "email": "pangcheng33@gmail.com"
+  },
+  "metadata": {
+    "description": "Plugins shipped by auriga-cli for Cursor: workflow skills, git guards, and quality-gate scaffolding.",
+    "pluginRoot": "plugins"
+  },
+  "plugins": [
+    {
+      "name": "auriga-workflow",
+      "source": "auriga-workflow",
+      "category": "developer-tools"
+    },
+    {
+      "name": "quality-gate-scaffolder",
+      "source": "quality-gate-scaffolder",
+      "category": "developer-tools"
+    }
+  ]
+}
