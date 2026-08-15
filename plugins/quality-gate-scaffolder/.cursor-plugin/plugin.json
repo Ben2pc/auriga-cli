@@ -8,5 +8,6 @@
   },
   "homepage": "https://github.com/Ben2pc/auriga-cli/tree/main/plugins/quality-gate-scaffolder",
   "repository": "https://github.com/Ben2pc/auriga-cli",
-  "license": "MIT"
+  "license": "MIT",
+  "skills": "./skills/"
 }
