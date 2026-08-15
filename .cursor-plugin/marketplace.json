@@ -5,12 +5,13 @@
     "email": "pangcheng33@gmail.com"
   },
   "metadata": {
-    "description": "Plugins shipped by auriga-cli for Cursor: workflow skills, git guards, and quality-gate scaffolding."
+    "description": "Plugins shipped by auriga-cli for Cursor: workflow skills, git guards, and quality-gate scaffolding.",
+    "pluginRoot": "plugins"
   },
   "plugins": [
     {
       "name": "auriga-workflow",
-      "source": "./plugins/auriga-workflow",
+      "source": "auriga-workflow",
       "description": "Auriga's end-to-end engineering workflow: clarification, diagnosis, implementation, maintenance, review, and Git lifecycle guardrails.",
       "version": "4.0.24",
       "author": {
@@ -19,11 +20,11 @@
       },
       "homepage": "https://github.com/Ben2pc/auriga-cli/tree/main/plugins/auriga-workflow",
       "repository": "https://github.com/Ben2pc/auriga-cli",
-      "category": "development"
+      "category": "developer-tools"
     },
     {
       "name": "quality-gate-scaffolder",
-      "source": "./plugins/quality-gate-scaffolder",
+      "source": "quality-gate-scaffolder",
       "description": "Scaffold stack-specific repository quality gates for Swift iOS, Kotlin Android, Python backend, TypeScript frontend, and Node tool projects.",
       "version": "0.2.2",
       "author": {
@@ -32,7 +33,7 @@
       },
       "homepage": "https://github.com/Ben2pc/auriga-cli/tree/main/plugins/quality-gate-scaffolder",
       "repository": "https://github.com/Ben2pc/auriga-cli",
-      "category": "development"
+      "category": "developer-tools"
     }
   ]
 }

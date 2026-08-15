@@ -21,7 +21,11 @@ const plugins = [
   {
     name: "auriga-workflow",
     version: "4.0.24",
-    nativeManifests: [".claude-plugin/plugin.json", ".codex-plugin/plugin.json"],
+    nativeManifests: [
+      ".claude-plugin/plugin.json",
+      ".codex-plugin/plugin.json",
+      ".cursor-plugin/plugin.json",
+    ],
     skills: [
       "arch-design",
       "code-simplify",
@@ -41,7 +45,11 @@ const plugins = [
   {
     name: "quality-gate-scaffolder",
     version: "0.2.2",
-    nativeManifests: [".claude-plugin/plugin.json", ".codex-plugin/plugin.json"],
+    nativeManifests: [
+      ".claude-plugin/plugin.json",
+      ".codex-plugin/plugin.json",
+      ".cursor-plugin/plugin.json",
+    ],
     skills: [
       "scaffold-kotlin-android-quality-gates",
       "scaffold-node-tool-quality-gates",
@@ -252,6 +260,7 @@ describe("Agent Plugins 1.0.0 package contract", () => {
     const cursorMarketplace = readJson(".cursor-plugin/marketplace.json") as {
       name: string;
       owner: { name: string; email?: string };
+      metadata?: { pluginRoot?: string };
       plugins: Array<{ name: string; source: string }>;
     };
 
@@ -265,6 +274,7 @@ describe("Agent Plugins 1.0.0 package contract", () => {
     );
     assert.equal(cursorMarketplace.name, "auriga-cli");
     assert.equal(typeof cursorMarketplace.owner?.name, "string");
+    assert.equal(cursorMarketplace.metadata?.pluginRoot, "plugins");
     assert.deepEqual(
       cursorMarketplace.plugins.map(({ name }) => name).sort(),
       ["auriga-workflow", "quality-gate-scaffolder"],
@@ -280,7 +290,7 @@ describe("Agent Plugins 1.0.0 package contract", () => {
       });
     }
     for (const plugin of cursorMarketplace.plugins) {
-      assert.equal(plugin.source, `./plugins/${plugin.name}`);
+      assert.equal(plugin.source, plugin.name);
     }
   });
 
