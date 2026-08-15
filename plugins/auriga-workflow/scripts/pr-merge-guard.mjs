@@ -29,7 +29,7 @@ process.stdin.on("data", (c) => (input += c));
 process.stdin.on("end", () => {
   try {
     const data = JSON.parse(input);
-    const cmd = data?.tool_input?.command;
+    const cmd = toolCommand(data);
     if (typeof cmd !== "string") return exit0();
     // Strip simple quoted runs so mentions of "gh pr merge" inside echo
     // args, git commit messages, etc. don't trigger the hook.
@@ -50,6 +50,13 @@ process.stdin.on("end", () => {
     exit0();
   }
 });
+
+// Claude Code / Codex / Cursor use tool_input; Grok Build uses toolInput.
+function toolCommand(data) {
+  const input = data?.tool_input ?? data?.toolInput;
+  const cmd = input?.command;
+  return typeof cmd === "string" ? cmd : null;
+}
 
 // ---------------------------------------------------------------------
 // Command parsing

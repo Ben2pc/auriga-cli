@@ -1,10 +1,11 @@
 #!/usr/bin/env node
 // commit-reminder — PostToolUse hook for file-edit tools.
 //
-// Claude Code reports tool_name as "Edit" / "Write" / "MultiEdit".
-// Codex reports all file edits as tool_name "apply_patch" (its
-// canonical name; matcher aliases Edit / Write resolve to it).
-// We accept either side's naming so the hook works in both runtimes.
+// Which tools invoke this script is decided by hooks.json. Hosts
+// disagree on file-edit names (Claude Code: Edit / Write / NotebookEdit;
+// Codex: apply_patch; Cursor: Write / StrReplace / Delete / EditNotebook),
+// so the script does not re-filter tool_name. Once invoked, it only
+// looks at the working-tree diff vs HEAD.
 //
 // When uncommitted diff vs HEAD crosses size thresholds (lines OR
 // files) AND the last reminder was at least 5 minutes ago, injects an
@@ -22,7 +23,6 @@ const LINE_THRESHOLD = 200;
 const FILE_THRESHOLD = 8;
 const INTERVAL_SECONDS = 300;
 const STATE_FILENAME = "auriga-commit-reminder.last";
-const MATCH_TOOLS = new Set(["Edit", "Write", "MultiEdit", "apply_patch"]);
 
 // LC_ALL=C forces git --shortstat into stable English output. Without
 // this, locales like de_DE / zh_CN translate "files changed" /
@@ -34,8 +34,7 @@ process.stdin.setEncoding("utf8");
 process.stdin.on("data", (c) => (input += c));
 process.stdin.on("end", () => {
   try {
-    const data = JSON.parse(input);
-    if (!data || !MATCH_TOOLS.has(data.tool_name)) return exit0();
+    JSON.parse(input);
 
     const gitDir = resolveGitDir();
     if (!gitDir) return exit0();

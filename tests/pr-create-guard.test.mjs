@@ -256,6 +256,27 @@ const cases = [
     },
   },
   {
+    name: "Grok camelCase toolInput + toolResult URL: identifies the created PR",
+    payload: {
+      hookEventName: "PostToolUse",
+      toolName: "run_terminal_command",
+      toolInput: { command: 'gh pr create --title foo --body "x"' },
+      toolResult: "https://github.com/no-such-owner/no-such-repo/pull/777777\n",
+    },
+    expect: {
+      status: 0,
+      stdoutIncludesAll: [
+        "pr-create-guard",
+        "777777",
+        "six sections",
+        "design decisions",
+        "test plan",
+        "git-workflow",
+        "Conventional Commits",
+      ],
+    },
+  },
+  {
     name: "Cursor Shell + tool_output failure is ignored",
     payload: {
       hook_event_name: "PostToolUse",
@@ -518,6 +539,35 @@ for (const c of ccCases) {
       failed++;
       console.error(
         `  ✗ pr-create-guard source contains ${label} — "${needle}" not found`,
+      );
+    }
+  }
+}
+
+// hooks.json wiring: pr-create-guard.mjs must be registered on the
+// shared shell-tool matcher. The script itself recognizes `gh pr create`.
+{
+  const hooksJsonPath = path.resolve(
+    path.dirname(ENTRY),
+    "..",
+    "hooks",
+    "hooks.json",
+  );
+  const config = JSON.parse(fs.readFileSync(hooksJsonPath, "utf8"));
+  const group = (config.hooks?.PostToolUse ?? []).find((entry) =>
+    (entry.hooks ?? []).some((hook) =>
+      (hook.command ?? "").includes("pr-create-guard.mjs"),
+    ),
+  );
+  const named = new Set((group?.matcher ?? "").split("|").map((part) => part.trim()));
+  for (const tool of ["Bash", "Shell", "PowerShell", "run_terminal_command"]) {
+    if (named.has(tool)) {
+      passed++;
+      console.log(`  ✓ hooks.json pr-create-guard matcher includes ${tool}`);
+    } else {
+      failed++;
+      console.error(
+        `  ✗ hooks.json pr-create-guard matcher missing ${tool} (found: ${JSON.stringify(group?.matcher)})`,
       );
     }
   }

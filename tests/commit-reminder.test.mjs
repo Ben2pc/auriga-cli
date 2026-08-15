@@ -1,9 +1,11 @@
 #!/usr/bin/env node
 // Smoke tests for commit-reminder (PostToolUse).
 //
-// Verifies non-Edit/Write tools are skipped, threshold detection
-// (lines OR files), the 5-minute rate-limit window, and graceful no-op
-// outside a git repository.
+// The hooks.json matcher decides which tools invoke this script.
+// The script itself keys off the working-tree diff, not tool_name.
+// These tests cover threshold detection (lines OR files), the
+// 5-minute rate-limit window, and graceful no-op outside a git
+// repository.
 //
 //     node tests/commit-reminder.test.mjs
 
@@ -82,15 +84,17 @@ function check(name, condition, info = "") {
   }
 }
 
-// Case 1: non-Edit/Write tool ignored even if diff is huge
+// Case 1: tool_name is not a script-side gate. Once the matcher
+// invokes the script, a huge diff must remind even if the payload
+// uses a name that is not in the historical Edit/Write allowlist.
 {
   const dir = setupRepo();
   writeFile(dir, "big.txt", 500);
   spawnSync("git", ["add", "."], { cwd: dir });
   const r = run(payload("Read"), dir);
   check(
-    "non-Edit/Write tool is ignored",
-    r.status === 0 && r.stdout === "",
+    "script does not filter by tool_name",
+    r.status === 0 && r.stdout.includes("commit-reminder"),
     `stdout="${r.stdout}"`,
   );
 }
@@ -230,17 +234,29 @@ function check(name, condition, info = "") {
   );
 }
 
-// Case 11: Codex reports file edits as tool_name "apply_patch"
+// Case 11: host-specific file-edit names still remind when invoked.
+// Matcher coverage is asserted separately against hooks.json; this
+// loop locks the script-side contract that tool_name is not a gate.
+// Each tool gets its own repo so the 5-minute rate limit does not
+// hide later names.
 {
-  const dir = setupRepo();
-  writeFile(dir, "big.txt", 500);
-  spawnSync("git", ["add", "."], { cwd: dir });
-  const r = run(payload("apply_patch"), dir);
-  check(
-    "Codex apply_patch tool_name triggers reminder",
-    r.status === 0 && r.stdout.includes("commit-reminder"),
-    `stdout="${r.stdout}"`,
-  );
+  for (const tool of [
+    "apply_patch",
+    "StrReplace",
+    "NotebookEdit",
+    "Delete",
+    "EditNotebook",
+  ]) {
+    const dir = setupRepo();
+    writeFile(dir, "big.txt", 500);
+    spawnSync("git", ["add", "."], { cwd: dir });
+    const r = run(payload(tool), dir);
+    check(
+      `${tool} tool_name still reminds when invoked`,
+      r.status === 0 && r.stdout.includes("commit-reminder"),
+      `stdout="${r.stdout}"`,
+    );
+  }
 }
 
 // Case 12: untracked files alone (no git add) cross the file threshold
@@ -301,6 +317,42 @@ function check(name, condition, info = "") {
     r2.status === 0 && r2.stdout === "",
     `stdout2="${r2.stdout}"`,
   );
+}
+
+// Structural: hooks.json matcher must name every host file-edit tool.
+// The script no longer filters tool_name, so dropping a name here
+// silently disables the reminder on that host.
+{
+  const hooksJsonPath = path.resolve(
+    path.dirname(ENTRY),
+    "..",
+    "hooks",
+    "hooks.json",
+  );
+  const config = JSON.parse(readFileSync(hooksJsonPath, "utf8"));
+  const group = (config.hooks?.PostToolUse ?? []).find((entry) =>
+    (entry.hooks ?? []).some((hook) =>
+      (hook.command ?? "").includes("commit-reminder.mjs"),
+    ),
+  );
+  const named = new Set((group?.matcher ?? "").split("|").map((part) => part.trim()));
+  for (const tool of [
+    "Edit",
+    "Write",
+    "MultiEdit",
+    "NotebookEdit",
+    "apply_patch",
+    "StrReplace",
+    "Delete",
+    "EditNotebook",
+    "search_replace",
+  ]) {
+    check(
+      `hooks.json commit-reminder matcher includes ${tool}`,
+      named.has(tool),
+      `matcher=${JSON.stringify(group?.matcher)}`,
+    );
+  }
 }
 
 console.log(`\n${passed} passed, ${failed} failed`);

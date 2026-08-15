@@ -59,14 +59,23 @@ function makeScratch(body) {
   return { dir, bin, argvFile };
 }
 
-function run(command, body, toolName = "Bash") {
+function run(command, body, toolName = "Bash", style = "snake") {
   const { dir, bin, argvFile } = makeScratch(body);
-  const payload = {
-    session_id: "test",
-    hook_event_name: "PreToolUse",
-    tool_input: { command, description: "test" },
-  };
-  if (toolName !== null) payload.tool_name = toolName;
+  const payload =
+    style === "camel"
+      ? {
+          hookEventName: "PreToolUse",
+          toolInput: { command, description: "test" },
+        }
+      : {
+          session_id: "test",
+          hook_event_name: "PreToolUse",
+          tool_input: { command, description: "test" },
+        };
+  if (toolName !== null) {
+    if (style === "camel") payload.toolName = toolName;
+    else payload.tool_name = toolName;
+  }
   const r = spawnSync("node", [ENTRY], {
     input: JSON.stringify(payload),
     encoding: "utf8",
@@ -310,6 +319,14 @@ const cases = [
     expect: { status: 2, stderrIncludes: ["Second criterion not yet met"] },
   },
   {
+    name: "Grok camelCase toolInput still blocks unchecked acceptance items",
+    cmd: "gh pr merge --squash --delete-branch",
+    toolName: "run_terminal_command",
+    style: "camel",
+    body: ONE_UNCHECKED,
+    expect: { status: 2, stderrIncludes: ["Second criterion not yet met"] },
+  },
+  {
     name: "missing tool_name still blocks unchecked acceptance items",
     cmd: "gh pr merge --squash --delete-branch",
     toolName: null,
@@ -484,7 +501,7 @@ function check(name, errs) {
 }
 
 for (const c of cases) {
-  const r = run(c.cmd, c.body, c.toolName);
+  const r = run(c.cmd, c.body, c.toolName, c.style);
   const errs = [];
   if (c.expect.status !== undefined && r.status !== c.expect.status) {
     errs.push(`expected exit ${c.expect.status}, got ${r.status}`);
@@ -526,31 +543,33 @@ for (const c of cases) {
   );
 }
 
-// hooks.json wiring: pr-merge-guard.mjs must be registered as a
-// PreToolUse Bash hook gated on `gh pr merge`. A regression dropping
-// this entry would silently disable the guard.
+// hooks.json wiring: pr-merge-guard.mjs must be registered on the
+// shared shell-tool matcher. The script itself recognizes `gh pr merge`.
 {
   const errs = [];
   try {
     const hooks = JSON.parse(fs.readFileSync(HOOKS_JSON, "utf8"));
-    const bashGroups = (hooks?.hooks?.PreToolUse ?? []).filter(
-      (g) => g.matcher === "Bash",
+    const group = (hooks?.hooks?.PreToolUse ?? []).find((entry) =>
+      (entry.hooks ?? []).some((hook) =>
+        (hook.command ?? "").includes("pr-merge-guard.mjs"),
+      ),
     );
-    const entries = bashGroups.flatMap((g) => g.hooks ?? []);
-    const merge = entries.find(
-      (h) =>
-        typeof h.command === "string" &&
-        h.command.includes("pr-merge-guard.mjs"),
-    );
-    if (!merge) {
-      errs.push("no PreToolUse Bash hook registers pr-merge-guard.mjs");
-    } else if (merge.if !== "Bash(gh pr merge)") {
-      errs.push(`pr-merge-guard hook gated on ${JSON.stringify(merge.if)}, expected "Bash(gh pr merge)"`);
+    if (!group) {
+      errs.push("no PreToolUse hook registers pr-merge-guard.mjs");
+    } else {
+      const named = new Set(
+        (group.matcher ?? "").split("|").map((part) => part.trim()),
+      );
+      for (const tool of ["Bash", "Shell", "PowerShell", "run_terminal_command"]) {
+        if (!named.has(tool)) {
+          errs.push(`matcher missing ${tool} (found: ${JSON.stringify(group.matcher)})`);
+        }
+      }
     }
   } catch (e) {
     errs.push(`failed to read/parse hooks.json: ${e.message}`);
   }
-  check("hooks.json registers pr-merge-guard.mjs for Bash(gh pr merge)", errs);
+  check("hooks.json registers pr-merge-guard.mjs for Bash|Shell|PowerShell", errs);
 }
 
 // ---- Teardown --------------------------------------------------------
