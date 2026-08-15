@@ -61,14 +61,14 @@ function makeScratch(body) {
 
 function run(command, body, toolName = "Bash") {
   const { dir, bin, argvFile } = makeScratch(body);
-  const payload = JSON.stringify({
+  const payload = {
     session_id: "test",
     hook_event_name: "PreToolUse",
-    tool_name: toolName,
     tool_input: { command, description: "test" },
-  });
+  };
+  if (toolName !== null) payload.tool_name = toolName;
   const r = spawnSync("node", [ENTRY], {
-    input: payload,
+    input: JSON.stringify(payload),
     encoding: "utf8",
     cwd: dir,
     env: { ...process.env, PATH: `${bin}:${process.env.PATH}` },
@@ -306,6 +306,13 @@ const cases = [
     name: "Cursor Shell tool_name still blocks unchecked acceptance items",
     cmd: "gh pr merge --squash --delete-branch",
     toolName: "Shell",
+    body: ONE_UNCHECKED,
+    expect: { status: 2, stderrIncludes: ["Second criterion not yet met"] },
+  },
+  {
+    name: "missing tool_name still blocks unchecked acceptance items",
+    cmd: "gh pr merge --squash --delete-branch",
+    toolName: null,
     body: ONE_UNCHECKED,
     expect: { status: 2, stderrIncludes: ["Second criterion not yet met"] },
   },

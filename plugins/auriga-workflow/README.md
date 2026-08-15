@@ -89,9 +89,11 @@ and the two PostToolUse hooks (`commit-reminder`, `pr-create-guard`) are at full
 parity.
 
 Cursor loads the same plugin hooks when third-party configs are enabled. It
-maps matcher `Bash` to `Shell` and reports file edits as `Write`. The git
-guards key off the command, not `tool_name`. `pr-create-guard` also reads
-Cursor's `tool_output` payload.
+maps matcher `Bash` to `Shell` and reports file edits as `Write`. The three
+PR guards (`pr-ready-guard`, `pr-create-guard`, `pr-merge-guard`) key off
+the command, not `tool_name`. `pr-create-guard` also reads Cursor's
+`tool_output` payload. `commit-reminder` still matches file-edit tools by
+`tool_name` and already accepts Cursor's `Write`.
 
 ## Block signals (pr-ready-guard)
 

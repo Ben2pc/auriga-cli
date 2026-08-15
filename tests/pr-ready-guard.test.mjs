@@ -26,14 +26,15 @@ const ENTRY = path.resolve(
 );
 
 function run(command, cwd, toolName = "Bash") {
-  const payload = JSON.stringify({
+  const payload = {
     session_id: "test",
     hook_event_name: "PreToolUse",
-    tool_name: toolName,
     tool_input: { command, description: "test" },
-  });
+  };
+  if (toolName !== null) payload.tool_name = toolName;
+  const serialized = JSON.stringify(payload);
   const r = spawnSync("node", [ENTRY], {
-    input: payload,
+    input: serialized,
     encoding: "utf8",
     cwd,
   });
@@ -126,6 +127,15 @@ const cases = [
       const dir = makeRepo();
       writePlanningArtifacts(dir, ["progress.md", "task_plan.md"]);
       return { cwd: dir, cmd: "gh pr ready", toolName: "Shell" };
+    },
+    expect: { status: 2, stderrIncludes: "progress.md" },
+  },
+  {
+    name: "missing tool_name still blocks on active planning artifacts",
+    setup: () => {
+      const dir = makeRepo();
+      writePlanningArtifacts(dir, ["progress.md", "task_plan.md"]);
+      return { cwd: dir, cmd: "gh pr ready", toolName: null };
     },
     expect: { status: 2, stderrIncludes: "progress.md" },
   },

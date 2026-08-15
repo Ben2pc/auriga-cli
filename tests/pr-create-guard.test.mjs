@@ -211,6 +211,27 @@ const cases = [
     },
   },
   {
+    name: "string tool_response URL still identifies the created PR",
+    payload: {
+      hook_event_name: "PostToolUse",
+      tool_input: { command: 'gh pr create --title foo --body "x"' },
+      tool_response:
+        "https://github.com/no-such-owner/no-such-repo/pull/888888\n",
+    },
+    expect: {
+      status: 0,
+      stdoutIncludesAll: [
+        "pr-create-guard",
+        "888888",
+        "six sections",
+        "design decisions",
+        "test plan",
+        "git-workflow",
+        "Conventional Commits",
+      ],
+    },
+  },
+  {
     name: "Cursor Shell + tool_output URL: identifies the created PR",
     payload: {
       hook_event_name: "PostToolUse",
@@ -400,6 +421,82 @@ for (const c of ccCases) {
     failed++;
     console.error(`  ✗ ${c.name}`);
     for (const ch of checks) console.error(`      ${ch.ok ? "ok  " : "fail"}  ${ch.msg}`);
+  }
+}
+
+{
+  const body = [
+    "## Summary",
+    "Cursor payload snapshot.",
+    "",
+    "## Acceptance Criteria",
+    "- [ ] remaining item",
+    "- [x] done item",
+    "",
+    "## Test Plan",
+    "- [x] covered",
+  ].join("\n");
+  const { env, dir } = makeFakeGh(body, "fix(workflow): cursor payload");
+  cleanupFakeGhDirs.push(dir);
+  const r = run(
+    {
+      hook_event_name: "PostToolUse",
+      tool_input: { command: 'gh pr create --title foo --body "x"' },
+      tool_output: JSON.stringify({
+        output: "https://github.com/o/r/pull/42\n",
+        exitCode: 0,
+      }),
+    },
+    { env },
+  );
+  const checks = [
+    { ok: r.status === 0, msg: `status=${r.status} (want 0)` },
+    {
+      ok: r.stdout.includes("body snapshot"),
+      msg: `stdout includes body snapshot (got "${r.stdout.slice(0, 200)}")`,
+    },
+    {
+      ok: r.stdout.includes("## Summary"),
+      msg: `stdout includes ## Summary (got "${r.stdout.slice(0, 200)}")`,
+    },
+    {
+      ok: r.stdout.includes("## Acceptance Criteria"),
+      msg: `stdout includes ## Acceptance Criteria (got "${r.stdout.slice(0, 200)}")`,
+    },
+    {
+      ok: r.stdout.includes("## Test Plan"),
+      msg: `stdout includes ## Test Plan (got "${r.stdout.slice(0, 200)}")`,
+    },
+    {
+      ok: r.stdout.includes("TODO checkboxes: 1 unchecked, 2 checked"),
+      msg: `stdout includes checkbox counts (got "${r.stdout.slice(0, 240)}")`,
+    },
+    {
+      ok: !r.stdout.includes("Title format: ⚠"),
+      msg: `stdout does NOT include Title format warning (got "${r.stdout.slice(0, 200)}")`,
+    },
+    {
+      ok: !r.stdout.includes("could not identify"),
+      msg: `stdout does NOT include could not identify (got "${r.stdout.slice(0, 200)}")`,
+    },
+    {
+      ok: !r.stdout.includes("fields could not be fetched"),
+      msg: `stdout does NOT include fetch-failure fallback (got "${r.stdout.slice(0, 200)}")`,
+    },
+  ];
+  const allOk = checks.every((x) => x.ok);
+  if (allOk) {
+    passed++;
+    console.log(
+      "  ✓ Cursor tool_output URL + fake gh: emits real body snapshot",
+    );
+  } else {
+    failed++;
+    console.error(
+      "  ✗ Cursor tool_output URL + fake gh: emits real body snapshot",
+    );
+    for (const ch of checks)
+      console.error(`      ${ch.ok ? "ok  " : "fail"}  ${ch.msg}`);
   }
 }
 

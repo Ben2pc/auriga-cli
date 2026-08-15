@@ -90,13 +90,13 @@ function looksLikeFailure(resp) {
   return false;
 }
 
-// Claude Code / Codex put the result on tool_response. Cursor puts a
-// JSON string (or object) on tool_output. Normalize so extractPRRef
-// and looksLikeFailure see the same shape.
+// Claude Code / Codex put the result on tool_response (object or raw
+// string). Cursor puts a JSON string (or object) on tool_output.
+// Normalize so extractPRRef and looksLikeFailure see the same shape.
 function toolResult(data) {
-  if (data?.tool_response && typeof data.tool_response === "object") {
-    return data.tool_response;
-  }
+  const response = data?.tool_response;
+  if (typeof response === "string") return { stdout: response };
+  if (response && typeof response === "object") return response;
   const raw = data?.tool_output;
   if (typeof raw === "string") {
     try {
