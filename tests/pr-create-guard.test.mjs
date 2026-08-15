@@ -69,7 +69,7 @@ function createSuccessPayload(prUrl) {
 
 const cases = [
   {
-    name: "non-Bash tool is ignored",
+    name: "missing command is ignored",
     payload: {
       hook_event_name: "PostToolUse",
       tool_name: "Read",
@@ -209,6 +209,40 @@ const cases = [
       // catch a regression that reintroduces it (PR #143).
       stdoutExcludesAll: ["language"],
     },
+  },
+  {
+    name: "Cursor Shell + tool_output URL: identifies the created PR",
+    payload: {
+      hook_event_name: "PostToolUse",
+      tool_name: "Shell",
+      tool_input: { command: 'gh pr create --title foo --body "x"' },
+      tool_output: JSON.stringify({
+        output: "https://github.com/no-such-owner/no-such-repo/pull/999999\n",
+        exitCode: 0,
+      }),
+    },
+    expect: {
+      status: 0,
+      stdoutIncludesAll: [
+        "pr-create-guard",
+        "999999",
+        "six sections",
+        "design decisions",
+        "test plan",
+        "git-workflow",
+        "Conventional Commits",
+      ],
+    },
+  },
+  {
+    name: "Cursor Shell + tool_output failure is ignored",
+    payload: {
+      hook_event_name: "PostToolUse",
+      tool_name: "Shell",
+      tool_input: { command: 'gh pr create --title foo --body "x"' },
+      tool_output: JSON.stringify({ output: "auth failed", exitCode: 1 }),
+    },
+    expect: { status: 0, stdoutEq: "" },
   },
 ];
 

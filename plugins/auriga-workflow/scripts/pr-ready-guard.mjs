@@ -35,8 +35,6 @@ process.stdin.on("data", (c) => (input += c));
 process.stdin.on("end", () => {
   try {
     const data = JSON.parse(input);
-    if (data?.tool_name !== "Bash") return exit0();
-
     const cmd = data?.tool_input?.command;
     if (typeof cmd !== "string") return exit0();
     // Strip simple quoted runs so mentions of our match phrases inside

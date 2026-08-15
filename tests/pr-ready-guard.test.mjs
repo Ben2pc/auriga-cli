@@ -25,11 +25,11 @@ const ENTRY = path.resolve(
   "pr-ready-guard.mjs",
 );
 
-function run(command, cwd) {
+function run(command, cwd, toolName = "Bash") {
   const payload = JSON.stringify({
     session_id: "test",
     hook_event_name: "PreToolUse",
-    tool_name: "Bash",
+    tool_name: toolName,
     tool_input: { command, description: "test" },
   });
   const r = spawnSync("node", [ENTRY], {
@@ -117,6 +117,15 @@ const cases = [
       const dir = makeRepo();
       writePlanningArtifacts(dir, ["progress.md", "task_plan.md"]);
       return { cwd: dir, cmd: "gh pr ready" };
+    },
+    expect: { status: 2, stderrIncludes: "progress.md" },
+  },
+  {
+    name: "Cursor Shell tool_name still blocks on active planning artifacts",
+    setup: () => {
+      const dir = makeRepo();
+      writePlanningArtifacts(dir, ["progress.md", "task_plan.md"]);
+      return { cwd: dir, cmd: "gh pr ready", toolName: "Shell" };
     },
     expect: { status: 2, stderrIncludes: "progress.md" },
   },
@@ -628,9 +637,9 @@ let failed = 0;
 let passed = 0;
 try {
   for (const c of cases) {
-    const { cwd, cmd } = c.setup();
+    const { cwd, cmd, toolName } = c.setup();
     cleanupDirs.push(cwd);
-    const r = run(cmd, cwd);
+    const r = run(cmd, cwd, toolName);
     const checks = [];
     if (c.expect.status !== undefined)
       checks.push({ ok: r.status === c.expect.status, msg: `status=${r.status} (want ${c.expect.status})` });
