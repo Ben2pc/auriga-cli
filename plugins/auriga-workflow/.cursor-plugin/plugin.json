@@ -1,7 +1,7 @@
 {
   "name": "auriga-workflow",
   "version": "4.0.24",
-  "description": "Auriga's end-to-end engineering workflow: clarification, diagnosis, implementation, maintenance, review, and Git lifecycle guardrails. Compatible with Claude Code and Codex.",
+  "description": "Auriga's end-to-end engineering workflow: clarification, diagnosis, implementation, maintenance, review, and Git lifecycle guardrails.",
   "author": {
     "name": "Ben2pc",
     "email": "pangcheng33@gmail.com"
@@ -9,7 +9,5 @@
   "homepage": "https://github.com/Ben2pc/auriga-cli/tree/main/plugins/auriga-workflow",
   "repository": "https://github.com/Ben2pc/auriga-cli",
   "license": "MIT",
-  "category": "developer-tools",
-  "skills": "./skills/",
   "hooks": "./hooks/hooks.json"
 }

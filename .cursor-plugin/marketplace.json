@@ -12,27 +12,11 @@
     {
       "name": "auriga-workflow",
       "source": "auriga-workflow",
-      "description": "Auriga's end-to-end engineering workflow: clarification, diagnosis, implementation, maintenance, review, and Git lifecycle guardrails.",
-      "version": "4.0.24",
-      "author": {
-        "name": "Ben2pc",
-        "email": "pangcheng33@gmail.com"
-      },
-      "homepage": "https://github.com/Ben2pc/auriga-cli/tree/main/plugins/auriga-workflow",
-      "repository": "https://github.com/Ben2pc/auriga-cli",
       "category": "developer-tools"
     },
     {
       "name": "quality-gate-scaffolder",
       "source": "quality-gate-scaffolder",
-      "description": "Scaffold stack-specific repository quality gates for Swift iOS, Kotlin Android, Python backend, TypeScript frontend, and Node tool projects.",
-      "version": "0.2.2",
-      "author": {
-        "name": "Ben2pc",
-        "email": "pangcheng33@gmail.com"
-      },
-      "homepage": "https://github.com/Ben2pc/auriga-cli/tree/main/plugins/quality-gate-scaffolder",
-      "repository": "https://github.com/Ben2pc/auriga-cli",
       "category": "developer-tools"
     }
   ]

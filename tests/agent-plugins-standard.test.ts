@@ -8,11 +8,14 @@ const schemaUri = "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json";
 const nativeManifestPaths = [
   ".claude-plugin/plugin.json",
   ".codex-plugin/plugin.json",
+  ".cursor-plugin/plugin.json",
 ] as const;
 
 const localizedNativeDescriptions: Record<string, string> = {
   "quality-gate-scaffolder/.codex-plugin/plugin.json":
     "为 Swift iOS、Kotlin Android、Python 后端、TypeScript 前端和 Node 工具项目搭建仓库质量门禁。",
+  "auriga-workflow/.cursor-plugin/plugin.json":
+    "Auriga's end-to-end engineering workflow: clarification, diagnosis, implementation, maintenance, review, and Git lifecycle guardrails.",
 };
 
 type JsonObject = Record<string, unknown>;
@@ -261,7 +264,7 @@ describe("Agent Plugins 1.0.0 package contract", () => {
       name: string;
       owner: { name: string; email?: string };
       metadata?: { pluginRoot?: string };
-      plugins: Array<{ name: string; source: string }>;
+      plugins: Array<{ name: string; source: string; category?: string; version?: string }>;
     };
 
     assert.deepEqual(
@@ -291,6 +294,16 @@ describe("Agent Plugins 1.0.0 package contract", () => {
     }
     for (const plugin of cursorMarketplace.plugins) {
       assert.equal(plugin.source, plugin.name);
+      assert.equal(plugin.category, "developer-tools");
+      const owned = plugins.find((entry) => entry.name === plugin.name);
+      assert.ok(owned, `Cursor marketplace lists unknown plugin ${plugin.name}`);
+      if (plugin.version !== undefined) {
+        assert.equal(
+          plugin.version,
+          owned.version,
+          `Cursor marketplace version for ${plugin.name} must match the plugin manifest`,
+        );
+      }
     }
   });
 

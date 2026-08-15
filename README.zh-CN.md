@@ -124,9 +124,9 @@ npx auriga-cli
 
 可以把选中的插件安装到 Claude Code、Codex 或两者都装。Claude Code 路径使用 `claude plugins install`，并遵守 `--scope project|user`；Codex 路径根据 `~/.codex/config.toml` 中是否已注册同名 marketplace 自动选择 `codex plugin marketplace add` 或 `upgrade` 注册 marketplace，再用原生的 `codex plugin add <plugin>@<marketplace>` 命令安装每个选中的插件。Codex 路径要求 Codex CLI 版本新到支持 `codex plugin add`；旧版本会中止 Codex 侧安装并提示升级。
 
-本仓库维护的四个插件——`auriga-workflow`、`quality-gate-scaffolder`、`session-instructions-loader` 和 `auriga-notify`——都提供兼容 [Agent Plugins 1.0.0](https://agent-plugins.org/specification) 的根 `plugin.json`。标准客户端只从固定的 `skills/` 与 `mcp.json` 位置发现可移植组件；Hook 注册表保留在约定的 `hooks/hooks.json`，宿主专属的 interface 元数据和显式 Hook 路径则放在适用的 Claude Code 或 Codex 清单中。因此，标准包身份不会扩大下表所列的运行时支持范围。
+本仓库维护的四个插件——`auriga-workflow`、`quality-gate-scaffolder`、`session-instructions-loader` 和 `auriga-notify`——都提供兼容 [Agent Plugins 1.0.0](https://agent-plugins.org/specification) 的根 `plugin.json`。标准客户端只从固定的 `skills/` 与 `mcp.json` 位置发现可移植组件；Hook 注册表保留在约定的 `hooks/hooks.json`，宿主专属的 interface 元数据和显式 Hook 路径则放在适用的 Claude Code、Codex 或 Cursor 清单中。下表「运行时」列写的是该插件实际可安装的宿主；CLI 安装器仍然只面向 Claude Code 和 Codex。
 
-Cursor 通过 `.cursor-plugin/marketplace.json` 索引本仓库，当前列出 `auriga-workflow` 和 `quality-gate-scaffolder`；把这个 GitHub 仓库加为 Cursor 市场后即可安装。CLI 安装器仍然只面向 Claude Code 和 Codex。
+Cursor 通过 `.cursor-plugin/marketplace.json` 索引本仓库，当前列出 `auriga-workflow` 和 `quality-gate-scaffolder`。个人用户用 `cursor-agent plugin marketplace add https://github.com/Ben2pc/auriga-cli` 添加这个 GitHub 仓库，再安装列出的插件。团队或企业方案也可以在 Cursor 控制台把同一仓库加为团队市场。
 
 `auriga-workflow` 只负责提供插件内技能，不会扫描、修改或删除以前独立安装的同名技能。团队升级后先确认插件技能可用，再通过 `npx skills remove <skill-name>` 或人工方式移除旧副本及对应锁记录；这项小团队迁移通过口头同步完成，不在安装器里维护自动清理状态机。
 
@@ -144,8 +144,8 @@ npx -y auriga-cli install plugins --agent codex --plugin session-instructions-lo
 | claude-md-management | Claude Code / Codex | 审计和改进 AGENTS.md / CLAUDE.md |
 | playground | Claude Code / Codex | 构建交互式 HTML playground |
 | codex | Claude Code | Codex 跨模型协作 |
-| auriga-workflow | Claude Code / Codex | Auriga 端到端工程工作流，覆盖证据优先的缺陷诊断、按风险选择验证并审慎沉淀永久测试、需求与架构澄清、增量实现、保留人工门禁的自主执行、按持续集成评审情况路由本地深度评审、文档资产治理和 Git 生命周期约束。 |
-| quality-gate-scaffolder | Claude Code / Codex | 为 Swift iOS、Kotlin Android、Python 后端、TypeScript 前端和 Node 工具仓库搭建技术栈专属质量门禁。 |
+| auriga-workflow | Claude Code / Codex / Cursor | Auriga 端到端工程工作流，覆盖证据优先的缺陷诊断、按风险选择验证并审慎沉淀永久测试、需求与架构澄清、增量实现、保留人工门禁的自主执行、按持续集成评审情况路由本地深度评审、文档资产治理和 Git 生命周期约束。 |
+| quality-gate-scaffolder | Claude Code / Codex / Cursor | 为 Swift iOS、Kotlin Android、Python 后端、TypeScript 前端和 Node 工具仓库搭建技术栈专属质量门禁。 |
 | auriga-notify *(opt-in)* | Claude Code | Claude Code `Notification` 事件的 macOS 原生通知插件。支持焦点感知仅提示音、点击唤起终端、按项目分组通知，并迁移旧 `config.json` / `icon.png`。不随 `install --all` 默认安装，需要显式执行 `install plugins --plugin auriga-notify`。 |
 | session-instructions-loader | Codex | Codex-only SessionStart 插件，注入上层目录的 `AGENTS.md` 和仓库配置的额外 instruction 文件。 |
 

@@ -73,7 +73,7 @@
 - `src/workflow-markers.ts` 负责受管区块 marker 协议。
 - `plugins/auriga-workflow/` 负责 workflow skills 和 git 生命周期钩子。
 - `plugins/session-instructions-loader/` 负责 Codex SessionStart 的祖先指令注入。
-- `plugins/<name>/plugin.json` 是自有插件的 Agent Plugins 1.0.0 根 `plugin.json`：标准组件只从固定的 `skills/` 与 `mcp.json` 发现；Hook 注册表通过 `hooks/hooks.json` 分发，`interface`、Hook 路径等宿主专属覆盖字段放在适用的 `.claude-plugin/plugin.json`、`.codex-plugin/plugin.json` 或标准 `extensions` 中。
+- `plugins/<name>/plugin.json` 是自有插件的 Agent Plugins 1.0.0 根 `plugin.json`：标准组件只从固定的 `skills/` 与 `mcp.json` 发现；Hook 注册表通过 `hooks/hooks.json` 分发，`interface`、Hook 路径等宿主专属覆盖字段放在适用的 `.claude-plugin/plugin.json`、`.codex-plugin/plugin.json`、`.cursor-plugin/plugin.json` 或标准 `extensions` 中。
 - `.codex/session-instructions-loader.json` 在这个仓库里有意设置为 `{ "ancestorLevel": 1 }`；不要重新加回 `.claude/CLAUDE.md` 的额外注入。
 - `.claude/` 只保留本地设置和外部 skill 的符号链接。不要重新引入 `.claude/AGENTS.md` 或 `.claude/CLAUDE.md` 兼容项。
 - `ui/` 是独立工具链的 Web UI 子项目，规则见 `ui/AGENTS.md`；改动该目录前先读它。
@@ -103,7 +103,7 @@
 以下情况不需要提升版本：
 
 - 根目录 `AGENTS.md` / `CLAUDE.md` 开发指令
-- `.cursor-plugin/marketplace.json`（只给 Cursor 索引本仓库插件，不进 CLI 内容清单）
+- `.cursor-plugin/marketplace.json` 与 `plugins/<name>/.cursor-plugin/plugin.json`（只给 Cursor 索引本仓库插件，不进 CLI 内容清单）
 - `.claude/skills/<name>` 软链
 - `tests/`, `docs/`, `tsconfig*.json`, `.github/`
 - `README.md` / `README.zh-CN.md` 的纯仓库文档同步，例如 plugin payload 说明、开发协作说明、表述澄清；若只同步 plugin payload 内容，按插件自己的 manifest version 判断
@@ -137,7 +137,7 @@ npm run test:git-guards
 - 不要把 plugin payload 加进 `CONTENT_FILES`；plugin 的 freshness 属于 plugin marketplace 的职责。
 - 编辑自有 plugin 时，保持根 `plugin.json` 与所有适用原生清单的 `name`、`version` 一致；不要把 hooks、interface 或自定义组件路径写进 Agent Plugins 1.0.0 的闭合顶层字段。
 - 不要把 auriga 自己负责的 workflow skills 再加回 `skills-lock.json` 或 `.agents/skills/`；它们通过 `auriga-workflow` plugin 发布。
-- 编辑 plugin 或 skill 资产时，要同时考虑 Claude Code 和 Codex 的可移植性。可移植性检查清单见 `docs/rules/agent-portability.md`。
+- 编辑 plugin 或 skill 资产时，要同时考虑会安装这些资产的宿主。当前安装面是 Claude Code、Codex 和 Cursor；不要把散文或工具假设写死成某一个。可移植性检查清单见 `docs/rules/agent-portability.md`。
 - 只在注释能够解释不明显的约束或历史背景时，才写简短注释。
 
 ## 沟通
