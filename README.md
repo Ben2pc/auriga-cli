@@ -126,6 +126,8 @@ Installs selected plugins for Claude Code, Codex, or both. Claude Code uses `cla
 
 The four plugins maintained in this repository — `auriga-workflow`, `quality-gate-scaffolder`, `session-instructions-loader`, and `auriga-notify` — ship a root `plugin.json` compatible with [Agent Plugins 1.0.0](https://agent-plugins.org/specification). Standard clients discover portable components only from the fixed `skills/` and `mcp.json` locations. Hooks remain in the conventional `hooks/hooks.json` registry, while host-specific interface metadata and explicit hook paths stay in the applicable Claude Code or Codex manifest. A standard package identity therefore does not expand the runtime support shown below.
 
+Cursor indexes this repository through `.cursor-plugin/marketplace.json`. That manifest currently lists `auriga-workflow` and `quality-gate-scaffolder`; add the GitHub repo as a Cursor marketplace to install them. The CLI installer still targets Claude Code and Codex only.
+
 `auriga-workflow` only provides plugin-bundled skills; it never scans, modifies, or deletes same-name skills installed previously as standalone copies. After a team upgrade, verify the plugin skill first, then remove obsolete copies and lock entries with `npx skills remove <skill-name>` or by hand. This small-team transition is coordinated directly instead of maintaining an automatic cleanup state machine in the installer.
 
 Examples:

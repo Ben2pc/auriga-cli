@@ -103,6 +103,7 @@
 以下情况不需要提升版本：
 
 - 根目录 `AGENTS.md` / `CLAUDE.md` 开发指令
+- `.cursor-plugin/marketplace.json`（只给 Cursor 索引本仓库插件，不进 CLI 内容清单）
 - `.claude/skills/<name>` 软链
 - `tests/`, `docs/`, `tsconfig*.json`, `.github/`
 - `README.md` / `README.zh-CN.md` 的纯仓库文档同步，例如 plugin payload 说明、开发协作说明、表述澄清；若只同步 plugin payload 内容，按插件自己的 manifest version 判断

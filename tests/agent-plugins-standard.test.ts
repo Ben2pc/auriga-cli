@@ -249,6 +249,11 @@ describe("Agent Plugins 1.0.0 package contract", () => {
     const codexMarketplace = readJson(".agents/plugins/marketplace.json") as {
       plugins: Array<{ name: string; source: { source: string; path: string } }>;
     };
+    const cursorMarketplace = readJson(".cursor-plugin/marketplace.json") as {
+      name: string;
+      owner: { name: string; email?: string };
+      plugins: Array<{ name: string; source: string }>;
+    };
 
     assert.deepEqual(
       claudeMarketplace.plugins.map(({ name }) => name).sort(),
@@ -257,6 +262,12 @@ describe("Agent Plugins 1.0.0 package contract", () => {
     assert.deepEqual(
       codexMarketplace.plugins.map(({ name }) => name).sort(),
       ["auriga-workflow", "quality-gate-scaffolder", "session-instructions-loader"],
+    );
+    assert.equal(cursorMarketplace.name, "auriga-cli");
+    assert.equal(typeof cursorMarketplace.owner?.name, "string");
+    assert.deepEqual(
+      cursorMarketplace.plugins.map(({ name }) => name).sort(),
+      ["auriga-workflow", "quality-gate-scaffolder"],
     );
 
     for (const plugin of claudeMarketplace.plugins) {
@@ -267,6 +278,9 @@ describe("Agent Plugins 1.0.0 package contract", () => {
         source: "local",
         path: `./plugins/${plugin.name}`,
       });
+    }
+    for (const plugin of cursorMarketplace.plugins) {
+      assert.equal(plugin.source, `./plugins/${plugin.name}`);
     }
   });
 

@@ -126,6 +126,8 @@ npx auriga-cli
 
 本仓库维护的四个插件——`auriga-workflow`、`quality-gate-scaffolder`、`session-instructions-loader` 和 `auriga-notify`——都提供兼容 [Agent Plugins 1.0.0](https://agent-plugins.org/specification) 的根 `plugin.json`。标准客户端只从固定的 `skills/` 与 `mcp.json` 位置发现可移植组件；Hook 注册表保留在约定的 `hooks/hooks.json`，宿主专属的 interface 元数据和显式 Hook 路径则放在适用的 Claude Code 或 Codex 清单中。因此，标准包身份不会扩大下表所列的运行时支持范围。
 
+Cursor 通过 `.cursor-plugin/marketplace.json` 索引本仓库，当前列出 `auriga-workflow` 和 `quality-gate-scaffolder`；把这个 GitHub 仓库加为 Cursor 市场后即可安装。CLI 安装器仍然只面向 Claude Code 和 Codex。
+
 `auriga-workflow` 只负责提供插件内技能，不会扫描、修改或删除以前独立安装的同名技能。团队升级后先确认插件技能可用，再通过 `npx skills remove <skill-name>` 或人工方式移除旧副本及对应锁记录；这项小团队迁移通过口头同步完成，不在安装器里维护自动清理状态机。
 
 示例：
