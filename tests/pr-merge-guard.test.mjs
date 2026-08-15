@@ -59,16 +59,16 @@ function makeScratch(body) {
   return { dir, bin, argvFile };
 }
 
-function run(command, body) {
+function run(command, body, toolName = "Bash") {
   const { dir, bin, argvFile } = makeScratch(body);
-  const payload = JSON.stringify({
+  const payload = {
     session_id: "test",
     hook_event_name: "PreToolUse",
-    tool_name: "Bash",
     tool_input: { command, description: "test" },
-  });
+  };
+  if (toolName !== null) payload.tool_name = toolName;
   const r = spawnSync("node", [ENTRY], {
-    input: payload,
+    input: JSON.stringify(payload),
     encoding: "utf8",
     cwd: dir,
     env: { ...process.env, PATH: `${bin}:${process.env.PATH}` },
@@ -303,6 +303,20 @@ const cases = [
     expect: { status: 2, stderrIncludes: ["Second criterion not yet met"] },
   },
   {
+    name: "Cursor Shell tool_name still blocks unchecked acceptance items",
+    cmd: "gh pr merge --squash --delete-branch",
+    toolName: "Shell",
+    body: ONE_UNCHECKED,
+    expect: { status: 2, stderrIncludes: ["Second criterion not yet met"] },
+  },
+  {
+    name: "missing tool_name still blocks unchecked acceptance items",
+    cmd: "gh pr merge --squash --delete-branch",
+    toolName: null,
+    body: ONE_UNCHECKED,
+    expect: { status: 2, stderrIncludes: ["Second criterion not yet met"] },
+  },
+  {
     name: "unchecked item outside the acceptance section → passes",
     cmd: "gh pr merge --squash",
     body: UNCHECKED_OUTSIDE,
@@ -470,7 +484,7 @@ function check(name, errs) {
 }
 
 for (const c of cases) {
-  const r = run(c.cmd, c.body);
+  const r = run(c.cmd, c.body, c.toolName);
   const errs = [];
   if (c.expect.status !== undefined && r.status !== c.expect.status) {
     errs.push(`expected exit ${c.expect.status}, got ${r.status}`);
