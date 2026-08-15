@@ -27,7 +27,7 @@ travel together so they share one distribution model and one install step.
 
 | Hook | Event | Fires on | Action |
 |---|---|---|---|
-| `commit-reminder` | `PostToolUse` | `Edit` / `Write` / `MultiEdit` (Claude Code) · `apply_patch` (Codex's canonical file-edit tool) | When uncommitted diff vs `HEAD` exceeds 200 lines or 8 files **and** the last reminder was ≥ 5 minutes ago, injects `additionalContext` nudging the agent to commit at the next semantic boundary. Never blocks. Silent outside a git repo. |
+| `commit-reminder` | `PostToolUse` | File-edit tools: `Edit` / `Write` / `MultiEdit` / `NotebookEdit` (Claude Code) · `apply_patch` (Codex) · `Write` / `StrReplace` / `Delete` / `EditNotebook` (Cursor) · `search_replace` (Grok Build) | When uncommitted diff vs `HEAD` exceeds 200 lines or 8 files **and** the last reminder was ≥ 5 minutes ago, injects `additionalContext` nudging the agent to commit at the next semantic boundary. Never blocks. Silent outside a git repo. |
 | `pr-create-guard` | `PostToolUse` | `gh pr create` | Fetches the new PR's body + title via `gh pr view`, injects a snapshot (headings + TODO counts) so the agent can self-verify against the six-section PR description contract (scope / acceptance criteria / design decisions / risks / test plan / TODOs). Also flags titles that don't match Conventional Commits format with a soft nudge. Never blocks. |
 | `pr-ready-guard` | `PreToolUse` | `gh pr ready` · `gh pr create` (when `--draft` / `-d` absent) | Hard-blocks (exit 2) on **structural** issues: the `.planning/.active_plan` pointer and files in the plan directory it names, unfinalized active specs under `docs/specs/`, scanner safety failures, or unpushed commits (`gh pr ready` only). On `gh pr ready` otherwise injects a body snapshot. |
 | `pr-merge-guard` | `PreToolUse` | `gh pr merge` | Hard-blocks (exit 2) while the PR body's `Acceptance criteria` or `Test plan` section still has unchecked `- [ ]` checklist items. Scoped to those two sections — unchecked items elsewhere (Remaining TODOs) never block; fenced code blocks are skipped. Fails open if `gh` can't read the body. |
@@ -76,7 +76,7 @@ identical stdin payloads.
 
 | Behaviour | Claude Code | Codex |
 |---|---|---|
-| `commit-reminder` → inject reminder (PostToolUse `additionalContext`) | ✅ | ✅ Codex reports file edits as `tool_name: "apply_patch"`; the hook's allowlist accepts both naming schemes, and `PostToolUse` `additionalContext` is surfaced. |
+| `commit-reminder` → inject reminder (PostToolUse `additionalContext`) | ✅ | ✅ Codex reports file edits as `tool_name: "apply_patch"`. The matcher names that tool; the script keys off the working-tree diff, not `tool_name`. |
 | `gh pr create` → inject body snapshot (PostToolUse `additionalContext`) | ✅ | ✅ |
 | `gh pr ready` → block on structural issues (exit 2 + stderr) | ✅ | ✅ |
 | `gh pr create` without `--draft` → block on structural issues (exit 2 + stderr) | ✅ | ✅ |
@@ -88,12 +88,17 @@ informational path** for `pr-ready-guard`: structural blocks fire identically,
 and the two PostToolUse hooks (`commit-reminder`, `pr-create-guard`) are at full
 parity.
 
-Cursor loads the same plugin hooks when third-party configs are enabled. It
-maps matcher `Bash` to `Shell` and reports file edits as `Write`. The three
-PR guards (`pr-ready-guard`, `pr-create-guard`, `pr-merge-guard`) key off
-the command, not `tool_name`. `pr-create-guard` also reads Cursor's
-`tool_output` payload. `commit-reminder` still matches file-edit tools by
-`tool_name` and already accepts Cursor's `Write`.
+Cursor and Grok Build load the same plugin hooks. Shell-tool matchers list
+`Bash`, `Shell`, `PowerShell`, and Grok's `run_terminal_command`. The three
+PR guards key off the command, not `tool_name`, and read both
+`tool_input.command` and Grok's `toolInput.command`. `pr-create-guard` also
+reads Cursor's `tool_output` and Grok's `toolResult`. `commit-reminder` is
+invoked by the file-edit matcher (including Grok's `search_replace`) and
+then keys off the working-tree diff, not `tool_name`.
+
+Grok Build ignores `PostToolUse` stdout, so `commit-reminder` and
+`pr-create-guard` cannot inject model context there. The two `PreToolUse`
+block paths (`pr-ready-guard`, `pr-merge-guard`) still work via exit code 2.
 
 ## Block signals (pr-ready-guard)
 

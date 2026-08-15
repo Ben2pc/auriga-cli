@@ -2,21 +2,16 @@
   "hooks": {
     "PreToolUse": [
       {
-        "matcher": "Bash",
+        "matcher": "Bash|Shell|PowerShell|run_terminal_command",
         "hooks": [
           {
             "type": "command",
-            "if": "Bash(gh pr ready)",
+            "timeout": 30,
             "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/pr-ready-guard.mjs\""
           },
           {
             "type": "command",
-            "if": "Bash(gh pr create)",
-            "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/pr-ready-guard.mjs\""
-          },
-          {
-            "type": "command",
-            "if": "Bash(gh pr merge)",
+            "timeout": 30,
             "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/pr-merge-guard.mjs\""
           }
         ]
@@ -24,20 +19,21 @@
     ],
     "PostToolUse": [
       {
-        "matcher": "Bash",
+        "matcher": "Bash|Shell|PowerShell|run_terminal_command",
         "hooks": [
           {
             "type": "command",
-            "if": "Bash(gh pr create)",
+            "timeout": 30,
             "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/pr-create-guard.mjs\""
           }
         ]
       },
       {
-        "matcher": "Edit|Write|MultiEdit|apply_patch",
+        "matcher": "Edit|Write|MultiEdit|NotebookEdit|apply_patch|StrReplace|Delete|EditNotebook|search_replace",
         "hooks": [
           {
             "type": "command",
+            "timeout": 15,
             "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/commit-reminder.mjs\""
           }
         ]

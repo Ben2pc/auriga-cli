@@ -25,13 +25,22 @@ const ENTRY = path.resolve(
   "pr-ready-guard.mjs",
 );
 
-function run(command, cwd, toolName = "Bash") {
-  const payload = {
-    session_id: "test",
-    hook_event_name: "PreToolUse",
-    tool_input: { command, description: "test" },
-  };
-  if (toolName !== null) payload.tool_name = toolName;
+function run(command, cwd, toolName = "Bash", style = "snake") {
+  const payload =
+    style === "camel"
+      ? {
+          hookEventName: "PreToolUse",
+          toolInput: { command, description: "test" },
+        }
+      : {
+          session_id: "test",
+          hook_event_name: "PreToolUse",
+          tool_input: { command, description: "test" },
+        };
+  if (toolName !== null) {
+    if (style === "camel") payload.toolName = toolName;
+    else payload.tool_name = toolName;
+  }
   const serialized = JSON.stringify(payload);
   const r = spawnSync("node", [ENTRY], {
     input: serialized,
@@ -127,6 +136,20 @@ const cases = [
       const dir = makeRepo();
       writePlanningArtifacts(dir, ["progress.md", "task_plan.md"]);
       return { cwd: dir, cmd: "gh pr ready", toolName: "Shell" };
+    },
+    expect: { status: 2, stderrIncludes: "progress.md" },
+  },
+  {
+    name: "Grok camelCase toolInput still blocks on active planning artifacts",
+    setup: () => {
+      const dir = makeRepo();
+      writePlanningArtifacts(dir, ["progress.md", "task_plan.md"]);
+      return {
+        cwd: dir,
+        cmd: "gh pr ready",
+        toolName: "run_terminal_command",
+        style: "camel",
+      };
     },
     expect: { status: 2, stderrIncludes: "progress.md" },
   },
@@ -647,9 +670,9 @@ let failed = 0;
 let passed = 0;
 try {
   for (const c of cases) {
-    const { cwd, cmd, toolName } = c.setup();
+    const { cwd, cmd, toolName, style } = c.setup();
     cleanupDirs.push(cwd);
-    const r = run(cmd, cwd, toolName);
+    const r = run(cmd, cwd, toolName, style);
     const checks = [];
     if (c.expect.status !== undefined)
       checks.push({ ok: r.status === c.expect.status, msg: `status=${r.status} (want ${c.expect.status})` });
@@ -698,10 +721,10 @@ try {
   }
 }
 
-// Structural regression guard for hooks.json: assert pr-ready-guard.mjs
-// is registered for BOTH `gh pr ready` AND `gh pr create`. A regression
-// that drops the `gh pr create` entry would silently disable Route B
-// with no test catching it — this guard is the safety net.
+// Structural regression guard for hooks.json: pr-ready-guard.mjs must
+// be registered on the shared shell-tool matcher. The script itself
+// routes `gh pr ready` and `gh pr create`; dropping the registration
+// would silently disable both routes.
 {
   const hooksJsonPath = path.resolve(
     path.dirname(ENTRY),
@@ -710,24 +733,20 @@ try {
     "hooks.json",
   );
   const config = JSON.parse(fs.readFileSync(hooksJsonPath, "utf8"));
-  const preToolBash = (config.hooks?.PreToolUse ?? []).find(
-    (e) => e.matcher === "Bash",
+  const group = (config.hooks?.PreToolUse ?? []).find((entry) =>
+    (entry.hooks ?? []).some((hook) =>
+      (hook.command ?? "").includes("pr-ready-guard.mjs"),
+    ),
   );
-  const entries = preToolBash?.hooks ?? [];
-  const matchers = entries
-    .filter((h) => (h.command ?? "").includes("pr-ready-guard.mjs"))
-    .map((h) => h.if);
-
-  for (const expected of ["Bash(gh pr ready)", "Bash(gh pr create)"]) {
-    if (matchers.includes(expected)) {
+  const named = new Set((group?.matcher ?? "").split("|").map((part) => part.trim()));
+  for (const tool of ["Bash", "Shell", "PowerShell", "run_terminal_command"]) {
+    if (named.has(tool)) {
       passed++;
-      console.log(
-        `  ✓ hooks.json registers pr-ready-guard.mjs for ${expected}`,
-      );
+      console.log(`  ✓ hooks.json pr-ready-guard matcher includes ${tool}`);
     } else {
       failed++;
       console.error(
-        `  ✗ hooks.json missing pr-ready-guard.mjs registration for ${expected} (found: [${matchers.join(", ")}])`,
+        `  ✗ hooks.json pr-ready-guard matcher missing ${tool} (found: ${JSON.stringify(group?.matcher)})`,
       );
     }
   }

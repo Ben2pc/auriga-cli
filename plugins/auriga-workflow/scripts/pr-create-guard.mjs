@@ -6,7 +6,7 @@
 //
 // If gh pr create succeeded:
 //   - extract the PR URL/number from the tool result
-//     (Claude/Codex: tool_response; Cursor: tool_output)
+//     (Claude/Codex: tool_response; Cursor: tool_output; Grok: toolResult)
 //   - gh pr view --json body,title to get the real fields
 //   - scan ^## / ^### headings, count TODO checkboxes
 //   - check title against Conventional Commits format (soft nudge —
@@ -44,7 +44,7 @@ process.stdin.on("data", (c) => (input += c));
 process.stdin.on("end", () => {
   try {
     const data = JSON.parse(input);
-    const cmd = data?.tool_input?.command;
+    const cmd = toolCommand(data);
     if (typeof cmd !== "string") return exit0();
     // Strip simple quoted runs so mentions of "gh pr create" inside
     // echo args, git commit messages, etc. don't trigger the hook.
@@ -82,6 +82,13 @@ process.stdin.on("end", () => {
 
 // ---------------------------------------------------------------------
 
+// Claude Code / Codex / Cursor use tool_input; Grok Build uses toolInput.
+function toolCommand(data) {
+  const input = data?.tool_input ?? data?.toolInput;
+  const cmd = input?.command;
+  return typeof cmd === "string" ? cmd : null;
+}
+
 function looksLikeFailure(resp) {
   if (!resp || typeof resp !== "object") return false;
   if (resp.isError === true) return true;
@@ -91,10 +98,11 @@ function looksLikeFailure(resp) {
 }
 
 // Claude Code / Codex put the result on tool_response (object or raw
-// string). Cursor puts a JSON string (or object) on tool_output.
-// Normalize so extractPRRef and looksLikeFailure see the same shape.
+// string). Grok Build uses toolResult. Cursor puts a JSON string (or
+// object) on tool_output. Normalize so extractPRRef and looksLikeFailure
+// see the same shape.
 function toolResult(data) {
-  const response = data?.tool_response;
+  const response = data?.tool_response ?? data?.toolResult;
   if (typeof response === "string") return { stdout: response };
   if (response && typeof response === "object") return response;
   const raw = data?.tool_output;
