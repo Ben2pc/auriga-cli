@@ -304,6 +304,12 @@ describe("Agent Plugins 1.0.0 package contract", () => {
           `Cursor marketplace version for ${plugin.name} must match the plugin manifest`,
         );
       }
+      const cursorManifest = readJson(`plugins/${plugin.name}/.cursor-plugin/plugin.json`);
+      assert.equal(
+        cursorManifest.skills,
+        "./skills/",
+        `${plugin.name} Cursor manifest must declare the skills container for marketplace indexing`,
+      );
     }
   });
 

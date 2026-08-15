@@ -9,5 +9,6 @@
   "homepage": "https://github.com/Ben2pc/auriga-cli/tree/main/plugins/auriga-workflow",
   "repository": "https://github.com/Ben2pc/auriga-cli",
   "license": "MIT",
+  "skills": "./skills/",
   "hooks": "./hooks/hooks.json"
 }
