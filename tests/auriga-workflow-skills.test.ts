@@ -415,6 +415,53 @@ describe("auriga-workflow skill contracts", () => {
     }
   });
 
+  test("arch-design domain models separate change, representation, identity, lifecycle, and rules", () => {
+    const skill = read("plugins/auriga-workflow/skills/arch-design/SKILL.md");
+    const template = read(
+      "plugins/auriga-workflow/skills/arch-design/references/arch-design-template.md",
+    );
+    const reference = read(
+      "plugins/auriga-workflow/skills/arch-design/references/domain-modeling.md",
+    );
+    const reviewFocus = markdownSection(template, "## Review Focus / 人工评审重点");
+    const domainModel = markdownSection(template, "## Domain Model / 领域模型");
+    const inventory = markdownSection(domainModel, "### Model Inventory / 模型清单");
+    const conceptDetails = markdownSection(domainModel, "### Concept Details / 概念说明");
+
+    assert.match(reviewFocus, /待确认项/);
+    for (const field of ["领域概念", "变更状态", "代码映射"]) {
+      assert.ok(inventory.includes(field), `domain-model inventory must preserve ${field}`);
+    }
+    for (const status of ["已有保留", "已有调整", "本次新增", "计划移除"]) {
+      assert.ok(inventory.includes(status), `domain-model inventory must define ${status}`);
+    }
+    assert.match(inventory, /每个领域概念只保留一行/);
+    assert.match(inventory, /\| `<已有调整的领域概念>` \| 已有调整 \| 现有：[^\n]+→ 目标：[^\n]+\|/);
+    assert.match(inventory, /\| `<新增抽象概念>` \| 本次新增 \| 无独立代码实体（抽象概念） \|/);
+    assert.match(inventory, /\| `<映射待确认的领域概念>` \| [^\n]+\| 待确认：[^\n]+\|/);
+    assert.match(inventory, /待确认[^。\n]*人工评审重点/);
+    assert.doesNotMatch(domainModel, /\| 身份或生命周期 \|/);
+    assert.doesNotMatch(domainModel, /\| 必须保持的不变量 \|/);
+    assert.match(conceptDetails, /^#### `<概念标识符>`$/m);
+    assert.doesNotMatch(
+      conceptDetails,
+      /^\|.*\|$/m,
+      "concept details must remain per-concept sections instead of another wide table",
+    );
+    for (const field of ["同一性判断", "状态与存续范围", "有效状态规则", "成立边界"]) {
+      assert.ok(conceptDetails.includes(field), `domain concept details must preserve ${field}`);
+    }
+    for (const identity of ["持久标识", "按值判等", "无独立同一性"]) {
+      assert.ok(conceptDetails.includes(identity), `identity guidance must distinguish ${identity}`);
+    }
+    assert.match(conceptDetails, /不是登录或认证身份/);
+    assert.match(conceptDetails, /输入校验、调用前提、授权策略和实现限制不属于这里/);
+    assert.match(conceptDetails, /单次事务/);
+    assert.match(conceptDetails, /示例[^。\n]*封闭枚举/);
+    assert.match(skill, /arch-design-template\.md[^。\n]*唯一详细契约/);
+    assert.match(reference, /arch-design-template\.md[^。\n]*唯一详细契约/);
+  });
+
   test("arch-design template makes current and target architecture easy to compare", () => {
     const skill = read("plugins/auriga-workflow/skills/arch-design/SKILL.md");
     const template = read(

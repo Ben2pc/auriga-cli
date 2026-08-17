@@ -23,7 +23,7 @@ type JsonObject = Record<string, unknown>;
 const plugins = [
   {
     name: "auriga-workflow",
-    version: "4.0.25",
+    version: "4.0.26",
     nativeManifests: [
       ".claude-plugin/plugin.json",
       ".codex-plugin/plugin.json",

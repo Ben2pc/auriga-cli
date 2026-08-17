@@ -26,4 +26,4 @@
 
 ## 输出到设计文档
 
-在 `Domain Model` 中写概念、职责、身份或生命周期和不变量；在 `Responsibilities & Boundaries` 中说明领域、应用与基础设施职责如何分开。
+在 `Domain Model` 中先用模型清单写明每个领域概念的变更状态和代码映射，再按概念说明职责、同一性、状态和规则；在 `Responsibilities & Boundaries` 中说明领域、应用与基础设施职责如何分开。具体字段语义、映射形态和排除项以 `arch-design-template.md` 的 `Domain Model` 章节为唯一详细契约，本工具箱不重复维护。
