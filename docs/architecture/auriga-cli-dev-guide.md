@@ -70,6 +70,9 @@ plugins/
                                                  共享结构；使用
                                                  ${CLAUDE_PLUGIN_ROOT}，Codex
                                                  也刻意镜像它以保证开箱兼容)
+                    scripts/repo-root.mjs       (从载荷 / 环境变量定位用户
+                                                 仓库；Cursor 钩子进程目录
+                                                 是插件缓存)
                     scripts/commit-reminder.mjs (PostToolUse: 由 hooks.json
                                                  的写文件匹配器触发，脚本
                                                  只看工作区相对 HEAD 的差异)

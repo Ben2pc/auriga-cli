@@ -5,7 +5,9 @@
 // disagree on file-edit names (Claude Code: Edit / Write / NotebookEdit;
 // Codex: apply_patch; Cursor: Write / StrReplace / Delete / EditNotebook),
 // so the script does not re-filter tool_name. Once invoked, it only
-// looks at the working-tree diff vs HEAD.
+// looks at the working-tree diff vs HEAD. Git commands run against
+// the workspace named by the payload / env, not process.cwd() —
+// Cursor starts hooks inside the plugin cache.
 //
 // When uncommitted diff vs HEAD crosses size thresholds (lines OR
 // files) AND the last reminder was at least 5 minutes ago, injects an
@@ -18,6 +20,7 @@ import { createHash } from "node:crypto";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { resolveRepoRoot } from "./repo-root.mjs";
 
 const LINE_THRESHOLD = 200;
 const FILE_THRESHOLD = 8;
@@ -34,12 +37,13 @@ process.stdin.setEncoding("utf8");
 process.stdin.on("data", (c) => (input += c));
 process.stdin.on("end", () => {
   try {
-    JSON.parse(input);
+    const data = JSON.parse(input);
+    const repoRoot = resolveRepoRoot(data);
 
-    const gitDir = resolveGitDir();
+    const gitDir = resolveGitDir(repoRoot);
     if (!gitDir) return exit0();
 
-    const stat = readDiffStat();
+    const stat = readDiffStat(repoRoot);
     if (!stat) return exit0();
     const { files, lines } = stat;
     if (files <= FILE_THRESHOLD && lines <= LINE_THRESHOLD) return exit0();
@@ -55,25 +59,26 @@ process.stdin.on("end", () => {
   }
 });
 
-function resolveGitDir() {
-  const r = spawnSync("git", ["rev-parse", "--git-dir"], {
+function git(args, repoRoot) {
+  return spawnSync("git", args, {
     encoding: "utf8",
     timeout: 2000,
     env: GIT_ENV,
+    cwd: repoRoot,
   });
+}
+
+function resolveGitDir(repoRoot) {
+  const r = git(["rev-parse", "--git-dir"], repoRoot);
   if (r.status !== 0) return null;
   const out = (r.stdout ?? "").trim();
   if (!out) return null;
-  return path.resolve(out);
+  return path.resolve(repoRoot, out);
 }
 
-function readDiffStat() {
+function readDiffStat(repoRoot) {
   // Tracked changes (staged + unstaged) — diff vs HEAD.
-  const diff = spawnSync("git", ["diff", "--shortstat", "HEAD"], {
-    encoding: "utf8",
-    timeout: 2000,
-    env: GIT_ENV,
-  });
+  const diff = git(["diff", "--shortstat", "HEAD"], repoRoot);
   if (diff.status !== 0) return null;
   const tracked = parseShortstat(diff.stdout ?? "");
 
@@ -82,10 +87,9 @@ function readDiffStat() {
   // the file threshold so brand-new files still trigger the reminder.
   // Lines are intentionally not counted for untracked files: file count
   // alone is a strong "N new artifacts, commit soon" signal.
-  const untracked = spawnSync(
-    "git",
+  const untracked = git(
     ["ls-files", "--others", "--exclude-standard"],
-    { encoding: "utf8", timeout: 2000, env: GIT_ENV },
+    repoRoot,
   );
   if (untracked.status !== 0) return null;
   const untrackedFiles = (untracked.stdout ?? "")

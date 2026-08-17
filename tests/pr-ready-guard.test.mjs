@@ -25,7 +25,14 @@ const ENTRY = path.resolve(
   "pr-ready-guard.mjs",
 );
 
-function run(command, cwd, toolName = "Bash", style = "snake") {
+function hookEnv(overrides = {}) {
+  const env = { ...process.env };
+  delete env.CLAUDE_PROJECT_DIR;
+  delete env.GROK_WORKSPACE_ROOT;
+  return { ...env, ...overrides };
+}
+
+function run(command, cwd, toolName = "Bash", style = "snake", extras = {}) {
   const payload =
     style === "camel"
       ? {
@@ -41,13 +48,19 @@ function run(command, cwd, toolName = "Bash", style = "snake") {
     if (style === "camel") payload.toolName = toolName;
     else payload.tool_name = toolName;
   }
+  Object.assign(payload, extras.payload ?? {});
   const serialized = JSON.stringify(payload);
   const r = spawnSync("node", [ENTRY], {
     input: serialized,
     encoding: "utf8",
     cwd,
+    env: hookEnv(extras.env),
   });
   return { status: r.status, stdout: r.stdout ?? "", stderr: r.stderr ?? "" };
+}
+
+function makePluginCache() {
+  return fs.mkdtempSync(path.join(os.tmpdir(), "pr-ready-guard-plugin-cache-"));
 }
 
 // Makes a scratch dir that looks like a git repo (so upstream-diff
@@ -664,15 +677,53 @@ const cases = [
     },
     expect: { status: 0, stdoutEq: "", stderrNotIncludes: "pr-ready-guard" },
   },
+  {
+    name: "workspace_roots from plugin-cache cwd still blocks on planning artifacts",
+    setup: () => {
+      const repo = makeRepo();
+      writePlanningArtifacts(repo, ["progress.md", "task_plan.md"]);
+      const cache = makePluginCache();
+      cleanupDirs.push(repo, cache);
+      return {
+        cwd: cache,
+        cmd: "gh pr ready",
+        extras: { payload: { workspace_roots: [repo] } },
+      };
+    },
+    expect: { status: 2, stderrIncludes: "progress.md" },
+  },
+  {
+    name: "GROK_WORKSPACE_ROOT from plugin-cache cwd still blocks on planning artifacts",
+    setup: () => {
+      const repo = makeRepo();
+      writePlanningArtifacts(repo, ["progress.md", "task_plan.md"]);
+      const cache = makePluginCache();
+      cleanupDirs.push(repo, cache);
+      return {
+        cwd: cache,
+        cmd: "gh pr ready",
+        extras: { env: { GROK_WORKSPACE_ROOT: repo } },
+      };
+    },
+    expect: { status: 2, stderrIncludes: "progress.md" },
+  },
+  {
+    name: "plugin-cache cwd with no workspace signal stays silent",
+    setup: () => {
+      const cache = makePluginCache();
+      return { cwd: cache, cmd: "gh pr ready" };
+    },
+    expect: { status: 0, stdoutEq: "", stderrNotIncludes: "pr-ready-guard" },
+  },
 ];
 
 let failed = 0;
 let passed = 0;
 try {
   for (const c of cases) {
-    const { cwd, cmd, toolName, style } = c.setup();
+    const { cwd, cmd, toolName, style, extras } = c.setup();
     cleanupDirs.push(cwd);
-    const r = run(cmd, cwd, toolName, style);
+    const r = run(cmd, cwd, toolName, style, extras);
     const checks = [];
     if (c.expect.status !== undefined)
       checks.push({ ok: r.status === c.expect.status, msg: `status=${r.status} (want ${c.expect.status})` });

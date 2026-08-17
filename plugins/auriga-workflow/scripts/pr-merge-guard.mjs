@@ -19,9 +19,12 @@
 //
 // gh failures (unavailable, unauth, PR not found) are non-fatal: the
 // guard exits 0 silently rather than blocking on its own inability to
-// inspect the body.
+// inspect the body. Bare `gh pr view` (no ref) uses the workspace
+// named by the payload / env, not process.cwd() — Cursor starts hooks
+// inside the plugin cache.
 
 import { spawnSync } from "node:child_process";
+import { resolveRepoRoot } from "./repo-root.mjs";
 
 let input = "";
 process.stdin.setEncoding("utf8");
@@ -37,7 +40,8 @@ process.stdin.on("end", () => {
     if (!/\bgh\s+pr\s+merge\b/.test(stripped)) return exit0();
 
     const prRef = extractMergeRef(stripped);
-    const body = fetchBody(prRef);
+    const repoRoot = resolveRepoRoot(data);
+    const body = fetchBody(prRef, repoRoot);
     if (body === null) return exit0(); // gh failure — non-fatal
 
     const unchecked = findGatedUnchecked(body);
@@ -174,12 +178,12 @@ function findGatedUnchecked(body) {
 // ---------------------------------------------------------------------
 // gh helper
 
-function fetchBody(prRef) {
+function fetchBody(prRef, cwd) {
   const args = ["pr", "view"];
   if (prRef) args.push(prRef);
   args.push("--json", "body", "-q", ".body");
   try {
-    const r = spawnSync("gh", args, { encoding: "utf8", timeout: 5000 });
+    const r = spawnSync("gh", args, { encoding: "utf8", timeout: 5000, cwd });
     if (r.status !== 0) return null;
     return typeof r.stdout === "string" ? r.stdout : null;
   } catch {

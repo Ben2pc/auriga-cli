@@ -96,6 +96,12 @@ reads Cursor's `tool_output` and Grok's `toolResult`. `commit-reminder` is
 invoked by the file-edit matcher (including Grok's `search_replace`) and
 then keys off the working-tree diff, not `tool_name`.
 
+`commit-reminder`, `pr-ready-guard`, and `pr-merge-guard` locate the user
+repo from the hook payload (`workspace_roots`, then `workspaceRoot` /
+`cwd`) or `CLAUDE_PROJECT_DIR` / `GROK_WORKSPACE_ROOT`, and only then fall
+back to the process working directory. Cursor starts plugin hooks inside
+the plugin cache, so `process.cwd()` alone is not the user project.
+
 Grok Build ignores `PostToolUse` stdout, so `commit-reminder` and
 `pr-create-guard` cannot inject model context there. The two `PreToolUse`
 block paths (`pr-ready-guard`, `pr-merge-guard`) still work via exit code 2.
@@ -174,5 +180,5 @@ level.
 - **Platform**: tested on macOS / Linux. Windows untested.
 - **gh CLI required for PR hooks**: body snapshots use `gh pr view`. If `gh` is
   missing or unauthenticated, the PR hooks degrade gracefully, never crash.
-- **commit-reminder requires git**: outside a git work tree, the hook is a
-  silent no-op.
+- **commit-reminder requires git**: outside a locatable git work tree, the
+  hook is a silent no-op.
