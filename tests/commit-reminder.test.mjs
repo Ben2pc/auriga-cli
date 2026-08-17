@@ -50,12 +50,25 @@ function writeFile(dir, name, lineCount) {
   writeFileSync(full, "x\n".repeat(lineCount));
 }
 
-function run(payload, cwd) {
+function hookEnv(overrides = {}) {
+  const env = { ...process.env };
+  delete env.CLAUDE_PROJECT_DIR;
+  delete env.CURSOR_PROJECT_DIR;
+  delete env.GROK_WORKSPACE_ROOT;
+  return { ...env, ...overrides };
+}
+
+function run(payload, cwd, env) {
   return spawnSync("node", [ENTRY], {
     input: JSON.stringify(payload),
     encoding: "utf8",
     cwd,
+    env: hookEnv(env),
   });
+}
+
+function makePluginCache() {
+  return mkdtempSync(path.join(tmpdir(), "commit-reminder-plugin-cache-"));
 }
 
 function statePath(dir) {
@@ -177,6 +190,111 @@ function check(name, condition, info = "") {
   const r = run(payload("Edit"), dir);
   check(
     "non-git directory stays silent",
+    r.status === 0 && r.stdout === "",
+    `stdout="${r.stdout}"`,
+  );
+}
+
+// Case 6b: Cursor-shaped payload — process cwd is a plugin cache, the
+// dirty repo is named by workspace_roots. Must remind against that repo
+// and write cooldown state there, not into the cache.
+{
+  const repo = setupRepo();
+  writeFile(repo, "big.txt", 500);
+  spawnSync("git", ["add", "."], { cwd: repo });
+  const cache = makePluginCache();
+  const r = run(
+    { ...payload("Write"), workspace_roots: [repo, cache] },
+    cache,
+  );
+  check(
+    "workspace_roots from plugin-cache cwd injects reminder",
+    r.status === 0 &&
+      r.stdout.includes("commit-reminder") &&
+      r.stdout.includes("500"),
+    `stdout="${r.stdout}"`,
+  );
+  check(
+    "cooldown state is written to the workspace repo, not the plugin cache",
+    existsSync(statePath(repo)) && !existsSync(statePath(cache)),
+    `repoState=${existsSync(statePath(repo))} cacheState=${existsSync(statePath(cache))}`,
+  );
+}
+
+// Case 6c: Grok-shaped payload fields still locate the repo.
+{
+  const repo = setupRepo();
+  writeFile(repo, "big.txt", 500);
+  spawnSync("git", ["add", "."], { cwd: repo });
+  const cache = makePluginCache();
+  const viaRoot = run(
+    { ...payload("search_replace"), workspaceRoot: repo },
+    cache,
+  );
+  check(
+    "workspaceRoot from plugin-cache cwd injects reminder",
+    viaRoot.status === 0 && viaRoot.stdout.includes("commit-reminder"),
+    `stdout="${viaRoot.stdout}"`,
+  );
+
+  const repo2 = setupRepo();
+  writeFile(repo2, "big.txt", 500);
+  spawnSync("git", ["add", "."], { cwd: repo2 });
+  const viaCwd = run({ ...payload("search_replace"), cwd: repo2 }, cache);
+  check(
+    "payload cwd from plugin-cache cwd injects reminder",
+    viaCwd.status === 0 && viaCwd.stdout.includes("commit-reminder"),
+    `stdout="${viaCwd.stdout}"`,
+  );
+}
+
+// Case 6d: CLAUDE_PROJECT_DIR / GROK_WORKSPACE_ROOT locate the repo
+// when the payload has no workspace fields.
+{
+  const repo = setupRepo();
+  writeFile(repo, "big.txt", 500);
+  spawnSync("git", ["add", "."], { cwd: repo });
+  const cache = makePluginCache();
+  const viaClaude = run(payload("Write"), cache, {
+    CLAUDE_PROJECT_DIR: repo,
+  });
+  check(
+    "CLAUDE_PROJECT_DIR from plugin-cache cwd injects reminder",
+    viaClaude.status === 0 && viaClaude.stdout.includes("commit-reminder"),
+    `stdout="${viaClaude.stdout}"`,
+  );
+
+  const repo2 = setupRepo();
+  writeFile(repo2, "big.txt", 500);
+  spawnSync("git", ["add", "."], { cwd: repo2 });
+  const viaGrok = run(payload("Write"), cache, {
+    GROK_WORKSPACE_ROOT: repo2,
+  });
+  check(
+    "GROK_WORKSPACE_ROOT from plugin-cache cwd injects reminder",
+    viaGrok.status === 0 && viaGrok.stdout.includes("commit-reminder"),
+    `stdout="${viaGrok.stdout}"`,
+  );
+
+  const repo3 = setupRepo();
+  writeFile(repo3, "big.txt", 500);
+  spawnSync("git", ["add", "."], { cwd: repo3 });
+  const viaCursor = run(payload("Write"), cache, {
+    CURSOR_PROJECT_DIR: repo3,
+  });
+  check(
+    "CURSOR_PROJECT_DIR from plugin-cache cwd injects reminder",
+    viaCursor.status === 0 && viaCursor.stdout.includes("commit-reminder"),
+    `stdout="${viaCursor.stdout}"`,
+  );
+}
+
+// Case 6e: plugin-cache cwd and no workspace signal → still silent
+{
+  const cache = makePluginCache();
+  const r = run(payload("Write"), cache);
+  check(
+    "plugin-cache cwd with no workspace signal stays silent",
     r.status === 0 && r.stdout === "",
     `stdout="${r.stdout}"`,
   );

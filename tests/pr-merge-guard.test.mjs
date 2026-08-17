@@ -51,7 +51,8 @@ function makeScratch(body) {
   // The hook only ever calls `gh pr view ... --json body -q .body`.
   fs.writeFileSync(
     path.join(bin, "gh"),
-    `#!/bin/sh\nprintf '%s\\n' "$*" >> "${argvFile}"\n` +
+    `#!/bin/sh\nprintf 'cwd=%s\\n' "$(pwd)" >> "${argvFile}"\n` +
+      `printf '%s\\n' "$*" >> "${argvFile}"\n` +
       `if [ -f "${bodyFile}" ]; then cat "${bodyFile}"; exit 0; fi\nexit 1\n`,
   );
   fs.chmodSync(path.join(bin, "gh"), 0o755);
@@ -59,7 +60,15 @@ function makeScratch(body) {
   return { dir, bin, argvFile };
 }
 
-function run(command, body, toolName = "Bash", style = "snake") {
+function hookEnv(overrides = {}) {
+  const env = { ...process.env };
+  delete env.CLAUDE_PROJECT_DIR;
+  delete env.CURSOR_PROJECT_DIR;
+  delete env.GROK_WORKSPACE_ROOT;
+  return { ...env, ...overrides };
+}
+
+function run(command, body, toolName = "Bash", style = "snake", extras = {}) {
   const { dir, bin, argvFile } = makeScratch(body);
   const payload =
     style === "camel"
@@ -76,16 +85,47 @@ function run(command, body, toolName = "Bash", style = "snake") {
     if (style === "camel") payload.toolName = toolName;
     else payload.tool_name = toolName;
   }
+  Object.assign(payload, extras.payload ?? {});
+  const cwd = extras.cwd ?? dir;
   const r = spawnSync("node", [ENTRY], {
     input: JSON.stringify(payload),
     encoding: "utf8",
-    cwd: dir,
-    env: { ...process.env, PATH: `${bin}:${process.env.PATH}` },
+    cwd,
+    env: hookEnv({
+      PATH: `${bin}:${process.env.PATH}`,
+      ...(extras.env ?? {}),
+    }),
   });
   const ghArgv = fs.existsSync(argvFile)
     ? fs.readFileSync(argvFile, "utf8")
     : "";
-  return { status: r.status, stdout: r.stdout ?? "", stderr: r.stderr ?? "", ghArgv };
+  const ghCwdMatch = ghArgv.match(/^cwd=(.*)$/m);
+  return {
+    status: r.status,
+    stdout: r.stdout ?? "",
+    stderr: r.stderr ?? "",
+    ghArgv,
+    ghCwd: ghCwdMatch?.[1] ?? "",
+    scratch: dir,
+  };
+}
+
+function makeGitRepo() {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "pr-merge-guard-repo-"));
+  cleanupDirs.push(dir);
+  spawnSync("git", ["init", "-q", "-b", "main"], { cwd: dir });
+  spawnSync("git", ["-C", dir, "config", "user.email", "test@test.invalid"]);
+  spawnSync("git", ["-C", dir, "config", "user.name", "test"]);
+  fs.writeFileSync(path.join(dir, "seed"), "x");
+  spawnSync("git", ["-C", dir, "add", "."]);
+  spawnSync("git", ["-C", dir, "commit", "-q", "-m", "seed"]);
+  return dir;
+}
+
+function makePluginCache() {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "pr-merge-guard-plugin-cache-"));
+  cleanupDirs.push(dir);
+  return dir;
 }
 
 // ---- Body fixtures ---------------------------------------------------
@@ -540,6 +580,37 @@ for (const c of cases) {
     /(^|\s)pr view --json/.test(noRef.ghArgv)
       ? []
       : [`gh pr view argv unexpectedly carried a ref: ${JSON.stringify(noRef.ghArgv)}`],
+  );
+}
+
+{
+  const repo = makeGitRepo();
+  const cache = makePluginCache();
+  const r = run("gh pr merge --squash", ONE_UNCHECKED, "Bash", "snake", {
+    cwd: cache,
+    payload: { workspace_roots: [repo] },
+  });
+  const errs = [];
+  if (r.status !== 2) errs.push(`expected exit 2, got ${r.status}`);
+  if (!r.stderr.includes("Second criterion not yet met")) {
+    errs.push(`expected stderr to mention unchecked item, got ${JSON.stringify(r.stderr)}`);
+  }
+  const expectedCwd = fs.realpathSync(repo);
+  const actualCwd = r.ghCwd ? fs.realpathSync(r.ghCwd) : "";
+  if (actualCwd !== expectedCwd) {
+    errs.push(`expected gh cwd ${expectedCwd}, got ${JSON.stringify(r.ghCwd)}`);
+  }
+  check("workspace_roots from plugin-cache cwd inspects the target repo PR", errs);
+}
+
+{
+  const cache = makePluginCache();
+  const r = run("gh pr merge --squash", null, "Bash", "snake", { cwd: cache });
+  check(
+    "plugin-cache cwd with no workspace signal stays silent",
+    r.status === 0 && r.stdout === ""
+      ? []
+      : [`expected silent pass, got status=${r.status} stdout=${JSON.stringify(r.stdout)}`],
   );
 }
 

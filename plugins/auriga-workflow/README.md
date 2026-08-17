@@ -27,7 +27,7 @@ travel together so they share one distribution model and one install step.
 
 | Hook | Event | Fires on | Action |
 |---|---|---|---|
-| `commit-reminder` | `PostToolUse` | File-edit tools: `Edit` / `Write` / `MultiEdit` / `NotebookEdit` (Claude Code) · `apply_patch` (Codex) · `Write` / `StrReplace` / `Delete` / `EditNotebook` (Cursor) · `search_replace` (Grok Build) | When uncommitted diff vs `HEAD` exceeds 200 lines or 8 files **and** the last reminder was ≥ 5 minutes ago, injects `additionalContext` nudging the agent to commit at the next semantic boundary. Never blocks. Silent outside a git repo. |
+| `commit-reminder` | `PostToolUse` | File-edit tools: `Edit` / `Write` / `MultiEdit` / `NotebookEdit` (Claude Code) · `apply_patch` (Codex) · `Write` / `StrReplace` / `Delete` / `EditNotebook` (Cursor) · `search_replace` (Grok Build) | When uncommitted diff vs `HEAD` exceeds 200 lines or 8 files **and** the last reminder was ≥ 5 minutes ago, injects `additionalContext` nudging the agent to commit at the next semantic boundary. Never blocks. Silent when no locatable git work tree. |
 | `pr-create-guard` | `PostToolUse` | `gh pr create` | Fetches the new PR's body + title via `gh pr view`, injects a snapshot (headings + TODO counts) so the agent can self-verify against the six-section PR description contract (scope / acceptance criteria / design decisions / risks / test plan / TODOs). Also flags titles that don't match Conventional Commits format with a soft nudge. Never blocks. |
 | `pr-ready-guard` | `PreToolUse` | `gh pr ready` · `gh pr create` (when `--draft` / `-d` absent) | Hard-blocks (exit 2) on **structural** issues: the `.planning/.active_plan` pointer and files in the plan directory it names, unfinalized active specs under `docs/specs/`, scanner safety failures, or unpushed commits (`gh pr ready` only). On `gh pr ready` otherwise injects a body snapshot. |
 | `pr-merge-guard` | `PreToolUse` | `gh pr merge` | Hard-blocks (exit 2) while the PR body's `Acceptance criteria` or `Test plan` section still has unchecked `- [ ]` checklist items. Scoped to those two sections — unchecked items elsewhere (Remaining TODOs) never block; fenced code blocks are skipped. Fails open if `gh` can't read the body. |
@@ -40,7 +40,7 @@ travel together so they share one distribution model and one install step.
   agent reads only the YAML frontmatter for orchestration and hands the file's
   absolute path to the reviewer subagent, which reads the body itself.
 - `hooks/hooks.json` — hook registry, `command` paths use `${CLAUDE_PLUGIN_ROOT}`.
-- `scripts/*.mjs` — the four hook scripts.
+- `scripts/*.mjs` — the four hook scripts plus shared `repo-root.mjs`.
 
 ## Install
 
@@ -95,6 +95,14 @@ PR guards key off the command, not `tool_name`, and read both
 reads Cursor's `tool_output` and Grok's `toolResult`. `commit-reminder` is
 invoked by the file-edit matcher (including Grok's `search_replace`) and
 then keys off the working-tree diff, not `tool_name`.
+
+`commit-reminder`, `pr-ready-guard`, and `pr-merge-guard` locate the user
+repo from the hook payload (`workspace_roots[0]`, then `workspaceRoot` /
+`cwd`) or `CLAUDE_PROJECT_DIR` / `CURSOR_PROJECT_DIR` /
+`GROK_WORKSPACE_ROOT`, and only then fall back to the process working
+directory. A missing or non-existent first `workspace_roots` entry falls
+through; a later array item is never used. Cursor starts plugin hooks
+inside the plugin cache, so `process.cwd()` alone is not the user project.
 
 Grok Build ignores `PostToolUse` stdout, so `commit-reminder` and
 `pr-create-guard` cannot inject model context there. The two `PreToolUse`
@@ -174,5 +182,5 @@ level.
 - **Platform**: tested on macOS / Linux. Windows untested.
 - **gh CLI required for PR hooks**: body snapshots use `gh pr view`. If `gh` is
   missing or unauthenticated, the PR hooks degrade gracefully, never crash.
-- **commit-reminder requires git**: outside a git work tree, the hook is a
-  silent no-op.
+- **commit-reminder requires git**: outside a locatable git work tree, the
+  hook is a silent no-op.

@@ -24,10 +24,13 @@
 // additionalContext. Route B skips the snapshot because the PR doesn't
 // exist yet — pr-create-guard's PostToolUse hook handles that side.
 // No text-regex of body content is ever used as a block signal.
+// Git and gh run against the workspace named by the payload / env,
+// not process.cwd() — Cursor starts hooks inside the plugin cache.
 
 import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
+import { resolveRepoRoot } from "./repo-root.mjs";
 
 let input = "";
 process.stdin.setEncoding("utf8");
@@ -41,14 +44,16 @@ process.stdin.on("end", () => {
     // echo args, git commit messages, etc. don't trigger the hook.
     const stripped = stripQuoted(cmd);
 
+    const repoHint = resolveRepoRoot(data);
+
     if (/\bgh\s+pr\s+ready\b/.test(stripped)) {
-      return handlePrReady(cmd);
+      return handlePrReady(cmd, repoHint);
     }
     if (/\bgh\s+pr\s+create\b/.test(stripped)) {
       // --draft / -d defers the Ready transition to a later
       // `gh pr ready`, which Route A guards separately. Silent here.
       if (hasDraftFlag(stripped)) return exit0();
-      return handlePrCreateGoingReady();
+      return handlePrCreateGoingReady(repoHint);
     }
     return exit0();
   } catch {
@@ -66,8 +71,9 @@ function toolCommand(data) {
 // ---------------------------------------------------------------------
 // Route handlers
 
-function handlePrReady(cmd) {
-  const repoRoot = gitToplevel() ?? process.cwd();
+function handlePrReady(cmd, repoHint) {
+  const repoRoot = gitToplevel(repoHint);
+  if (!repoRoot) return exit0();
   const artifacts = findUnresolvedReadyArtifacts(repoRoot);
   if (hasUnresolvedArtifacts(artifacts)) {
     return block(formatReadyBlockMessage(artifacts, "ready"));
@@ -79,7 +85,7 @@ function handlePrReady(cmd) {
   // current branch may be unrelated and its push state is irrelevant.
   const prRef = extractPRRef(cmd);
   if (prRef === null) {
-    const unpushed = countUnpushed();
+    const unpushed = countUnpushed(repoRoot);
     if (unpushed > 0) {
       return block(
         `${unpushed} unpushed commit${unpushed === 1 ? "" : "s"} on current branch. Push first so the PR reflects your local state.`,
@@ -88,7 +94,7 @@ function handlePrReady(cmd) {
   }
 
   // Filter path: body snapshot. gh failures are non-fatal.
-  const body = fetchBody(prRef);
+  const body = fetchBody(prRef, repoRoot);
   if (body === null) {
     // Nothing useful to say without a body; stay out of the way.
     return exit0();
@@ -96,13 +102,14 @@ function handlePrReady(cmd) {
   inject(summarize(prRef ?? "(current branch)", body));
 }
 
-function handlePrCreateGoingReady() {
+function handlePrCreateGoingReady(repoHint) {
   // `gh pr create` without --draft publishes a Ready PR immediately,
   // bypassing Route A entirely. Run the same structural docs checks
   // here so stray planning artifacts can't slip in via this route.
   // Skip B1 (gh handles push on create) and skip the body snapshot
   // (PR doesn't exist yet — PostToolUse pr-create-guard handles it).
-  const repoRoot = gitToplevel() ?? process.cwd();
+  const repoRoot = gitToplevel(repoHint);
+  if (!repoRoot) return exit0();
   const artifacts = findUnresolvedReadyArtifacts(repoRoot);
   if (hasUnresolvedArtifacts(artifacts)) {
     return block(formatReadyBlockMessage(artifacts, "create-nondraft"));
@@ -421,17 +428,32 @@ function formatReadyBlockMessage(artifacts, route) {
 // ---------------------------------------------------------------------
 // Git / gh helpers
 
-function gitToplevel() {
+function gitEnv() {
+  const env = { ...process.env };
+  delete env.GIT_DIR;
+  delete env.GIT_WORK_TREE;
+  return env;
+}
+
+function ghEnv() {
+  const env = { ...process.env };
+  delete env.GH_REPO;
+  return env;
+}
+
+function gitToplevel(cwd) {
   const r = spawnSync("git", ["rev-parse", "--show-toplevel"], {
     encoding: "utf8",
     timeout: 3000,
+    cwd,
+    env: gitEnv(),
   });
   if (r.status !== 0) return null;
   const out = (r.stdout ?? "").trim();
   return out.length > 0 ? out : null;
 }
 
-function countUnpushed() {
+function countUnpushed(cwd) {
   // @{u} is the configured upstream of the current branch. If unset
   // (detached HEAD, no tracking), the rev-list call exits non-zero
   // and we return 0 to avoid blocking a branch that isn't even on a
@@ -439,18 +461,25 @@ function countUnpushed() {
   const r = spawnSync("git", ["rev-list", "--count", "@{u}..HEAD"], {
     encoding: "utf8",
     timeout: 3000,
+    cwd,
+    env: gitEnv(),
   });
   if (r.status !== 0) return 0;
   const n = parseInt((r.stdout ?? "").trim(), 10);
   return Number.isFinite(n) ? n : 0;
 }
 
-function fetchBody(prRef) {
+function fetchBody(prRef, cwd) {
   const args = ["pr", "view"];
   if (prRef) args.push(prRef);
   args.push("--json", "body", "-q", ".body");
   try {
-    const r = spawnSync("gh", args, { encoding: "utf8", timeout: 5000 });
+    const r = spawnSync("gh", args, {
+      encoding: "utf8",
+      timeout: 5000,
+      cwd,
+      env: ghEnv(),
+    });
     if (r.status !== 0) return null;
     return typeof r.stdout === "string" ? r.stdout : null;
   } catch {
