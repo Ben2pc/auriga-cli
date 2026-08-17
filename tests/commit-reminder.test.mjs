@@ -53,6 +53,7 @@ function writeFile(dir, name, lineCount) {
 function hookEnv(overrides = {}) {
   const env = { ...process.env };
   delete env.CLAUDE_PROJECT_DIR;
+  delete env.CURSOR_PROJECT_DIR;
   delete env.GROK_WORKSPACE_ROOT;
   return { ...env, ...overrides };
 }
@@ -273,6 +274,18 @@ function check(name, condition, info = "") {
     "GROK_WORKSPACE_ROOT from plugin-cache cwd injects reminder",
     viaGrok.status === 0 && viaGrok.stdout.includes("commit-reminder"),
     `stdout="${viaGrok.stdout}"`,
+  );
+
+  const repo3 = setupRepo();
+  writeFile(repo3, "big.txt", 500);
+  spawnSync("git", ["add", "."], { cwd: repo3 });
+  const viaCursor = run(payload("Write"), cache, {
+    CURSOR_PROJECT_DIR: repo3,
+  });
+  check(
+    "CURSOR_PROJECT_DIR from plugin-cache cwd injects reminder",
+    viaCursor.status === 0 && viaCursor.stdout.includes("commit-reminder"),
+    `stdout="${viaCursor.stdout}"`,
   );
 }
 

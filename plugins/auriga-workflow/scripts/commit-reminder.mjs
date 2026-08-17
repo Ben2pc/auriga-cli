@@ -12,8 +12,8 @@
 // When uncommitted diff vs HEAD crosses size thresholds (lines OR
 // files) AND the last reminder was at least 5 minutes ago, injects an
 // additionalContext nudging the agent to commit at the next semantic
-// boundary. Never blocks. Silent outside a git repo, on git errors,
-// or on malformed input.
+// boundary. Never blocks. Silent when no locatable git work tree, on
+// git errors, or on malformed input.
 
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -31,6 +31,8 @@ const STATE_FILENAME = "auriga-commit-reminder.last";
 // this, locales like de_DE / zh_CN translate "files changed" /
 // "insertions" / "deletions" and our regex parser silently returns 0.
 const GIT_ENV = { ...process.env, LC_ALL: "C" };
+delete GIT_ENV.GIT_DIR;
+delete GIT_ENV.GIT_WORK_TREE;
 
 let input = "";
 process.stdin.setEncoding("utf8");

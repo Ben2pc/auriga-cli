@@ -72,7 +72,8 @@ function toolCommand(data) {
 // Route handlers
 
 function handlePrReady(cmd, repoHint) {
-  const repoRoot = gitToplevel(repoHint) ?? repoHint;
+  const repoRoot = gitToplevel(repoHint);
+  if (!repoRoot) return exit0();
   const artifacts = findUnresolvedReadyArtifacts(repoRoot);
   if (hasUnresolvedArtifacts(artifacts)) {
     return block(formatReadyBlockMessage(artifacts, "ready"));
@@ -107,7 +108,8 @@ function handlePrCreateGoingReady(repoHint) {
   // here so stray planning artifacts can't slip in via this route.
   // Skip B1 (gh handles push on create) and skip the body snapshot
   // (PR doesn't exist yet — PostToolUse pr-create-guard handles it).
-  const repoRoot = gitToplevel(repoHint) ?? repoHint;
+  const repoRoot = gitToplevel(repoHint);
+  if (!repoRoot) return exit0();
   const artifacts = findUnresolvedReadyArtifacts(repoRoot);
   if (hasUnresolvedArtifacts(artifacts)) {
     return block(formatReadyBlockMessage(artifacts, "create-nondraft"));
@@ -426,11 +428,25 @@ function formatReadyBlockMessage(artifacts, route) {
 // ---------------------------------------------------------------------
 // Git / gh helpers
 
+function gitEnv() {
+  const env = { ...process.env };
+  delete env.GIT_DIR;
+  delete env.GIT_WORK_TREE;
+  return env;
+}
+
+function ghEnv() {
+  const env = { ...process.env };
+  delete env.GH_REPO;
+  return env;
+}
+
 function gitToplevel(cwd) {
   const r = spawnSync("git", ["rev-parse", "--show-toplevel"], {
     encoding: "utf8",
     timeout: 3000,
     cwd,
+    env: gitEnv(),
   });
   if (r.status !== 0) return null;
   const out = (r.stdout ?? "").trim();
@@ -446,6 +462,7 @@ function countUnpushed(cwd) {
     encoding: "utf8",
     timeout: 3000,
     cwd,
+    env: gitEnv(),
   });
   if (r.status !== 0) return 0;
   const n = parseInt((r.stdout ?? "").trim(), 10);
@@ -457,7 +474,12 @@ function fetchBody(prRef, cwd) {
   if (prRef) args.push(prRef);
   args.push("--json", "body", "-q", ".body");
   try {
-    const r = spawnSync("gh", args, { encoding: "utf8", timeout: 5000, cwd });
+    const r = spawnSync("gh", args, {
+      encoding: "utf8",
+      timeout: 5000,
+      cwd,
+      env: ghEnv(),
+    });
     if (r.status !== 0) return null;
     return typeof r.stdout === "string" ? r.stdout : null;
   } catch {

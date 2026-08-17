@@ -36,7 +36,11 @@ export function resolveRepoRoot(
     if (found) return found;
   }
 
-  for (const key of ["CLAUDE_PROJECT_DIR", "GROK_WORKSPACE_ROOT"]) {
+  for (const key of [
+    "CLAUDE_PROJECT_DIR",
+    "CURSOR_PROJECT_DIR",
+    "GROK_WORKSPACE_ROOT",
+  ]) {
     const found = existingDir(env[key]);
     if (found) return found;
   }

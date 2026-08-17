@@ -28,6 +28,7 @@ const ENTRY = path.resolve(
 function hookEnv(overrides = {}) {
   const env = { ...process.env };
   delete env.CLAUDE_PROJECT_DIR;
+  delete env.CURSOR_PROJECT_DIR;
   delete env.GROK_WORKSPACE_ROOT;
   return { ...env, ...overrides };
 }
@@ -712,6 +713,21 @@ const cases = [
     setup: () => {
       const cache = makePluginCache();
       return { cwd: cache, cmd: "gh pr ready" };
+    },
+    expect: { status: 0, stdoutEq: "", stderrNotIncludes: "pr-ready-guard" },
+  },
+  {
+    name: "workspace_roots pointing at a non-git dir with planning artifacts stays silent",
+    setup: () => {
+      const stray = fs.mkdtempSync(path.join(os.tmpdir(), "pr-ready-guard-nongit-"));
+      writePlanningArtifacts(stray, ["progress.md", "task_plan.md"]);
+      const cache = makePluginCache();
+      cleanupDirs.push(stray, cache);
+      return {
+        cwd: cache,
+        cmd: "gh pr ready",
+        extras: { payload: { workspace_roots: [stray] } },
+      };
     },
     expect: { status: 0, stdoutEq: "", stderrNotIncludes: "pr-ready-guard" },
   },

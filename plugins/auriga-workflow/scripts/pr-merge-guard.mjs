@@ -183,7 +183,9 @@ function fetchBody(prRef, cwd) {
   if (prRef) args.push(prRef);
   args.push("--json", "body", "-q", ".body");
   try {
-    const r = spawnSync("gh", args, { encoding: "utf8", timeout: 5000, cwd });
+    const env = { ...process.env };
+    delete env.GH_REPO;
+    const r = spawnSync("gh", args, { encoding: "utf8", timeout: 5000, cwd, env });
     if (r.status !== 0) return null;
     return typeof r.stdout === "string" ? r.stdout : null;
   } catch {

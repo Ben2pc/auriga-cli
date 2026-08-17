@@ -63,6 +63,7 @@ function makeScratch(body) {
 function hookEnv(overrides = {}) {
   const env = { ...process.env };
   delete env.CLAUDE_PROJECT_DIR;
+  delete env.CURSOR_PROJECT_DIR;
   delete env.GROK_WORKSPACE_ROOT;
   return { ...env, ...overrides };
 }
