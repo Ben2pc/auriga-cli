@@ -415,6 +415,43 @@ describe("auriga-workflow skill contracts", () => {
     }
   });
 
+  test("arch-design domain models separate change, representation, identity, lifecycle, and rules", () => {
+    const skill = read("plugins/auriga-workflow/skills/arch-design/SKILL.md");
+    const template = read(
+      "plugins/auriga-workflow/skills/arch-design/references/arch-design-template.md",
+    );
+    const reference = read(
+      "plugins/auriga-workflow/skills/arch-design/references/domain-modeling.md",
+    );
+
+    assert.match(template, /Model Inventory \/ 模型清单/);
+    assert.match(template, /Concept Details \/ 概念说明/);
+    for (const field of ["领域概念", "变更状态", "代码映射"]) {
+      assert.ok(template.includes(field), `domain-model inventory must preserve ${field}`);
+    }
+    for (const status of ["已有保留", "已有调整", "本次新增", "计划移除"]) {
+      assert.ok(template.includes(status), `domain-model inventory must define ${status}`);
+    }
+    assert.match(template, /无独立代码实体（抽象概念）/);
+    assert.match(template, /已有[^。\n]*仓库相对路径/);
+    assert.match(template, /本次新增[^。\n]*预计路径/);
+    assert.match(template, /已有调整[^。\n]*现有[^。\n]*目标/);
+    assert.match(template, /待确认[^。\n]*人工评审/);
+    assert.doesNotMatch(template, /\| 身份或生命周期 \|/);
+    assert.doesNotMatch(template, /\| 必须保持的不变量 \|/);
+    for (const field of ["同一性判断", "状态与存续范围", "有效状态规则", "成立边界"]) {
+      assert.ok(template.includes(field), `domain concept details must preserve ${field}`);
+    }
+    for (const identity of ["持久标识", "按值判等", "无独立同一性"]) {
+      assert.ok(template.includes(identity), `identity guidance must distinguish ${identity}`);
+    }
+    assert.match(template, /有效状态规则[^。\n]*(?:输入校验|调用前提)[^。\n]*不属于/);
+    assert.match(skill, /领域模型[^。\n]*变更状态[^。\n]*代码映射/);
+    assert.match(skill, /同一性判断[^。\n]*状态与存续范围[^。\n]*成立边界/);
+    assert.match(reference, /模型清单[^。\n]*变更状态[^。\n]*代码映射/);
+    assert.match(reference, /同一性判断[^。\n]*状态与存续范围[^。\n]*成立边界/);
+  });
+
   test("arch-design template makes current and target architecture easy to compare", () => {
     const skill = read("plugins/auriga-workflow/skills/arch-design/SKILL.md");
     const template = read(
