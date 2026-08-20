@@ -34,7 +34,7 @@ Repo documentation lives under `docs/`, one directory per purpose:
 | `docs/rules/spec/` | Project spec rules; `spec-design` must consult during research | Long-lived |
 | `docs/rules/arch/` | Project architecture rules; `arch-design` treats them as hard constraints | Long-lived |
 | `docs/specs/` | Default destination for `spec-design` / `arch-design` outputs; ephemeral dev workspace. **Must be empty by PR Ready**: promote to `docs/architecture/`, archive to worklog, or delete | Dev-only |
-| `docs/long-running-specs/` | Program specs, shared constraints, slice order, and status matrices spanning multiple PRs; slice sub-specs and their design inputs that persist across PRs (e.g. spec, arch_design, validation-contract — non-exhaustive; the criterion is "long-lived materials still referenced across multiple PRs") may live in subfolders here, while development-phase execution artifacts (task_plan, progress, findings, etc.) still follow the `docs/specs/` lifecycle and are cleaned up before PR Ready | Cross-PR; archived manually after all child PRs finish |
+| `docs/long-running-specs/` | Program specs, shared constraints, slice order, and status matrices spanning multiple PRs; slice sub-specs and their design inputs that persist across PRs (e.g. spec, arch_design, validation-contract — non-exhaustive; the criterion is "long-lived materials still referenced across multiple PRs") may live in subfolders here and are archived together with this directory | Cross-PR; archived manually after all child PRs finish |
 | `docs/architecture/` | Stable design docs + ADRs (`ADR-<n>-<title>.md`) | Long-lived |
 
 ## Harness Principles

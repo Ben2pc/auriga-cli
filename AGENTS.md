@@ -34,7 +34,7 @@
 | `docs/rules/spec/` | 项目 spec 规则；`spec-design` 调研阶段必读 | 长期 |
 | `docs/rules/arch/` | 项目架构设计规范；`arch-design` 作为设计硬约束 | 长期 |
 | `docs/specs/` | `spec-design` / `arch-design` 输出默认归宿，开发期临时工作区。**PR Ready 前必须清空**：晋升到 `docs/architecture/`、归档到 worklog、或删除 | 开发期 |
-| `docs/long-running-specs/` | 跨多个 PR 的总规范、共同约束、切片顺序和状态矩阵；跨 PR 常驻的切片子规范及其设计输入（如 spec、arch_design、validation-contract 等，非穷举——判据是“跨多个 PR 仍被引用的常驻材料”）可放本目录子文件夹，仅开发期执行产物（task_plan、progress、findings 等）仍走 `docs/specs/` 生命周期并在 PR Ready 前清理 | 跨 PR；全部子 PR 结束后人工归档 |
+| `docs/long-running-specs/` | 跨多个 PR 的总规范、共同约束、切片顺序和状态矩阵；跨 PR 常驻的切片子规范及其设计输入（如 spec、arch_design、validation-contract 等，非穷举——判据是“跨多个 PR 仍被引用的常驻材料”）可放本目录子文件夹，随本目录一起归档 | 跨 PR；全部子 PR 结束后人工归档 |
 | `docs/architecture/` | 稳定设计文档 + ADR（`ADR-<序号>-<标题>.md`） | 长期 |
 
 ## 运行框架原则
@@ -52,7 +52,7 @@
 - 只有用户明确要求独立进程，或任务确实需要跨模型、零污染的新视角时，才使用外部 Agent。
 - 派遣时明确结果目标、范围、验证方式和输出要求；模型与推理强度按任务风险选择，并在运行时支持时覆盖。
 
-<!-- AURIGA:WORKFLOW:v1 END sha256=d54d949982605dea -->
+<!-- AURIGA:WORKFLOW:v1 END sha256=43fdc89a80cf9370 -->
 
 <!-- 在下方添加你的工程专属规则。上方受管区块由 auriga-cli 维护,升级时整块替换;此处内容会被保留。 -->
 
