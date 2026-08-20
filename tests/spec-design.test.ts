@@ -126,14 +126,14 @@ describe("spec-design skill — repo-check VALs", () => {
     assert.match(text, /一条 VAL[^\n]*不代表一个测试用例/);
     const assertion = markdownSubsection(
       example,
-      "### VAL-ALIGNMENT-001 — <简短的中文标题>",
+      "#### VAL-ALIGNMENT-001 — <简短的中文标题>",
     );
     const fields = [...assertion.matchAll(/^- \*\*(.+?)\*\*：/gm)].map(
       (match) => match[1],
     );
     assert.deepEqual(fields, ["验收要求", "验证方式", "通过标准"]);
     assert.equal(
-      (example.match(/^### VAL-[A-Z]+-\d{3} — .+$/gm) ?? []).length,
+      (example.match(/^#### VAL-[A-Z]+-\d{3} — .+$/gm) ?? []).length,
       1,
       "example must use a full semantic category and a Chinese title",
     );
@@ -143,12 +143,32 @@ describe("spec-design skill — repo-check VALs", () => {
     assert.match(text, /具体测试工具[^\n]*test-driven-development/);
   });
 
+  test("validation-contract requires agent-executable end-to-end paths by product surface", () => {
+    const skill = read("plugins/auriga-workflow/skills/spec-design/SKILL.md");
+    const template = read(
+      "plugins/auriga-workflow/skills/spec-design/references/validation-contract-template.md",
+    );
+    const example = fencedMarkdownExample(template);
+
+    assert.match(template, /Agent 可执行[^。\n]*端到端验收路径/);
+    assert.match(template, /客户端[^。\n]*UI 自动化[^。\n]*(?:MCP|CLI)[^。\n]*(?:模拟器|真机)/);
+    assert.match(template, /前端[^。\n]*UI 自动化[^。\n]*(?:MCP|CLI)[^。\n]*浏览器/);
+    assert.match(template, /服务端 API[^。\n]*HTTP[^。\n]*接口端到端验收/);
+    assert.match(template, /脚本[^。\n]*(?:客户端|前端页面)[^。\n]*触发/);
+    assert.match(template, /人工验收[^。\n]*例外[^。\n]*原因/);
+    assert.match(example, /Agent validation path \(Agent 验收路径\)/);
+    assert.match(skill, /优先[^。\n]*Agent[^。\n]*验收/);
+    assert.match(skill, /客户端[^。\n]*前端[^。\n]*UI/);
+    assert.match(skill, /服务端 API[^。\n]*HTTP/);
+    assert.match(skill, /人工验收[^。\n]*例外/);
+  });
+
   test("spec-template.md Open questions placeholder requires a deferral owner and reason", () => {
     const text = read(
       "plugins/auriga-workflow/skills/spec-design/references/spec-template.md",
     );
     assert.ok(
-      text.includes("## Open questions"),
+      text.includes("## 4. Open questions / 悬而未决"),
       "spec template must keep the Open questions section",
     );
     assert.ok(
@@ -212,10 +232,57 @@ describe("spec-design skill — repo-check VALs", () => {
     const example = fencedMarkdownExample(read(
       "plugins/auriga-workflow/skills/spec-design/references/spec-template.md",
     ));
-    const why = markdownSubsection(example, "## Why (为什么做)");
+    const why = markdownSubsection(example, "### 1.1 Why / 为什么做");
     for (const field of ["问题与用户", "事实依据", "价值与时机", "替代方案"]) {
       assert.match(why, new RegExp(`^- \\*\\*${field}\\*\\*：`, "m"));
     }
+  });
+
+  test("spec artifacts follow product-source structure with a user-visible fallback", () => {
+    const skill = read("plugins/auriga-workflow/skills/spec-design/SKILL.md");
+    const specTemplate = read(
+      "plugins/auriga-workflow/skills/spec-design/references/spec-template.md",
+    );
+    const validationTemplate = read(
+      "plugins/auriga-workflow/skills/spec-design/references/validation-contract-template.md",
+    );
+    const spec = fencedMarkdownExample(specTemplate);
+    const validation = fencedMarkdownExample(validationTemplate);
+
+    const headings = [
+      "## 1. Product Overview / 产品总览",
+      "### 1.2 Source Structure Alignment / 来源结构对齐",
+      "## 2. Product Requirement Details / 产品需求分项",
+      "### 2.1 `<产品需求文档中的功能章节，或用户可感知的产品子功能>`",
+      "#### 2.1.1 Original Product Requirement / 原始产品需求",
+      "#### 2.1.2 User-visible Behavior / 用户可感知行为",
+      "#### 2.1.3 Scope Boundaries / 分项范围边界",
+      "#### 2.1.4 Validation Mapping / 验收映射",
+      "## 3. Overall Out of Scope / 整体不做",
+      "## 5. References / 参考资料",
+    ];
+    let previous = -1;
+    for (const heading of headings) {
+      const current = spec.indexOf(heading);
+      assert.ok(current > previous, `${heading} must follow the overview-to-detail structure`);
+      previous = current;
+    }
+
+    assert.match(skill, /产品需求文档|PRD/);
+    assert.match(skill, /章节[^。\n]*名称[^。\n]*顺序|名称[^。\n]*顺序[^。\n]*章节/);
+    assert.match(skill, /没有[^。\n]*(?:前置产物|来源结构)[^。\n]*用户可感知[^。\n]*产品子功能/);
+    assert.match(skill, /不能[^。\n]*(?:模块|接口|数据表)[^。\n]*划分/);
+    assert.match(specTemplate, /优先[^。\n]*(?:产品需求文档|PRD)[^。\n]*结构/);
+    assert.match(specTemplate, /没有[^。\n]*(?:前置产物|来源结构)[^。\n]*用户可感知[^。\n]*产品子功能/);
+    assert.match(spec, /原始章节或需求/);
+    assert.match(spec, /规格落点/);
+
+    assert.match(validationTemplate, /与 `spec\.md`[^。\n]*相同[^。\n]*名称[^。\n]*顺序/);
+    assert.match(validation, /## 1\. Coverage Overview \/ 覆盖总览/);
+    assert.match(validation, /## 2\. Assertions by Product Requirement \/ 按产品分项组织断言/);
+    assert.match(validation, /### 2\.1 `<与 spec\.md 一致的产品分项名称>`/);
+    assert.match(validation, /Spec subsection \(规格分项\)/);
+    assert.match(validation, /Source section \(来源章节\)/);
   });
 
   test("spec decomposition follows complete user outcomes, not implementation thresholds", () => {
@@ -513,6 +580,16 @@ describe("spec-design skill — repo-check VALs", () => {
         `${f} must index documentation-management as the layering source of truth`,
       );
     }
+  });
+
+  test("workflow instructions require durable comments and Agent docs to state requirements without spec ids", () => {
+    const zh = read("AGENTS.template.zh-CN.md");
+    const en = read("AGENTS.template.en.md");
+
+    assert.match(zh, /代码注释[^。\n]*Agent 指令文档[^。\n]*(?:不得|不能)[^。\n]*(?:规格|spec)[^。\n]*编号/);
+    assert.match(zh, /简洁[^。\n]*原始需求描述[^。\n]*脱离[^。\n]*(?:规格|spec)[^。\n]*成立/);
+    assert.match(en, /Code comments[^.\n]*Agent instruction documents[^.\n]*must not[^.\n]*spec[^.\n]*(?:identifiers|numbers)/i);
+    assert.match(en, /concise[^.\n]*(?:original|underlying) requirement[^.\n]*without[^.\n]*(?:source )?spec/i);
   });
 
   test("workflow docs define review/test rule subdirectories and consumers", () => {
