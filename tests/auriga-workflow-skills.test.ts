@@ -409,13 +409,128 @@ describe("auriga-workflow skill contracts", () => {
     assert.match(text, /不能把沉默当作批准/);
     assert.match(text, /设计文档或对话内已确认的设计/);
     assert.match(template, /Review Focus \/ 人工评审重点/);
-    assert.match(template, /Domain Model \/ 领域模型/);
+    assert.match(template, /Shared Model Design \/ 共享模型设计/);
     for (const field of ["评审状态", "核心决定", "主要影响", "首要风险", "Human Decisions"]) {
       assert.ok(template.includes(field), `arch-design template must preserve ${field}`);
     }
   });
 
-  test("arch-design domain models separate change, representation, identity, lifecycle, and rules", () => {
+  test("arch-design template moves from architecture overview to requirement-led details", () => {
+    const template = read(
+      "plugins/auriga-workflow/skills/arch-design/references/arch-design-template.md",
+    );
+
+    const headings = [
+      "## 2. Architecture Overview / 架构总览",
+      "### 2.1 Current Architecture / 当前架构现状",
+      "### 2.2 Target Design Overview / 目标设计概览",
+      "## 3. Requirement Designs / 分项设计",
+      "### 3.1 `<需求主题>`",
+      "#### 3.1.1 Original Requirement / 原始需求",
+      "#### 3.1.2 Design / 设计",
+      "##### 3.1.2.1 Local Model Design / 本项模型设计",
+      "##### 3.1.2.2 API Design / 接口设计",
+      "#### 3.1.3 Local Directory Changes / 局部目录变化",
+      "#### 3.1.4 Flows & Supporting Diagrams / 流程与必要图示",
+      "#### 3.1.5 Validation / 验证",
+      "## 4. Migration & Behavior Protection / 迁移与行为保护",
+      "## 5. Risks & Validation / 风险与验证",
+      "## 6. Quality Attributes & Technical Goals / 质量属性与技术目标",
+      "## 7. Deployment & Operations / 部署与运行",
+      "## 8. Human Decisions / 人工确认结果",
+      "## 9. References / 参考依据",
+    ];
+    let previous = -1;
+    for (const heading of headings) {
+      const current = template.indexOf(heading);
+      assert.ok(current > previous, `${heading} must follow the total-to-part structure`);
+      previous = current;
+    }
+
+    const requirement = markdownSection(template, "### 3.1 `<需求主题>`");
+    assert.match(requirement, /来源[^。\n]*条款/);
+    assert.match(requirement, /业务语言/);
+    assert.match(requirement, /非自明字段|结构性选择/);
+    assert.match(requirement, /行粒度/);
+    assert.match(requirement, /主键/);
+    assert.match(requirement, /快照/);
+    assert.match(requirement, /冗余/);
+    assert.match(template, /图[^。\n]*业务含义[^。\n]*代码标识/);
+
+    assert.doesNotMatch(template, /^#### 3\.1\.3 Rationale \/ 为什么$/m);
+    assert.doesNotMatch(template, /^## \d+\. API Reference \/ 接口参考$/m);
+
+    const references = markdownSection(template, "## 9. References / 参考依据");
+    for (const field of ["来源", "版本或修订", "条款或代码证据", "设计落点"]) {
+      assert.ok(references.includes(field), `references must preserve ${field}`);
+    }
+  });
+
+  test("arch-design keeps complete commented API DTOs inside each requirement", () => {
+    const skill = read("plugins/auriga-workflow/skills/arch-design/SKILL.md");
+    const template = read(
+      "plugins/auriga-workflow/skills/arch-design/references/arch-design-template.md",
+    );
+    const requirement = markdownSection(template, "### 3.1 `<需求主题>`");
+    const api = markdownSection(requirement, "##### 3.1.2.2 API Design / 接口设计");
+
+    for (const heading of [
+      "Request DTO / 请求 DTO",
+      "Success Response DTO / 成功响应 DTO",
+      "Error Response DTO / 错误响应 DTO",
+    ]) {
+      assert.ok(api.includes(heading), `API reference must preserve ${heading}`);
+    }
+    assert.equal((api.match(/```jsonc/g) ?? []).length, 3);
+    assert.match(api, /\/\//);
+    assert.match(api, /嵌套[^。\n]*不能[^。\n]*(?:省略|`\{\.\.\.\}`)/);
+    assert.match(api, /联合类型[^。\n]*分别/);
+    assert.match(api, /机器契约[^。\n]*(?:OpenAPI|Protocol Buffers|IDL)/);
+    assert.doesNotMatch(template, /^## \d+\. API Reference \/ 接口参考$/m);
+    assert.match(skill, /接口[^。\n]*所属分项/);
+    assert.match(skill, /请求[^。\n]*成功响应[^。\n]*错误响应[^。\n]*jsonc/);
+    assert.match(api, /设计理由/);
+  });
+
+  test("arch-design closes requirement, rationale, and retirement gaps before review", () => {
+    const skill = read("plugins/auriga-workflow/skills/arch-design/SKILL.md");
+    const migration = read(
+      "plugins/auriga-workflow/skills/arch-design/references/migration-strategies.md",
+    );
+    const template = read(
+      "plugins/auriga-workflow/skills/arch-design/references/arch-design-template.md",
+    );
+
+    for (const closure of ["需求闭环", "理由闭环", "影响闭环"]) {
+      assert.ok(skill.includes(closure), `arch-design must preserve ${closure}`);
+    }
+    assert.match(skill, /spec\.md[^。\n]*validation-contract\.md[^。\n]*上级规范/);
+    assert.match(skill, /项目规则/);
+    assert.match(skill, /每条权威要求[^。\n]*具体设计机制[^。\n]*正文位置/);
+    assert.match(skill, /每轮只聚焦一个[^。\n]*问题/);
+    assert.match(skill, /全新上下文[^。\n]*只读[^。\n]*独立评审/);
+
+    for (const evidence of [
+      "导入",
+      "再导出",
+      "活代码查询",
+      "测试夹具",
+      "迁移历史测试",
+      "文档规则",
+    ]) {
+      assert.ok(migration.includes(evidence), `retirement closure must inspect ${evidence}`);
+    }
+    assert.match(migration, /没有新增资产/);
+    assert.match(migration, /第二种独立证据/);
+
+    const retirement = markdownSection(template, "### 4.1 Retirement Inventory / 资产退场清单");
+    for (const field of ["准确路径", "资产或符号", "当前依赖证据", "处置", "为什么"]) {
+      assert.ok(retirement.includes(field), `retirement inventory must preserve ${field}`);
+    }
+    assert.match(template, /不得使用“对应模块”“相关测试”“及其引用”/);
+  });
+
+  test("arch-design keeps a shared model index and makes local model changes direct", () => {
     const skill = read("plugins/auriga-workflow/skills/arch-design/SKILL.md");
     const template = read(
       "plugins/auriga-workflow/skills/arch-design/references/arch-design-template.md",
@@ -423,43 +538,72 @@ describe("auriga-workflow skill contracts", () => {
     const reference = read(
       "plugins/auriga-workflow/skills/arch-design/references/domain-modeling.md",
     );
-    const reviewFocus = markdownSection(template, "## Review Focus / 人工评审重点");
-    const domainModel = markdownSection(template, "## Domain Model / 领域模型");
-    const inventory = markdownSection(domainModel, "### Model Inventory / 模型清单");
-    const conceptDetails = markdownSection(domainModel, "### Concept Details / 概念说明");
+    const reviewFocus = markdownSection(template, "## 1. Review Focus / 人工评审重点");
+    const sharedModel = markdownSection(
+      template,
+      "### 2.3 Shared Model Design / 共享模型设计",
+    );
+    const sharedInventory = markdownSection(
+      sharedModel,
+      "#### 2.3.1 Model Overview / 模型总表",
+    );
+    const sharedDetails = markdownSection(
+      sharedModel,
+      "#### 2.3.2 Model Details / 模型详情",
+    );
+    const localModel = markdownSection(
+      template,
+      "##### 3.1.2.1 Local Model Design / 本项模型设计",
+    );
+    const localDetails = markdownSection(
+      localModel,
+      "###### 3.1.2.1.1 `<模型标识符>`",
+    );
 
     assert.match(reviewFocus, /待确认项/);
-    for (const field of ["领域概念", "变更状态", "代码映射"]) {
-      assert.ok(inventory.includes(field), `domain-model inventory must preserve ${field}`);
+    for (const field of ["模型", "变更状态", "代码或存储映射"]) {
+      assert.ok(sharedInventory.includes(field), `shared model inventory must preserve ${field}`);
     }
     for (const status of ["已有保留", "已有调整", "本次新增", "计划移除"]) {
-      assert.ok(inventory.includes(status), `domain-model inventory must define ${status}`);
+      assert.ok(sharedInventory.includes(status), `shared-model inventory must define ${status}`);
     }
-    assert.match(inventory, /每个领域概念只保留一行/);
-    assert.match(inventory, /\| `<已有调整的领域概念>` \| 已有调整 \| 现有：[^\n]+→ 目标：[^\n]+\|/);
-    assert.match(inventory, /\| `<新增抽象概念>` \| 本次新增 \| 无独立代码实体（抽象概念） \|/);
-    assert.match(inventory, /\| `<映射待确认的领域概念>` \| [^\n]+\| 待确认：[^\n]+\|/);
-    assert.match(inventory, /待确认[^。\n]*人工评审重点/);
-    assert.doesNotMatch(domainModel, /\| 身份或生命周期 \|/);
-    assert.doesNotMatch(domainModel, /\| 必须保持的不变量 \|/);
-    assert.match(conceptDetails, /^#### `<概念标识符>`$/m);
-    assert.doesNotMatch(
-      conceptDetails,
-      /^\|.*\|$/m,
-      "concept details must remain per-concept sections instead of another wide table",
-    );
-    for (const field of ["同一性判断", "状态与存续范围", "有效状态规则", "成立边界"]) {
-      assert.ok(conceptDetails.includes(field), `domain concept details must preserve ${field}`);
+    assert.match(sharedInventory, /每个模型只保留一行/);
+    assert.match(sharedInventory, /\| `<已有调整的模型>` \| 已有调整 \| 现有：[^\n]+→ 目标：[^\n]+\|/);
+    assert.match(sharedInventory, /\| `<新增抽象模型>` \| 本次新增 \| 无独立代码实体（抽象概念） \|/);
+    assert.match(sharedInventory, /\| `<映射待确认的模型>` \| [^\n]+\| 待确认：[^\n]+\|/);
+    assert.match(sharedInventory, /待确认[^。\n]*人工评审重点/);
+    assert.match(sharedDetails, /^##### 2\.3\.2\.1 `<模型标识符>`$/m);
+    assert.doesNotMatch(localModel, /Model Inventory \/ 模型清单/);
+    for (const field of ["变更状态", "代码或存储映射"]) {
+      assert.ok(localDetails.includes(field), `local model details must preserve ${field}`);
+    }
+    for (const details of [sharedDetails, localDetails]) {
+      for (const field of ["承接需求", "设计理由", "同一性判断", "状态与存续范围", "有效状态规则", "成立边界"]) {
+        assert.ok(details.includes(field), `model details must preserve ${field}`);
+      }
+      for (const field of ["字段、关系或约束", "变更", "业务含义", "目标结构", "为什么"]) {
+        assert.ok(details.includes(field), `model change table must preserve ${field}`);
+      }
+      assert.match(details, /新增、修改或删除/);
+      assert.match(details, /不[^。\n]*完整字段/);
     }
     for (const identity of ["持久标识", "按值判等", "无独立同一性"]) {
-      assert.ok(conceptDetails.includes(identity), `identity guidance must distinguish ${identity}`);
+      assert.ok(sharedDetails.includes(identity), `identity guidance must distinguish ${identity}`);
     }
-    assert.match(conceptDetails, /不是登录或认证身份/);
-    assert.match(conceptDetails, /输入校验、调用前提、授权策略和实现限制不属于这里/);
-    assert.match(conceptDetails, /单次事务/);
-    assert.match(conceptDetails, /示例[^。\n]*封闭枚举/);
+    assert.match(sharedModel, /跨多个分项/);
+    assert.match(localModel, /只服务当前分项/);
+    assert.match(sharedModel, /不要[^。\n]*重复/);
+    assert.match(sharedDetails, /不是登录或认证身份/);
+    assert.match(sharedDetails, /输入校验、调用前提、授权策略和实现限制不属于这里/);
+    assert.match(sharedDetails, /单次事务/);
+    assert.match(sharedDetails, /示例[^。\n]*封闭枚举/);
     assert.match(skill, /arch-design-template\.md[^。\n]*唯一详细契约/);
     assert.match(reference, /arch-design-template\.md[^。\n]*唯一详细契约/);
+    assert.match(skill, /跨多个分项[^。\n]*总览/);
+    assert.match(skill, /只[^。\n]*单个分项[^。\n]*分项/);
+    assert.match(skill, /共享模型[^。\n]*模型总表/);
+    assert.match(skill, /分项[^。\n]*直接[^。\n]*模型详情/);
+    assert.match(skill, /新增、修改或删除[^。\n]*字段/);
   });
 
   test("arch-design template makes current and target architecture easy to compare", () => {
@@ -471,7 +615,7 @@ describe("auriga-workflow skill contracts", () => {
     for (const section of [
       "Current Architecture / 当前架构现状",
       "Current Directory Structure / 当前目录结构",
-      "Target Architecture / 目标整体架构",
+      "Target Design Overview / 目标设计概览",
       "Target Directory Structure / 目标目录结构",
     ]) {
       assert.ok(template.includes(section), `arch-design template must preserve ${section}`);
@@ -515,7 +659,14 @@ describe("auriga-workflow skill contracts", () => {
       assert.ok(template.includes(example), `technical quality examples must cue ${example}`);
     }
     assert.match(template, /示例[^。\n]*不是必填|不是必填[^。\n]*示例/);
-    assert.match(template, /Data Flow \/ 数据流/);
+    const requirement = markdownSection(template, "### 3.1 `<需求主题>`");
+    const flows = markdownSection(
+      requirement,
+      "#### 3.1.4 Flows & Supporting Diagrams / 流程与必要图示",
+    );
+    assert.doesNotMatch(requirement, /Data Flow \/ 数据流/);
+    assert.match(flows, /完整数据流/);
+    assert.match(flows, /图示说明与设计理由/);
     assert.match(template, /用户[^。\n]*外部系统[^。\n]*(?:定时任务|领域事件)/);
     assert.match(template, /代码内部/);
     assert.match(template, /文件级职责/);
@@ -523,6 +674,38 @@ describe("auriga-workflow skill contracts", () => {
     assert.match(template, /Deployment & Operations \/ 部署与运行/);
     assert.match(template, /可选章节/);
     assert.match(template, /普通前端[^。\n]*移动端[^。\n]*默认删除/);
+    for (const [earlier, later] of [
+      ["## 5. Risks & Validation / 风险与验证", "## 6. Quality Attributes & Technical Goals / 质量属性与技术目标"],
+      ["## 6. Quality Attributes & Technical Goals / 质量属性与技术目标", "## 7. Deployment & Operations / 部署与运行"],
+      ["## 7. Deployment & Operations / 部署与运行", "## 8. Human Decisions / 人工确认结果"],
+    ]) {
+      assert.ok(template.indexOf(earlier) < template.indexOf(later), `${earlier} must precede ${later}`);
+    }
+  });
+
+  test("arch-design keeps rationale next to the mechanism it explains", () => {
+    const skill = read("plugins/auriga-workflow/skills/arch-design/SKILL.md");
+    const template = read(
+      "plugins/auriga-workflow/skills/arch-design/references/arch-design-template.md",
+    );
+    const requirement = markdownSection(template, "### 3.1 `<需求主题>`");
+    const localModel = markdownSection(
+      requirement,
+      "##### 3.1.2.1 Local Model Design / 本项模型设计",
+    );
+    const api = markdownSection(requirement, "##### 3.1.2.2 API Design / 接口设计");
+    const flows = markdownSection(
+      requirement,
+      "#### 3.1.4 Flows & Supporting Diagrams / 流程与必要图示",
+    );
+
+    assert.doesNotMatch(requirement, /Rationale \/ 为什么/);
+    assert.match(localModel, /设计理由/);
+    assert.match(localModel, /为什么/);
+    assert.match(api, /设计理由/);
+    assert.match(flows, /图示说明与设计理由/);
+    assert.match(skill, /理由[^。\n]*就地/);
+    assert.match(skill, /模型[^。\n]*接口[^。\n]*图示/);
   });
 
   test("arch-design resolves target-local rules and degrades safely without a writable project", () => {
@@ -563,7 +746,7 @@ describe("auriga-workflow skill contracts", () => {
       assert.doesNotMatch(content, /(?:≥|>=)\s*2[^。\n]*候选|出[^。\n]*(?:≥|>=)\s*2/);
     }
     assert.match(text, /真实[^。\n]*取舍[^。\n]*候选/);
-    assert.match(template, /仅在存在真实取舍时保留本节/);
+    assert.match(template, /只有存在[^。\n]*真实取舍[^。\n]*比较候选/);
   });
 
   test("arch-design migration handoff preserves transition exit conditions", () => {
