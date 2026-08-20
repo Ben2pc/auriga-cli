@@ -2,7 +2,7 @@
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "auriga-workflow",
   "version": "4.0.28",
-  "description": "Auriga's end-to-end engineering workflow: clarification, diagnosis, implementation, maintenance, review, and Git lifecycle guardrails. Compatible with Claude Code and Codex.",
+  "description": "Auriga's end-to-end engineering workflow: clarification, diagnosis, implementation, maintenance, review, and Git lifecycle guardrails.",
   "author": {
     "name": "Ben2pc",
     "email": "pangcheng33@gmail.com",
