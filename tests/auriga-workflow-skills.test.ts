@@ -456,6 +456,7 @@ describe("auriga-workflow skill contracts", () => {
     assert.match(requirement, /快照/);
     assert.match(requirement, /冗余/);
     assert.match(template, /图[^。\n]*业务含义[^。\n]*代码标识/);
+    assert.match(template, /`flowchart`[^。\n]*`subgraph`[^。\n]*`C4Container`/);
 
     assert.doesNotMatch(template, /^#### 3\.1\.3 Rationale \/ 为什么$/m);
     assert.doesNotMatch(template, /^## \d+\. API Reference \/ 接口参考$/m);
@@ -490,6 +491,15 @@ describe("auriga-workflow skill contracts", () => {
     assert.match(skill, /接口[^。\n]*所属分项/);
     assert.match(skill, /请求[^。\n]*成功响应[^。\n]*错误响应[^。\n]*jsonc/);
     assert.match(api, /设计理由/);
+    assert.match(api, /每个对象层级[^。\n]*DTO[^。\n]*(?:新增|复用|修改)/);
+    assert.match(api, /修改字段/);
+    for (const status of ["新增", "复用", "修改"]) {
+      assert.ok(api.includes(`（${status}）`), `API DTO example must show ${status} DTO status`);
+    }
+    assert.match(api, /重要进程内接口/);
+    assert.match(api, /函数或方法签名/);
+    assert.match(api, /输入语义/);
+    assert.match(api, /输出语义/);
   });
 
   test("arch-design closes requirement, rationale, and retirement gaps before review", () => {
