@@ -1594,10 +1594,14 @@ describe("deep-review modernization contract", () => {
     assert.match(performance, /speculative/);
 
     const ux = reviewer("ux");
+    assert.match(ux, /trigger:\s*["']?tag:ui["']?/);
+    assert.match(ux, /尼尔森[^。\n]*可用性启发式/);
+    assert.match(ux, /不是[^。\n]*(?:固定问卷|逐项清单|合规清单)/);
     assert.match(ux, /视觉[^。]*需要渲染、截图或明确代码证据/);
     assert.match(ux, /accessibilityIdentifier[^；]*不等于 VoiceOver/);
     assert.match(ux, /resource-id[^。]*不等于 TalkBack/);
     assert.match(ux, /可靠撤销时不强制二次确认/);
+    assert.match(ux, /heuristic:/);
   });
 
   test("skill and plugin review keeps Auriga dual entry points and validators", () => {
