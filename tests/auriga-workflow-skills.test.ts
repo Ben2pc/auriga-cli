@@ -240,10 +240,20 @@ describe("auriga-workflow skill contracts", () => {
     assert.match(skill, /下沉为行内注释/);
     assert.match(skill, /为什么 > 是什么/);
     assert.match(skill, /长期文档不记过程流水账/);
-    assert.match(skill, /未经用户明确授权[^。]*实施、评审、修订、提交或上线经过/);
-    assert.match(skill, /删除失效[^\n]*只描述本次过程/);
-    assert.match(skill, /合并、抽象为当前规则或事实/);
-    assert.match(skill, /单行新增不是绝对禁止[^。]*不能成为[^。]*默认动作/);
+    assert.match(skill, /长期资产只保存能脱离当前任务独立成立的当前事实或正式决定/);
+    assert.match(skill, /未经用户明确授权[^。]*不记录本次实施、评审、修订、提交或上线经过/);
+    const assetActions = markdownSection(skill, "### 2. 选择资产与动作");
+    for (const [earlier, later] of [
+      ["删除失效", "合并、抽象为当前规则或事实"],
+      ["合并、抽象为当前规则或事实", "重写原有段落"],
+      ["重写原有段落", "只有新的独立长期事实无法被现有结构吸收时才新增内容"],
+    ]) {
+      assert.ok(
+        assetActions.indexOf(earlier) < assetActions.indexOf(later),
+        `documentation convergence must keep ${earlier} before ${later}`,
+      );
+    }
+    assert.match(assetActions, /单行新增不是绝对禁止[^。]*不能成为[^。]*默认动作/);
     assert.match(standards, /当前架构文档维护“现在是什么”[^。]*实施、评审、修订和上线经过/);
     assert.match(standards, /ADR[\s\S]*不把初稿变化、评审轮次、修订提交或上线经过写成决策理由/);
     assert.match(standards, /当前时态表达稳定规则[^。]*本次实施或评审经过/);
