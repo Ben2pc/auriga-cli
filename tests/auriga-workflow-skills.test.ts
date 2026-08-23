@@ -195,6 +195,7 @@ describe("auriga-workflow skill contracts", () => {
       /README.*运行手册.*公共接口文档.*架构文档.*ADR.*变更日志.*代码注释.*AGENTS\.md.*项目规则/,
     );
     assert.match(parsed.data.description, /代码变化造成文档事实漂移/);
+    assert.match(parsed.data.description, /长期文档出现过程流水账/);
     assert.match(skill, /默认不新增/);
     for (const action of ["更新", "删除", "合并", "压缩", "归档", "晋升", "新建"]) {
       assert.ok(skill.includes(action), `documentation management must support ${action}`);
@@ -238,6 +239,14 @@ describe("auriga-workflow skill contracts", () => {
     assert.match(skill, /代码推不出来的事实/);
     assert.match(skill, /下沉为行内注释/);
     assert.match(skill, /为什么 > 是什么/);
+    assert.match(skill, /长期文档不记过程流水账/);
+    assert.match(skill, /未经用户明确授权[^。]*实施、评审、修订、提交或上线经过/);
+    assert.match(skill, /删除失效[^\n]*只描述本次过程/);
+    assert.match(skill, /合并、抽象为当前规则或事实/);
+    assert.match(skill, /单行新增不是绝对禁止[^。]*不能成为[^。]*默认动作/);
+    assert.match(standards, /当前架构文档维护“现在是什么”[^。]*实施、评审、修订和上线经过/);
+    assert.match(standards, /ADR[\s\S]*不把初稿变化、评审轮次、修订提交或上线经过写成决策理由/);
+    assert.match(standards, /当前时态表达稳定规则[^。]*本次实施或评审经过/);
     // Audience signal: traditional names default to human readers; human docs
     // lead with overview + diagrams.
     assert.match(skill, /`README\.md`[^。\n]*默认面向人类/);
@@ -1536,6 +1545,12 @@ describe("deep-review modernization contract", () => {
       assert.ok(text.includes(action), `docs-sync must support ${action}`);
     }
     assert.match(text, /归档快照[^。]*不为追赶当前实现而改写/);
+    assert.match(text, /未经用户明确授权的过程流水账应删除或迁移/);
+    assert.match(text, /只追加单行[^。]*替换或重写相邻内容/);
+    assert.match(text, /指出删除或迁移哪些内容[^>]*合并、抽象成什么稳定规则/);
+    assert.match(text, /`delete`、`merge` 和 `compress` 不能只给动作标签/);
+    assert.match(text, /未经授权记录任务过程[^。]*blocking/);
+    assert.match(text, /零散、重复或可进一步抽象[^。]*non-blocking/);
   });
 
   test("test review is behavior-led without mechanical case or assertion rules", () => {
