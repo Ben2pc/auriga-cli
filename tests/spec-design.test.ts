@@ -256,8 +256,9 @@ describe("spec-design skill — repo-check VALs", () => {
       "### 2.1 `<产品需求文档中的功能章节，或用户可感知的产品子功能>`",
       "#### 2.1.1 Original Product Requirement / 原始产品需求",
       "#### 2.1.2 User-visible Behavior / 用户可感知行为",
-      "#### 2.1.3 Scope Boundaries / 分项范围边界",
-      "#### 2.1.4 Validation Mapping / 验收映射",
+      "#### 2.1.3 Interaction Design / 交互设计",
+      "#### 2.1.4 Scope Boundaries / 分项范围边界",
+      "#### 2.1.5 Validation Mapping / 验收映射",
       "## 3. Overall Out of Scope / 整体不做",
       "## 5. References / 参考资料",
     ];
@@ -283,6 +284,65 @@ describe("spec-design skill — repo-check VALs", () => {
     assert.match(validation, /### 2\.1 `<与 spec\.md 一致的产品分项名称>`/);
     assert.match(validation, /Spec subsection \(规格分项\)/);
     assert.match(validation, /Source section \(来源章节\)/);
+  });
+
+  test("interaction design is specified per user-visible leaf function", () => {
+    const skill = read("plugins/auriga-workflow/skills/spec-design/SKILL.md");
+    const specTemplate = read(
+      "plugins/auriga-workflow/skills/spec-design/references/spec-template.md",
+    );
+    const spec = fencedMarkdownExample(specTemplate);
+    const interactionDesign = markdownSubsection(
+      spec,
+      "#### 2.1.3 Interaction Design / 交互设计",
+    );
+
+    assert.match(skill, /尼尔森[^。\n]*可用性启发式/);
+    assert.match(skill, /不是[^。\n]*(?:固定问卷|逐项清单|合规清单)/);
+    assert.match(skill, /叶子功能[^。\n]*交互设计/);
+    assert.match(specTemplate, /Interaction Design \/ 交互设计/);
+    for (const field of [
+      "场景与目标",
+      "操作、控制与效率",
+      "状态反馈与恢复",
+      "动效与过渡",
+      "无障碍与适配",
+      "文案契约",
+    ]) {
+      assert.ok(
+        specTemplate.includes(field),
+        `interaction design template must include ${field}`,
+      );
+    }
+    const uxHeader = "| 场景与目标 | 入口与前置条件 | 操作、控制与效率 | 状态反馈与恢复 | 动效与过渡 | 无障碍与适配 |";
+    const copyHeader = "| 场景与触发条件 | 展示位置或载体 | 最终文案 | 动态变量与兜底 | 文案来源 |";
+    assert.ok(interactionDesign.includes(uxHeader));
+    assert.ok(interactionDesign.includes(copyHeader));
+    assert.ok(
+      interactionDesign.indexOf(uxHeader) < interactionDesign.indexOf(copyHeader),
+      "interaction table must precede the separate copy contract table",
+    );
+    assert.doesNotMatch(interactionDesign, /\|[^\n]*动效[^\n]*最终文案[^\n]*\|/);
+  });
+
+  test("production copy remains a product contract regardless of delivery owner", () => {
+    const skill = read("plugins/auriga-workflow/skills/spec-design/SKILL.md");
+    const specTemplate = read(
+      "plugins/auriga-workflow/skills/spec-design/references/spec-template.md",
+    );
+    const validationTemplate = read(
+      "plugins/auriga-workflow/skills/spec-design/references/validation-contract-template.md",
+    );
+
+    assert.match(skill, /生产级[^。\n]*具体文案/);
+    assert.match(skill, /服务端下发[^。\n]*规格/);
+    assert.match(
+      specTemplate,
+      /场景与触发条件[^\n]*最终文案[^\n]*动态变量与兜底[^\n]*文案来源/,
+    );
+    assert.match(specTemplate, /客户端固定[^。\n]*服务端下发[^。\n]*服务端配置/);
+    assert.match(validationTemplate, /服务端下发[^。\n]*(?:接口契约|HTTP)/);
+    assert.match(validationTemplate, /关键状态[^。\n]*用户可见文案[^。\n]*验收断言/);
   });
 
   test("spec decomposition follows complete user outcomes, not implementation thresholds", () => {
