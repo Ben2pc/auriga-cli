@@ -772,7 +772,7 @@ describe("spec-design skill — repo-check VALs", () => {
     );
     assert.match(
       skill,
-      /docs\/long-running-specs\/[\s\S]*跨[^\n]*PR|跨[^\n]*PR[\s\S]*docs\/long-running-specs\//,
+      /docs\/long-running-specs\/[\s\S]*跨[^\n]*(?:PR|拉取请求)|跨[^\n]*(?:PR|拉取请求)[\s\S]*docs\/long-running-specs\//,
       "spec-design must reserve long-running specs for cross-PR work",
     );
     assert.match(
@@ -782,12 +782,12 @@ describe("spec-design skill — repo-check VALs", () => {
     );
     assert.match(
       skill,
-      /每个子(?:规范| PR)[^\n]*(?:适用|对应)[^\n]*长期[^\n]*VAL|长期[^\n]*VAL[^\n]*(?:适用|对应)[^\n]*每个子(?:规范| PR)/,
+      /每个子规范[^\n]*所有适用的父级验收锚点/,
       "each child spec must carry forward every applicable parent validation assertion",
     );
     assert.match(
       skill,
-      /docs\/specs\/<child-topic>\/[\s\S]*(?:不能|不得|不可)[^\n]*(?:替代|绕过)|(?:不能|不得|不可)[^\n]*(?:替代|绕过)[\s\S]*docs\/specs\/<child-topic>\//,
+      /docs\/long-running-specs\/<topic>\/[\s\S]*(?:不能|不得|不可)[^\n]*(?:替代|绕过)|(?:不能|不得|不可)[^\n]*(?:替代|绕过)[\s\S]*docs\/long-running-specs\/<topic>\//,
       "long-running specs must not replace or bypass the child PR Ready contract",
     );
 
@@ -805,24 +805,109 @@ describe("spec-design skill — repo-check VALs", () => {
     }
   });
 
-  test("long-running umbrella template requires parent-to-child VAL traceability", () => {
+  test("umbrella coordinates complete child outcomes without mirroring parent sections", () => {
+    const skill = markdownSubsection(
+      read("plugins/auriga-workflow/skills/spec-design/SKILL.md"),
+      "#### C3. 拆分大需求",
+    );
     const template = read(
       "plugins/auriga-workflow/skills/spec-design/references/umbrella-template.md",
     );
-    assert.ok(
-      template.includes("## Parent coverage map"),
-      "umbrella template must include a parent coverage map",
+    const specTemplate = read(
+      "plugins/auriga-workflow/skills/spec-design/references/spec-template.md",
     );
-    const coverage = markdownSection(template, "## Parent coverage map");
+    const validationTemplate = read(
+      "plugins/auriga-workflow/skills/spec-design/references/validation-contract-template.md",
+    );
+    const example = fencedMarkdownExample(template);
+
     assert.match(
-      coverage,
-      /\| Parent VAL[^|]*\| Child spec[^|]*\| Child VAL[^|]*\| Status[^|]*\|/,
-      "umbrella parent coverage map must provide one structured four-column header",
+      template,
+      /以下代码块是生成的 `umbrella\.md` 正文模板：\n\n```markdown/,
+      "the template file must identify which document the fenced body generates",
     );
     assert.match(
-      coverage,
+      skill,
+      /总 `spec\.md`[^。\n]*父级验收锚点[^。\n]*`umbrella\.md`[^。\n]*(?:协调|覆盖)/,
+      "split specs must keep parent assertions in the parent spec and coordination in umbrella",
+    );
+    assert.doesNotMatch(
+      `${skill}\n${template}\n${specTemplate}\n${validationTemplate}`,
+      /总 `validation-contract\.md`/,
+      "split specs must not invent a parent validation-contract file",
+    );
+    assert.match(
+      template,
+      /```text\ndocs\/long-running-specs\/\n└── <总主题>\/\n    ├── spec\.md\n    ├── umbrella\.md\n    └── <子主题>\/\n        ├── spec\.md\n        └── validation-contract\.md\n```/,
+      "umbrella must show the long-running hierarchy as a directory tree",
+    );
+    assert.match(
+      template,
+      /```text\ndocs\/specs\/\n└── <总主题>\/\n    ├── spec\.md\n    ├── umbrella\.md\n    └── <子主题>\/\n        ├── spec\.md\n        └── validation-contract\.md\n```/,
+      "umbrella must show the PR-scoped hierarchy as a directory tree",
+    );
+    assert.doesNotMatch(
+      template,
+      /每个子规范写入 `docs\/|验收契约写入 `docs\//,
+      "directory trees should replace repetitive path prose",
+    );
+    assert.match(
+      template,
+      /docs\/long-running-specs\/[\s\S]*<总主题>[\s\S]*<子主题>[\s\S]*spec\.md/,
+      "long-running child specs must live below their umbrella topic",
+    );
+    assert.match(
+      template,
+      /docs\/long-running-specs\/[\s\S]*<总主题>[\s\S]*<子主题>[\s\S]*validation-contract\.md/,
+      "long-running child validation contracts must live beside their child specs",
+    );
+    assert.doesNotMatch(
+      `${skill}\n${template}`,
+      /父级?目录/,
+      "the template must not use an ambiguous parent-directory label",
+    );
+    assert.doesNotMatch(
+      template,
+      /相同的产品分组、叶子功能名称和顺序/,
+      "umbrella must not require child delivery slices to mirror parent product sections",
+    );
+    assert.match(example, /## 1\. Goal and Shared Scope \/ 目标与共同范围/);
+    assert.match(
+      example,
+      /## 2\. Sub-specs \/ 子规范/,
+    );
+    assert.match(
+      example,
+      /\| 顺序 \| 完整用户结果 \| 子规范 \| 验收契约 \| 父级验收项 \| 状态 \|/,
+      "umbrella must index independently deliverable child outcomes and their contracts",
+    );
+    assert.match(
+      example,
+      /## 3\. Parent Validation Coverage \/ 父级验收覆盖/,
+    );
+    assert.match(
+      example,
+      /\| 父级验收项 \| 共同结果 \| 子规范 \| 子验收项 \| 状态 \|/,
+      "umbrella must map every parent assertion to concrete child assertions",
+    );
+    assert.match(example, /## 4\. Dependencies and Boundaries \/ 依赖与边界/);
+    assert.match(example, /## 5\. Cross-spec Acceptance \/ 跨规范验收/);
+    assert.match(example, /## 6\. Overall Out of Scope \/ 整体不做/);
+    assert.match(example, /## 7\. Open questions \/ 悬而未决/);
+    assert.match(example, /## 8\. References and Lifecycle \/ 参考资料与生命周期/);
+    assert.match(
+      example,
       /docs\/worklog\//,
       "umbrella template must require final worklog links after child-spec archival",
+    );
+    const nonHeadingProse = example
+      .split("\n")
+      .filter((line) => !/^#{1,6} /.test(line))
+      .join("\n");
+    assert.doesNotMatch(
+      nonHeadingProse,
+      /\b(?:Order|Complete user outcome|Sub-spec|Validation contract|Parent VAL|Child VAL|Status|Overall outcome|Shared product rules|Overall boundary|parallel|draft|confirmed|planned|passed|not run|out of scope|Delivery dependency|Shared-rule ownership|Child boundaries|Parent product spec|Parent validation contract|arch|plan|impl|Agent)\b/,
+      "umbrella prose and tables must use Chinese outside bilingual headings",
     );
   });
 
