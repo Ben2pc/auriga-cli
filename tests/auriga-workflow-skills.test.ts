@@ -1372,6 +1372,19 @@ describe("deep-review modernization contract", () => {
       `plugins/auriga-workflow/skills/deep-review/references/reviewers/${name}.md`,
     );
 
+  test("CI review uses the checked-out contract without overriding its synthesis format", () => {
+    const workflow = read(".github/workflows/claude-code-review.yml");
+
+    assert.match(
+      workflow,
+      /LOCAL_SKILL=plugins\/auriga-workflow\/skills\/deep-review\/SKILL\.md/,
+      "self-review must prefer the deep-review contract from the checked-out branch",
+    );
+    assert.match(workflow, /Reviewer Output Contract/);
+    assert.match(workflow, /## 6\. 综合/);
+    assert.doesNotMatch(workflow, /No findings\.|\[severity:|OVERALL:/);
+  });
+
   test("first formal review respects CI routing and later agent-proposed reruns ask", () => {
     const text = deepReview();
     assert.match(text, /没有[^。]*持续集成评审[^。]*本地[^。]*直接执行/);
