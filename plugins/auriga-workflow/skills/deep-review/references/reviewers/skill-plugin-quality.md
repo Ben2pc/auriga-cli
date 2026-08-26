@@ -124,8 +124,4 @@ python3 <validator> <SKILL.md 所在目录>
 
 ## Output contract
 
-这是全覆盖审查，不是预过滤。返回至多 350 字摘要，列出实际运行的验证器与不可用工具，随后逐条输出：
-
-`<file>:<line> — <结构、发现或运行时兼容问题> — [severity: blocking | non-blocking] — [confidence: high | medium | low] — [file-class: skill | manifest | marketplace | agent | hooks | mcp | instruction | universal]`
-
-只有没有发现且所需验证证据完整时返回 `No findings.`；工具不可用时另列审查缺口。
+遵循主代理数据包中的统一 Reviewer Output Contract。阻断与非阻断表的“问题与影响”必须说明结构、发现或运行时兼容问题；实际运行的验证器写入相关证据，所需工具不可用且影响本维度结论时列为审查缺口。

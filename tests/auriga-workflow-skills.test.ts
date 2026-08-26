@@ -1350,8 +1350,8 @@ describe("reviewer-creator extends support", () => {
     assert.doesNotMatch(text, /detection-driven/);
   });
 
-  // VAL-REV-005 — hosted and standalone reviewers keep distinct output contracts
-  test("hosted reviewers inherit the host output contract", () => {
+  // VAL-REV-005 — project reviewers keep dimension rules without changing the shared envelope
+  test("project reviewers inherit the shared output envelope", () => {
     const creator = read(
       "plugins/auriga-workflow/skills/reviewer-creator/SKILL.md",
     );
@@ -1359,8 +1359,10 @@ describe("reviewer-creator extends support", () => {
       "plugins/auriga-workflow/skills/reviewer-creator/references/template.md",
     );
     assert.match(creator, /补充型[^。\n]*继承[^。\n]*宿主[^。\n]*输出契约/);
+    assert.match(creator, /所有项目审查者[^。\n]*统一 Reviewer Output Contract/);
     assert.match(template, /仅[^。\n]*standalone[^。\n]*保留/);
-    assert.match(template, /补充型[^。\n]*删除[^。\n]*继承宿主/);
+    assert.match(template, /统一 Reviewer Output Contract/);
+    assert.doesNotMatch(template, /\[severity:|\[confidence:|No findings\./);
   });
 });
 
@@ -1369,6 +1371,25 @@ describe("deep-review modernization contract", () => {
     read(
       `plugins/auriga-workflow/skills/deep-review/references/reviewers/${name}.md`,
     );
+
+  test("CI review uses the trusted base contract without overriding its synthesis format", () => {
+    const workflow = read(".github/workflows/claude-code-review.yml");
+
+    assert.match(
+      workflow,
+      /BASE_SHA=\$\{\{ github\.event\.pull_request\.base\.sha \}\}/,
+      "review orchestration must anchor to the trusted base commit",
+    );
+    assert.match(workflow, /git archive "\$BASE_SHA" "\$CONTRACT_DIR"/);
+    assert.match(workflow, /echo "path=\$SKILL" >> "\$GITHUB_OUTPUT"/);
+    assert.match(workflow, /steps\.deep-review-contract\.outputs\.path/);
+    assert.doesNotMatch(workflow, /LOCAL_SKILL=|npx -y skills add/);
+    assert.match(workflow, /Reviewer Output Contract/);
+    assert.match(workflow, /综合/);
+    assert.match(workflow, /anchored to a changed diff line/);
+    assert.match(workflow, /cannot be anchored[^.\n]*review body/);
+    assert.doesNotMatch(workflow, /No findings\.|\[severity:|OVERALL:/);
+  });
 
   test("first formal review respects CI routing and later agent-proposed reruns ask", () => {
     const text = deepReview();
@@ -1559,8 +1580,9 @@ describe("deep-review modernization contract", () => {
     assert.match(text, /只追加单行[^。]*替换或重写相邻内容/);
     assert.match(text, /指出删除或迁移哪些内容[^>]*合并、抽象成什么稳定规则/);
     assert.match(text, /`delete`、`merge` 和 `compress` 不能只给动作标签/);
-    assert.match(text, /未经授权记录任务过程[^。]*blocking/);
-    assert.match(text, /零散、重复或可进一步抽象[^。]*non-blocking/);
+    assert.match(text, /未经授权记录任务过程[^。]*阻断问题/);
+    assert.match(text, /零散、重复或可进一步抽象[^。]*非阻断问题/);
+    assert.doesNotMatch(text, /按 (?:blocking|non-blocking) 报告/);
   });
 
   test("test review is behavior-led without mechanical case or assertion rules", () => {
@@ -1629,24 +1651,95 @@ describe("deep-review modernization contract", () => {
     assert.match(text, /交给 `docs-sync`/);
   });
 
-  test("synthesis preserves sources, validation needs, gaps and read-only authority", () => {
+  test("reviewer packets use shared category tables and architecture owns observations", () => {
+    const text = deepReview();
+    const output = text.slice(
+      text.indexOf("### Reviewer Output Contract"),
+      text.indexOf("## 6. 综合"),
+    );
+    assert.ok(output.startsWith("### Reviewer Output Contract"));
+    for (const section of ["### 阻断问题", "### 非阻断问题", "### 需要验证"]) {
+      assert.ok(output.includes(section), `reviewer output must keep ${section}`);
+    }
+    assert.equal(
+      output.match(/\| 编号 \| 来源 \| 位置 \| 问题与影响 \| 置信度 \|/g)?.length,
+      2,
+      "blocking and non-blocking reviewer tables must share the same columns",
+    );
+    assert.ok(
+      output.includes("| 编号 | 来源 | 位置或证据 | 缺失证据与风险 | 验证方式 |"),
+      "reviewer validation table must match the synthesis input shape",
+    );
+    assert.match(output, /阻断1/);
+    assert.match(output, /非阻断1/);
+    assert.match(output, /没有条目[^。\n]*`无。`/);
+    assert.match(output, /架构观察[^。\n]*仅[^。\n]*`architecture`/);
+    assert.match(output, /审查缺口[^。\n]*无法完成/);
+    assert.match(output, /亮点[^。\n]*至多一条/);
+
+    for (const name of Object.keys(builtinReviewerTriggers)) {
+      const contract = markdownSection(reviewer(name), "## Output contract");
+      assert.match(contract, /统一 Reviewer Output Contract/);
+      assert.doesNotMatch(contract, /No findings\./);
+      assert.doesNotMatch(contract, /\[severity:|\[confidence:/);
+      if (name === "architecture") {
+        assert.match(contract, /架构观察/);
+      } else {
+        assert.doesNotMatch(contract, /架构观察/);
+      }
+    }
+  });
+
+  test("synthesis uses stable category tables with source-grouped action decisions", () => {
     const text = deepReview();
     const synthesis = text.slice(
       text.indexOf("## 6. 综合"),
       text.indexOf("## 7. 交回用户决定"),
     );
     for (const section of [
-      "### Blocking issues",
-      "### Non-blocking suggestions",
-      "### Needs validation",
-      "### Architectural observations",
-      "### Review gaps",
+      "### 阻断问题",
+      "### 非阻断问题",
+      "### 需要验证",
+      "### 架构观察",
+      "### 审查缺口",
+      "### 亮点",
     ]) {
       assert.ok(synthesis.includes(section), `missing output section ${section}`);
     }
-    for (const field of ["severity", "confidence", "来源"]) {
-      assert.ok(synthesis.includes(field), `synthesis must preserve ${field}`);
+
+    const blocking = markdownSection(synthesis, "### 阻断问题");
+    const nonBlocking = markdownSection(synthesis, "### 非阻断问题");
+    for (const [section, id] of [
+      [blocking, "阻断1"],
+      [nonBlocking, "非阻断1"],
+    ]) {
+      assert.ok(
+        section.includes("| 编号 | 来源 | 位置 | 问题与影响 | 主代理建议与判断理由 |"),
+        "finding table must keep the exact column order",
+      );
+      assert.ok(section.includes(id), `finding table must demonstrate ${id}`);
+      assert.doesNotMatch(section, /confidence|置信度/i);
     }
+
+    for (const [heading, header] of [
+      ["### 需要验证", "| 编号 | 来源 | 位置或证据 | 缺失证据与风险 | 验证方式 |"],
+      ["### 架构观察", "| 编号 | 来源 | 位置或证据 | 观察与长期成本 | 后续建议 |"],
+      ["### 审查缺口", "| 编号 | 来源 | 缺口 | 影响 | 补齐方式 |"],
+      ["### 亮点", "| 编号 | 来源 | 位置或证据 | 亮点 |"],
+    ]) {
+      assert.ok(
+        markdownSection(synthesis, heading).includes(header),
+        `${heading} must keep the exact column order`,
+      );
+    }
+
+    assert.match(blocking, /\*\*修\*\*/);
+    assert.match(nonBlocking, /\*\*(?:修|不修)\*\*/);
+    assert.match(synthesis, /相同来源[^。\n]*相邻/);
+    assert.match(synthesis, /第一来源[^。\n]*分组/);
+    assert.match(synthesis, /阻断问题只能建议 `修`/);
+    assert.match(synthesis, /判断 `不修`[^。\n]*(?:重新分类|不能|不得)/);
+    assert.match(synthesis, /没有条目[^。\n]*`无。`/);
     assert.match(synthesis, /按同一根因合并重复发现，同时保留所有来源/);
 
     const preamble = markdownSection(text, "### Reviewer Must-Not Preamble");
@@ -1659,6 +1752,9 @@ describe("deep-review modernization contract", () => {
     ]) {
       assert.ok(preamble.includes(prohibition), `missing prohibition: ${prohibition}`);
     }
+    assert.match(preamble, /运行、视觉或负载证据[^。\n]*需要验证/);
+    assert.match(preamble, /权威来源[^。\n]*无法完成[^。\n]*审查缺口/);
+    assert.doesNotMatch(preamble, /运行、视觉、负载或权威来源[^。\n]*需要验证/);
   });
 });
 

@@ -72,8 +72,4 @@ value: "发现会让下一次改动更贵的局部结构问题，同时避免把
 
 ## Output contract
 
-受众分级用于解释成本，**不是预过滤**。返回至多 300 字摘要，随后逐条输出：
-
-`<file>:<line> — <具体维护成本与触发场景> — [severity: blocking | non-blocking] — [confidence: high | medium | low] — [smell: naming | locality | duplication | abstraction | responsibility | control-flow | data | consistency | dead-code | diagnostics | testability]`
-
-只有没有发现时返回 `No findings.`。
+遵循主代理数据包中的统一 Reviewer Output Contract。受众分级用于解释成本，不是预过滤；阻断与非阻断表的“问题与影响”必须说明具体维护成本、触发它的后续改动，以及为什么现有机制没有消除该成本。
