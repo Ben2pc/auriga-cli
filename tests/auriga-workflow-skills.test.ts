@@ -1350,8 +1350,8 @@ describe("reviewer-creator extends support", () => {
     assert.doesNotMatch(text, /detection-driven/);
   });
 
-  // VAL-REV-005 — hosted and standalone reviewers keep distinct output contracts
-  test("hosted reviewers inherit the host output contract", () => {
+  // VAL-REV-005 — project reviewers keep dimension rules without changing the shared envelope
+  test("project reviewers inherit the shared output envelope", () => {
     const creator = read(
       "plugins/auriga-workflow/skills/reviewer-creator/SKILL.md",
     );
@@ -1359,8 +1359,10 @@ describe("reviewer-creator extends support", () => {
       "plugins/auriga-workflow/skills/reviewer-creator/references/template.md",
     );
     assert.match(creator, /补充型[^。\n]*继承[^。\n]*宿主[^。\n]*输出契约/);
+    assert.match(creator, /所有项目审查者[^。\n]*统一 Reviewer Output Contract/);
     assert.match(template, /仅[^。\n]*standalone[^。\n]*保留/);
-    assert.match(template, /补充型[^。\n]*删除[^。\n]*继承宿主/);
+    assert.match(template, /统一 Reviewer Output Contract/);
+    assert.doesNotMatch(template, /\[severity:|\[confidence:|No findings\./);
   });
 });
 
@@ -1627,6 +1629,45 @@ describe("deep-review modernization contract", () => {
     assert.match(text, /索引是可选优化[^。\n]*缺索引不是缺陷/);
     // Boundary against double-reporting with the docs reviewer.
     assert.match(text, /交给 `docs-sync`/);
+  });
+
+  test("reviewer packets use shared category tables and architecture owns observations", () => {
+    const text = deepReview();
+    const output = text.slice(
+      text.indexOf("### Reviewer Output Contract"),
+      text.indexOf("## 6. 综合"),
+    );
+    assert.ok(output.startsWith("### Reviewer Output Contract"));
+    for (const section of ["### 阻断问题", "### 非阻断问题", "### 需要验证"]) {
+      assert.ok(output.includes(section), `reviewer output must keep ${section}`);
+    }
+    assert.equal(
+      output.match(/\| 编号 \| 来源 \| 位置 \| 问题与影响 \| 置信度 \|/g)?.length,
+      2,
+      "blocking and non-blocking reviewer tables must share the same columns",
+    );
+    assert.ok(
+      output.includes("| 编号 | 来源 | 位置或证据 | 缺失证据与风险 | 验证方式 |"),
+      "reviewer validation table must match the synthesis input shape",
+    );
+    assert.match(output, /阻断1/);
+    assert.match(output, /非阻断1/);
+    assert.match(output, /没有条目[^。\n]*`无。`/);
+    assert.match(output, /架构观察[^。\n]*仅[^。\n]*`architecture`/);
+    assert.match(output, /审查缺口[^。\n]*无法完成/);
+    assert.match(output, /亮点[^。\n]*至多一条/);
+
+    for (const name of Object.keys(builtinReviewerTriggers)) {
+      const contract = markdownSection(reviewer(name), "## Output contract");
+      assert.match(contract, /统一 Reviewer Output Contract/);
+      assert.doesNotMatch(contract, /No findings\./);
+      assert.doesNotMatch(contract, /\[severity:|\[confidence:/);
+      if (name === "architecture") {
+        assert.match(contract, /架构观察/);
+      } else {
+        assert.doesNotMatch(contract, /架构观察/);
+      }
+    }
   });
 
   test("synthesis uses stable category tables with source-grouped action decisions", () => {

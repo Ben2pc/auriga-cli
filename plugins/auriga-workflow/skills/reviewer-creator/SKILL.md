@@ -76,7 +76,7 @@ repo_root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 mkdir -p "$repo_root/docs/rules/review"
 ```
 
-按 `references/template.md` 写入 `<仓库根>/docs/rules/review/<name>.md`。正文用项目对话语言，frontmatter 键保持模板格式。补充型审查者删除模板里的独立输出契约，继承宿主审查者的输出契约并由主编排追加项目来源；只有 `extends: standalone` 保留完整输出契约。
+按 `references/template.md` 写入 `<仓库根>/docs/rules/review/<name>.md`。正文用项目对话语言，frontmatter 键保持模板格式。所有项目审查者都继承主代理数据包中的统一 Reviewer Output Contract，不得改变核心章节或列。补充型审查者删除模板里的维度输出要求，继承宿主审查者的输出契约并由主编排追加项目来源；只有 `extends: standalone` 保留该节，用于补充本维度在单元格中必须说明的证据。
 
 ### 5. 验证
 

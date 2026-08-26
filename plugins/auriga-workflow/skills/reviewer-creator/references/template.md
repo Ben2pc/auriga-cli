@@ -39,10 +39,6 @@ value: "<这个项目规则比宿主通用检查多防住什么风险>"
 
 ## Output contract
 
-> 仅 `extends: standalone` 保留本节。补充型审查者删除本节，继承宿主输出契约，由 `deep-review` 标注 `(宿主名 / 项目审查者名)` 来源。
+> 仅 `extends: standalone` 保留本节。补充型审查者删除本节，继承宿主的维度输出契约，由 `deep-review` 标注 `(宿主名 / 项目审查者名)` 来源。
 
-这是全覆盖审查，不是预过滤。返回至多 300 字摘要，随后逐条输出：
-
-`<file>:<line> — <项目规则、证据和影响> — [severity: blocking | non-blocking] — [confidence: high | medium | low]`
-
-只有没有发现时返回 `No findings.`。
+遵循主代理数据包中的统一 Reviewer Output Contract，不修改核心章节、列、编号或空结果写法。“问题与影响”必须说明违反的项目规则、证据和具体影响；本节只补充该独立维度特有的单元格内容要求。

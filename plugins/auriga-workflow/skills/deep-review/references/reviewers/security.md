@@ -116,8 +116,4 @@ value: "在不同项目等级下识别可被利用的风险，并避免把通用
 
 ## Output contract
 
-这是全覆盖审查，不是预过滤。返回至多 350 字摘要，随后逐条输出：
-
-`<file>:<line> — <攻击路径与影响> — [severity: blocking | non-blocking] — [confidence: high | medium | low] — [category: auth | authz | injection | file | data | secret | supply-chain | cloud | agent-tool | abuse | other]`
-
-证据不足时指出缺失的攻击者控制或运行背景，并放入需要验证。只有没有发现时返回 `No findings.`。
+遵循主代理数据包中的统一 Reviewer Output Contract。阻断与非阻断表的“问题与影响”必须说明攻击者可控输入、攻击路径和影响；缺少攻击者控制条件或运行背景时，放入需要验证并说明如何补齐证据。

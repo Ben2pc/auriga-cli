@@ -85,8 +85,4 @@ value: "独立发现缺失、虚假通过、断言无意义和层级不匹配的
 
 ## Output contract
 
-这是全覆盖审查，不是预过滤。返回至多 300 字摘要，随后逐条输出：
-
-`<file>:<line> — <测试缺口或证据问题及其会漏掉的风险> — [severity: blocking | non-blocking] — [confidence: high | medium | low] — [test-level: unit | integration | contract | e2e | manual]`
-
-无法在只读审查中运行所需层级时写明验证方式。只有没有发现时返回 `No findings.`。
+遵循主代理数据包中的统一 Reviewer Output Contract。阻断与非阻断表的“问题与影响”必须说明测试缺口或证据问题，以及它会漏掉的风险；无法在只读审查中运行所需层级时放入需要验证，并写明验证方式。

@@ -60,8 +60,4 @@ value: "让一句话需求、文件化契约和用户最新决定都能约束实
 
 ## Output contract
 
-这是全覆盖审查，不是预过滤。返回至多 250 字摘要，随后逐条输出：
-
-`<source>:<VAL-id-or-line> — <缺口、冲突或未授权行为及影响> — [severity: blocking | non-blocking] — [confidence: high | medium | low]`
-
-缺少权威来源时必须输出审查缺口。只有来源完整且没有发现时才返回 `No findings.`。
+遵循主代理数据包中的统一 Reviewer Output Contract。“位置”使用 `<source>:<VAL-id-or-line>`，“问题与影响”说明缺口、冲突或未授权行为及影响。缺少权威来源而无法完成需求符合性判断时必须输出审查缺口。

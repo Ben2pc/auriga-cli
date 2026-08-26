@@ -70,8 +70,4 @@ value: "发现会扩大长期变化成本或偏离人工确认设计的结构问
 
 ## Output contract
 
-这是全覆盖审查，不是预过滤。返回至多 300 字摘要，随后逐条输出：
-
-`<file>:<line> — <结构问题、违反的项目设计或具体长期成本> — [severity: blocking | non-blocking] — [confidence: high | medium | low] — [area: domain | boundary | dependency | interface | migration | quality-attribute]`
-
-需要用户重新确认设计时明确标记。只有没有发现时返回 `No findings.`。
+遵循主代理数据包中的统一 Reviewer Output Contract。阻断与非阻断表的“问题与影响”必须说明结构问题、违反的项目设计或具体长期成本；需要用户重新确认设计时明确标记。只有本审查数据包及其项目补充可以按统一格式输出架构观察。

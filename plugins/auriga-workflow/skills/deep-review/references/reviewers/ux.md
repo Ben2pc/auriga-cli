@@ -90,10 +90,6 @@ value: "发现真实用户流程和可访问性问题，同时避免在没有渲
 
 ## Output contract
 
-表面分级是影响背景，**不是预过滤**。返回至多 300 字摘要，随后逐条输出：
+遵循主代理数据包中的统一 Reviewer Output Contract。表面分级是影响背景，不是预过滤；阻断与非阻断表的“问题与影响”必须说明受影响用户、场景和体验后果。
 
-`<file>:<line> — <受影响用户、场景和体验后果> — [severity: blocking | non-blocking] — [confidence: high | medium | low] — [area: task | feedback | accessibility | responsive | visual | cli]`
-
-与尼尔森启发式直接相关的发现，在末尾追加 `[heuristic: <主要启发式原则名>]`；纯无障碍、响应式或平台问题不添加占位标签。
-
-视觉证据不足时写入需要验证并说明所需截图、设备或运行步骤。只有没有发现时返回 `No findings.`。
+与尼尔森启发式直接相关的发现，在“问题与影响”末尾追加 `heuristic: <主要启发式原则名>`；纯无障碍、响应式或平台问题不添加占位标签。视觉证据不足时放入需要验证，并说明所需截图、设备或运行步骤。
