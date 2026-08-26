@@ -1372,16 +1372,22 @@ describe("deep-review modernization contract", () => {
       `plugins/auriga-workflow/skills/deep-review/references/reviewers/${name}.md`,
     );
 
-  test("CI review uses the checked-out contract without overriding its synthesis format", () => {
+  test("CI review uses the trusted base contract without overriding its synthesis format", () => {
     const workflow = read(".github/workflows/claude-code-review.yml");
 
     assert.match(
       workflow,
-      /LOCAL_SKILL=plugins\/auriga-workflow\/skills\/deep-review\/SKILL\.md/,
-      "self-review must prefer the deep-review contract from the checked-out branch",
+      /BASE_SHA=\$\{\{ github\.event\.pull_request\.base\.sha \}\}/,
+      "review orchestration must anchor to the trusted base commit",
     );
+    assert.match(workflow, /git archive "\$BASE_SHA" "\$CONTRACT_DIR"/);
+    assert.match(workflow, /echo "path=\$SKILL" >> "\$GITHUB_OUTPUT"/);
+    assert.match(workflow, /steps\.deep-review-contract\.outputs\.path/);
+    assert.doesNotMatch(workflow, /LOCAL_SKILL=|npx -y skills add/);
     assert.match(workflow, /Reviewer Output Contract/);
-    assert.match(workflow, /## 6\. 综合/);
+    assert.match(workflow, /综合/);
+    assert.match(workflow, /anchored to a changed diff line/);
+    assert.match(workflow, /cannot be anchored[^.\n]*review body/);
     assert.doesNotMatch(workflow, /No findings\.|\[severity:|OVERALL:/);
   });
 
@@ -1574,8 +1580,9 @@ describe("deep-review modernization contract", () => {
     assert.match(text, /只追加单行[^。]*替换或重写相邻内容/);
     assert.match(text, /指出删除或迁移哪些内容[^>]*合并、抽象成什么稳定规则/);
     assert.match(text, /`delete`、`merge` 和 `compress` 不能只给动作标签/);
-    assert.match(text, /未经授权记录任务过程[^。]*blocking/);
-    assert.match(text, /零散、重复或可进一步抽象[^。]*non-blocking/);
+    assert.match(text, /未经授权记录任务过程[^。]*阻断问题/);
+    assert.match(text, /零散、重复或可进一步抽象[^。]*非阻断问题/);
+    assert.doesNotMatch(text, /按 (?:blocking|non-blocking) 报告/);
   });
 
   test("test review is behavior-led without mechanical case or assertion rules", () => {
@@ -1745,6 +1752,9 @@ describe("deep-review modernization contract", () => {
     ]) {
       assert.ok(preamble.includes(prohibition), `missing prohibition: ${prohibition}`);
     }
+    assert.match(preamble, /运行、视觉或负载证据[^。\n]*需要验证/);
+    assert.match(preamble, /权威来源[^。\n]*无法完成[^。\n]*审查缺口/);
+    assert.doesNotMatch(preamble, /运行、视觉、负载或权威来源[^。\n]*需要验证/);
   });
 });
 

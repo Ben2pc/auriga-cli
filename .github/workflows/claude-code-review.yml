@@ -40,35 +40,35 @@ jobs:
 
       - name: Ensure deep-review skill is available
         id: deep-review-contract
-        # Self-review must use the contract from the checked-out branch so a
-        # PR that changes deep-review is reviewed against that exact change.
-        # Downstream repos without the plugin source keep the marketplace
-        # installation fallback.
+        # Review orchestration is executable policy. Extract it from the
+        # trusted base commit; the pull request's copy remains review input and
+        # cannot gain access to the OAuth token by changing its own prompt.
         run: |
-          LOCAL_SKILL=plugins/auriga-workflow/skills/deep-review/SKILL.md
-          INSTALLED_SKILL=.claude/skills/deep-review/SKILL.md
+          BASE_SHA=${{ github.event.pull_request.base.sha }}
+          CONTRACT_DIR=plugins/auriga-workflow/skills/deep-review
+          TRUSTED_ROOT="$RUNNER_TEMP/deep-review-contract"
+          mkdir -p "$TRUSTED_ROOT"
 
-          if [ -f "$LOCAL_SKILL" ] && grep -q '^name: deep-review$' "$LOCAL_SKILL"; then
-            SKILL=$LOCAL_SKILL
-            echo "using checked-out deep-review contract"
-          elif [ -f "$INSTALLED_SKILL" ] && grep -q '^name: deep-review$' "$INSTALLED_SKILL"; then
-            SKILL=$INSTALLED_SKILL
-            echo "using installed deep-review contract"
-          else
-            echo "deep-review skill missing or malformed — installing from Ben2pc/g-claude-code-plugins"
-            npx -y skills add Ben2pc/g-claude-code-plugins \
-              --skill deep-review \
-              --agent claude-code \
-              --yes
-            SKILL=$INSTALLED_SKILL
-          fi
-
-          # Fail loud on partial installs or stale truncations rather than
-          # improvising a review without the authoritative contract.
-          if ! grep -q '^name: deep-review$' "$SKILL"; then
-            echo "ERROR: no well-formed deep-review contract at $SKILL"
+          if ! git cat-file -e "$BASE_SHA:$CONTRACT_DIR/SKILL.md"; then
+            echo "ERROR: deep-review contract is missing from base commit $BASE_SHA"
             exit 1
           fi
+          git archive "$BASE_SHA" "$CONTRACT_DIR" | tar -x -C "$TRUSTED_ROOT"
+
+          SKILL="$TRUSTED_ROOT/$CONTRACT_DIR/SKILL.md"
+          REVIEWERS="$TRUSTED_ROOT/$CONTRACT_DIR/references/reviewers"
+          for anchor in '^name: deep-review$' '^### Reviewer Output Contract$' '^## 6\. 综合$'; do
+            if ! grep -q "$anchor" "$SKILL"; then
+              echo "ERROR: deep-review contract is missing required anchor: $anchor"
+              exit 1
+            fi
+          done
+          if [ ! -d "$REVIEWERS" ] || [ -z "$(find "$REVIEWERS" -maxdepth 1 -name '*.md' -print -quit)" ]; then
+            echo "ERROR: deep-review reviewer definitions are missing from base commit $BASE_SHA"
+            exit 1
+          fi
+
+          echo "using trusted deep-review contract from base commit $BASE_SHA"
           echo "path=$SKILL" >> "$GITHUB_OUTPUT"
 
       - name: Run Claude Code Review
@@ -93,8 +93,8 @@ jobs:
 
           # Review taxonomy (dimensions, severity rules, output format) lives
           # in the deep-review SKILL.md — the single source of truth. The
-          # bootstrap step above selects either the checked-out plugin source
-          # or a marketplace-installed fallback and exposes its exact path.
+          # bootstrap step above extracts the contract from the trusted base
+          # commit and exposes its exact temporary path.
           # This prompt defers to the skill and only encodes CI-specific
           # adaptations: serial (not parallel-dispatch) execution, and
           # two-channel posting into GitHub's review threads vs. top-level
@@ -126,28 +126,28 @@ jobs:
             **CI-specific adaptations** (unavoidable deviations from the skill's defaults because you run serially inside GitHub Actions, not as parallel subagents):
 
             - Do NOT dispatch subagents. You are a single Agent — walk the skill's matrix serially, applying the Reviewer Must-Not Preamble and Reviewer Output Contract independently to each applicable dimension.
-            - After all dimension packets are complete, synthesize them exactly as required by `## 6. 综合`. Recheck every finding, merge duplicate root causes, classify it, and make the main-agent repair decision before posting.
+            - After all dimension packets are complete, synthesize them exactly as required by the section headed `综合`. Recheck every finding, merge duplicate root causes, classify it, and make the main-agent repair decision before posting.
             - Do not replace the skill's final synthesis with per-dimension sections, free-form bullets, or a second summary format.
 
             ## Step 3 — post findings via two-channel posting (critical — do not deviate)
 
             **Channel A — inline review threads for BLOCKING findings** (gated by "Require conversation resolution"; author must resolve each before merge).
 
-            Create ONE review with all blocking findings as inline comments:
+            Partition blocking findings before posting. A finding is inline-eligible only when its exact path and line can be anchored to a changed diff line. Create ONE review containing only those inline-eligible findings as inline comments:
             ```
             gh api repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/reviews \
               --method POST \
               -f event=COMMENT \
-              -f body="Deep review — N blocking findings. Each inline comment below must be resolved before merge. Non-blocking findings are in a separate top-level comment." \
+              -f body="Deep review — N blocking findings. Inline comments below are anchored to changed lines and must be resolved before merge. Blocking findings that cannot be anchored are listed in this review body and in the final synthesis." \
               -F 'comments[][path]=<file>' -F 'comments[][line]=<line>' -F 'comments[][body]=<finding description>' \
               -F 'comments[][path]=<file>' -F 'comments[][line]=<line>' -F 'comments[][body]=<finding description>' \
               ...
             ```
-            If zero blocking findings, SKIP this call entirely (do not post an empty review).
+            Never send a placeholder or a path/line that GitHub cannot anchor. Blocking findings that cannot be anchored to a changed diff line stay classified as blocking: list them in the review body when an inline review exists and always keep them in Channel B's final synthesis. If zero blocking findings can be anchored, SKIP this API call entirely rather than posting an invalid or empty review.
 
             **Channel B — top-level final synthesis for ALL findings** (not gated; visible for triage).
 
-            Always post via `gh pr comment ${{ github.event.pull_request.number }} --body-file <path>`. The file must contain the single final report beginning with `## Deep Review:` and follow the table template under the skill's `## 6. 综合` exactly:
+            Always post via `gh pr comment ${{ github.event.pull_request.number }} --body-file <path>`. The file must contain the single final report beginning with `## Deep Review:` and follow the table template under the skill's section headed `综合` exactly:
             - Keep every classification section in the prescribed order, including sections with no entries; use the skill's empty-section marker instead of an empty table.
             - Preserve the exact columns, source grouping, final numbering, and main-agent repair decision rules defined by the skill.
             - Do not include the intermediate reviewer packets or an additional dimension-by-dimension summary.
