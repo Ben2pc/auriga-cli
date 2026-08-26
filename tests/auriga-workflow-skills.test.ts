@@ -1629,24 +1629,56 @@ describe("deep-review modernization contract", () => {
     assert.match(text, /交给 `docs-sync`/);
   });
 
-  test("synthesis preserves sources, validation needs, gaps and read-only authority", () => {
+  test("synthesis uses stable category tables with source-grouped action decisions", () => {
     const text = deepReview();
     const synthesis = text.slice(
       text.indexOf("## 6. 综合"),
       text.indexOf("## 7. 交回用户决定"),
     );
     for (const section of [
-      "### Blocking issues",
-      "### Non-blocking suggestions",
-      "### Needs validation",
-      "### Architectural observations",
-      "### Review gaps",
+      "### 阻断问题",
+      "### 非阻断问题",
+      "### 需要验证",
+      "### 架构观察",
+      "### 审查缺口",
+      "### 亮点",
     ]) {
       assert.ok(synthesis.includes(section), `missing output section ${section}`);
     }
-    for (const field of ["severity", "confidence", "来源"]) {
-      assert.ok(synthesis.includes(field), `synthesis must preserve ${field}`);
+
+    const blocking = markdownSection(synthesis, "### 阻断问题");
+    const nonBlocking = markdownSection(synthesis, "### 非阻断问题");
+    for (const [section, id] of [
+      [blocking, "阻断1"],
+      [nonBlocking, "非阻断1"],
+    ]) {
+      assert.ok(
+        section.includes("| 编号 | 来源 | 位置 | 问题与影响 | 主代理建议与判断理由 |"),
+        "finding table must keep the exact column order",
+      );
+      assert.ok(section.includes(id), `finding table must demonstrate ${id}`);
+      assert.doesNotMatch(section, /confidence|置信度/i);
     }
+
+    for (const [heading, header] of [
+      ["### 需要验证", "| 编号 | 来源 | 位置或证据 | 缺失证据与风险 | 验证方式 |"],
+      ["### 架构观察", "| 编号 | 来源 | 位置或证据 | 观察与长期成本 | 后续建议 |"],
+      ["### 审查缺口", "| 编号 | 来源 | 缺口 | 影响 | 补齐方式 |"],
+      ["### 亮点", "| 编号 | 来源 | 位置或证据 | 亮点 |"],
+    ]) {
+      assert.ok(
+        markdownSection(synthesis, heading).includes(header),
+        `${heading} must keep the exact column order`,
+      );
+    }
+
+    assert.match(blocking, /\*\*修\*\*/);
+    assert.match(nonBlocking, /\*\*(?:修|不修)\*\*/);
+    assert.match(synthesis, /相同来源[^。\n]*相邻/);
+    assert.match(synthesis, /第一来源[^。\n]*分组/);
+    assert.match(synthesis, /阻断问题只能建议 `修`/);
+    assert.match(synthesis, /判断 `不修`[^。\n]*(?:重新分类|不能|不得)/);
+    assert.match(synthesis, /没有条目[^。\n]*`无。`/);
     assert.match(synthesis, /按同一根因合并重复发现，同时保留所有来源/);
 
     const preamble = markdownSection(text, "### Reviewer Must-Not Preamble");
