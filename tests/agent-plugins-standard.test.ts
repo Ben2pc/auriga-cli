@@ -202,17 +202,23 @@ describe("Agent Plugins 1.0.0 package contract", () => {
         assert.equal(portableManifest.version, plugin.version);
       }
 
-      let nativeHookEntrypoints = 0;
-
       for (const nativePath of plugin.nativeManifests) {
         const nativeManifest = readJson(`plugins/${plugin.name}/${nativePath}`);
         assert.equal(nativeManifest.name, plugin.name);
         assert.equal(nativeManifest.version, plugin.version);
-        if (
-          nativeManifest.hooks === "./hooks/hooks.json" ||
-          (nativePath === ".claude-plugin/plugin.json" && plugin.hasHooks)
-        ) {
-          nativeHookEntrypoints += 1;
+
+        if (plugin.hasHooks && nativePath !== ".claude-plugin/plugin.json") {
+          assert.equal(
+            nativeManifest.hooks,
+            "./hooks/hooks.json",
+            `${plugin.name} must expose its Hook registry in ${nativePath}`,
+          );
+        } else if (!plugin.hasHooks) {
+          assert.equal(
+            nativeManifest.hooks,
+            undefined,
+            `${plugin.name} must not expose a Hook registry in ${nativePath}`,
+          );
         }
 
         if (!portableManifest) continue;
@@ -255,11 +261,6 @@ describe("Agent Plugins 1.0.0 package contract", () => {
         fs.existsSync(path.join(pluginRoot, "hooks", "hooks.json")),
         plugin.hasHooks,
         `${plugin.name} Hook registry classification drifted`,
-      );
-      assert.equal(
-        nativeHookEntrypoints > 0,
-        plugin.hasHooks,
-        `${plugin.name} native Hook entrypoint classification drifted`,
       );
     }
   });
