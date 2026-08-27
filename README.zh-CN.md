@@ -124,7 +124,7 @@ npx auriga-cli
 
 可以把选中的插件安装到 Claude Code、Codex 或两者都装。Claude Code 路径使用 `claude plugins install`，并遵守 `--scope project|user`；Codex 路径根据 `~/.codex/config.toml` 中是否已注册同名 marketplace 自动选择 `codex plugin marketplace add` 或 `upgrade` 注册 marketplace，再用原生的 `codex plugin add <plugin>@<marketplace>` 命令安装每个选中的插件。Codex 路径要求 Codex CLI 版本新到支持 `codex plugin add`；旧版本会中止 Codex 侧安装并提示升级。
 
-本仓库维护的四个插件——`auriga-workflow`、`quality-gate-scaffolder`、`session-instructions-loader` 和 `auriga-notify`——都提供兼容 [Agent Plugins 1.0.0](https://agent-plugins.org/specification) 的根 `plugin.json`。标准客户端只从固定的 `skills/` 与 `mcp.json` 位置发现可移植组件；Hook 注册表保留在约定的 `hooks/hooks.json`，宿主专属的 interface 元数据和显式 Hook 路径则放在适用的 Claude Code、Codex 或 Cursor 清单中。下表「运行时」列写的是该插件实际可安装的宿主；CLI 安装器仍然只面向 Claude Code 和 Codex。
+本仓库维护的四个插件中，`quality-gate-scaffolder` 提供兼容 [Agent Plugins 1.0.0](https://agent-plugins.org/specification) 的根 `plugin.json`，标准客户端只从固定的 `skills/` 与 `mcp.json` 位置发现其中的可移植组件。包含 Hook 的插件暂时不提供根 `plugin.json`，因为 Codex 当前可能优先选择标准包而跳过 `hooks/hooks.json`；`auriga-workflow`、`session-instructions-loader` 和 `auriga-notify` 仍保留适用的 Claude Code、Codex 或 Cursor 宿主专属原生清单与 Hook 注册表。下表「运行时」列写的是各插件实际可安装的宿主；CLI 安装器仍然只面向 Claude Code 和 Codex。
 
 Cursor 通过 `.cursor-plugin/marketplace.json` 索引本仓库，当前列出 `auriga-workflow` 和 `quality-gate-scaffolder`。个人用户用 `cursor-agent plugin marketplace add https://github.com/Ben2pc/auriga-cli` 添加这个 GitHub 仓库，再安装列出的插件。团队或企业方案也可以在 Cursor 控制台把同一仓库加为团队市场。
 

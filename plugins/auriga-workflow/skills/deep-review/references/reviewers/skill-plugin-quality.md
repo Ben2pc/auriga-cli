@@ -56,11 +56,11 @@ value: "用项目规则和官方验证器发现代理扩展资产的结构缺陷
 
 ## Checklist — plugin and marketplace
 
-1. auriga-cli 自有插件以根 `plugin.json` 声明 Agent Plugins 1.0.0 可移植身份；校验 canonical `$schema`、必填字段、名称约束、类型，以及闭合顶层字段。宿主专属数据只能放在标准 `extensions` 或原生清单，不能混入标准顶层。
+1. 不含 Hook 的 auriga-cli 自有插件可用根 `plugin.json` 声明 Agent Plugins 1.0.0 可移植身份；存在时校验 canonical `$schema`、必填字段、名称约束、类型，以及闭合顶层字段，宿主专属数据只能放在标准 `extensions` 或原生清单。包含 Hook 的插件暂时不提供根 `plugin.json`，避免 Codex 选择标准入口后跳过 `hooks/hooks.json`。
 2. 标准组件只从固定的 `skills/` 与 `mcp.json` 发现；缺少某类组件合法。不能依赖清单内联路径，也不能把 hooks、agents、commands 或 interface 当成 v1 可移植组件。
-3. `.claude-plugin/plugin.json`、`.codex-plugin/plugin.json` 与 `.cursor-plugin/plugin.json` 是各自运行时的一等入口；只要求目标运行时需要的清单，新增根清单不能代替宿主 hooks 与 interface。
+3. `.claude-plugin/plugin.json`、`.codex-plugin/plugin.json` 与 `.cursor-plugin/plugin.json` 是各自运行时的一等入口；只要求目标运行时需要的清单。Hook 插件必须同时保留原生清单与 `hooks/hooks.json`；支持显式 Hook 路径字段的宿主还要检查清单引用。
 4. JSON 可解析，必填字段、路径和组件类型满足对应标准或平台规则；引用目录实际随插件发布。
-5. 同一插件的根清单与原生清单名称、版本和语义身份保持一致，平台专属字段可以不同。
+5. 同一插件的原生清单名称、版本和语义身份保持一致；存在根清单时也必须与原生清单一致，平台专属字段可以不同。
 6. 市场条目的名称与源路径正确指向插件；是否需要市场版本字段和何时升级，遵循**当前仓库的版本规则**，不是通用硬规则。
 7. 插件内容变化后，仓库要求的 manifest version、市场清单、发布说明或安装测试按项目契约同步。
 
@@ -120,7 +120,7 @@ python3 <validator> <SKILL.md 所在目录>
 2. 某 Claude 专属插件只有 `.claude-plugin/plugin.json`，项目没有宣称 Codex 支持。不因缺少 Codex 清单报告。
 3. 平台新增了本文件没列出的钩子事件。按需查官方文档；若合法，不把“缓存清单没有”作为目标差异缺陷。
 4. Auriga 根目录只有 `AGENTS.md`，没有 `CLAUDE.md` 或兼容软链。按项目规范报告阻塞。
-5. 某 hook-only 插件具有合法根 `plugin.json`，但没有 `skills/` 或 `mcp.json`。不因缺少可移植组件报告；继续检查宿主清单是否保留实际 hook 行为。
+5. 某 Hook 插件仍提供根 `plugin.json`。按当前临时兼容边界报告，因为 Codex 可能选择标准入口并跳过原生 Hook；同时检查原生清单与 `hooks/hooks.json` 是否完整。
 
 ## Output contract
 
