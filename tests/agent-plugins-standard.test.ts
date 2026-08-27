@@ -23,7 +23,8 @@ type JsonObject = Record<string, unknown>;
 const plugins = [
   {
     name: "auriga-workflow",
-    version: "4.0.33",
+    version: "4.0.34",
+    hasHooks: true,
     nativeManifests: [
       ".claude-plugin/plugin.json",
       ".codex-plugin/plugin.json",
@@ -48,6 +49,7 @@ const plugins = [
   {
     name: "quality-gate-scaffolder",
     version: "0.2.2",
+    hasHooks: false,
     nativeManifests: [
       ".claude-plugin/plugin.json",
       ".codex-plugin/plugin.json",
@@ -63,13 +65,15 @@ const plugins = [
   },
   {
     name: "session-instructions-loader",
-    version: "1.0.4",
+    version: "1.0.5",
+    hasHooks: true,
     nativeManifests: [".codex-plugin/plugin.json"],
     skills: [],
   },
   {
     name: "auriga-notify",
-    version: "1.0.2",
+    version: "1.0.3",
+    hasHooks: true,
     nativeManifests: [".claude-plugin/plugin.json"],
     skills: [],
   },
@@ -167,52 +171,97 @@ function discoveredSkills(pluginName: string): string[] {
 }
 
 describe("Agent Plugins 1.0.0 package contract", () => {
-  test("VAL-PORTABILITY-001/002 and VAL-VERSIONING-001/002: every owned plugin has a valid, aligned root manifest", () => {
+  test("portable-only plugins have a valid root manifest while Hook plugins use native manifests", () => {
+    const ownedPluginNames = fs
+      .readdirSync(path.join(repoRoot, "plugins"))
+      .filter((name) => fs.statSync(path.join(repoRoot, "plugins", name)).isDirectory())
+      .sort();
+    assert.deepEqual(
+      ownedPluginNames,
+      plugins.map(({ name }) => name).sort(),
+      "every owned plugin must declare its manifest and Hook classification",
+    );
+
     for (const plugin of plugins) {
       const pluginRoot = path.join(repoRoot, "plugins", plugin.name);
       const manifestPath = path.join(pluginRoot, "plugin.json");
-      assert.ok(fs.lstatSync(manifestPath).isFile(), `${plugin.name}/plugin.json must be a file`);
+      assert.equal(
+        fs.existsSync(manifestPath),
+        !plugin.hasHooks,
+        plugin.hasHooks
+          ? `${plugin.name}/plugin.json must be absent so hosts select the native Hook manifest`
+          : `${plugin.name}/plugin.json must expose the portable Agent Plugins package`,
+      );
 
-      const manifest = readJson(`plugins/${plugin.name}/plugin.json`);
-      assertAgentPluginManifest(manifest, `${plugin.name}/plugin.json`);
-      assert.equal(manifest.name, plugin.name);
-      assert.equal(manifest.version, plugin.version);
+      const portableManifest = plugin.hasHooks
+        ? undefined
+        : readJson(`plugins/${plugin.name}/plugin.json`);
+      if (portableManifest) {
+        assertAgentPluginManifest(portableManifest, `${plugin.name}/plugin.json`);
+        assert.equal(portableManifest.name, plugin.name);
+        assert.equal(portableManifest.version, plugin.version);
+      }
 
       for (const nativePath of plugin.nativeManifests) {
         const nativeManifest = readJson(`plugins/${plugin.name}/${nativePath}`);
+        assert.equal(nativeManifest.name, plugin.name);
+        assert.equal(nativeManifest.version, plugin.version);
+
+        if (plugin.hasHooks && nativePath !== ".claude-plugin/plugin.json") {
+          assert.equal(
+            nativeManifest.hooks,
+            "./hooks/hooks.json",
+            `${plugin.name} must expose its Hook registry in ${nativePath}`,
+          );
+        } else if (!plugin.hasHooks) {
+          assert.equal(
+            nativeManifest.hooks,
+            undefined,
+            `${plugin.name} must not expose a Hook registry in ${nativePath}`,
+          );
+        }
+
+        if (!portableManifest) continue;
         for (const field of ["name", "version", "homepage", "repository", "license"]) {
           assert.equal(
             nativeManifest[field],
-            manifest[field],
+            portableManifest[field],
             `${plugin.name} ${field} must stay aligned in ${nativePath}`,
           );
         }
 
-        assertPlainObject(manifest.author, `${plugin.name}/plugin.json.author`);
+        assertPlainObject(portableManifest.author, `${plugin.name}/plugin.json.author`);
         assertPlainObject(nativeManifest.author, `${plugin.name}/${nativePath}.author`);
         for (const field of ["name", "email"]) {
           assert.equal(
             nativeManifest.author[field],
-            manifest.author[field],
+            portableManifest.author[field],
             `${plugin.name} author.${field} must stay aligned in ${nativePath}`,
           );
         }
         if ("url" in nativeManifest.author) {
           assert.equal(
             nativeManifest.author.url,
-            manifest.author.url,
+            portableManifest.author.url,
             `${plugin.name} author.url must stay aligned in ${nativePath}`,
           );
         }
 
         const expectedDescription =
-          localizedNativeDescriptions[`${plugin.name}/${nativePath}`] ?? manifest.description;
+          localizedNativeDescriptions[`${plugin.name}/${nativePath}`] ??
+          portableManifest.description;
         assert.equal(
           nativeManifest.description,
           expectedDescription,
           `${plugin.name} description must stay aligned or use an approved localization in ${nativePath}`,
         );
       }
+
+      assert.equal(
+        fs.existsSync(path.join(pluginRoot, "hooks", "hooks.json")),
+        plugin.hasHooks,
+        `${plugin.name} Hook registry classification drifted`,
+      );
     }
   });
 
@@ -233,13 +282,15 @@ describe("Agent Plugins 1.0.0 package contract", () => {
       );
     }
 
-    const sessionLoader = readJson("plugins/session-instructions-loader/plugin.json");
+    const sessionLoader = readJson(
+      "plugins/session-instructions-loader/.codex-plugin/plugin.json",
+    );
     assert.match(
       String(sessionLoader.description),
       /Codex-only/,
       "session-instructions-loader must declare its Codex-only scope",
     );
-    const notify = readJson("plugins/auriga-notify/plugin.json");
+    const notify = readJson("plugins/auriga-notify/.claude-plugin/plugin.json");
     assert.match(
       String(notify.description),
       /Claude Code/,
@@ -313,7 +364,7 @@ describe("Agent Plugins 1.0.0 package contract", () => {
     }
   });
 
-  test("VAL-GOVERNANCE-001: project guidance and review recognize the portable core", () => {
+  test("project guidance and review document the temporary Hook manifest boundary", () => {
     const agentInstructions = read("AGENTS.md");
     const readme = read("README.md");
     const readmeZh = read("README.zh-CN.md");
@@ -353,6 +404,11 @@ describe("Agent Plugins 1.0.0 package contract", () => {
         text,
         /宿主专属|host-specific/i,
         `${label} must separate host-specific capabilities`,
+      );
+      assert.match(
+        text,
+        /Hook[^。\n]*(?:不提供|移除|without|omit)[^。\n]*(?:根 |root )`plugin\.json`|(?:不提供|移除|without|omit)[^。\n]*(?:根 |root )`plugin\.json`[^。\n]*Hook/i,
+        `${label} must explain why Hook plugins omit the root manifest`,
       );
     }
 
