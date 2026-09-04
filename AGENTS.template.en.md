@@ -1,5 +1,5 @@
 <!-- AURIGA:WORKFLOW:v1 START — Managed block, maintained by auriga-cli. Do not edit by hand; upgrades replace it wholesale. Put project-specific instructions after the END marker below. -->
-# auriga Workflow (v1.24.0)
+# auriga Workflow (v1.25.0)
 
 1. Requirement clarification: For new or changed externally observable behavior, use `spec-design` first to judge value and align the goal from actual code and product evidence. **spec = why + observable what; arch design = structural how; plan = implementation steps**. A change that preserves the external behavior contract may skip the spec but can still need architecture clarification.
 
@@ -11,7 +11,7 @@
 
 5. Incremental implementation: For non-trivial implementation, use `incremental-impl` to first decompose the work into complete implementation units that are verifiable and integrable, then deliver them in dependency order.
 
-6. Verify before claiming done: Any "done, fixed, passing, or ready for review" judgment must be based on verification results that match the claim and were obtained after the last relevant change; when evidence is insufficient, state the gap.
+6. Verify before claiming done: Any "done, fixed, passing, or ready for review" judgment must be based on verification results that match the claim and were obtained after the last relevant change; when evidence is insufficient, state the gap. File-based specs use a companion `validation-results.md`: record each delivery-validation activity when it finishes, including additional validation outside the contract, without logging development trial runs; see `spec-design` for format and lifecycle. At handoff, directly tell the user which validations were completed, their actual results, and anything unperformed or limited, with links to available records. Without file-based specs, provide the same summary without requiring extra documents.
 
 7. PR readiness: Mark Ready only after completing verification and PR preparation through `git-workflow`. For design artifacts scoped to the current PR (spec.md, task_plan.md, etc.), use `AskUserQuestion` / `request_user_input` to ask the user: delete or archive to `docs/worklog/worklog-<YYYY-MM-DD>-<branch-name>/`; execute the chosen delete, archive, or promotion through `documentation-management` instead of moving files by hand. A program spec spanning multiple PRs may remain under `docs/long-running-specs/` and does not participate in the Ready cleanup gate; a human decides when to archive it after all child PRs finish.
 

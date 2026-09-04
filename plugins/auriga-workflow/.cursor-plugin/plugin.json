@@ -1,6 +1,6 @@
 {
   "name": "auriga-workflow",
-  "version": "4.0.34",
+  "version": "4.0.35",
   "description": "Auriga's end-to-end engineering workflow: clarification, diagnosis, implementation, maintenance, review, and Git lifecycle guardrails.",
   "author": {
     "name": "Ben2pc",

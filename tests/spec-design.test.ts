@@ -44,6 +44,31 @@ function fencedMarkdownExample(text: string): string {
   return match[1];
 }
 
+describe("validation results artifacts", () => {
+  const templatePath = "plugins/auriga-workflow/skills/spec-design/references/validation-results-template.md";
+
+  test("results template exposes coverage and evidence records separately", () => {
+    const example = fencedMarkdownExample(read(templatePath));
+    assert.match(example, /## 1\. Current Coverage \/ 当前验收覆盖/);
+    assert.match(example, /## 2\. Validation Records \/ 验证记录/);
+    assert.match(example, /\| 验收要求 \| 当前状态 \| 结果引用与缺口 \|/);
+    const fields = [...example.matchAll(/^- \*\*([^*]+)\*\*：/gm)].map((match) => match[1]);
+    assert.deepEqual(fields, ["关联", "验证对象", "执行", "实际结果", "结论", "证据"]);
+  });
+
+  test("producers and consumers can discover the shared results template", () => {
+    for (const skill of ["spec-design", "test-driven-development", "incremental-impl"]) {
+      const skillPath = `plugins/auriga-workflow/skills/${skill}/SKILL.md`;
+      const references = [...read(skillPath).matchAll(/`([^`]*references\/validation-results-template\.md)`/g)];
+      assert.ok(references.length > 0, `${skill} must expose the results reference`);
+      for (const [, reference] of references) {
+        assert.equal(path.resolve(repoRoot, path.dirname(skillPath), reference), path.join(repoRoot, templatePath));
+        assert.ok(fs.existsSync(path.resolve(repoRoot, path.dirname(skillPath), reference)));
+      }
+    }
+  });
+});
+
 describe("spec-design skill — repo-check VALs", () => {
   test("VAL-DEP-003: SKILL.md exists at plugin-bundled path", () => {
     const p = path.join(
@@ -838,12 +863,12 @@ describe("spec-design skill — repo-check VALs", () => {
     );
     assert.match(
       template,
-      /```text\ndocs\/long-running-specs\/\n└── <总主题>\/\n    ├── spec\.md\n    ├── umbrella\.md\n    └── <子主题>\/\n        ├── spec\.md\n        └── validation-contract\.md\n```/,
+      /```text\ndocs\/long-running-specs\/\n└── <总主题>\/\n    ├── spec\.md\n    ├── umbrella\.md\n    └── <子主题>\/\n        ├── spec\.md\n        ├── validation-contract\.md\n        └── validation-results\.md\n```/,
       "umbrella must show the long-running hierarchy as a directory tree",
     );
     assert.match(
       template,
-      /```text\ndocs\/specs\/\n└── <总主题>\/\n    ├── spec\.md\n    ├── umbrella\.md\n    └── <子主题>\/\n        ├── spec\.md\n        └── validation-contract\.md\n```/,
+      /```text\ndocs\/specs\/\n└── <总主题>\/\n    ├── spec\.md\n    ├── umbrella\.md\n    └── <子主题>\/\n        ├── spec\.md\n        ├── validation-contract\.md\n        └── validation-results\.md\n```/,
       "umbrella must show the PR-scoped hierarchy as a directory tree",
     );
     assert.doesNotMatch(
@@ -878,7 +903,7 @@ describe("spec-design skill — repo-check VALs", () => {
     );
     assert.match(
       example,
-      /\| 顺序 \| 完整用户结果 \| 子规范 \| 验收契约 \| 父级验收项 \| 状态 \|/,
+      /\| 顺序 \| 完整用户结果 \| 子规范 \| 验收契约 \| 验证结果 \| 父级验收项 \| 状态 \|/,
       "umbrella must index independently deliverable child outcomes and their contracts",
     );
     assert.match(
