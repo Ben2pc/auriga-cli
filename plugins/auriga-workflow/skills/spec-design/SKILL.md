@@ -117,11 +117,14 @@ description: 基于实际代码与产品事实澄清新增或改变外部可见�
 |---|---|---|
 | `spec.md` | `references/spec-template.md` | 保存价值、事实、行为、范围和已确认决定 |
 | `validation-contract.md` | `references/validation-contract-template.md` | 保存可追溯的验收断言 |
+| `validation-results.md` | `references/validation-results-template.md` | 初始化验收覆盖，交由执行者及时记录交付验证事实与额外验证 |
 | `umbrella.md` | `references/umbrella-template.md` | 仅在需求确实拆为多个独立子规范时保存共同范围、子规范清单、父子验收覆盖、依赖和生命周期 |
 
 文件只保存确认后的结果，不记录冗长问答流水。不适用的可选章节直接删除，不用“无”填满模板。
 
 需求没有拆成子规范时，`spec.md` 与 `validation-contract.md` 配套保存。需求拆成多个子规范时，总规范目录保存总 `spec.md` 与 `umbrella.md`；父级验收锚点写在总 `spec.md`，不另建总体验收契约。每个子规范在总规范目录下使用独立子目录，并在其中配套保存自己的 `spec.md` 与 `validation-contract.md`。
+
+文件化规格按 `references/validation-results-template.md` 在契约旁初始化 `validation-results.md`，标为未执行；执行时缺失则补建，已有记录不重置。结果是执行证据，不是需求决定。
 
 写入前先确定同一套产物骨架：
 
@@ -158,6 +161,14 @@ description: 基于实际代码与产品事实澄清新增或改变外部可见�
 
 工作没有跨多个拉取请求时，总规范写入 `docs/specs/<topic>/`，子规范写入它的 `<child-topic>/` 子目录。工作明确跨多个拉取请求时，先取得用户明确确认长期生命周期，再把总 `spec.md`、`umbrella.md`、子规范目录和适用的共同设计放入 `docs/long-running-specs/<topic>/`；开发期执行产物仍按仓库文档规则处理。子规范归档或晋升后同步更新 `umbrella.md` 中的实际链接。长期规范不能替代或绕过当前子拉取请求的待评审生命周期；全部子拉取请求结束后由人工决定长期规范的归档或晋升，执行时走 `documentation-management`，不直接移动文件。
 
+#### C4. 验证结果的交接与生命周期
+
+记录与汇报遵循 `references/validation-results-template.md`：执行者每完成一个交付验证活动就填写，不记开发试跑。无文件化规格时仅在对话中汇报。
+
+各子规范保存自己的结果，`umbrella.md` 仅索引。实际开展跨规范验收时才创建总主题结果，关联总规格锚点或已确认要求，不另造契约。
+
+结果按拉取请求留存。进入待评审状态时，由 `documentation-management` 归档到对应 worklog，保留主题层级以避免同名覆盖，不晋升为架构文档；用户已明确结果去向时服从其决定。长期契约保留原位并索引归档结果，后续交付新建记录。迁移或删除来源时修复引用，必要时保留要求快照；归档后的复验继续记入当次归档。
+
 ### Phase D — 确认与交接
 
 1. 检查规格是否建立在调查事实和项目规则上，价值判断有明确出口，产物结构能回溯原始产品需求或已按用户可感知子功能划分，适用的交互设计与具体文案已经落到叶子功能，行为与验收分项一致，未把产品决定静默留给下游。
@@ -182,6 +193,6 @@ description: 基于实际代码与产品事实澄清新增或改变外部可见�
 ## 和其他技能的关系
 
 - `arch-design`：消费已确认的价值、行为和验收契约，澄清系统如何表达需求。
-- `test-driven-development`：消费验收标准或 `validation-contract.md`，把每项断言展开成必要的失败证据和验证用例。
-- `incremental-impl`：消费已确认的子规范与设计，把需求改动拆成完整、可验证的实施单元。
-- `deep-review` 的 `spec-conformance`：以用户最新决定、对话内规格或文件化 VAL 为权威来源核对差异。
+- `test-driven-development`：消费验收标准或 `validation-contract.md`，把每项断言展开成必要的失败证据和验证用例；只在形成交付证据时记录结果，不逐次记录开发试跑。
+- `incremental-impl`：消费已确认的子规范与设计，把需求改动拆成完整、可验证的实施单元；核对并汇总各单元的验证结果。
+- `deep-review` 的 `spec-conformance`：以用户最新决定、对话内规格或文件化 VAL 为权威来源核对差异，使用验证结果定位证据但不直接采信执行者结论。

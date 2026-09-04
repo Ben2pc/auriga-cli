@@ -1,5 +1,5 @@
 <!-- AURIGA:WORKFLOW:v1 START — 受管区块,由 auriga-cli 维护,请勿手改;升级会整块覆盖。工程专属规则写在下方 END 标记之后。 -->
-# auriga 工作流 (v1.24.0)
+# auriga 工作流 (v1.25.0)
 
 1. 需求澄清：新增或改变外部可见行为时，先用 `spec-design` 基于实际代码与产品事实判断价值并对齐目标。**spec = why + 用户可观察的 what；arch design = 系统结构的 how；plan = 实施步骤**。外部行为不变时可以跳过需求规格，但仍可能需要架构澄清。
 
@@ -11,7 +11,7 @@
 
 5. 增量实现：非平凡实现使用 `incremental-impl` 先拆成完整、可验证、可集成的实施单元，再按依赖增量落地。
 
-6. 验证后再说完成：任何“已完成、已修复、通过或可评审”的判断，都必须基于最后一次相关修改之后、与该判断匹配的验证结果；证据不足时如实说明缺口。
+6. 验证后再说完成：完成、修复、通过或可评审均须有最后一次相关修改后的对应证据。按 `spec-design` 将交付验证记入 `validation-results.md`，不记开发试跑；收尾汇报验证结果与缺口。无文件化规格时仅在对话中汇报。
 
 7. PR 就绪：按 `git-workflow` 完成验证和拉取请求整理后才标 Ready。当前 PR 的设计产物（spec.md、task_plan.md 等）用 `AskUserQuestion` / `request_user_input` 问用户：删除还是归档到 `docs/worklog/worklog-<YYYY-MM-DD>-<分支名>/`；选定后的删除、归档或晋升用 `documentation-management` 执行，不直接移动文件。跨多个 PR 的总规范可保留在 `docs/long-running-specs/`，不受 Ready 清理门禁影响；全部子 PR 结束后由人工决定归档。
 
