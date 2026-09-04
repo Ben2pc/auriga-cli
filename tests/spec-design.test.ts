@@ -745,16 +745,8 @@ describe("spec-design skill — repo-check VALs", () => {
     assert.doesNotMatch(read("README.md"), /External development process skills — verification/);
     assert.doesNotMatch(read("README.zh-CN.md"), /外部开发流程 skills —— verification/);
 
-    assert.ok(
-      read("AGENTS.template.zh-CN.md").includes(
-        "任何“已完成、已修复、通过或可评审”的判断，都必须基于最后一次相关修改之后、与该判断匹配的验证结果；证据不足时如实说明缺口。",
-      ),
-    );
-    assert.ok(
-      read("AGENTS.template.en.md").includes(
-        'Any "done, fixed, passing, or ready for review" judgment must be based on verification results that match the claim and were obtained after the last relevant change; when evidence is insufficient, state the gap.',
-      ),
-    );
+    assert.match(read("AGENTS.template.zh-CN.md"), /完成、修复、通过或可评审[^。]*最后一次相关修改后[^。]*对应证据/);
+    assert.match(read("AGENTS.template.en.md"), /completion, fixes, passing checks, or review readiness[^.]*matching evidence after the last relevant change/);
 
     for (const f of [
       "plugins/auriga-workflow/skills/incremental-impl/SKILL.md",
