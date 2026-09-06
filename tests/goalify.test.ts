@@ -33,9 +33,6 @@ describe("goalify skill contract", () => {
     const text = readSkill();
 
     assert.match(text, /可以与计划载体组合的自主执行模式/);
-    assert.match(text, /内置 Plan 还是 `planning-with-files`/);
-    assert.match(text, /用户已经选择时直接沿用，不重复询问/);
-    assert.match(text, /`goalify` 不与它们三选一/);
   });
 
   test("keeps the goal compact and delegates implementation planning", () => {

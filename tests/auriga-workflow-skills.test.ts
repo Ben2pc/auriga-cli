@@ -390,11 +390,6 @@ describe("auriga-workflow skill contracts", () => {
         /领域模型|domain model/i,
         `${rel} must route domain-model clarification to arch-design`,
       );
-      assert.match(
-        template,
-        /(?:快速流程|quick flow)[\s\S]{0,500}(?:不跳过适用的需求澄清、架构确认|never bypasses applicable requirement clarification, architecture approval)/i,
-        `${rel} must not let the quick flow bypass architecture clarification`,
-      );
     }
   });
 

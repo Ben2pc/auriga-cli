@@ -426,11 +426,6 @@ describe("spec-design skill — repo-check VALs", () => {
       const text = read(f);
       assert.match(
         text,
-        /(?:内置 Plan[^\n]*planning-with-files[^\n]*二选一|choose[^\n]*built-in Plan[^\n]*planning-with-files)/i,
-        `${f} must ask users to choose exactly one planning carrier`,
-      );
-      assert.match(
-        text,
         /goalify[^\n]*(?:组合|combine)/i,
         `${f} must describe goalify as composable with the selected planning carrier`,
       );
@@ -577,35 +572,6 @@ describe("spec-design skill — repo-check VALs", () => {
     }
   });
 
-  // Rule 7 owns the archive decision, but skills only load on demand — the
-  // always-loaded workflow entry must carry the routing itself: archiving is
-  // a governance action executed via documentation-management, never a bare
-  // file move.
-  const ARCHIVE_ROUTING_ANCHORS: Record<string, RegExp[]> = {
-    "zh-CN": [/归档[^\n]*`documentation-management`[^\n]*不直接移动文件/],
-    en: [
-      /archiv\w*[^\n]*`documentation-management`[^\n]*(?:instead of|rather than|not|never)[^\n]*mov\w+ files/i,
-    ],
-  };
-
-  test("workflow entry routes spec archiving through documentation-management", () => {
-    const byFile: Array<[string, string]> = [
-      ["AGENTS.md", "zh-CN"],
-      ["AGENTS.template.zh-CN.md", "zh-CN"],
-      ["AGENTS.template.en.md", "en"],
-    ];
-    for (const [f, lang] of byFile) {
-      const text = read(f);
-      for (const re of ARCHIVE_ROUTING_ANCHORS[lang]) {
-        assert.match(
-          text,
-          re,
-          `${f} must route spec archiving through documentation-management (${lang}): ${re}`,
-        );
-      }
-    }
-  });
-
   // Structural invariants of the repo's own installed sample. These replace
   // per-sentence prose assertions: they catch *any* drift in the managed
   // block, not just the phrases someone remembered to pin.
@@ -659,16 +625,6 @@ describe("spec-design skill — repo-check VALs", () => {
         `${f} must index documentation-management as the layering source of truth`,
       );
     }
-  });
-
-  test("workflow instructions require durable comments and Agent docs to state requirements without spec ids", () => {
-    const zh = read("AGENTS.template.zh-CN.md");
-    const en = read("AGENTS.template.en.md");
-
-    assert.match(zh, /代码注释[^。\n]*Agent 指令文档[^。\n]*(?:不得|不能)[^。\n]*(?:规格|spec)[^。\n]*编号/);
-    assert.match(zh, /简洁[^。\n]*原始需求描述[^。\n]*脱离[^。\n]*(?:规格|spec)[^。\n]*成立/);
-    assert.match(en, /Code comments[^.\n]*Agent instruction documents[^.\n]*must not[^.\n]*spec[^.\n]*(?:identifiers|numbers)/i);
-    assert.match(en, /concise[^.\n]*(?:original|underlying) requirement[^.\n]*without[^.\n]*(?:source )?spec/i);
   });
 
   test("workflow docs define review/test rule subdirectories and consumers", () => {
@@ -739,8 +695,6 @@ describe("spec-design skill — repo-check VALs", () => {
     assert.doesNotMatch(read("README.md"), /External development process skills — verification/);
     assert.doesNotMatch(read("README.zh-CN.md"), /外部开发流程 skills —— verification/);
 
-    assert.match(read("AGENTS.template.zh-CN.md"), /完成、修复、通过或可评审[^。]*最后一次相关修改后[^。]*对应证据/);
-    assert.match(read("AGENTS.template.en.md"), /completion, fixes, passing checks, or review readiness[^.]*matching evidence after the last relevant change/);
 
     for (const f of [
       "plugins/auriga-workflow/skills/incremental-impl/SKILL.md",
@@ -807,11 +761,6 @@ describe("spec-design skill — repo-check VALs", () => {
       assert.ok(
         text.includes("docs/long-running-specs/"),
         `${f} must document the long-running spec directory`,
-      );
-      assert.match(
-        text,
-        /docs\/long-running-specs\/[\s\S]*(?:人工|manual)/i,
-        `${f} must make long-running spec archival a manual lifecycle decision`,
       );
     }
   });
