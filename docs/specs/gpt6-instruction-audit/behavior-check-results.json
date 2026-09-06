@@ -1,0 +1,440 @@
+{
+  "date": "2026-09-06",
+  "profiles": {
+    "a": {
+      "kind": "baseline",
+      "commit": "948a658b2da0ff1c7066eeff00ec076c3a627fca"
+    },
+    "b": {
+      "kind": "candidate",
+      "commit": "25b3676db9016cdc8436f15378b8ec6cd8f21fbf"
+    }
+  },
+  "method": {
+    "agents": "Built-in agents; no model or reasoning override; separate context per case and profile",
+    "repetitions_per_pair": 1,
+    "protocol": "# 本地任务执行协议\n\n你负责一个隔离项目任务。先读取所给 workspace/AGENTS.md 与 profile/catalog.json，按项目指令和技能描述自行判断何时读取技能；技能采用该目录的实际正文与参考，不使用其他安装位置的同名技能。只执行 task.txt 中的用户请求，不审查这些指令本身，不猜测另一组配置。\n\n只允许修改本 case 下 workspace 与 evidence；profile 只读。不要访问真正的父仓库、用户历史、凭据、网络或外部系统；不调用其他 Agent，不发送消息、不推送、不创建远端请求。所有 shell 操作显式指定 workspace 工作目录。当前分支是已建立的本地任务分支。操作授权以 task.txt 为准。\n\n若指令或任务仍要求用户选择/确认，不调用用户交互工具；停止依赖该答案的动作，把原本要问的问题原样记在结果里，交回协调者。这只是交互转交方式，不构成任何答案或批准。\n\n对 executable 场景实际完成本地任务与必要验证。对 first-action 场景只读取必要指令并说明接下来第一步，不生成报告或读取真实会话记录。\n\n完成或需要回答时，将 evidence/result.json 写为以下结构（只记实际事实，不填预期答案）：\n{\n  \"status\": \"completed|needs_input|blocked|first_action\",\n  \"loaded_skills\": [\"实际读取正文的技能名称\"],\n  \"questions\": [\"原本要向用户提出的问题；没有则空数组\"],\n  \"actions\": [\"实际执行的动作或命令\"],\n  \"changed_files\": [\"自己改变的仓库相对路径\"],\n  \"verification\": [{\"command\":\"实际命令\",\"exit_code\":0,\"result\":\"真实结果\"}],\n  \"planned_units\": [\"实际采用的实施单元；没有则空数组\"],\n  \"next_action\": \"下一步或完成位置\",\n  \"limitations\": [\"缺口\"]\n}\n把关键测试输出保存到 evidence/checks.log。最终仅给结果摘要与 result.json 路径。不要为了填写这些字段额外执行与任务无关的检查。\n",
+    "skill_loading": "Agents read the assigned catalog, then select and read assigned snapshot skills. Loaded-skill lists are agent-reported; parent verifies resulting repository state and output behavior.",
+    "limits": [
+      "Four paired samples only, not a statistical estimate",
+      "Six local executions and two first-action probes; session reports were not generated",
+      "Identical global runtime instructions and fixture constraints apply to both snapshots",
+      "No real user history, network, external agents, remote writes or production operations",
+      "CLI native skill discovery and full installed-host behavior were not exercised"
+    ]
+  },
+  "cases": [
+    {
+      "scenario": "read_only",
+      "profile": "a",
+      "execution_kind": "local-execution",
+      "request": "执行模式：executable\n\n用户请求：\n只读查看最近一次提交的差异，告诉我改了什么。不要修改任何项目文件，也不要创建分支或提交。\n",
+      "agent_report": {
+        "status": "completed",
+        "loaded_skills": [
+          "git-workflow"
+        ],
+        "questions": [],
+        "actions": [
+          "读取 protocol.md、task.txt、workspace/AGENTS.md 与 profile/catalog.json；首次 catalog 相对路径读取失败，改用指定绝对路径成功",
+          "读取 git-workflow/SKILL.md",
+          "git show -1 --format=fuller --stat --patch"
+        ],
+        "changed_files": [],
+        "verification": [
+          {
+            "command": "git show -1 --format=fuller --stat --patch",
+            "exit_code": 0,
+            "result": "最新提交 65b383fb6af9700f780d9e1e583b710071704a2b，标题 docs: add greeting example，仅 README.md 增加两行：一个空行及 示例：`Hello, Ada!`。"
+          }
+        ],
+        "planned_units": [],
+        "next_action": "只读查询完成，已可汇报最新提交差异",
+        "limitations": []
+      },
+      "parent_verification": {
+        "checks": [
+          "Changed paths match task scope",
+          "No untracked workspace files",
+          "Original branch and HEAD preserved"
+        ],
+        "changed_files": [],
+        "untracked_files": [],
+        "head_unchanged": true,
+        "branch": "fix/probe"
+      },
+      "checks_log": "git show -1 --format=fuller --stat --patch\nexit_code: 0\ncommit 65b383fb6af9700f780d9e1e583b710071704a2b\ndocs: add greeting example\nREADME.md | 2 ++\n新增空行及：示例：`Hello, Ada!`。\n只读任务，未运行测试。\n"
+    },
+    {
+      "scenario": "read_only",
+      "profile": "b",
+      "execution_kind": "local-execution",
+      "request": "执行模式：executable\n\n用户请求：\n只读查看最近一次提交的差异，告诉我改了什么。不要修改任何项目文件，也不要创建分支或提交。\n",
+      "agent_report": {
+        "status": "completed",
+        "loaded_skills": [],
+        "questions": [],
+        "actions": [
+          "读取 protocol.md、task.txt、workspace/AGENTS.md 与 profiles/b/catalog.json",
+          "git show --format=fuller --stat --patch HEAD"
+        ],
+        "changed_files": [],
+        "verification": [
+          {
+            "command": "git show --format=fuller --stat --patch HEAD",
+            "exit_code": 0,
+            "result": "最近提交 132e0c8d0149d6e4910ec8be145f9f585638bf45（docs: add greeting example）只改 README.md，增加空行及示例：`Hello, Ada!`。共 1 文件、2 行新增，无代码变化。"
+          }
+        ],
+        "planned_units": [],
+        "next_action": "只读查看完成；未修改项目文件、创建分支或提交。",
+        "limitations": []
+      },
+      "parent_verification": {
+        "checks": [
+          "Changed paths match task scope",
+          "No untracked workspace files",
+          "Original branch and HEAD preserved"
+        ],
+        "changed_files": [],
+        "untracked_files": [],
+        "head_unchanged": true,
+        "branch": "fix/probe"
+      },
+      "checks_log": "git show --format=fuller --stat --patch HEAD\nexit_code=0\ncommit 132e0c8d0149d6e4910ec8be145f9f585638bf45\ndocs: add greeting example\nREADME.md | 2 ++\n1 file changed, 2 insertions(+)\n新增空行及：示例：`Hello, Ada!`。\n只读说明任务，无需运行测试。\n"
+    },
+    {
+      "scenario": "wording",
+      "profile": "a",
+      "execution_kind": "local-execution",
+      "request": "执行模式：executable\n\n用户请求：\n把 README.md 中“安装完成后需要重新启动电脑。”改成“安装完成后重新打开终端即可。”。这是说明文字修正，不改变程序行为；其他内容不动。直接完成本地修改和适当核对。\n",
+      "agent_report": {
+        "status": "completed",
+        "loaded_skills": [
+          "documentation-management",
+          "git-workflow"
+        ],
+        "questions": [],
+        "actions": [
+          "读取 protocol.md、task.txt、workspace/AGENTS.md、profile/catalog.json 与两个技能正文",
+          "git rev-parse --show-toplevel",
+          "rg --files 与 rg 核对安装说明",
+          "精确替换 README.md 的指定句子并逐字节核对其他内容",
+          "node --test"
+        ],
+        "changed_files": [
+          "README.md"
+        ],
+        "verification": [
+          {
+            "command": "python3 精确替换与逐字节断言",
+            "exit_code": 0,
+            "result": "指定句子唯一匹配并完成替换，其他字节保持一致"
+          },
+          {
+            "command": "node --test",
+            "exit_code": 0,
+            "result": "全部测试通过，完整输出见 checks.log"
+          }
+        ],
+        "planned_units": [],
+        "next_action": "本地修改和验证已完成",
+        "limitations": []
+      },
+      "parent_verification": {
+        "checks": [
+          "Changed paths match task scope",
+          "No untracked workspace files",
+          "Original branch and HEAD preserved",
+          "README differs only by the requested sentence replacement"
+        ],
+        "changed_files": [
+          "README.md"
+        ],
+        "untracked_files": [],
+        "head_unchanged": true,
+        "branch": "fix/probe"
+      },
+      "checks_log": "PASS: README.md contains the requested replacement exactly once; all other bytes match the original.\n✔ function greet(name) {\n  return `Hello, ${name}!`;\n} (0.283667ms)\n✔ function greet(name) {\n  return `Hello, ${name}!`;\n} (0.040542ms)\n✔ function greet(name) {\n  return `Hello, ${name}!`;\n} (0.033834ms)\nℹ tests 3\nℹ suites 0\nℹ pass 3\nℹ fail 0\nℹ cancelled 0\nℹ skipped 0\nℹ todo 0\nℹ duration_ms 38.630541\n"
+    },
+    {
+      "scenario": "wording",
+      "profile": "b",
+      "execution_kind": "local-execution",
+      "request": "执行模式：executable\n\n用户请求：\n把 README.md 中“安装完成后需要重新启动电脑。”改成“安装完成后重新打开终端即可。”。这是说明文字修正，不改变程序行为；其他内容不动。直接完成本地修改和适当核对。\n",
+      "agent_report": {
+        "status": "completed",
+        "loaded_skills": [
+          "documentation-management"
+        ],
+        "questions": [],
+        "actions": [
+          "读取协议、task.txt、workspace/AGENTS.md、profile/catalog.json 与 documentation-management 技能",
+          "git rev-parse --show-toplevel",
+          "精确替换 README.md 指定句子",
+          "git diff --check",
+          "git diff -- README.md",
+          "node --test"
+        ],
+        "changed_files": [
+          "README.md"
+        ],
+        "verification": [
+          {
+            "command": "git diff --check",
+            "exit_code": 0,
+            "result": "无空白错误"
+          },
+          {
+            "command": "git diff -- README.md",
+            "exit_code": 0,
+            "result": "只有指定句子的一行替换"
+          },
+          {
+            "command": "node --test",
+            "exit_code": 0,
+            "result": "3 个测试通过，0 个失败；输出已保存 checks.log"
+          }
+        ],
+        "planned_units": [],
+        "next_action": "本地修改与核对完成",
+        "limitations": []
+      },
+      "parent_verification": {
+        "checks": [
+          "Changed paths match task scope",
+          "No untracked workspace files",
+          "Original branch and HEAD preserved",
+          "README differs only by the requested sentence replacement"
+        ],
+        "changed_files": [
+          "README.md"
+        ],
+        "untracked_files": [],
+        "head_unchanged": true,
+        "branch": "fix/probe"
+      },
+      "checks_log": "✔ function greet(name) {\n  return `Hello, ${name}!`;\n} (0.274959ms)\n✔ function greet(name) {\n  return `Hello, ${name}!`;\n} (0.040958ms)\n✔ function greet(name) {\n  return `Hello, ${name}!`;\n} (0.035917ms)\nℹ tests 3\nℹ suites 0\nℹ pass 3\nℹ fail 0\nℹ cancelled 0\nℹ skipped 0\nℹ todo 0\nℹ duration_ms 34.887667\n"
+    },
+    {
+      "scenario": "three_files",
+      "profile": "a",
+      "execution_kind": "local-execution",
+      "request": "执行模式：executable\n\n用户请求：\n需求已经确认：src/api.mjs、src/cli.mjs、src/worker.mjs 的 greet(name) 都应去掉字符串 name 的首尾空白，再返回原有格式 Hello, <name>!。只处理字符串输入；全空白输入应返回 Hello, !，普通名字输出不变。这是一个结果，不改模块边界。计划载体已选内置 Plan。请直接实现，完成必要验证，交付本地结果。\n",
+      "agent_report": {
+        "status": "completed",
+        "loaded_skills": [
+          "spec-design",
+          "incremental-impl",
+          "test-driven-development",
+          "git-workflow"
+        ],
+        "questions": [],
+        "actions": [
+          "读取协议、任务、工作区指令、技能目录及四个技能正文",
+          "读取三个 greet 实现、现有测试和 README；检查规则文件，未发现项目专属规格或测试规则",
+          "git rev-parse --show-toplevel",
+          "git status --short --branch",
+          "修改前运行定向字符串行为断言，确认三个入口首尾空白与全空白结果均不符合需求",
+          "将三个入口的字符串插值改为 name.trim()",
+          "node --test",
+          "修改后运行三个入口各五组字符串断言"
+        ],
+        "changed_files": [
+          "src/api.mjs",
+          "src/cli.mjs",
+          "src/worker.mjs"
+        ],
+        "verification": [
+          {
+            "command": "node --input-type=module（修改前定向断言）",
+            "exit_code": 1,
+            "result": "三个入口各自首尾空白、全空白断言失败，共六项；普通名字三项通过"
+          },
+          {
+            "command": "node --test",
+            "exit_code": 0,
+            "result": "3 个测试全部通过"
+          },
+          {
+            "command": "node --input-type=module（修改后定向断言）",
+            "exit_code": 0,
+            "result": "三个入口各验证首尾空白、全空白、普通名字、空串及内部空格，15 项断言全部通过"
+          }
+        ],
+        "planned_units": [
+          "统一三个入口的字符串名字去空白行为，包含三个实现与完整定向验证；无前置依赖，作为一个结果交付"
+        ],
+        "next_action": "本地修改与必要验证已完成，结果留在现有任务分支工作区",
+        "limitations": [
+          "仅验证任务规定的字符串输入；定向检查作为当前证据保存，未新增永久测试",
+          "未提交、推送或创建远端请求"
+        ]
+      },
+      "parent_verification": {
+        "checks": [
+          "Changed paths match task scope",
+          "No untracked workspace files",
+          "Original branch and HEAD preserved",
+          "15 independent assertions passed"
+        ],
+        "changed_files": [
+          "src/api.mjs",
+          "src/cli.mjs",
+          "src/worker.mjs"
+        ],
+        "untracked_files": [],
+        "head_unchanged": true,
+        "branch": "fix/probe"
+      },
+      "checks_log": "FAIL api \" \\tAda\\n\" Expected values to be strictly equal:\n+ actual - expected\n\n+ 'Hello,  \\tAda\\n!'\n- 'Hello, Ada!'\n          ^\n\nFAIL api \" \\t\\n\" Expected values to be strictly equal:\n+ actual - expected\n\n+ 'Hello,  \\t\\n!'\n- 'Hello, !'\n          ^\n\nPASS api \"Ada\"\nFAIL cli \" \\tAda\\n\" Expected values to be strictly equal:\n+ actual - expected\n\n+ 'Hello,  \\tAda\\n!'\n- 'Hello, Ada!'\n          ^\n\nFAIL cli \" \\t\\n\" Expected values to be strictly equal:\n+ actual - expected\n\n+ 'Hello,  \\t\\n!'\n- 'Hello, !'\n          ^\n\nPASS cli \"Ada\"\nFAIL worker \" \\tAda\\n\" Expected values to be strictly equal:\n+ actual - expected\n\n+ 'Hello,  \\tAda\\n!'\n- 'Hello, Ada!'\n          ^\n\nFAIL worker \" \\t\\n\" Expected values to be strictly equal:\n+ actual - expected\n\n+ 'Hello,  \\t\\n!'\n- 'Hello, !'\n          ^\n\nPASS worker \"Ada\"\n✔ function greet(name) {\n  return `Hello, ${name.trim()}!`;\n} (0.262375ms)\n✔ function greet(name) {\n  return `Hello, ${name.trim()}!`;\n} (0.038458ms)\n✔ function greet(name) {\n  return `Hello, ${name.trim()}!`;\n} (0.033ms)\nℹ tests 3\nℹ suites 0\nℹ pass 3\nℹ fail 0\nℹ cancelled 0\nℹ skipped 0\nℹ todo 0\nℹ duration_ms 33.805875\nPASS final api \" \\tAda\\n\"\nPASS final api \" \\t\\n\"\nPASS final api \"Ada\"\nPASS final api \"\"\nPASS final api \"Ada Lovelace\"\nPASS final cli \" \\tAda\\n\"\nPASS final cli \" \\t\\n\"\nPASS final cli \"Ada\"\nPASS final cli \"\"\nPASS final cli \"Ada Lovelace\"\nPASS final worker \" \\tAda\\n\"\nPASS final worker \" \\t\\n\"\nPASS final worker \"Ada\"\nPASS final worker \"\"\nPASS final worker \"Ada Lovelace\"\n"
+    },
+    {
+      "scenario": "three_files",
+      "profile": "b",
+      "execution_kind": "local-execution",
+      "request": "执行模式：executable\n\n用户请求：\n需求已经确认：src/api.mjs、src/cli.mjs、src/worker.mjs 的 greet(name) 都应去掉字符串 name 的首尾空白，再返回原有格式 Hello, <name>!。只处理字符串输入；全空白输入应返回 Hello, !，普通名字输出不变。这是一个结果，不改模块边界。计划载体已选内置 Plan。请直接实现，完成必要验证，交付本地结果。\n",
+      "agent_report": {
+        "status": "completed",
+        "loaded_skills": [
+          "spec-design",
+          "test-driven-development"
+        ],
+        "questions": [],
+        "actions": [
+          "读取协议、任务、项目指令、技能目录及适用技能正文",
+          "确认本地仓库根，读取三个入口及相邻测试；无项目专属规格与测试规则",
+          "建立 evidence/greeting-check.mjs 定向验证，运行确认六项空白契约失败",
+          "三个 greet(name) 使用 name.trim() 后拼接问候语",
+          "运行定向断言和项目必需 node --test，将输出保存到 evidence/checks.log"
+        ],
+        "changed_files": [
+          "src/api.mjs",
+          "src/cli.mjs",
+          "src/worker.mjs"
+        ],
+        "verification": [
+          {
+            "command": "node --test ../evidence/greeting-check.mjs（修改前）",
+            "exit_code": 1,
+            "result": "12 项断言，6 项失败；三个入口首尾空白和全空白行为未满足契约"
+          },
+          {
+            "command": "node --test ../evidence/greeting-check.mjs（修改后）",
+            "exit_code": 0,
+            "result": "12 项全部通过，覆盖三个入口首尾空白、全空白、普通名字和内部空格"
+          },
+          {
+            "command": "node --test",
+            "exit_code": 0,
+            "result": "3 项现有测试全部通过"
+          }
+        ],
+        "planned_units": [
+          "同步三个入口的字符串空白处理并完成定向及现有测试验证"
+        ],
+        "next_action": "本地实现和验证完成，交付结果",
+        "limitations": [
+          "仅处理并验证字符串输入，符合任务范围；定向验证作为本次证据留在 evidence，未新增永久测试"
+        ]
+      },
+      "parent_verification": {
+        "checks": [
+          "Changed paths match task scope",
+          "No untracked workspace files",
+          "Original branch and HEAD preserved",
+          "15 independent assertions passed"
+        ],
+        "changed_files": [
+          "src/api.mjs",
+          "src/cli.mjs",
+          "src/worker.mjs"
+        ],
+        "untracked_files": [],
+        "head_unchanged": true,
+        "branch": "fix/probe"
+      },
+      "checks_log": "✖ api: \" \\tAda\\n\" (0.549583ms)\n✖ api: \" \\t\\n\" (0.071917ms)\n✔ api: \"Ada\" (0.561084ms)\n✔ api: \"Ada Lovelace\" (0.131791ms)\n✖ cli: \" \\tAda\\n\" (0.07925ms)\n✖ cli: \" \\t\\n\" (0.050667ms)\n✔ cli: \"Ada\" (0.034959ms)\n✔ cli: \"Ada Lovelace\" (0.025458ms)\n✖ worker: \" \\tAda\\n\" (0.052375ms)\n✖ worker: \" \\t\\n\" (0.066375ms)\n✔ worker: \"Ada\" (0.034959ms)\n✔ worker: \"Ada Lovelace\" (0.025042ms)\nℹ tests 12\nℹ suites 0\nℹ pass 6\nℹ fail 6\nℹ cancelled 0\nℹ skipped 0\nℹ todo 0\nℹ duration_ms 34.313291\n\n✖ failing tests:\n\ntest at ../evidence/greeting-check.mjs:6:5\n✖ api: \" \\tAda\\n\" (0.549583ms)\n  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:\n  + actual - expected\n  \n  + 'Hello,  \\tAda\\n!'\n  - 'Hello, Ada!'\n            ^\n  \n      at TestContext.<anonymous> (file:///private<probe-root>/cases/three_files/b/evidence/greeting-check.mjs:6:61)\n      at Test.runInAsyncScope (node:async_hooks:228:14)\n      at Test.run (node:internal/test_runner/test:1118:25)\n      at Test.start (node:internal/test_runner/test:1015:17)\n      at startSubtestAfterBootstrap (node:internal/test_runner/harness:358:17) {\n    generatedMessage: true,\n    code: 'ERR_ASSERTION',\n    actual: 'Hello,  \\tAda\\n!',\n    expected: 'Hello, Ada!',\n    operator: 'strictEqual',\n    diff: 'simple'\n  }\n\ntest at ../evidence/greeting-check.mjs:6:5\n✖ api: \" \\t\\n\" (0.071917ms)\n  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:\n  + actual - expected\n  \n  + 'Hello,  \\t\\n!'\n  - 'Hello, !'\n            ^\n  \n      at TestContext.<anonymous> (file:///private<probe-root>/cases/three_files/b/evidence/greeting-check.mjs:6:61)\n      at Test.runInAsyncScope (node:async_hooks:228:14)\n      at Test.run (node:internal/test_runner/test:1118:25)\n      at Test.processPendingSubtests (node:internal/test_runner/test:787:18)\n      at Test.postRun (node:internal/test_runner/test:1247:19)\n      at Test.run (node:internal/test_runner/test:1175:12)\n      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:358:3) {\n    generatedMessage: true,\n    code: 'ERR_ASSERTION',\n    actual: 'Hello,  \\t\\n!',\n    expected: 'Hello, !',\n    operator: 'strictEqual',\n    diff: 'simple'\n  }\n\ntest at ../evidence/greeting-check.mjs:6:5\n✖ cli: \" \\tAda\\n\" (0.07925ms)\n  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:\n  + actual - expected\n  \n  + 'Hello,  \\tAda\\n!'\n  - 'Hello, Ada!'\n            ^\n  \n      at TestContext.<anonymous> (file:///private<probe-root>/cases/three_files/b/evidence/greeting-check.mjs:6:61)\n      at Test.runInAsyncScope (node:async_hooks:228:14)\n      at Test.run (node:internal/test_runner/test:1118:25)\n      at Test.processPendingSubtests (node:internal/test_runner/test:787:18)\n      at Test.postRun (node:internal/test_runner/test:1247:19)\n      at Test.run (node:internal/test_runner/test:1175:12)\n      at async Test.processPendingSubtests (node:internal/test_runner/test:787:7) {\n    generatedMessage: true,\n    code: 'ERR_ASSERTION',\n    actual: 'Hello,  \\tAda\\n!',\n    expected: 'Hello, Ada!',\n    operator: 'strictEqual',\n    diff: 'simple'\n  }\n\ntest at ../evidence/greeting-check.mjs:6:5\n✖ cli: \" \\t\\n\" (0.050667ms)\n  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:\n  + actual - expected\n  \n  + 'Hello,  \\t\\n!'\n  - 'Hello, !'\n            ^\n  \n      at TestContext.<anonymous> (file:///private<probe-root>/cases/three_files/b/evidence/greeting-check.mjs:6:61)\n      at Test.runInAsyncScope (node:async_hooks:228:14)\n      at Test.run (node:internal/test_runner/test:1118:25)\n      at Test.processPendingSubtests (node:internal/test_runner/test:787:18)\n      at Test.postRun (node:internal/test_runner/test:1247:19)\n      at Test.run (node:internal/test_runner/test:1175:12)\n      at async Test.processPendingSubtests (node:internal/test_runner/test:787:7) {\n    generatedMessage: true,\n    code: 'ERR_ASSERTION',\n    actual: 'Hello,  \\t\\n!',\n    expected: 'Hello, !',\n    operator: 'strictEqual',\n    diff: 'simple'\n  }\n\ntest at ../evidence/greeting-check.mjs:6:5\n✖ worker: \" \\tAda\\n\" (0.052375ms)\n  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:\n  + actual - expected\n  \n  + 'Hello,  \\tAda\\n!'\n  - 'Hello, Ada!'\n            ^\n  \n      at TestContext.<anonymous> (file:///private<probe-root>/cases/three_files/b/evidence/greeting-check.mjs:6:61)\n      at Test.runInAsyncScope (node:async_hooks:228:14)\n      at Test.run (node:internal/test_runner/test:1118:25)\n      at Test.processPendingSubtests (node:internal/test_runner/test:787:18)\n      at Test.postRun (node:internal/test_runner/test:1247:19)\n      at Test.run (node:internal/test_runner/test:1175:12)\n      at async Test.processPendingSubtests (node:internal/test_runner/test:787:7) {\n    generatedMessage: true,\n    code: 'ERR_ASSERTION',\n    actual: 'Hello,  \\tAda\\n!',\n    expected: 'Hello, Ada!',\n    operator: 'strictEqual',\n    diff: 'simple'\n  }\n\ntest at ../evidence/greeting-check.mjs:6:5\n✖ worker: \" \\t\\n\" (0.066375ms)\n  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:\n  + actual - expected\n  \n  + 'Hello,  \\t\\n!'\n  - 'Hello, !'\n            ^\n  \n      at TestContext.<anonymous> (file:///private<probe-root>/cases/three_files/b/evidence/greeting-check.mjs:6:61)\n      at Test.runInAsyncScope (node:async_hooks:228:14)\n      at Test.run (node:internal/test_runner/test:1118:25)\n      at Test.processPendingSubtests (node:internal/test_runner/test:787:18)\n      at Test.postRun (node:internal/test_runner/test:1247:19)\n      at Test.run (node:internal/test_runner/test:1175:12)\n      at async Test.processPendingSubtests (node:internal/test_runner/test:787:7) {\n    generatedMessage: true,\n    code: 'ERR_ASSERTION',\n    actual: 'Hello,  \\t\\n!',\n    expected: 'Hello, !',\n    operator: 'strictEqual',\n    diff: 'simple'\n  }\n✔ api: \" \\tAda\\n\" (0.629333ms)\n✔ api: \" \\t\\n\" (0.3825ms)\n✔ api: \"Ada\" (0.152625ms)\n✔ api: \"Ada Lovelace\" (0.039666ms)\n✔ cli: \" \\tAda\\n\" (0.056833ms)\n✔ cli: \" \\t\\n\" (0.031375ms)\n✔ cli: \"Ada\" (0.027125ms)\n✔ cli: \"Ada Lovelace\" (0.023ms)\n✔ worker: \" \\tAda\\n\" (0.036708ms)\n✔ worker: \" \\t\\n\" (0.055667ms)\n✔ worker: \"Ada\" (0.030625ms)\n✔ worker: \"Ada Lovelace\" (0.028958ms)\nℹ tests 12\nℹ suites 0\nℹ pass 12\nℹ fail 0\nℹ cancelled 0\nℹ skipped 0\nℹ todo 0\nℹ duration_ms 33.700375\n✔ function greet(name) {\n  return `Hello, ${name.trim()}!`;\n} (0.323209ms)\n✔ function greet(name) {\n  return `Hello, ${name.trim()}!`;\n} (0.048833ms)\n✔ function greet(name) {\n  return `Hello, ${name.trim()}!`;\n} (0.037542ms)\nℹ tests 3\nℹ suites 0\nℹ pass 3\nℹ fail 0\nℹ cancelled 0\nℹ skipped 0\nℹ todo 0\nℹ duration_ms 37.7505\n"
+    },
+    {
+      "scenario": "mode_choice",
+      "profile": "a",
+      "execution_kind": "first-action-only",
+      "request": "执行模式：first-action\n\n用户请求：\n请复盘当前会话。\n",
+      "agent_report": {
+        "status": "needs_input",
+        "loaded_skills": [
+          "session-compound"
+        ],
+        "questions": [
+          "请选择本次复盘模式：单会话复盘，还是最近 30 天洞察？"
+        ],
+        "actions": [
+          "读取 protocol.md",
+          "读取 workspace/AGENTS.md、task.txt 与 profiles/a/catalog.json；首次相对路径读取 task.txt 与 catalog.json 失败后修正",
+          "读取 profiles/a/plugins/auriga-workflow/skills/session-compound/SKILL.md",
+          "按入口门禁停止在模式选择，未读取真实会话记录、未生成报告"
+        ],
+        "changed_files": [],
+        "verification": [],
+        "planned_units": [],
+        "next_action": "向用户转交模式选择问题；技能入口门禁明确要求每次调用二选一，未选择前不进入任一模式，不根据用户措辞猜默认值。",
+        "limitations": [
+          "first-action 场景仅判定下一步；等待模式选择，未执行会话分析。"
+        ]
+      },
+      "parent_verification": {
+        "checks": [
+          "Changed paths match task scope",
+          "No untracked workspace files",
+          "Original branch and HEAD preserved"
+        ],
+        "changed_files": [],
+        "untracked_files": [],
+        "head_unchanged": true,
+        "branch": "fix/probe"
+      },
+      "checks_log": null
+    },
+    {
+      "scenario": "mode_choice",
+      "profile": "b",
+      "execution_kind": "first-action-only",
+      "request": "执行模式：first-action\n\n用户请求：\n请复盘当前会话。\n",
+      "agent_report": {
+        "status": "first_action",
+        "loaded_skills": [
+          "session-compound"
+        ],
+        "questions": [],
+        "actions": [
+          "读取 protocol.md",
+          "读取 workspace/AGENTS.md 与 profile/catalog.json",
+          "首次读取 task.txt 路径误写为 ../../task.txt，返回文件不存在；随后读取 ../task.txt 成功",
+          "读取 profile 中 session-compound/SKILL.md",
+          "依据明确请求选择单会话复盘模式；未读取真实会话记录或生成报告"
+        ],
+        "changed_files": [],
+        "verification": [],
+        "planned_units": [],
+        "next_action": "直接采用单会话复盘模式，无需询问模式。后续执行时先按技能检查独立评估能力并确认运行时；本任务禁止派生代理，应记录独立评估缺口，再按单会话路径降级为事实报告。当前 first-action 边界止于下一步判定。",
+        "limitations": [
+          "本任务只判定下一步，不执行会话读取、分析或报告生成。",
+          "隔离协议禁止派生代理，不能执行独立代理评估。"
+        ]
+      },
+      "parent_verification": {
+        "checks": [
+          "Changed paths match task scope",
+          "No untracked workspace files",
+          "Original branch and HEAD preserved"
+        ],
+        "changed_files": [],
+        "untracked_files": [],
+        "head_unchanged": true,
+        "branch": "fix/probe"
+      },
+      "checks_log": null
+    }
+  ]
+}
