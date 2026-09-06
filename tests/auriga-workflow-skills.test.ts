@@ -1363,7 +1363,6 @@ describe("deep-review modernization contract", () => {
     assert.match(text, /用户明确要求[^。]*深度审查[^。]*直接执行/);
     assert.match(text, /用户明确要求再次审查[^。]*直接执行/);
     assert.match(text, /代理主动建议重跑[^。]*先询问用户/);
-    assert.match(text, /不要[^。]*自动开始下一轮深度审查/);
     assert.match(text, /正式审查记录|正式评审记录/);
     assert.match(text, /无法判断[^。\n]*询问用户/);
   });

@@ -19,7 +19,7 @@ Confirmed decisions and authorization persist within the task; phase changes, sk
 
 7. PR readiness: Mark Ready after verification and preparation through `git-workflow`. Reuse the agreed destination for temporary artifacts; otherwise the normal flow asks delete or archive via `AskUserQuestion` / `request_user_input`, while autonomous goals default to archiving through `goalify`. Use `documentation-management` for disposition and retain delivery evidence. A human decides when to archive cross-PR specs after all child PRs finish.
 
-8. PR review: After Ready, projects without CI review must run a local `deep-review`; with CI review, let the user decide whether local review is also needed. The skill owns routing, output, and rerun authorization.
+8. PR review: After Ready, projects without CI review must run a local `deep-review`; with CI review, let the user decide whether local review is also needed. “Run until Ready” includes the applicable first review and its handoff, without an automatic fix loop; an explicit state-only request ends at the state change. The skill owns routing, output, and rerun authorization.
 
 ## Quick Development Flow (bug fix / small refactor / small feature)
 
