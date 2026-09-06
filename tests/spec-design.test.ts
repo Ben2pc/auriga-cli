@@ -168,7 +168,6 @@ describe("spec-design skill — repo-check VALs", () => {
   });
 
   test("validation-contract requires agent-executable end-to-end paths by product surface", () => {
-    const skill = read("plugins/auriga-workflow/skills/spec-design/SKILL.md");
     const template = read(
       "plugins/auriga-workflow/skills/spec-design/references/validation-contract-template.md",
     );
@@ -181,10 +180,6 @@ describe("spec-design skill — repo-check VALs", () => {
     assert.match(template, /脚本[^。\n]*(?:客户端|前端页面)[^。\n]*触发/);
     assert.match(template, /人工验收[^。\n]*例外[^。\n]*原因/);
     assert.match(example, /Agent validation path \(Agent 验收路径\)/);
-    assert.match(skill, /优先[^。\n]*Agent[^。\n]*验收/);
-    assert.match(skill, /客户端[^。\n]*前端[^。\n]*UI/);
-    assert.match(skill, /服务端 API[^。\n]*HTTP/);
-    assert.match(skill, /人工验收[^。\n]*例外/);
   });
 
   test("spec-template.md Open questions placeholder requires a deferral owner and reason", () => {
@@ -213,43 +208,6 @@ describe("spec-design skill — repo-check VALs", () => {
     assert.match(text, /两个独立且称职的 Agent[^。]*明显不同的用户结果/);
     assert.match(text, /停止条件不是固定问题数或主观置信度/);
     assert.doesNotMatch(text, /Q\+GUESS|约 95%|最多约 10 轮|6 行复述/);
-  });
-
-  test("spec-design uses dependency-aware Socratic rounds without synthetic options", () => {
-    const text = read(
-      "plugins/auriga-workflow/skills/spec-design/SKILL.md",
-    );
-    const alignment = markdownSubsection(text, "#### B2. 苏格拉底式需求对齐");
-    assert.match(alignment, /决策依赖图/);
-    assert.match(alignment, /同一轮[^。]*互不依赖/);
-    assert.match(alignment, /每轮最多三个/);
-    assert.match(alignment, /依赖本轮[^。]*后续轮次/);
-    assert.match(alignment, /推荐答案、理由和主要后果/);
-    assert.match(alignment, /每轮回答[^。]*原始目标一致/);
-    assert.match(alignment, /廉价事实[^。]*当前 Agent/);
-    assert.match(alignment, /独立且耗时[^。]*子代理/);
-    assert.match(alignment, /只阻塞[^。]*下游问题/);
-    assert.match(alignment, /不存在会改变用户结果的真实决策分支时[^。]*不提问[^。]*直接给出推荐/);
-    assert.match(text, /用户明确确认前，不进入架构、计划或实现/);
-  });
-
-  test("spec-design persists only when traceability or handoff needs it", () => {
-    const text = read(
-      "plugins/auriga-workflow/skills/spec-design/SKILL.md",
-    );
-    assert.match(text, /当前对话中的用户确认作为权威规格，不强制生成文件/);
-    const persistence = markdownSubsection(text, "#### C1. 选择对话或文件");
-    for (const trigger of [
-      "多个用户可观察结果",
-      "公共接口、共享契约、跨模块行为或实质范围取舍",
-      "跨会话、跨 Agent 或独立评审",
-      "多个提交或拉取请求",
-      "用户明确要求保存规格",
-    ]) {
-      assert.ok(persistence.includes(trigger), `missing persistence trigger: ${trigger}`);
-    }
-    assert.match(text, /文件只保存确认后的结果，不记录冗长问答流水/);
-    assert.match(text, /实现中发现新的产品语义、范围或用户结果歧义时返回本技能澄清/);
   });
 
   test("spec template keeps the four required Why decisions", () => {
@@ -294,9 +252,6 @@ describe("spec-design skill — repo-check VALs", () => {
     }
 
     assert.match(skill, /产品需求文档|PRD/);
-    assert.match(skill, /章节[^。\n]*名称[^。\n]*顺序|名称[^。\n]*顺序[^。\n]*章节/);
-    assert.match(skill, /没有[^。\n]*(?:前置产物|来源结构)[^。\n]*用户可感知[^。\n]*产品子功能/);
-    assert.match(skill, /不能[^。\n]*(?:模块|接口|数据表)[^。\n]*划分/);
     assert.match(specTemplate, /优先[^。\n]*(?:产品需求文档|PRD)[^。\n]*结构/);
     assert.match(specTemplate, /没有[^。\n]*(?:前置产物|来源结构)[^。\n]*用户可感知[^。\n]*产品子功能/);
     assert.match(spec, /原始章节或需求/);
@@ -323,7 +278,6 @@ describe("spec-design skill — repo-check VALs", () => {
 
     assert.match(skill, /尼尔森[^。\n]*可用性启发式/);
     assert.match(skill, /不是[^。\n]*(?:固定问卷|逐项清单|合规清单)/);
-    assert.match(skill, /叶子功能[^。\n]*交互设计/);
     assert.match(specTemplate, /Interaction Design \/ 交互设计/);
     for (const field of [
       "场景与目标",

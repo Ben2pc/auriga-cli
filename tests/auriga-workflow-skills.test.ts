@@ -269,8 +269,8 @@ describe("auriga-workflow skill contracts", () => {
     assert.match(skill, /归档是治理动作[^。\n]*不是直接移动文件/);
     const gitWorkflow = read("plugins/auriga-workflow/skills/git-workflow/SKILL.md");
     assert.match(gitWorkflow, /晋升、归档或删除[^。\n]*`documentation-management`/);
-    const specDesign = read("plugins/auriga-workflow/skills/spec-design/SKILL.md");
-    assert.match(specDesign, /归档或晋升[^。\n]*`documentation-management`/);
+    const specLifecycle = read("plugins/auriga-workflow/skills/spec-design/references/umbrella-template.md");
+    assert.match(specLifecycle, /归档或晋升[^。\n]*`documentation-management`/);
     const goalify = read("plugins/auriga-workflow/skills/goalify/SKILL.md");
     assert.match(goalify, /归档用 `documentation-management` 执行[^。\n]*不直接移动文件/);
     const archDesign = read("plugins/auriga-workflow/skills/arch-design/SKILL.md");
@@ -793,7 +793,7 @@ describe("auriga-workflow skill contracts", () => {
   test("architecture consumers honor the approved design boundary", () => {
     const specDesign = read("plugins/auriga-workflow/skills/spec-design/SKILL.md");
     const incremental = read("plugins/auriga-workflow/skills/incremental-impl/SKILL.md");
-    const handoff = specDesign.match(/### Phase D[\s\S]*?## 交接前检查/);
+    const handoff = specDesign.match(/### Phase D[^\n]*\n([\s\S]*?)(?=\n## |$)/);
 
     assert.ok(handoff, "spec-design must preserve its Phase D handoff section");
     assert.match(handoff[0], /arch-design[^。\n]*人工确认/);
