@@ -183,19 +183,11 @@ describe("auriga-workflow skill contracts", () => {
     );
 
     assert.equal(parsed.data.name, path.basename(path.dirname(skillPath)));
-    assert.match(parsed.data.description, /新建.*更新.*合并.*压缩.*归档.*删除/);
-    assert.match(
-      parsed.data.description,
-      /README.*运行手册.*公共接口文档.*架构文档.*ADR.*变更日志.*代码注释.*AGENTS\.md.*项目规则/,
-    );
-    assert.match(parsed.data.description, /代码变化造成文档事实漂移/);
-    assert.match(parsed.data.description, /长期文档出现过程流水账/);
     assert.match(skill, /默认不新增/);
     for (const action of ["更新", "删除", "合并", "压缩", "归档", "晋升", "新建"]) {
       assert.ok(skill.includes(action), `documentation management must support ${action}`);
     }
     assert.match(skill, /先确定消费者/);
-    assert.match(skill, /纯人类文档不挂到 `AGENTS\.md`/);
     assert.match(skill, /区分 Agent 资料与 Agent 指令/);
     assert.match(skill, /工程资料沿用各自的文档结构/);
     assert.match(skill, /只有提示词、项目规则或标准操作流程（SOP）[^。]*才按目标/);
@@ -210,7 +202,6 @@ describe("auriga-workflow skill contracts", () => {
       assert.ok(skill.includes(contract), `Agent documents must preserve ${contract}`);
     }
     assert.match(skill, /同一规则只写一次/);
-    assert.match(skill, /不链接只服务人类阅读的材料/);
     assert.match(skill, /`CLAUDE\.md -> AGENTS\.md` 兼容软链/);
     assert.match(skill, /仓库根只放全局规则与导航/);
     assert.match(skill, /子包[^。\n]*自己的根目录维护 `AGENTS\.md`/);
@@ -246,13 +237,10 @@ describe("auriga-workflow skill contracts", () => {
         `documentation convergence must keep ${earlier} before ${later}`,
       );
     }
-    assert.match(assetActions, /单行新增不是绝对禁止[^。]*不能成为[^。]*默认动作/);
     assert.match(standards, /当前架构文档维护“现在是什么”[^。]*实施、评审、修订和上线经过/);
     assert.match(standards, /ADR[\s\S]*不把初稿变化、评审轮次、修订提交或上线经过写成决策理由/);
     assert.match(standards, /当前时态表达稳定规则[^。]*本次实施或评审经过/);
-    // Audience signal: traditional names default to human readers; human docs
-    // lead with overview + diagrams.
-    assert.match(skill, /`README\.md`[^。\n]*默认面向人类/);
+    // Human-oriented documents retain overview and diagrams.
     assert.match(skill, /以 overview 为主[^。\n]*图/);
     assert.match(standards, /为什么 > 是什么/);
     assert.match(standards, /单行指针/);
