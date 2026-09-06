@@ -140,12 +140,12 @@ describe("auriga-workflow skill contracts", () => {
     assert.match(skill, /无法确认归属的改动默认属于用户/);
     assert.match(skill, /未经明确授权，不执行 `git stash`.*`git reset --hard`/);
     const templateHeadings = [
-      "## Summary / 摘要",
-      "## Acceptance Criteria / 验收标准",
-      "## Design Decisions / 设计决策",
-      "## Risks / 风险",
-      "## Test Plan / 验证计划",
-      "## Remaining TODOs / 后续事项",
+      "## 摘要",
+      "## 验收标准",
+      "## 设计决策",
+      "## 风险",
+      "## 验证计划",
+      "## 后续事项",
     ];
     for (const heading of templateHeadings) {
       assert.ok(skill.includes(heading), `PR template must preserve ${heading}`);
@@ -421,9 +421,9 @@ describe("auriga-workflow skill contracts", () => {
     assert.match(text, /实现前[^。\n]*用户[^。\n]*(?:确认|评审)/);
     assert.match(text, /不能把沉默当作批准/);
     assert.match(text, /设计文档或对话内已确认的设计/);
-    assert.match(template, /Review Focus \/ 人工评审重点/);
-    assert.match(template, /Shared Model Design \/ 共享模型设计/);
-    for (const field of ["评审状态", "核心决定", "主要影响", "首要风险", "Human Decisions"]) {
+    assert.match(template, /人工评审重点/);
+    assert.match(template, /共享模型设计/);
+    for (const field of ["评审状态", "核心决定", "主要影响", "首要风险", "人工确认结果"]) {
       assert.ok(template.includes(field), `arch-design template must preserve ${field}`);
     }
   });
@@ -434,24 +434,24 @@ describe("auriga-workflow skill contracts", () => {
     );
 
     const headings = [
-      "## 2. Architecture Overview / 架构总览",
-      "### 2.1 Current Architecture / 当前架构现状",
-      "### 2.2 Target Design Overview / 目标设计概览",
-      "## 3. Requirement Designs / 分项设计",
+      "## 2. 架构总览",
+      "### 2.1 当前架构现状",
+      "### 2.2 目标设计概览",
+      "## 3. 分项设计",
       "### 3.1 `<需求主题>`",
-      "#### 3.1.1 Original Requirement / 原始需求",
-      "#### 3.1.2 Design / 设计",
-      "##### 3.1.2.1 Local Model Design / 本项模型设计",
-      "##### 3.1.2.2 API Design / 接口设计",
-      "#### 3.1.3 Local Directory Changes / 局部目录变化",
-      "#### 3.1.4 Flows & Supporting Diagrams / 流程与必要图示",
-      "#### 3.1.5 Validation / 验证",
-      "## 4. Migration & Behavior Protection / 迁移与行为保护",
-      "## 5. Risks & Validation / 风险与验证",
-      "## 6. Quality Attributes & Technical Goals / 质量属性与技术目标",
-      "## 7. Deployment & Operations / 部署与运行",
-      "## 8. Human Decisions / 人工确认结果",
-      "## 9. References / 参考依据",
+      "#### 3.1.1 原始需求",
+      "#### 3.1.2 设计",
+      "##### 3.1.2.1 本项模型设计",
+      "##### 3.1.2.2 接口设计",
+      "#### 3.1.3 局部目录变化",
+      "#### 3.1.4 流程与必要图示",
+      "#### 3.1.5 验证",
+      "## 4. 迁移与行为保护",
+      "## 5. 质量风险与保障",
+      "## 6. 可观测设计",
+      "## 7. 部署与运行",
+      "## 8. 人工确认结果",
+      "## 9. 参考依据",
     ];
     let previous = -1;
     for (const heading of headings) {
@@ -474,7 +474,7 @@ describe("auriga-workflow skill contracts", () => {
     assert.doesNotMatch(template, /^#### 3\.1\.3 Rationale \/ 为什么$/m);
     assert.doesNotMatch(template, /^## \d+\. API Reference \/ 接口参考$/m);
 
-    const references = markdownSection(template, "## 9. References / 参考依据");
+    const references = markdownSection(template, "## 9. 参考依据");
     for (const field of ["来源", "版本或修订", "条款或代码证据", "设计落点"]) {
       assert.ok(references.includes(field), `references must preserve ${field}`);
     }
@@ -485,12 +485,12 @@ describe("auriga-workflow skill contracts", () => {
       "plugins/auriga-workflow/skills/arch-design/references/arch-design-template.md",
     );
     const requirement = markdownSection(template, "### 3.1 `<需求主题>`");
-    const api = markdownSection(requirement, "##### 3.1.2.2 API Design / 接口设计");
+    const api = markdownSection(requirement, "##### 3.1.2.2 接口设计");
 
     for (const heading of [
-      "Request DTO / 请求 DTO",
-      "Success Response DTO / 成功响应 DTO",
-      "Error Response DTO / 错误响应 DTO",
+      "请求 DTO",
+      "成功响应 DTO",
+      "错误响应 DTO",
     ]) {
       assert.ok(api.includes(heading), `API reference must preserve ${heading}`);
     }
@@ -542,7 +542,7 @@ describe("auriga-workflow skill contracts", () => {
     assert.match(migration, /没有新增资产/);
     assert.match(migration, /第二种独立证据/);
 
-    const retirement = markdownSection(template, "### 4.1 Retirement Inventory / 资产退场清单");
+    const retirement = markdownSection(template, "### 4.1 资产退场清单");
     for (const field of ["准确路径", "资产或符号", "当前依赖证据", "处置", "为什么"]) {
       assert.ok(retirement.includes(field), `retirement inventory must preserve ${field}`);
     }
@@ -557,22 +557,22 @@ describe("auriga-workflow skill contracts", () => {
     const reference = read(
       "plugins/auriga-workflow/skills/arch-design/references/domain-modeling.md",
     );
-    const reviewFocus = markdownSection(template, "## 1. Review Focus / 人工评审重点");
+    const reviewFocus = markdownSection(template, "## 1. 人工评审重点");
     const sharedModel = markdownSection(
       template,
-      "### 2.3 Shared Model Design / 共享模型设计",
+      "### 2.3 共享模型设计",
     );
     const sharedInventory = markdownSection(
       sharedModel,
-      "#### 2.3.1 Model Overview / 模型总表",
+      "#### 2.3.1 模型总表",
     );
     const sharedDetails = markdownSection(
       sharedModel,
-      "#### 2.3.2 Model Details / 模型详情",
+      "#### 2.3.2 模型详情",
     );
     const localModel = markdownSection(
       template,
-      "##### 3.1.2.1 Local Model Design / 本项模型设计",
+      "##### 3.1.2.1 本项模型设计",
     );
     const localDetails = markdownSection(
       localModel,
@@ -626,10 +626,10 @@ describe("auriga-workflow skill contracts", () => {
     );
 
     for (const section of [
-      "Current Architecture / 当前架构现状",
-      "Current Directory Structure / 当前目录结构",
-      "Target Design Overview / 目标设计概览",
-      "Target Directory Structure / 目标目录结构",
+      "当前架构现状",
+      "当前目录结构",
+      "目标设计概览",
+      "目标目录结构",
     ]) {
       assert.ok(template.includes(section), `arch-design template must preserve ${section}`);
     }
@@ -655,23 +655,14 @@ describe("auriga-workflow skill contracts", () => {
 
     assert.match(text, /技术质量目标/);
     assert.match(text, /人工[^。\n]*重点评审/);
-    assert.match(template, /Quality Attributes & Technical Goals \/ 质量属性与技术目标/);
-    assert.match(template, /重点评审/);
-    for (const example of [
-      "可观测性",
-      "可排查性",
-      "故障隔离或容灾",
-      "数据一致性",
-      "安全性",
-      "性能与资源预算",
-    ]) {
-      assert.ok(template.includes(example), `technical quality examples must cue ${example}`);
-    }
-    assert.match(template, /示例[^。\n]*不是必填|不是必填[^。\n]*示例/);
+    const quality = markdownSection(template, "## 5. 质量风险与保障");
+    const observability = markdownSection(template, "## 6. 可观测设计");
+    assert.ok(quality.includes("| 风险维度 | 风险与影响 | 保障方式 | 验证方式与通过标准 |"));
+    assert.ok(observability.includes("| 观测维度 | 目的与适用场景 | 信号与采集设计 | 使用与处置 | 验证方式 |"));
     const requirement = markdownSection(template, "### 3.1 `<需求主题>`");
     const flows = markdownSection(
       requirement,
-      "#### 3.1.4 Flows & Supporting Diagrams / 流程与必要图示",
+      "#### 3.1.4 流程与必要图示",
     );
     assert.doesNotMatch(requirement, /Data Flow \/ 数据流/);
     assert.match(flows, /完整数据流/);
@@ -680,13 +671,13 @@ describe("auriga-workflow skill contracts", () => {
     assert.match(template, /代码内部/);
     assert.match(template, /文件级职责/);
     assert.match(template, /接口实现映射/);
-    assert.match(template, /Deployment & Operations \/ 部署与运行/);
+    assert.match(template, /部署与运行/);
     assert.match(template, /可选章节/);
     assert.match(template, /普通前端[^。\n]*移动端[^。\n]*默认删除/);
     for (const [earlier, later] of [
-      ["## 5. Risks & Validation / 风险与验证", "## 6. Quality Attributes & Technical Goals / 质量属性与技术目标"],
-      ["## 6. Quality Attributes & Technical Goals / 质量属性与技术目标", "## 7. Deployment & Operations / 部署与运行"],
-      ["## 7. Deployment & Operations / 部署与运行", "## 8. Human Decisions / 人工确认结果"],
+      ["## 5. 质量风险与保障", "## 6. 可观测设计"],
+      ["## 6. 可观测设计", "## 7. 部署与运行"],
+      ["## 7. 部署与运行", "## 8. 人工确认结果"],
     ]) {
       assert.ok(template.indexOf(earlier) < template.indexOf(later), `${earlier} must precede ${later}`);
     }
@@ -700,12 +691,12 @@ describe("auriga-workflow skill contracts", () => {
     const requirement = markdownSection(template, "### 3.1 `<需求主题>`");
     const localModel = markdownSection(
       requirement,
-      "##### 3.1.2.1 Local Model Design / 本项模型设计",
+      "##### 3.1.2.1 本项模型设计",
     );
-    const api = markdownSection(requirement, "##### 3.1.2.2 API Design / 接口设计");
+    const api = markdownSection(requirement, "##### 3.1.2.2 接口设计");
     const flows = markdownSection(
       requirement,
-      "#### 3.1.4 Flows & Supporting Diagrams / 流程与必要图示",
+      "#### 3.1.4 流程与必要图示",
     );
 
     assert.doesNotMatch(requirement, /Rationale \/ 为什么/);

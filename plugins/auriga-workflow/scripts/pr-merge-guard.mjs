@@ -109,10 +109,9 @@ function stripQuoted(cmd) {
 // Heading text that marks each gated section. Anchored at the start of
 // the heading text so a heading that merely *mentions* the phrase
 // ("Why acceptance criteria matter") is not mistaken for the section.
-// Each matches the English form and the Chinese forms the bilingual
-// PR-body convention uses.
+// Match current Chinese headings and retain English/older heading aliases.
 const AC_HEADING = /^(?:acceptance\s+criteria|验收(?:标准|条件|清单|准则)?)/i;
-const TEST_PLAN_HEADING = /^(?:test\s+plan|测试(?:计划|方案))/i;
+const TEST_PLAN_HEADING = /^(?:test\s+plan|验证计划|测试(?:计划|方案))/i;
 
 // True for a fenced-code-block delimiter line (``` or ~~~, optionally
 // indented, optionally with an info string).

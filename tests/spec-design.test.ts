@@ -49,8 +49,8 @@ describe("validation results artifacts", () => {
 
   test("results template exposes coverage and evidence records separately", () => {
     const example = fencedMarkdownExample(read(templatePath));
-    assert.match(example, /## 1\. Current Coverage \/ 当前验收覆盖/);
-    assert.match(example, /## 2\. Validation Records \/ 验证记录/);
+    assert.match(example, /## 1\. 当前验收覆盖/);
+    assert.match(example, /## 2\. 验证记录/);
     assert.match(example, /\| 验收要求 \| 当前状态 \| 结果引用与缺口 \|/);
     const fields = [...example.matchAll(/^- \*\*([^*]+)\*\*：/gm)].map((match) => match[1]);
     assert.deepEqual(fields, ["关联", "验证对象", "执行", "实际结果", "结论", "证据"]);
@@ -187,7 +187,7 @@ describe("spec-design skill — repo-check VALs", () => {
       "plugins/auriga-workflow/skills/spec-design/references/spec-template.md",
     );
     assert.ok(
-      text.includes("## 4. Open questions / 悬而未决"),
+      text.includes("## 4. 悬而未决"),
       "spec template must keep the Open questions section",
     );
     assert.ok(
@@ -214,7 +214,7 @@ describe("spec-design skill — repo-check VALs", () => {
     const example = fencedMarkdownExample(read(
       "plugins/auriga-workflow/skills/spec-design/references/spec-template.md",
     ));
-    const why = markdownSubsection(example, "### 1.1 Why / 为什么做");
+    const why = markdownSubsection(example, "### 1.1 为什么做");
     for (const field of ["问题与用户", "事实依据", "价值与时机", "替代方案"]) {
       assert.match(why, new RegExp(`^- \\*\\*${field}\\*\\*：`, "m"));
     }
@@ -232,17 +232,17 @@ describe("spec-design skill — repo-check VALs", () => {
     const validation = fencedMarkdownExample(validationTemplate);
 
     const headings = [
-      "## 1. Product Overview / 产品总览",
-      "### 1.2 Source Structure Alignment / 来源结构对齐",
-      "## 2. Product Requirement Details / 产品需求分项",
+      "## 1. 产品总览",
+      "### 1.2 来源结构对齐",
+      "## 2. 产品需求分项",
       "### 2.1 `<产品需求文档中的功能章节，或用户可感知的产品子功能>`",
-      "#### 2.1.1 Original Product Requirement / 原始产品需求",
-      "#### 2.1.2 User-visible Behavior / 用户可感知行为",
-      "#### 2.1.3 Interaction Design / 交互设计",
-      "#### 2.1.4 Scope Boundaries / 分项范围边界",
-      "#### 2.1.5 Validation Mapping / 验收映射",
-      "## 3. Overall Out of Scope / 整体不做",
-      "## 5. References / 参考资料",
+      "#### 2.1.1 原始产品需求",
+      "#### 2.1.2 用户可感知行为",
+      "#### 2.1.3 交互设计",
+      "#### 2.1.4 分项范围边界",
+      "#### 2.1.5 验收映射",
+      "## 3. 整体不做",
+      "## 5. 参考资料",
     ];
     let previous = -1;
     for (const heading of headings) {
@@ -258,8 +258,8 @@ describe("spec-design skill — repo-check VALs", () => {
     assert.match(spec, /规格落点/);
 
     assert.match(validationTemplate, /与 `spec\.md`[^。\n]*相同[^。\n]*名称[^。\n]*顺序/);
-    assert.match(validation, /## 1\. Coverage Overview \/ 覆盖总览/);
-    assert.match(validation, /## 2\. Assertions by Product Requirement \/ 按产品分项组织断言/);
+    assert.match(validation, /## 1\. 覆盖总览/);
+    assert.match(validation, /## 2\. 按产品分项组织断言/);
     assert.match(validation, /### 2\.1 `<与 spec\.md 一致的产品分项名称>`/);
     assert.match(validation, /Spec subsection \(规格分项\)/);
     assert.match(validation, /Source section \(来源章节\)/);
@@ -273,12 +273,12 @@ describe("spec-design skill — repo-check VALs", () => {
     const spec = fencedMarkdownExample(specTemplate);
     const interactionDesign = markdownSubsection(
       spec,
-      "#### 2.1.3 Interaction Design / 交互设计",
+      "#### 2.1.3 交互设计",
     );
 
     assert.match(skill, /尼尔森[^。\n]*可用性启发式/);
     assert.match(skill, /不是[^。\n]*(?:固定问卷|逐项清单|合规清单)/);
-    assert.match(specTemplate, /Interaction Design \/ 交互设计/);
+    assert.match(specTemplate, /交互设计/);
     for (const field of [
       "场景与目标",
       "操作、控制与效率",
@@ -785,10 +785,10 @@ describe("spec-design skill — repo-check VALs", () => {
       /相同的产品分组、叶子功能名称和顺序/,
       "umbrella must not require child delivery slices to mirror parent product sections",
     );
-    assert.match(example, /## 1\. Goal and Shared Scope \/ 目标与共同范围/);
+    assert.match(example, /## 1\. 目标与共同范围/);
     assert.match(
       example,
-      /## 2\. Sub-specs \/ 子规范/,
+      /## 2\. 子规范/,
     );
     assert.match(
       example,
@@ -797,18 +797,18 @@ describe("spec-design skill — repo-check VALs", () => {
     );
     assert.match(
       example,
-      /## 3\. Parent Validation Coverage \/ 父级验收覆盖/,
+      /## 3\. 父级验收覆盖/,
     );
     assert.match(
       example,
       /\| 父级验收项 \| 共同结果 \| 子规范 \| 子验收项 \| 状态 \|/,
       "umbrella must map every parent assertion to concrete child assertions",
     );
-    assert.match(example, /## 4\. Dependencies and Boundaries \/ 依赖与边界/);
-    assert.match(example, /## 5\. Cross-spec Acceptance \/ 跨规范验收/);
-    assert.match(example, /## 6\. Overall Out of Scope \/ 整体不做/);
-    assert.match(example, /## 7\. Open questions \/ 悬而未决/);
-    assert.match(example, /## 8\. References and Lifecycle \/ 参考资料与生命周期/);
+    assert.match(example, /## 4\. 依赖与边界/);
+    assert.match(example, /## 5\. 跨规范验收/);
+    assert.match(example, /## 6\. 整体不做/);
+    assert.match(example, /## 7\. 悬而未决/);
+    assert.match(example, /## 8\. 参考资料与生命周期/);
     assert.match(
       example,
       /docs\/worklog\//,

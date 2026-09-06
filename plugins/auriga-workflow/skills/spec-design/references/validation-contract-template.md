@@ -22,18 +22,18 @@
 - 具体测试工具由 `test-driven-development` 根据项目测试规则和现有设施决定，不在本文件复制工具链清单。
 
 ```markdown
-# Validation Contract — <主题>（验收契约 — <主题>）
+# 验收契约 — <主题>
 
 > 与 spec.md 配套：spec.md 描述 why + 用户可观察的 what；本文件描述什么算通过。
 > 一条 VAL 不等于一个验证用例。
 
-## 1. Coverage Overview / 覆盖总览
+## 1. 覆盖总览
 
 | Spec subsection (规格分项) | Source section (来源章节) | VAL ids | Agent validation path (Agent 验收路径) |
 |---|---|---|---|
 | `2.1 <与 spec.md 一致的叶子功能名称；多层时写完整编号路径>` | `<原始产品需求章节、条款或用户描述>` | VAL-ALIGNMENT-001 ~ NNN | `<列出主要验证证据；需要驱动真实产品表面时补充代表性路径，并可注明它同时覆盖的其他分项>` |
 
-## 2. Assertions by Product Requirement / 按产品分项组织断言
+## 2. 按产品分项组织断言
 
 > 以下是单层叶子功能示例。`spec.md` 存在多层产品结构时，先复制相同的非叶子分组标题，再在叶子功能标题下展开 VAL；VAL 标题始终比叶子功能标题低一级。
 
