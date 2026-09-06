@@ -134,6 +134,7 @@ npm run test:git-guards
 ## 编辑指引
 
 - 优先使用仓库里已有的模式和辅助函数，不要轻易新增抽象。
+- 修改指令时，优先替换、合并或删除旧表述，尤其是针对旧模型的重复约束和过时补丁，避免只追加例外导致越写越多；保留有效边界，不为减字削弱契约。
 - 除非明确只限于某一语言，否则模板源编辑要同时保持两种语言一致。
 - 不要把 plugin payload 加进 `CONTENT_FILES`；plugin 的 freshness 属于 plugin marketplace 的职责。
 - 编辑自有 plugin 时，先按是否包含 `hooks/hooks.json` 选择清单形态：Hook 插件暂时只保留适用的原生清单，无 Hook 插件可提供 Agent Plugins 1.0.0 根 `plugin.json`。存在根清单时，保持它与所有适用原生清单的 `name`、`version` 一致；不要把 hooks、interface 或自定义组件路径写进标准清单的闭合顶层字段。
