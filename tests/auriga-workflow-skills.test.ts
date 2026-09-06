@@ -991,7 +991,7 @@ describe("project rule discovery anchors to the repo root", () => {
       "selected candidates must route through the appropriate asset-management skill",
     );
     assert.ok(
-      /不自动安装技能/.test(text) && /只有用户明确选择/.test(text),
+      /复盘请求本身不授权安装技能/.test(text) && /只有用户明确选择/.test(text),
       "report generation must not mutate long-term assets by default",
     );
   });

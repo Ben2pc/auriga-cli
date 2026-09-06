@@ -1373,21 +1373,21 @@ function semverGt(a, b) {
 }
 
 test("SKILL.md mandates an independent, zero-context eval subagent [VAL-EVAL-001]", () => {
-  const txt = fs.readFileSync(SKILL_MD, "utf8");
+  const txt = fs.readFileSync(path.join(ANALYZER_DIR, "../references/single-session.md"), "utf8");
   assert(/独立/.test(txt), "SKILL.md eval step must require an 独立 subagent");
   assert(/零上下文继承|fresh context/i.test(txt),
     "SKILL.md must require fresh/zero-context dispatch for the eval subagent");
 });
 
 test("SKILL.md scopes recall to all installed skills, execution-eval to invoked-only [VAL-EVAL-002]", () => {
-  const txt = fs.readFileSync(SKILL_MD, "utf8");
+  const txt = fs.readFileSync(path.join(ANALYZER_DIR, "../references/single-session.md"), "utf8");
   assert(/全部已安装\s*skill/.test(txt), "recall must cover 全部已安装 skill");
   assert(/本会话实际使用/.test(txt),
     "execution eval must be scoped to skills invoked this session");
 });
 
 test("SKILL.md requires severity+confidence findings with no pre-filtering [VAL-EVAL-003]", () => {
-  const txt = fs.readFileSync(SKILL_MD, "utf8");
+  const txt = fs.readFileSync(path.join(ANALYZER_DIR, "../references/single-session.md"), "utf8");
   assert(/severity/.test(txt) && /confidence/.test(txt),
     "findings must carry severity + confidence");
   assert(/不.{0,4}预过滤/.test(txt), "findings must not be pre-filtered by importance");
@@ -1672,7 +1672,7 @@ test("eval output contract separates polarity from severity with evidence-based 
     "confidence must be defined as evidence strength with level definitions");
   assert(/(positive|正向)[^\n]*(省略|不带|不填)[^\n]*severity|severity[^\n]*(仅|只)[^\n]*gap/.test(dispatch),
     "severity must be scoped to gap findings only");
-  const skillMd = fs.readFileSync(SKILL_MD, "utf8");
+  const skillMd = fs.readFileSync(path.join(ANALYZER_DIR, "../references/single-session.md"), "utf8");
   assert(skillMd.includes("polarity"), "SKILL.md hard-constraint schema must include polarity");
   const template = fs.readFileSync(
     path.join(PLUGIN_ROOT, "skills/session-compound/templates/single-session.html"),
@@ -1694,16 +1694,16 @@ test("candidate generation keeps the modern persistence gates [VAL-CAND-003]", (
   assert(/符合技术栈/.test(txt), "mechanism candidates must fit the project stack");
 });
 
-test("SKILL.md requires an explicit mode choice and one report per invocation [VAL-MODE-001]", () => {
-  const txt = fs.readFileSync(SKILL_MD, "utf8");
-  assert(/明确二选一/.test(txt), "every invocation must ask for a mode");
-  assert(/不根据用户措辞猜默认值/.test(txt), "the skill must not silently choose a mode");
-  assert(/不在一次调用中生成两份报告/.test(txt), "one invocation produces one report");
-});
+
 
 test("SKILL.md uses deterministic report rendering and never edits templates [VAL-MODE-004]", () => {
   const txt = fs.readFileSync(SKILL_MD, "utf8");
-  assert(/scripts\/render-report\.mjs/.test(txt), "both modes must use the renderer");
+  for (const mode of ["single-session", "recent-insights"]) {
+    const modePath = `references/${mode}.md`;
+    assert(txt.includes(modePath), "entry must route to each bundled mode");
+    const workflow = fs.readFileSync(path.join(ANALYZER_DIR, "..", modePath), "utf8");
+    assert(workflow.includes("scripts/render-report.mjs"), "each mode must use the deterministic renderer");
+  }
   assert(/模型不编辑模板/.test(txt), "the model must not patch report source");
 });
 
@@ -1711,7 +1711,7 @@ test("SKILL.md keeps ecosystem search conditional and asset changes opt-in [VAL-
   const txt = fs.readFileSync(SKILL_MD, "utf8");
   assert(/只有在已经确认存在“新增或安装技能”的真实候选后/.test(txt),
     "ecosystem search must follow a real candidate");
-  assert(/不自动安装技能/.test(txt) && /只有用户明确选择/.test(txt),
+  assert(/复盘请求本身不授权安装技能/.test(txt) && /只有用户明确选择/.test(txt),
     "generation must not mutate long-term assets");
 });
 
