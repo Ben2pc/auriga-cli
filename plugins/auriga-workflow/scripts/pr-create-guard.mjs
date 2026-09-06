@@ -60,7 +60,7 @@ process.stdin.on("end", () => {
       // Can't identify which PR was created (unusual — gh pr create
       // normally prints the URL). Fall back to a passive nudge.
       return inject(
-        `[pr-create-guard] PR created, but could not identify it from gh output. Verify the body covers the six sections (scope / acceptance criteria / design decisions / risks / test plan / remaining TODOs). Check the title follows Conventional Commits (\`<type>(<scope>)?: <subject>\`). Follow the \`git-workflow\` skill for the six-section PR body.`,
+        `[pr-create-guard] PR created, but could not identify it from gh output. Verify the required sections: summary / acceptance criteria / test plan. Include design decisions, risks, or remaining TODOs only when substantive. Check the title follows Conventional Commits (\`<type>(<scope>)?: <subject>\`). Follow the \`git-workflow\` skill and its pull-request reference.`,
       );
     }
 
@@ -69,7 +69,7 @@ process.stdin.on("end", () => {
       // gh unavailable or not authenticated. Don't pretend to know
       // anything; remind the Agent to self-verify.
       return inject(
-        `[pr-create-guard] PR ${prRef} created (fields could not be fetched via gh). Verify the six sections (scope / acceptance criteria / design decisions / risks / test plan / remaining TODOs) and the title follows Conventional Commits. Follow the \`git-workflow\` skill for the six-section PR body.`,
+        `[pr-create-guard] PR ${prRef} created (fields could not be fetched via gh). Verify the required sections: summary / acceptance criteria / test plan. Include design decisions, risks, or remaining TODOs only when substantive. Check the title follows Conventional Commits. Follow the \`git-workflow\` skill and its pull-request reference.`,
       );
     }
 
@@ -231,8 +231,8 @@ function summarize(prRef, fields) {
       : null;
 
   const tail = [
-    "Verify the six PR-body sections are covered: scope / acceptance criteria / design decisions / risks / test plan / remaining TODOs.",
-    "Follow the `git-workflow` skill for the six-section PR body.",
+    "Verify the required sections: summary / acceptance criteria / test plan. Include design decisions, risks, or remaining TODOs only when substantive.",
+    "Follow the `git-workflow` skill and its pull-request reference.",
   ].join(" ");
 
   const parts = [head, headingLine, todoLine];

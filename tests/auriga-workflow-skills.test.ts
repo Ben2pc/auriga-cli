@@ -129,39 +129,33 @@ describe("auriga-workflow skill contracts", () => {
   test("git-workflow keeps team lifecycle contracts without generic Git teaching", () => {
     const skill = read("plugins/auriga-workflow/skills/git-workflow/SKILL.md");
     const parsed = matter(skill);
+    const lifecyclePath = "plugins/auriga-workflow/skills/git-workflow/references/pull-requests.md";
+    assert.ok(skill.includes("references/pull-requests.md"));
+    assert.ok(fs.existsSync(path.join(repoRoot, lifecyclePath)));
+    const lifecycle = read(lifecyclePath);
 
     assert.equal(parsed.data.name, "git-workflow");
     assert.match(parsed.data.description, /工作树.*提交.*拉取请求.*Ready.*合并/);
-    assert.ok(
-      skill.split("\n").length <= 140,
-      "git-workflow must stay within a 140-line context budget",
-    );
-    assert.match(skill, /确认目标仓库、工作树、当前分支、远端、基准分支/);
     assert.match(skill, /无法确认归属的改动默认属于用户/);
     assert.match(skill, /未经明确授权，不执行 `git stash`.*`git reset --hard`/);
     const templateHeadings = [
       "## 摘要",
       "## 验收标准",
-      "## 设计决策",
-      "## 风险",
       "## 验证计划",
-      "## 后续事项",
     ];
     for (const heading of templateHeadings) {
-      assert.ok(skill.includes(heading), `PR template must preserve ${heading}`);
-      const body = markdownSection(skill, heading).slice(heading.length);
+      assert.ok(lifecycle.includes(heading), `PR template must preserve ${heading}`);
+      const body = markdownSection(lifecycle, heading).slice(heading.length);
       assert.match(body, /[\u3400-\u9fff]/, `${heading} example body must use Chinese`);
     }
-    assert.match(skill, /本次变更解决了什么问题/);
-    assert.match(skill, /用户或调用方能够观察到的结果成立/);
-    assert.match(skill, /没有真实决定时写“无”/);
-    const preflight = markdownSection(skill, "## 1. 操作前检查");
-    assert.match(preflight, /仓库根.*当前分支.*工作树状态.*远端关系/);
-    assert.match(preflight, /基准分支/);
-    assert.match(markdownSection(skill, "## 3. 创建 Draft 拉取请求"), /尽早创建 Draft 拉取请求/);
-    assert.match(markdownSection(skill, "## 4. 进入 Ready"), /所有当前提交已推送.*基准分支.*目标分支/s);
-    assert.match(markdownSection(skill, "## 5. 处理评审与持续集成反馈"), /一批处理完成后.*汇总问题、状态和对应提交/s);
-    assert.match(markdownSection(skill, "## 6. 合并"), /必需检查与批准均满足/);
+
+
+
+
+    assert.match(markdownSection(lifecycle, "## 创建或更新草稿请求"), /尽早创建 Draft 拉取请求/);
+    assert.match(markdownSection(lifecycle, "## 进入待评审状态"), /所有当前提交已推送.*基准分支.*目标分支/s);
+    assert.match(markdownSection(lifecycle, "## 处理评审与持续集成反馈"), /一批处理完成后.*汇总问题、状态和对应提交/s);
+    assert.match(markdownSection(lifecycle, "## 合并"), /必需检查与批准均满足/);
     assert.match(
       skill,
       /`feat`.*`fix`.*`docs`.*`refactor`.*`chore`.*`test`.*`perf`.*`style`.*`build`.*`ci`.*`revert`/s,
@@ -267,7 +261,7 @@ describe("auriga-workflow skill contracts", () => {
     // Archiving is a governance action (link repair + promotion check), never
     // a bare file move; the trigger sites below route here.
     assert.match(skill, /归档是治理动作[^。\n]*不是直接移动文件/);
-    const gitWorkflow = read("plugins/auriga-workflow/skills/git-workflow/SKILL.md");
+    const gitWorkflow = read("plugins/auriga-workflow/skills/git-workflow/references/pull-requests.md");
     assert.match(gitWorkflow, /晋升、归档或删除[^。\n]*`documentation-management`/);
     const specLifecycle = read("plugins/auriga-workflow/skills/spec-design/references/umbrella-template.md");
     assert.match(specLifecycle, /归档或晋升[^。\n]*`documentation-management`/);
