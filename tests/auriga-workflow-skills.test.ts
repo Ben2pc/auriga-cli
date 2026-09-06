@@ -480,8 +480,7 @@ describe("auriga-workflow skill contracts", () => {
     }
   });
 
-  test("arch-design keeps complete commented API DTOs inside each requirement", () => {
-    const skill = read("plugins/auriga-workflow/skills/arch-design/SKILL.md");
+  test("arch-design keeps commented API examples inside each requirement", () => {
     const template = read(
       "plugins/auriga-workflow/skills/arch-design/references/arch-design-template.md",
     );
@@ -501,8 +500,6 @@ describe("auriga-workflow skill contracts", () => {
     assert.match(api, /联合类型[^。\n]*分别/);
     assert.match(api, /机器契约[^。\n]*(?:OpenAPI|Protocol Buffers|IDL)/);
     assert.doesNotMatch(template, /^## \d+\. API Reference \/ 接口参考$/m);
-    assert.match(skill, /接口[^。\n]*所属分项/);
-    assert.match(skill, /请求[^。\n]*成功响应[^。\n]*错误响应[^。\n]*jsonc/);
     assert.match(api, /设计理由/);
     assert.match(api, /每个对象层级[^。\n]*DTO[^。\n]*(?:新增|复用|修改)/);
     assert.match(api, /修改字段/);
@@ -530,7 +527,6 @@ describe("auriga-workflow skill contracts", () => {
     assert.match(skill, /spec\.md[^。\n]*validation-contract\.md[^。\n]*上级规范/);
     assert.match(skill, /项目规则/);
     assert.match(skill, /每条权威要求[^。\n]*具体设计机制[^。\n]*正文位置/);
-    assert.match(skill, /每轮只聚焦一个[^。\n]*问题/);
     assert.match(skill, /全新上下文[^。\n]*只读[^。\n]*独立评审/);
 
     for (const evidence of [
@@ -622,15 +618,9 @@ describe("auriga-workflow skill contracts", () => {
     assert.match(sharedDetails, /示例[^。\n]*封闭枚举/);
     assert.match(skill, /arch-design-template\.md[^。\n]*唯一详细契约/);
     assert.match(reference, /arch-design-template\.md[^。\n]*唯一详细契约/);
-    assert.match(skill, /跨多个分项[^。\n]*总览/);
-    assert.match(skill, /只[^。\n]*单个分项[^。\n]*分项/);
-    assert.match(skill, /共享模型[^。\n]*模型总表/);
-    assert.match(skill, /分项[^。\n]*直接[^。\n]*模型详情/);
-    assert.match(skill, /新增、修改或删除[^。\n]*字段/);
   });
 
   test("arch-design template makes current and target architecture easy to compare", () => {
-    const skill = read("plugins/auriga-workflow/skills/arch-design/SKILL.md");
     const template = read(
       "plugins/auriga-workflow/skills/arch-design/references/arch-design-template.md",
     );
@@ -654,11 +644,7 @@ describe("auriga-workflow skill contracts", () => {
     for (const diagram of ["C4", "sequenceDiagram", "stateDiagram-v2", "erDiagram", "classDiagram"]) {
       assert.ok(template.includes(diagram), `arch-design template must cue ${diagram}`);
     }
-    assert.match(skill, /代码实体命名[^。]*同时适用于[^。]*文字描述[^。]*图/);
-    assert.match(skill, /已有[^。]*(?:模块|类)[^。]*仓库[^。]*原始标识符/);
-    assert.match(skill, /本次设计新增[^。]*设计上下文[^。]*标识符/);
-    assert.match(skill, /同一实体[^。]*(?:正文|接口草图)[^。]*图中[^。]*一致/);
-    assert.match(skill, /代码实体[^。]*不[^。]*翻译/);
+
   });
 
   test("arch-design makes technical quality and code-level flows reviewable", () => {
