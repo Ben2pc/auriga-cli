@@ -12,10 +12,7 @@ function read(rel: string): string {
 }
 
 const deepReview = (): string =>
-  read("plugins/auriga-workflow/skills/deep-review/SKILL.md") + "\n" + reviewProtocol();
-
-const reviewProtocol = (): string =>
-  read("plugins/auriga-workflow/skills/deep-review/references/review-protocol.md");
+  read("plugins/auriga-workflow/skills/deep-review/SKILL.md");
 
 const builtinReviewerTriggers = {
   architecture: "tag:architecture",
@@ -1239,7 +1236,7 @@ describe("reviewer-creator extends support", () => {
 
   // VAL-CRT-003 — the field schema (required vs optional) is documented explicitly
   test("shared protocol documents required and optional metadata", () => {
-    const text = reviewProtocol();
+    const text = deepReview();
     assert.ok(
       /Frontmatter schema|字段 schema|frontmatter 字段/.test(text),
       "must include an explicit frontmatter schema section",
@@ -1571,10 +1568,10 @@ describe("deep-review modernization contract", () => {
   });
 
   test("reviewer packets use shared category tables and architecture owns observations", () => {
-    const text = reviewProtocol();
+    const text = deepReview();
     const output = text.slice(
       text.indexOf("### Reviewer Output Contract"),
-      text.indexOf("## 主报告格式"),
+      text.indexOf("## 6. 综合"),
     );
     assert.ok(output.startsWith("### Reviewer Output Contract"));
     for (const section of ["### 阻断问题", "### 非阻断问题", "### 需要验证"]) {
@@ -1614,7 +1611,7 @@ describe("deep-review modernization contract", () => {
     const synthesis = text.slice(
       text.indexOf("## 6. 综合"),
       text.indexOf("## 7. 交回用户决定"),
-    ) + reviewProtocol().slice(reviewProtocol().indexOf("## 主报告格式"));
+    );
     for (const section of [
       "### 阻断问题",
       "### 非阻断问题",
