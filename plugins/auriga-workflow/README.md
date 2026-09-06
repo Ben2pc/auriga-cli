@@ -19,7 +19,7 @@ travel together so they share one distribution model and one install step.
 | `goalify` | Adds bounded autonomous execution to the selected Plan or `planning-with-files` carrier, defaulting Ready-time temporary artifacts to archival so unattended runs can continue. |
 | `deep-review` | Local multi-dimensional PR review — required when no CI review exists and optional by user choice when CI review already covers the PR. |
 | `reviewer-creator` | Scaffolds a project reviewer at `docs/rules/review/<name>.md`; `deep-review` hosts supplements in a built-in dimension or dispatches explicit standalone dimensions. |
-| `git-workflow` | The Git lifecycle skill — worktree safety, semantic commits, bilingual PR body contracts, review feedback, and merge readiness. |
+| `git-workflow` | The Git lifecycle skill — worktree safety, semantic commits, Chinese PR body headings, review feedback, and merge readiness. |
 | `documentation-management` | Manages human and Agent documentation as distinct context assets, governs document lifecycle, and promotes durable decisions into `docs/architecture/`. |
 | `docent` | Explicit-invocation code docent — a single dedicated subagent explains existing code, modules, or components through current-architecture maps, key relationships, and file:line evidence in a self-contained interactive HTML report. |
 
@@ -28,9 +28,9 @@ travel together so they share one distribution model and one install step.
 | Hook | Event | Fires on | Action |
 |---|---|---|---|
 | `commit-reminder` | `PostToolUse` | File-edit tools: `Edit` / `Write` / `MultiEdit` / `NotebookEdit` (Claude Code) · `apply_patch` (Codex) · `Write` / `StrReplace` / `Delete` / `EditNotebook` (Cursor) · `search_replace` (Grok Build) | When uncommitted diff vs `HEAD` exceeds 200 lines or 8 files **and** the last reminder was ≥ 5 minutes ago, injects `additionalContext` nudging the agent to commit at the next semantic boundary. Never blocks. Silent when no locatable git work tree. |
-| `pr-create-guard` | `PostToolUse` | `gh pr create` | Fetches the new PR's body + title via `gh pr view`, injects a snapshot (headings + TODO counts) so the agent can self-verify against the six-section PR description contract (scope / acceptance criteria / design decisions / risks / test plan / TODOs). Also flags titles that don't match Conventional Commits format with a soft nudge. Never blocks. |
+| `pr-create-guard` | `PostToolUse` | `gh pr create` | Fetches the new PR's body + title via `gh pr view`, injects a snapshot (headings + TODO counts) so the agent can self-verify against the required summary, acceptance criteria, and test plan, with design decisions, risks, and TODOs included only when substantive. Also flags titles that don't match Conventional Commits format with a soft nudge. Never blocks. |
 | `pr-ready-guard` | `PreToolUse` | `gh pr ready` · `gh pr create` (when `--draft` / `-d` absent) | Hard-blocks (exit 2) on **structural** issues: the `.planning/.active_plan` pointer and files in the plan directory it names, unfinalized active specs under `docs/specs/`, scanner safety failures, or unpushed commits (`gh pr ready` only). On `gh pr ready` otherwise injects a body snapshot. |
-| `pr-merge-guard` | `PreToolUse` | `gh pr merge` | Hard-blocks (exit 2) while the PR body's `Acceptance criteria` or `Test plan` section still has unchecked `- [ ]` checklist items. Scoped to those two sections — unchecked items elsewhere (Remaining TODOs) never block; fenced code blocks are skipped. Fails open if `gh` can't read the body. |
+| `pr-merge-guard` | `PreToolUse` | `gh pr merge` | Hard-blocks (exit 2) while the PR body's `验收标准` or `验证计划` section still has unchecked `- [ ]` checklist items. English headings (`Acceptance criteria`, `Test plan`) and older Chinese aliases remain supported. Scoped to those two sections — unchecked items elsewhere (`后续事项` / `Remaining TODOs`) never block; fenced code blocks are skipped. Fails open if `gh` can't read the body. |
 
 ## Structure
 

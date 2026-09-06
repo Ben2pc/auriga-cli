@@ -129,7 +129,7 @@ const cases = [
     expect: { status: 0, stdoutEq: "" },
   },
   {
-    name: "gh pr create success without URL: passive nudge lists six sections",
+    name: "gh pr create success without URL: passive nudge lists required sections",
     payload: {
       hook_event_name: "PostToolUse",
       tool_name: "Bash",
@@ -140,7 +140,7 @@ const cases = [
       status: 0,
       stdoutIncludesAll: [
         "could not identify",
-        "six sections",
+        "required sections",
         "design decisions",
         "test plan",
         "git-workflow",
@@ -152,7 +152,7 @@ const cases = [
     },
   },
   {
-    name: "gh pr create with URL but fetch fails: fallback lists six sections",
+    name: "gh pr create with URL but fetch fails: fallback lists required sections",
     payload: {
       hook_event_name: "PostToolUse",
       tool_name: "Bash",
@@ -163,13 +163,13 @@ const cases = [
       },
     },
     // The fetch will fail (no auth / no such repo). The hook should
-    // gracefully inject the fallback message containing the five
+    // gracefully inject the fallback message containing the required
     // sections — not crash, not block.
     expect: {
       status: 0,
       stdoutIncludesAll: [
         "pr-create-guard",
-        "six sections",
+        "required sections",
         "design decisions",
         "test plan",
         "git-workflow",
@@ -181,13 +181,13 @@ const cases = [
     },
   },
   {
-    name: "inline URL in command body does NOT leak: still emits six sections",
+    name: "inline URL in command body does NOT leak: still emits required sections",
     payload: {
       hook_event_name: "PostToolUse",
       tool_name: "Bash",
       // Body mentions an old PR's URL; tool_response has no URL.
       // The hook must NOT fetch the old PR — it should take the
-      // passive-nudge path instead, which includes the six-section
+      // passive-nudge path instead, which includes the required-section
       // verification list.
       tool_input: {
         command:
@@ -199,7 +199,7 @@ const cases = [
       status: 0,
       stdoutIncludesAll: [
         "could not identify",
-        "six sections",
+        "required sections",
         "design decisions",
         "test plan",
         "git-workflow",
@@ -223,7 +223,7 @@ const cases = [
       stdoutIncludesAll: [
         "pr-create-guard",
         "888888",
-        "six sections",
+        "required sections",
         "design decisions",
         "test plan",
         "git-workflow",
@@ -247,7 +247,7 @@ const cases = [
       stdoutIncludesAll: [
         "pr-create-guard",
         "999999",
-        "six sections",
+        "required sections",
         "design decisions",
         "test plan",
         "git-workflow",
@@ -268,7 +268,7 @@ const cases = [
       stdoutIncludesAll: [
         "pr-create-guard",
         "777777",
-        "six sections",
+        "required sections",
         "design decisions",
         "test plan",
         "git-workflow",

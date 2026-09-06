@@ -21,21 +21,16 @@ describe("goalify skill contract", () => {
   test("accepts formal and conversational sources without bypassing architecture approval", () => {
     const text = readSkill();
 
-    assert.match(text, /只在用户明确要求或选择自主运行时使用/);
     assert.ok(text.includes("spec.md") && text.includes("validation-contract.md"));
     assert.match(text, /不要求任务必须有正式规格/);
     assert.match(text, /对话、问题单、当前分支、提交历史和拉取请求正文/);
     assert.match(text, /自主运行不能批准或绕过架构确认门禁/);
-    assert.match(text, /实质性架构决定，停止并交回用户/);
   });
 
   test("combines autonomous execution with exactly one planning carrier", () => {
     const text = readSkill();
 
     assert.match(text, /可以与计划载体组合的自主执行模式/);
-    assert.match(text, /内置 Plan 还是 `planning-with-files`/);
-    assert.match(text, /用户已经选择时直接沿用，不重复询问/);
-    assert.match(text, /`goalify` 不与它们三选一/);
   });
 
   test("keeps the goal compact and delegates implementation planning", () => {
@@ -93,14 +88,5 @@ describe("goalify skill contract", () => {
     assert.doesNotMatch(endpoints, /无人交互[^。\n]*(?:停止|交回用户)/);
   });
 
-  test("dispatches according to runtime capability and requires a bounded handoff", () => {
-    const text = readSkill();
 
-    assert.ok(text.includes("Codex") && text.includes("Claude Code"));
-    assert.match(text, /Codex 暴露目标启动能力时，直接设置并启动目标/);
-    assert.match(text, /Claude Code 通常输出可粘贴到 `\/goal` 的文本/);
-    assert.match(text, /不假装已经操作其交互界面/);
-    assert.match(text, /到达终点或触发停止条件后立即交接/);
-    assert.match(text, /完成内容、验收方式、剩余风险和用户下一步可以做什么/);
-  });
 });

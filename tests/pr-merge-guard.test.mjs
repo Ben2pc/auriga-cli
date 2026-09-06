@@ -490,6 +490,12 @@ const cases = [
     expect: { status: 2, stderrIncludes: ["手工模拟器验证待补"] },
   },
   {
+    name: "Chinese 验证计划 template heading is recognized → blocks",
+    cmd: "gh pr merge --squash",
+    body: CHINESE_TEST_PLAN_UNCHECKED.replace("测试计划", "验证计划"),
+    expect: { status: 2, stderrIncludes: ["手工模拟器验证待补"] },
+  },
+  {
     name: "bilingual template headings are recognized → blocks",
     cmd: "gh pr merge --squash",
     body: BILINGUAL_TEMPLATE_UNCHECKED,

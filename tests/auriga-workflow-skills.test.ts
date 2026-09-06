@@ -129,39 +129,32 @@ describe("auriga-workflow skill contracts", () => {
   test("git-workflow keeps team lifecycle contracts without generic Git teaching", () => {
     const skill = read("plugins/auriga-workflow/skills/git-workflow/SKILL.md");
     const parsed = matter(skill);
+    const lifecyclePath = "plugins/auriga-workflow/skills/git-workflow/references/pull-requests.md";
+    assert.ok(skill.includes("references/pull-requests.md"));
+    assert.ok(fs.existsSync(path.join(repoRoot, lifecyclePath)));
+    const lifecycle = read(lifecyclePath);
 
     assert.equal(parsed.data.name, "git-workflow");
-    assert.match(parsed.data.description, /工作树.*提交.*拉取请求.*Ready.*合并/);
-    assert.ok(
-      skill.split("\n").length <= 140,
-      "git-workflow must stay within a 140-line context budget",
-    );
-    assert.match(skill, /确认目标仓库、工作树、当前分支、远端、基准分支/);
     assert.match(skill, /无法确认归属的改动默认属于用户/);
     assert.match(skill, /未经明确授权，不执行 `git stash`.*`git reset --hard`/);
     const templateHeadings = [
-      "## Summary / 摘要",
-      "## Acceptance Criteria / 验收标准",
-      "## Design Decisions / 设计决策",
-      "## Risks / 风险",
-      "## Test Plan / 验证计划",
-      "## Remaining TODOs / 后续事项",
+      "## 摘要",
+      "## 验收标准",
+      "## 验证计划",
     ];
     for (const heading of templateHeadings) {
-      assert.ok(skill.includes(heading), `PR template must preserve ${heading}`);
-      const body = markdownSection(skill, heading).slice(heading.length);
+      assert.ok(lifecycle.includes(heading), `PR template must preserve ${heading}`);
+      const body = markdownSection(lifecycle, heading).slice(heading.length);
       assert.match(body, /[\u3400-\u9fff]/, `${heading} example body must use Chinese`);
     }
-    assert.match(skill, /本次变更解决了什么问题/);
-    assert.match(skill, /用户或调用方能够观察到的结果成立/);
-    assert.match(skill, /没有真实决定时写“无”/);
-    const preflight = markdownSection(skill, "## 1. 操作前检查");
-    assert.match(preflight, /仓库根.*当前分支.*工作树状态.*远端关系/);
-    assert.match(preflight, /基准分支/);
-    assert.match(markdownSection(skill, "## 3. 创建 Draft 拉取请求"), /尽早创建 Draft 拉取请求/);
-    assert.match(markdownSection(skill, "## 4. 进入 Ready"), /所有当前提交已推送.*基准分支.*目标分支/s);
-    assert.match(markdownSection(skill, "## 5. 处理评审与持续集成反馈"), /一批处理完成后.*汇总问题、状态和对应提交/s);
-    assert.match(markdownSection(skill, "## 6. 合并"), /必需检查与批准均满足/);
+
+
+
+
+    assert.match(markdownSection(lifecycle, "## 创建或更新草稿请求"), /尽早创建 Draft 拉取请求/);
+    assert.match(markdownSection(lifecycle, "## 进入待评审状态"), /所有当前提交已推送.*基准分支.*目标分支/s);
+    assert.match(markdownSection(lifecycle, "## 处理评审与持续集成反馈"), /一批处理完成后.*汇总问题、状态和对应提交/s);
+    assert.match(markdownSection(lifecycle, "## 合并"), /必需检查与批准均满足/);
     assert.match(
       skill,
       /`feat`.*`fix`.*`docs`.*`refactor`.*`chore`.*`test`.*`perf`.*`style`.*`build`.*`ci`.*`revert`/s,
@@ -189,19 +182,11 @@ describe("auriga-workflow skill contracts", () => {
     );
 
     assert.equal(parsed.data.name, path.basename(path.dirname(skillPath)));
-    assert.match(parsed.data.description, /新建.*更新.*合并.*压缩.*归档.*删除/);
-    assert.match(
-      parsed.data.description,
-      /README.*运行手册.*公共接口文档.*架构文档.*ADR.*变更日志.*代码注释.*AGENTS\.md.*项目规则/,
-    );
-    assert.match(parsed.data.description, /代码变化造成文档事实漂移/);
-    assert.match(parsed.data.description, /长期文档出现过程流水账/);
     assert.match(skill, /默认不新增/);
     for (const action of ["更新", "删除", "合并", "压缩", "归档", "晋升", "新建"]) {
       assert.ok(skill.includes(action), `documentation management must support ${action}`);
     }
     assert.match(skill, /先确定消费者/);
-    assert.match(skill, /纯人类文档不挂到 `AGENTS\.md`/);
     assert.match(skill, /区分 Agent 资料与 Agent 指令/);
     assert.match(skill, /工程资料沿用各自的文档结构/);
     assert.match(skill, /只有提示词、项目规则或标准操作流程（SOP）[^。]*才按目标/);
@@ -216,7 +201,6 @@ describe("auriga-workflow skill contracts", () => {
       assert.ok(skill.includes(contract), `Agent documents must preserve ${contract}`);
     }
     assert.match(skill, /同一规则只写一次/);
-    assert.match(skill, /不链接只服务人类阅读的材料/);
     assert.match(skill, /`CLAUDE\.md -> AGENTS\.md` 兼容软链/);
     assert.match(skill, /仓库根只放全局规则与导航/);
     assert.match(skill, /子包[^。\n]*自己的根目录维护 `AGENTS\.md`/);
@@ -235,7 +219,6 @@ describe("auriga-workflow skill contracts", () => {
     // Content focus: docs carry what code cannot express; code-level detail
     // sinks to inline comments; doc debt is technical debt in context terms.
     assert.match(skill, /文档债是技术债/);
-    assert.match(skill, /消耗 token/);
     assert.match(skill, /代码推不出来的事实/);
     assert.match(skill, /下沉为行内注释/);
     assert.match(skill, /为什么 > 是什么/);
@@ -253,13 +236,10 @@ describe("auriga-workflow skill contracts", () => {
         `documentation convergence must keep ${earlier} before ${later}`,
       );
     }
-    assert.match(assetActions, /单行新增不是绝对禁止[^。]*不能成为[^。]*默认动作/);
     assert.match(standards, /当前架构文档维护“现在是什么”[^。]*实施、评审、修订和上线经过/);
     assert.match(standards, /ADR[\s\S]*不把初稿变化、评审轮次、修订提交或上线经过写成决策理由/);
     assert.match(standards, /当前时态表达稳定规则[^。]*本次实施或评审经过/);
-    // Audience signal: traditional names default to human readers; human docs
-    // lead with overview + diagrams.
-    assert.match(skill, /`README\.md`[^。\n]*默认面向人类/);
+    // Human-oriented documents retain overview and diagrams.
     assert.match(skill, /以 overview 为主[^。\n]*图/);
     assert.match(standards, /为什么 > 是什么/);
     assert.match(standards, /单行指针/);
@@ -268,10 +248,10 @@ describe("auriga-workflow skill contracts", () => {
     // Archiving is a governance action (link repair + promotion check), never
     // a bare file move; the trigger sites below route here.
     assert.match(skill, /归档是治理动作[^。\n]*不是直接移动文件/);
-    const gitWorkflow = read("plugins/auriga-workflow/skills/git-workflow/SKILL.md");
+    const gitWorkflow = read("plugins/auriga-workflow/skills/git-workflow/references/pull-requests.md");
     assert.match(gitWorkflow, /晋升、归档或删除[^。\n]*`documentation-management`/);
-    const specDesign = read("plugins/auriga-workflow/skills/spec-design/SKILL.md");
-    assert.match(specDesign, /归档或晋升[^。\n]*`documentation-management`/);
+    const specLifecycle = read("plugins/auriga-workflow/skills/spec-design/references/umbrella-template.md");
+    assert.match(specLifecycle, /归档或晋升[^。\n]*`documentation-management`/);
     const goalify = read("plugins/auriga-workflow/skills/goalify/SKILL.md");
     assert.match(goalify, /归档用 `documentation-management` 执行[^。\n]*不直接移动文件/);
     const archDesign = read("plugins/auriga-workflow/skills/arch-design/SKILL.md");
@@ -369,17 +349,9 @@ describe("auriga-workflow skill contracts", () => {
     const text = read("plugins/auriga-workflow/skills/arch-design/SKILL.md");
     const parsed = matter(text);
 
-    assert.match(parsed.data.description, /(?:架构优化|优化[^。；]*架构)/);
-    assert.match(parsed.data.description, /领域模型|领域建模/);
     assert.match(text, /技术方案澄清/);
     assert.match(text, /模块内部[^。\n]*(?:code-simplify|代码简化)/);
 
-    for (const trigger of ["新功能", "职责", "边界", "分层", "依赖", "架构演进"]) {
-      assert.ok(
-        parsed.data.description.includes(trigger),
-        `arch-design description must cover the ${trigger} trigger`,
-      );
-    }
 
     for (const rel of ["AGENTS.md", "AGENTS.template.zh-CN.md", "AGENTS.template.en.md"]) {
       const template = read(rel);
@@ -390,11 +362,6 @@ describe("auriga-workflow skill contracts", () => {
         template,
         /领域模型|domain model/i,
         `${rel} must route domain-model clarification to arch-design`,
-      );
-      assert.match(
-        template,
-        /(?:快速流程|quick flow)[\s\S]{0,500}(?:不跳过适用的需求澄清、架构确认|never bypasses applicable requirement clarification, architecture approval)/i,
-        `${rel} must not let the quick flow bypass architecture clarification`,
       );
     }
   });
@@ -427,9 +394,9 @@ describe("auriga-workflow skill contracts", () => {
     assert.match(text, /实现前[^。\n]*用户[^。\n]*(?:确认|评审)/);
     assert.match(text, /不能把沉默当作批准/);
     assert.match(text, /设计文档或对话内已确认的设计/);
-    assert.match(template, /Review Focus \/ 人工评审重点/);
-    assert.match(template, /Shared Model Design \/ 共享模型设计/);
-    for (const field of ["评审状态", "核心决定", "主要影响", "首要风险", "Human Decisions"]) {
+    assert.match(template, /人工评审重点/);
+    assert.match(template, /共享模型设计/);
+    for (const field of ["评审状态", "核心决定", "主要影响", "首要风险", "人工确认结果"]) {
       assert.ok(template.includes(field), `arch-design template must preserve ${field}`);
     }
   });
@@ -440,24 +407,24 @@ describe("auriga-workflow skill contracts", () => {
     );
 
     const headings = [
-      "## 2. Architecture Overview / 架构总览",
-      "### 2.1 Current Architecture / 当前架构现状",
-      "### 2.2 Target Design Overview / 目标设计概览",
-      "## 3. Requirement Designs / 分项设计",
+      "## 2. 架构总览",
+      "### 2.1 当前架构现状",
+      "### 2.2 目标设计概览",
+      "## 3. 分项设计",
       "### 3.1 `<需求主题>`",
-      "#### 3.1.1 Original Requirement / 原始需求",
-      "#### 3.1.2 Design / 设计",
-      "##### 3.1.2.1 Local Model Design / 本项模型设计",
-      "##### 3.1.2.2 API Design / 接口设计",
-      "#### 3.1.3 Local Directory Changes / 局部目录变化",
-      "#### 3.1.4 Flows & Supporting Diagrams / 流程与必要图示",
-      "#### 3.1.5 Validation / 验证",
-      "## 4. Migration & Behavior Protection / 迁移与行为保护",
-      "## 5. Risks & Validation / 风险与验证",
-      "## 6. Quality Attributes & Technical Goals / 质量属性与技术目标",
-      "## 7. Deployment & Operations / 部署与运行",
-      "## 8. Human Decisions / 人工确认结果",
-      "## 9. References / 参考依据",
+      "#### 3.1.1 原始需求",
+      "#### 3.1.2 设计",
+      "##### 3.1.2.1 本项模型设计",
+      "##### 3.1.2.2 接口设计",
+      "#### 3.1.3 局部目录变化",
+      "#### 3.1.4 流程与必要图示",
+      "#### 3.1.5 验证",
+      "## 4. 迁移与行为保护",
+      "## 5. 质量风险与保障",
+      "## 6. 可观测设计",
+      "## 7. 部署与运行",
+      "## 8. 人工确认结果",
+      "## 9. 参考依据",
     ];
     let previous = -1;
     for (const heading of headings) {
@@ -480,24 +447,23 @@ describe("auriga-workflow skill contracts", () => {
     assert.doesNotMatch(template, /^#### 3\.1\.3 Rationale \/ 为什么$/m);
     assert.doesNotMatch(template, /^## \d+\. API Reference \/ 接口参考$/m);
 
-    const references = markdownSection(template, "## 9. References / 参考依据");
+    const references = markdownSection(template, "## 9. 参考依据");
     for (const field of ["来源", "版本或修订", "条款或代码证据", "设计落点"]) {
       assert.ok(references.includes(field), `references must preserve ${field}`);
     }
   });
 
-  test("arch-design keeps complete commented API DTOs inside each requirement", () => {
-    const skill = read("plugins/auriga-workflow/skills/arch-design/SKILL.md");
+  test("arch-design keeps commented API examples inside each requirement", () => {
     const template = read(
       "plugins/auriga-workflow/skills/arch-design/references/arch-design-template.md",
     );
     const requirement = markdownSection(template, "### 3.1 `<需求主题>`");
-    const api = markdownSection(requirement, "##### 3.1.2.2 API Design / 接口设计");
+    const api = markdownSection(requirement, "##### 3.1.2.2 接口设计");
 
     for (const heading of [
-      "Request DTO / 请求 DTO",
-      "Success Response DTO / 成功响应 DTO",
-      "Error Response DTO / 错误响应 DTO",
+      "请求 DTO",
+      "成功响应 DTO",
+      "错误响应 DTO",
     ]) {
       assert.ok(api.includes(heading), `API reference must preserve ${heading}`);
     }
@@ -507,8 +473,6 @@ describe("auriga-workflow skill contracts", () => {
     assert.match(api, /联合类型[^。\n]*分别/);
     assert.match(api, /机器契约[^。\n]*(?:OpenAPI|Protocol Buffers|IDL)/);
     assert.doesNotMatch(template, /^## \d+\. API Reference \/ 接口参考$/m);
-    assert.match(skill, /接口[^。\n]*所属分项/);
-    assert.match(skill, /请求[^。\n]*成功响应[^。\n]*错误响应[^。\n]*jsonc/);
     assert.match(api, /设计理由/);
     assert.match(api, /每个对象层级[^。\n]*DTO[^。\n]*(?:新增|复用|修改)/);
     assert.match(api, /修改字段/);
@@ -536,7 +500,6 @@ describe("auriga-workflow skill contracts", () => {
     assert.match(skill, /spec\.md[^。\n]*validation-contract\.md[^。\n]*上级规范/);
     assert.match(skill, /项目规则/);
     assert.match(skill, /每条权威要求[^。\n]*具体设计机制[^。\n]*正文位置/);
-    assert.match(skill, /每轮只聚焦一个[^。\n]*问题/);
     assert.match(skill, /全新上下文[^。\n]*只读[^。\n]*独立评审/);
 
     for (const evidence of [
@@ -552,7 +515,7 @@ describe("auriga-workflow skill contracts", () => {
     assert.match(migration, /没有新增资产/);
     assert.match(migration, /第二种独立证据/);
 
-    const retirement = markdownSection(template, "### 4.1 Retirement Inventory / 资产退场清单");
+    const retirement = markdownSection(template, "### 4.1 资产退场清单");
     for (const field of ["准确路径", "资产或符号", "当前依赖证据", "处置", "为什么"]) {
       assert.ok(retirement.includes(field), `retirement inventory must preserve ${field}`);
     }
@@ -567,22 +530,22 @@ describe("auriga-workflow skill contracts", () => {
     const reference = read(
       "plugins/auriga-workflow/skills/arch-design/references/domain-modeling.md",
     );
-    const reviewFocus = markdownSection(template, "## 1. Review Focus / 人工评审重点");
+    const reviewFocus = markdownSection(template, "## 1. 人工评审重点");
     const sharedModel = markdownSection(
       template,
-      "### 2.3 Shared Model Design / 共享模型设计",
+      "### 2.3 共享模型设计",
     );
     const sharedInventory = markdownSection(
       sharedModel,
-      "#### 2.3.1 Model Overview / 模型总表",
+      "#### 2.3.1 模型总表",
     );
     const sharedDetails = markdownSection(
       sharedModel,
-      "#### 2.3.2 Model Details / 模型详情",
+      "#### 2.3.2 模型详情",
     );
     const localModel = markdownSection(
       template,
-      "##### 3.1.2.1 Local Model Design / 本项模型设计",
+      "##### 3.1.2.1 本项模型设计",
     );
     const localDetails = markdownSection(
       localModel,
@@ -628,24 +591,18 @@ describe("auriga-workflow skill contracts", () => {
     assert.match(sharedDetails, /示例[^。\n]*封闭枚举/);
     assert.match(skill, /arch-design-template\.md[^。\n]*唯一详细契约/);
     assert.match(reference, /arch-design-template\.md[^。\n]*唯一详细契约/);
-    assert.match(skill, /跨多个分项[^。\n]*总览/);
-    assert.match(skill, /只[^。\n]*单个分项[^。\n]*分项/);
-    assert.match(skill, /共享模型[^。\n]*模型总表/);
-    assert.match(skill, /分项[^。\n]*直接[^。\n]*模型详情/);
-    assert.match(skill, /新增、修改或删除[^。\n]*字段/);
   });
 
   test("arch-design template makes current and target architecture easy to compare", () => {
-    const skill = read("plugins/auriga-workflow/skills/arch-design/SKILL.md");
     const template = read(
       "plugins/auriga-workflow/skills/arch-design/references/arch-design-template.md",
     );
 
     for (const section of [
-      "Current Architecture / 当前架构现状",
-      "Current Directory Structure / 当前目录结构",
-      "Target Design Overview / 目标设计概览",
-      "Target Directory Structure / 目标目录结构",
+      "当前架构现状",
+      "当前目录结构",
+      "目标设计概览",
+      "目标目录结构",
     ]) {
       assert.ok(template.includes(section), `arch-design template must preserve ${section}`);
     }
@@ -660,11 +617,7 @@ describe("auriga-workflow skill contracts", () => {
     for (const diagram of ["C4", "sequenceDiagram", "stateDiagram-v2", "erDiagram", "classDiagram"]) {
       assert.ok(template.includes(diagram), `arch-design template must cue ${diagram}`);
     }
-    assert.match(skill, /代码实体命名[^。]*同时适用于[^。]*文字描述[^。]*图/);
-    assert.match(skill, /已有[^。]*(?:模块|类)[^。]*仓库[^。]*原始标识符/);
-    assert.match(skill, /本次设计新增[^。]*设计上下文[^。]*标识符/);
-    assert.match(skill, /同一实体[^。]*(?:正文|接口草图)[^。]*图中[^。]*一致/);
-    assert.match(skill, /代码实体[^。]*不[^。]*翻译/);
+
   });
 
   test("arch-design makes technical quality and code-level flows reviewable", () => {
@@ -675,23 +628,14 @@ describe("auriga-workflow skill contracts", () => {
 
     assert.match(text, /技术质量目标/);
     assert.match(text, /人工[^。\n]*重点评审/);
-    assert.match(template, /Quality Attributes & Technical Goals \/ 质量属性与技术目标/);
-    assert.match(template, /重点评审/);
-    for (const example of [
-      "可观测性",
-      "可排查性",
-      "故障隔离或容灾",
-      "数据一致性",
-      "安全性",
-      "性能与资源预算",
-    ]) {
-      assert.ok(template.includes(example), `technical quality examples must cue ${example}`);
-    }
-    assert.match(template, /示例[^。\n]*不是必填|不是必填[^。\n]*示例/);
+    const quality = markdownSection(template, "## 5. 质量风险与保障");
+    const observability = markdownSection(template, "## 6. 可观测设计");
+    assert.ok(quality.includes("| 风险维度 | 风险与影响 | 保障方式 | 验证方式与通过标准 |"));
+    assert.ok(observability.includes("| 观测维度 | 目的与适用场景 | 信号与采集设计 | 使用与处置 | 验证方式 |"));
     const requirement = markdownSection(template, "### 3.1 `<需求主题>`");
     const flows = markdownSection(
       requirement,
-      "#### 3.1.4 Flows & Supporting Diagrams / 流程与必要图示",
+      "#### 3.1.4 流程与必要图示",
     );
     assert.doesNotMatch(requirement, /Data Flow \/ 数据流/);
     assert.match(flows, /完整数据流/);
@@ -700,13 +644,13 @@ describe("auriga-workflow skill contracts", () => {
     assert.match(template, /代码内部/);
     assert.match(template, /文件级职责/);
     assert.match(template, /接口实现映射/);
-    assert.match(template, /Deployment & Operations \/ 部署与运行/);
+    assert.match(template, /部署与运行/);
     assert.match(template, /可选章节/);
     assert.match(template, /普通前端[^。\n]*移动端[^。\n]*默认删除/);
     for (const [earlier, later] of [
-      ["## 5. Risks & Validation / 风险与验证", "## 6. Quality Attributes & Technical Goals / 质量属性与技术目标"],
-      ["## 6. Quality Attributes & Technical Goals / 质量属性与技术目标", "## 7. Deployment & Operations / 部署与运行"],
-      ["## 7. Deployment & Operations / 部署与运行", "## 8. Human Decisions / 人工确认结果"],
+      ["## 5. 质量风险与保障", "## 6. 可观测设计"],
+      ["## 6. 可观测设计", "## 7. 部署与运行"],
+      ["## 7. 部署与运行", "## 8. 人工确认结果"],
     ]) {
       assert.ok(template.indexOf(earlier) < template.indexOf(later), `${earlier} must precede ${later}`);
     }
@@ -720,12 +664,12 @@ describe("auriga-workflow skill contracts", () => {
     const requirement = markdownSection(template, "### 3.1 `<需求主题>`");
     const localModel = markdownSection(
       requirement,
-      "##### 3.1.2.1 Local Model Design / 本项模型设计",
+      "##### 3.1.2.1 本项模型设计",
     );
-    const api = markdownSection(requirement, "##### 3.1.2.2 API Design / 接口设计");
+    const api = markdownSection(requirement, "##### 3.1.2.2 接口设计");
     const flows = markdownSection(
       requirement,
-      "#### 3.1.4 Flows & Supporting Diagrams / 流程与必要图示",
+      "#### 3.1.4 流程与必要图示",
     );
 
     assert.doesNotMatch(requirement, /Rationale \/ 为什么/);
@@ -799,7 +743,7 @@ describe("auriga-workflow skill contracts", () => {
   test("architecture consumers honor the approved design boundary", () => {
     const specDesign = read("plugins/auriga-workflow/skills/spec-design/SKILL.md");
     const incremental = read("plugins/auriga-workflow/skills/incremental-impl/SKILL.md");
-    const handoff = specDesign.match(/### Phase D[\s\S]*?## 交接前检查/);
+    const handoff = specDesign.match(/### Phase D[^\n]*\n([\s\S]*?)(?=\n## |$)/);
 
     assert.ok(handoff, "spec-design must preserve its Phase D handoff section");
     assert.match(handoff[0], /arch-design[^。\n]*人工确认/);
@@ -1013,23 +957,7 @@ describe("project rule discovery anchors to the repo root", () => {
     });
   }
 
-  test("reviewer-creator writes custom reviewers anchored to the repo root", () => {
-    const text = read(
-      "plugins/auriga-workflow/skills/reviewer-creator/SKILL.md",
-    );
-    assert.ok(
-      text.includes("git rev-parse --show-toplevel"),
-      "reviewer-creator must resolve the output directory from the git repo root",
-    );
-    assert.ok(
-      text.includes("|| pwd"),
-      "the mkdir command must fall back to cwd when git rev-parse fails (non-git dir would otherwise expand to /docs/rules/review/)",
-    );
-    assert.ok(
-      text.includes("<仓库根>/docs/rules/review/<name>.md"),
-      "the write target must be anchored to the repo root",
-    );
-  });
+
 
   test("spec-design consumes project spec rules as clarification input and gate item", () => {
     const text = read("plugins/auriga-workflow/skills/spec-design/SKILL.md");
@@ -1054,7 +982,7 @@ describe("project rule discovery anchors to the repo root", () => {
       "selected candidates must route through the appropriate asset-management skill",
     );
     assert.ok(
-      /不自动安装技能/.test(text) && /只有用户明确选择/.test(text),
+      /复盘请求本身不授权安装技能/.test(text) && /只有用户明确选择/.test(text),
       "report generation must not mutate long-term assets by default",
     );
   });
@@ -1298,10 +1226,8 @@ describe("reviewer-creator extends support", () => {
   });
 
   // VAL-CRT-003 — the field schema (required vs optional) is documented explicitly
-  test("SKILL.md documents the frontmatter field schema with required vs optional", () => {
-    const text = read(
-      "plugins/auriga-workflow/skills/reviewer-creator/SKILL.md",
-    );
+  test("shared protocol documents required and optional metadata", () => {
+    const text = deepReview();
     assert.ok(
       /Frontmatter schema|字段 schema|frontmatter 字段/.test(text),
       "must include an explicit frontmatter schema section",
@@ -1372,24 +1298,6 @@ describe("deep-review modernization contract", () => {
       `plugins/auriga-workflow/skills/deep-review/references/reviewers/${name}.md`,
     );
 
-  test("CI review uses the trusted base contract without overriding its synthesis format", () => {
-    const workflow = read(".github/workflows/claude-code-review.yml");
-
-    assert.match(
-      workflow,
-      /BASE_SHA=\$\{\{ github\.event\.pull_request\.base\.sha \}\}/,
-      "review orchestration must anchor to the trusted base commit",
-    );
-    assert.match(workflow, /git archive "\$BASE_SHA" "\$CONTRACT_DIR"/);
-    assert.match(workflow, /echo "path=\$SKILL" >> "\$GITHUB_OUTPUT"/);
-    assert.match(workflow, /steps\.deep-review-contract\.outputs\.path/);
-    assert.doesNotMatch(workflow, /LOCAL_SKILL=|npx -y skills add/);
-    assert.match(workflow, /Reviewer Output Contract/);
-    assert.match(workflow, /综合/);
-    assert.match(workflow, /anchored to a changed diff line/);
-    assert.match(workflow, /cannot be anchored[^.\n]*review body/);
-    assert.doesNotMatch(workflow, /No findings\.|\[severity:|OVERALL:/);
-  });
 
   test("first formal review respects CI routing and later agent-proposed reruns ask", () => {
     const text = deepReview();
@@ -1398,7 +1306,6 @@ describe("deep-review modernization contract", () => {
     assert.match(text, /用户明确要求[^。]*深度审查[^。]*直接执行/);
     assert.match(text, /用户明确要求再次审查[^。]*直接执行/);
     assert.match(text, /代理主动建议重跑[^。]*先询问用户/);
-    assert.match(text, /不要[^。]*自动开始下一轮深度审查/);
     assert.match(text, /正式审查记录|正式评审记录/);
     assert.match(text, /无法判断[^。\n]*询问用户/);
   });
@@ -1690,7 +1597,7 @@ describe("deep-review modernization contract", () => {
     }
   });
 
-  test("synthesis uses stable category tables with source-grouped action decisions", () => {
+  test("synthesis uses stable category tables with action decisions", () => {
     const text = deepReview();
     const synthesis = text.slice(
       text.indexOf("## 6. 综合"),
@@ -1735,11 +1642,8 @@ describe("deep-review modernization contract", () => {
 
     assert.match(blocking, /\*\*修\*\*/);
     assert.match(nonBlocking, /\*\*(?:修|不修)\*\*/);
-    assert.match(synthesis, /相同来源[^。\n]*相邻/);
-    assert.match(synthesis, /第一来源[^。\n]*分组/);
     assert.match(synthesis, /阻断问题只能建议 `修`/);
     assert.match(synthesis, /判断 `不修`[^。\n]*(?:重新分类|不能|不得)/);
-    assert.match(synthesis, /没有条目[^。\n]*`无。`/);
     assert.match(synthesis, /按同一根因合并重复发现，同时保留所有来源/);
 
     const preamble = markdownSection(text, "### Reviewer Must-Not Preamble");

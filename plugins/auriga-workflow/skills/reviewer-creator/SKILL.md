@@ -1,11 +1,11 @@
 ---
 name: reviewer-creator
-description: "当用户要求创建自定义审查者、添加项目专属审查者、扩展 deep-review，或调用 /reviewer-creator 时使用；在 docs/rules/review/ 下生成结构规范的审查者文件。"
+description: 用户要求创建或修改项目专属审查者、扩展审查维度，或调用 /reviewer-creator 时使用。
 ---
 
 # Reviewer Creator
 
-为 `deep-review` 创建项目级审查者。产物写入 `<仓库根>/docs/rules/review/<name>.md`，由 `deep-review` 自动发现。
+为 `deep-review` 创建项目级审查者。产物写入规则适用的仓库根或子包 `docs/rules/review/<name>.md`，由 `deep-review` 自动发现。
 
 ## 什么时候使用
 
@@ -17,32 +17,13 @@ description: "当用户要求创建自定义审查者、添加项目专属审查
 
 ## 读取当前协议
 
-创建前读取同一插件的 `../deep-review/SKILL.md`。其中的内置审查者路由表和项目审查者元数据协议是当前信息源；不要在本技能中维护第二份内置名称或触发标签清单。
-
+创建前读取同一插件 [deep-review](../deep-review/SKILL.md) 的风险标签、项目审查者元数据协议和路由表，再按需要读取相关宿主；这些部分是当前协议的唯一信息源，无需读取其余正式评审流程。
 每个项目审查者必须显式选择一种定位：
 
 1. **补充内置维度**：写 `extends: <内置名>`，与宿主在同一干净上下文内执行，不额外占用审查代理。
 2. **全新独立维度**：写 `extends: standalone`，仅当当前内置维度确实都不承担最终判断责任时使用。
 
-不要省略 `extends` 让调度器猜测正文语义。自定义 `name` 也不要与内置名称重名，避免来源标注含糊。
-
-## Frontmatter schema
-
-**必填：**
-
-- `name`：kebab-case，必须等于文件名；
-- `best_for`：一句话说明此项目规则最适合发现什么；
-- `extends`：当前 `deep-review` 注册的一个内置名称，或 `standalone`；
-- `trigger`：当前 `deep-review` 路由表支持的触发条件；
-- `reasoning`：`flagship` 或 `workhorse`；
-- `tools`：申请的最大权限，默认 `[Read, Grep, Glob]`，确需运行只读验证再加 `Bash`；实际执行仍取主编排安全策略与运行时限制的交集；
-- `value`：说明它比宿主通用检查多防住什么项目风险。
-
-**可选：**
-
-- `effort`：只有项目规则确实需要覆盖默认投入时设置，不把模型名写死。
-
-补充型审查者的 trigger 与宿主 trigger 取并集：任一命中都会运行宿主与项目补充。
+不要省略 `extends` 让调度器猜测正文语义。新建的 `name` 避免与内置名称重名；历史同名项按共享协议兼容，不为命名风格迁移合法规则。
 
 ## 流程
 
@@ -69,25 +50,11 @@ description: "当用户要求创建自定义审查者、添加项目专属审查
 
 ### 4. 写入文件
 
-定位根目录并创建目录：
-
-```bash
-repo_root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
-mkdir -p "$repo_root/docs/rules/review"
-```
-
-按 `references/template.md` 写入 `<仓库根>/docs/rules/review/<name>.md`。正文用项目对话语言，frontmatter 键保持模板格式。所有项目审查者都继承主代理数据包中的统一 Reviewer Output Contract，不得改变核心章节或列。补充型审查者删除模板里的维度输出要求，继承宿主审查者的输出契约并由主编排追加项目来源；只有 `extends: standalone` 保留该节，用于补充本维度在单元格中必须说明的证据。
+用 `git rev-parse --show-toplevel` 定位仓库根，非 git 仓库回退当前目录。按规则适用范围选择仓库根或对应子包的 `docs/rules/review/`，与发现路径一致；范围明确时直接选择，只有跨作用域责任不清时询问。按 [模板](references/template.md) 写入所选目录的 `<name>.md`。正文用项目对话语言，frontmatter 键保持模板格式。所有项目审查者都继承主代理数据包中的统一 Reviewer Output Contract，不得改变核心章节或列。补充型审查者删除模板里的维度输出要求，继承宿主审查者的输出契约并由主编排追加项目来源；只有 `extends: standalone` 保留该节，用于补充本维度在单元格中必须说明的证据。
 
 ### 5. 验证
 
-- YAML frontmatter 能解析，所有必填字段存在；
-- `name` 与文件名一致，`extends` 指向合法宿主或 `standalone`；
-- `best_for` 与 `value` 非空，`reasoning` 为 `flagship` 或 `workhorse`；
-- `trigger` 符合当前 `deep-review` 协议，检测表与它一致；
-- `tools` 只包含 `Read`、`Grep`、`Glob`、`Bash` 且至少包含 `Read`；
-- 引用的项目文件和命令存在；
-- 有边界场景时，用相应差异手工走查；
-- 运行仓库中针对项目审查者协议的测试或校验器。
+有现成协议校验器或相关测试时运行；没有时解析 YAML frontmatter，按共享协议检查必填与可选字段、合法宿主、触发标签及工具权限，并验证引用路径、命令和适用边界样例。不要为了创建一个规则搭建测试框架。工具申请默认 `[Read, Grep, Glob]`，确需只读验证才加 `Bash`；实际权限仍取主编排策略与运行时限制的交集。
 
 返回文件路径、定位、触发条件和验证证据。
 

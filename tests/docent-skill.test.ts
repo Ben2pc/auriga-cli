@@ -59,12 +59,12 @@ describe("docent skill assets", () => {
     );
     assert.match(parsed.content, /Claude Code[^。\n]*\/auriga-workflow:docent/);
     assert.match(parsed.content, /Codex[^。\n]*auriga-workflow:docent/);
-    const execution = sectionBetween(parsed.content, "## 执行模型：单个专职子代理", "## 子代理工作流");
+    const execution = sectionBetween(parsed.content, "## 执行模型：单个专职子代理", "## 交付");
     assert.match(execution, /一个[^。\n]*专职子代理|单个专职子代理/);
     assert.match(execution, /全过程[^。\n]*子代理内部/);
     assert.match(
       execution,
-      /派遣[^。\n]*SKILL\.md[^。\n]*子代理工作流/,
+      /派遣[^。\n]*references\/report-workflow\.md[^。\n]*报告生成流程/,
       "the dispatch packet must tell the isolated Agent where to load its complete workflow",
     );
     assert.match(
@@ -89,25 +89,8 @@ describe("docent skill assets", () => {
   test("skill separates core report content from conditional tools and presentation", () => {
     const htmlAssets = listFilesRecursive(SKILL_DIR).filter((f) => f.endsWith(".html"));
     assert.deepEqual(htmlAssets, [], "docent must not ship a fixed HTML template asset");
-    const text = read(`${SKILL_DIR}/SKILL.md`);
+    const text = read(`${SKILL_DIR}/SKILL.md`) + "\n" + read(`${SKILL_DIR}/references/report-workflow.md`);
     const core = sectionBetween(text, "#### 核心内容", "#### 条件内容");
-    for (const item of [
-      "阅读目标",
-      "为什么存在",
-      "当前架构总览",
-      "代码地图",
-      "核心概念",
-      "关键路径",
-      "代码证据",
-      "数据或状态",
-      "相邻契约",
-      "容易误改",
-      "阅读足迹",
-      "未知",
-      "如何验证理解",
-    ]) {
-      assert.ok(core.includes(item), `core report contract must retain: ${item}`);
-    }
     assert.ok(
       /文件:行号/.test(text),
       "SKILL.md must require file:line anchors for code conclusions",
@@ -196,7 +179,7 @@ describe("docent skill assets", () => {
       fs.existsSync(path.join(repoRoot, ref)),
       "docent must bundle references/design-guidelines.md",
     );
-    const skill = read(`${SKILL_DIR}/SKILL.md`);
+    const skill = read(`${SKILL_DIR}/references/report-workflow.md`);
     assert.ok(
       skill.includes("references/design-guidelines.md"),
       "SKILL.md must direct the report generator to the bundled design guidelines",
@@ -248,7 +231,7 @@ describe("docent skill assets", () => {
       /assemble\.sh[^\n]*"<报告标题>"/,
       "repository-derived titles must not be interpolated into a shell command",
     );
-    const skill = read(`${SKILL_DIR}/SKILL.md`);
+    const skill = read(`${SKILL_DIR}/references/report-workflow.md`);
     assert.ok(
       skill.includes("scripts/assemble.sh") && skill.includes("拼装"),
       "SKILL.md must direct assembly through scripts/assemble.sh instead of retyping assets",

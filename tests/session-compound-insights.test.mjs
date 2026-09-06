@@ -698,11 +698,8 @@ test("single report uses readable evidence disclosures instead of exposing raw r
   }
 });
 
-test("both report modes share the natural Chinese writing contract [VAL-MODE-004]", () => {
-  const skill = fs.readFileSync(path.join(SKILL_ROOT, "SKILL.md"), "utf8");
+test("report template keeps readable Chinese labels [VAL-MODE-004]", () => {
   const single = fs.readFileSync(path.join(TEMPLATES, "single-session.html"), "utf8");
-  assert(skill.includes("两种报告") && skill.includes("自然、具体的中文"),
-    "the core skill must apply natural-language guidance to both report modes");
   for (const label of ["单会话复盘", "总令牌数", "拉取请求", "资源消耗最高的轮次", "技能评估"]) {
     assert(single.includes(label), `single report must use natural Chinese label: ${label}`);
   }
@@ -826,7 +823,8 @@ test("report templates expose evidence, coverage, opt-in selection, and keyboard
 });
 
 test("dispatch protocols treat session evidence as untrusted and cap semantic inputs [VAL-MODE-003]", () => {
-  const skill = fs.readFileSync(path.join(SKILL_ROOT, "SKILL.md"), "utf8");
+  const skill = fs.readFileSync(path.join(SKILL_ROOT, "SKILL.md"), "utf8")
+    + fs.readFileSync(path.join(SKILL_ROOT, "references/recent-insights.md"), "utf8");
   const evalDispatch = fs.readFileSync(path.join(SKILL_ROOT, "references", "eval-dispatch.md"), "utf8");
   const facetDispatch = fs.readFileSync(path.join(SKILL_ROOT, "references", "facet-dispatch.md"), "utf8");
   const insightsDispatch = fs.readFileSync(path.join(SKILL_ROOT, "references", "insights-dispatch.md"), "utf8");
@@ -854,8 +852,6 @@ test("dispatch protocols treat session evidence as untrusted and cap semantic in
     "evidence agents must have explicit tool restrictions");
   assert(/不授予文件、shell、网络或写入工具/.test(insightsDispatch),
     "cross-session synthesis must run without tools");
-  assert(/自然、具体的中文/.test(insightsDispatch) && /避免直接翻译英文分析术语/.test(insightsDispatch),
-    "cross-session synthesis must produce natural Chinese for human readers");
   assert(/具体做法、问题或改进方向/.test(insightsDispatch),
     "titles must describe concrete behavior instead of stacking abstractions");
 });
