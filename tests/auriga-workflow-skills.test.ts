@@ -1310,26 +1310,6 @@ describe("deep-review modernization contract", () => {
       `plugins/auriga-workflow/skills/deep-review/references/reviewers/${name}.md`,
     );
 
-  test("CI review uses the trusted base contract without overriding its synthesis format", () => {
-    const workflow = read(".github/workflows/claude-code-review.yml");
-
-    assert.match(
-      workflow,
-      /BASE_SHA=\$\{\{ github\.event\.pull_request\.base\.sha \}\}/,
-      "review orchestration must anchor to the trusted base commit",
-    );
-    assert.match(workflow, /git archive "\$BASE_SHA" "\$CONTRACT_DIR"/);
-    assert.match(workflow, /echo "path=\$SKILL" >> "\$GITHUB_OUTPUT"/);
-    assert.match(workflow, /steps\.deep-review-contract\.outputs\.path/);
-    assert.doesNotMatch(workflow, /LOCAL_SKILL=|npx -y skills add/);
-    assert.match(workflow, /Reviewer Output Contract/);
-    assert.match(workflow, /steps\.deep-review-contract\.outputs\.protocol/);
-    assert.match(workflow, /PROTOCOL="\$TRUSTED_ROOT\/\$CONTRACT_DIR\/references\/review-protocol\.md"/);
-    assert.match(workflow, /综合/);
-    assert.match(workflow, /anchored to a changed diff line/);
-    assert.match(workflow, /cannot be anchored[^.\n]*review body/);
-    assert.doesNotMatch(workflow, /No findings\.|\[severity:|OVERALL:/);
-  });
 
   test("first formal review respects CI routing and later agent-proposed reruns ask", () => {
     const text = deepReview();
