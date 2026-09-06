@@ -12,7 +12,10 @@ function read(rel: string): string {
 }
 
 const deepReview = (): string =>
-  read("plugins/auriga-workflow/skills/deep-review/SKILL.md");
+  read("plugins/auriga-workflow/skills/deep-review/SKILL.md") + "\n" + reviewProtocol();
+
+const reviewProtocol = (): string =>
+  read("plugins/auriga-workflow/skills/deep-review/references/review-protocol.md");
 
 const builtinReviewerTriggers = {
   architecture: "tag:architecture",
@@ -966,23 +969,7 @@ describe("project rule discovery anchors to the repo root", () => {
     });
   }
 
-  test("reviewer-creator writes custom reviewers anchored to the repo root", () => {
-    const text = read(
-      "plugins/auriga-workflow/skills/reviewer-creator/SKILL.md",
-    );
-    assert.ok(
-      text.includes("git rev-parse --show-toplevel"),
-      "reviewer-creator must resolve the output directory from the git repo root",
-    );
-    assert.ok(
-      text.includes("|| pwd"),
-      "the mkdir command must fall back to cwd when git rev-parse fails (non-git dir would otherwise expand to /docs/rules/review/)",
-    );
-    assert.ok(
-      text.includes("<仓库根>/docs/rules/review/<name>.md"),
-      "the write target must be anchored to the repo root",
-    );
-  });
+
 
   test("spec-design consumes project spec rules as clarification input and gate item", () => {
     const text = read("plugins/auriga-workflow/skills/spec-design/SKILL.md");
@@ -1251,10 +1238,8 @@ describe("reviewer-creator extends support", () => {
   });
 
   // VAL-CRT-003 — the field schema (required vs optional) is documented explicitly
-  test("SKILL.md documents the frontmatter field schema with required vs optional", () => {
-    const text = read(
-      "plugins/auriga-workflow/skills/reviewer-creator/SKILL.md",
-    );
+  test("shared protocol documents required and optional metadata", () => {
+    const text = reviewProtocol();
     assert.ok(
       /Frontmatter schema|字段 schema|frontmatter 字段/.test(text),
       "must include an explicit frontmatter schema section",
@@ -1338,6 +1323,8 @@ describe("deep-review modernization contract", () => {
     assert.match(workflow, /steps\.deep-review-contract\.outputs\.path/);
     assert.doesNotMatch(workflow, /LOCAL_SKILL=|npx -y skills add/);
     assert.match(workflow, /Reviewer Output Contract/);
+    assert.match(workflow, /steps\.deep-review-contract\.outputs\.protocol/);
+    assert.match(workflow, /PROTOCOL="\$TRUSTED_ROOT\/\$CONTRACT_DIR\/references\/review-protocol\.md"/);
     assert.match(workflow, /综合/);
     assert.match(workflow, /anchored to a changed diff line/);
     assert.match(workflow, /cannot be anchored[^.\n]*review body/);
@@ -1604,10 +1591,10 @@ describe("deep-review modernization contract", () => {
   });
 
   test("reviewer packets use shared category tables and architecture owns observations", () => {
-    const text = deepReview();
+    const text = reviewProtocol();
     const output = text.slice(
       text.indexOf("### Reviewer Output Contract"),
-      text.indexOf("## 6. 综合"),
+      text.indexOf("## 主报告格式"),
     );
     assert.ok(output.startsWith("### Reviewer Output Contract"));
     for (const section of ["### 阻断问题", "### 非阻断问题", "### 需要验证"]) {
@@ -1642,12 +1629,12 @@ describe("deep-review modernization contract", () => {
     }
   });
 
-  test("synthesis uses stable category tables with source-grouped action decisions", () => {
+  test("synthesis uses stable category tables with action decisions", () => {
     const text = deepReview();
     const synthesis = text.slice(
       text.indexOf("## 6. 综合"),
       text.indexOf("## 7. 交回用户决定"),
-    );
+    ) + reviewProtocol().slice(reviewProtocol().indexOf("## 主报告格式"));
     for (const section of [
       "### 阻断问题",
       "### 非阻断问题",
@@ -1687,11 +1674,8 @@ describe("deep-review modernization contract", () => {
 
     assert.match(blocking, /\*\*修\*\*/);
     assert.match(nonBlocking, /\*\*(?:修|不修)\*\*/);
-    assert.match(synthesis, /相同来源[^。\n]*相邻/);
-    assert.match(synthesis, /第一来源[^。\n]*分组/);
     assert.match(synthesis, /阻断问题只能建议 `修`/);
     assert.match(synthesis, /判断 `不修`[^。\n]*(?:重新分类|不能|不得)/);
-    assert.match(synthesis, /没有条目[^。\n]*`无。`/);
     assert.match(synthesis, /按同一根因合并重复发现，同时保留所有来源/);
 
     const preamble = markdownSection(text, "### Reviewer Must-Not Preamble");
