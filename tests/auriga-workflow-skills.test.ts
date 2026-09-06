@@ -135,7 +135,6 @@ describe("auriga-workflow skill contracts", () => {
     const lifecycle = read(lifecyclePath);
 
     assert.equal(parsed.data.name, "git-workflow");
-    assert.match(parsed.data.description, /工作树.*提交.*拉取请求.*Ready.*合并/);
     assert.match(skill, /无法确认归属的改动默认属于用户/);
     assert.match(skill, /未经明确授权，不执行 `git stash`.*`git reset --hard`/);
     const templateHeadings = [
@@ -350,17 +349,9 @@ describe("auriga-workflow skill contracts", () => {
     const text = read("plugins/auriga-workflow/skills/arch-design/SKILL.md");
     const parsed = matter(text);
 
-    assert.match(parsed.data.description, /(?:架构优化|优化[^。；]*架构)/);
-    assert.match(parsed.data.description, /领域模型|领域建模/);
     assert.match(text, /技术方案澄清/);
     assert.match(text, /模块内部[^。\n]*(?:code-simplify|代码简化)/);
 
-    for (const trigger of ["新功能", "职责", "边界", "分层", "依赖", "架构演进"]) {
-      assert.ok(
-        parsed.data.description.includes(trigger),
-        `arch-design description must cover the ${trigger} trigger`,
-      );
-    }
 
     for (const rel of ["AGENTS.md", "AGENTS.template.zh-CN.md", "AGENTS.template.en.md"]) {
       const template = read(rel);

@@ -1,6 +1,6 @@
 ---
 name: reviewer-creator
-description: "当用户要求创建自定义审查者、添加项目专属审查者、扩展 deep-review，或调用 /reviewer-creator 时使用；在 docs/rules/review/ 下生成结构规范的审查者文件。"
+description: 用户要求创建或修改项目专属审查者、扩展审查维度，或调用 /reviewer-creator 时使用。
 ---
 
 # Reviewer Creator
