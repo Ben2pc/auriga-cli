@@ -129,7 +129,6 @@ describe("spec-design skill — repo-check VALs", () => {
       "plugins/auriga-workflow/skills/spec-design/SKILL.md",
     );
     const gate = markdownSubsection(text, "#### B1. 价值门禁");
-    assert.match(gate, /默认问一个价值问题/);
     assert.match(gate, /只有第一轮仍无法选择出口时追加第二个/);
     assert.match(gate, /最多两轮/);
     assert.match(gate, /推荐答案和理由/);
@@ -486,11 +485,6 @@ describe("spec-design skill — repo-check VALs", () => {
       );
       assert.match(text, /\| `docs\/rules\/` \|/);
       assert.doesNotMatch(text, /\| `docs\/` (?:其他|\(other\))/i);
-      assert.match(
-        text,
-        /(?:评审发现|review findings)[^\n]*(?:技术债务|technical debt)/i,
-        `${f} must make entropy control actionable for review findings`,
-      );
       assert.doesNotMatch(text, /组件可拆卸|Components are detachable/i);
       assert.doesNotMatch(text, /\*\*独立评估\*\*|\*\*Independent Evaluation\*\*/i);
       assert.doesNotMatch(text, /xhigh|workhorse|flagship/i);

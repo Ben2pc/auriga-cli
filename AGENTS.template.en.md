@@ -1,5 +1,5 @@
 <!-- AURIGA:WORKFLOW:v1 START — Managed block, maintained by auriga-cli. Do not edit by hand; upgrades replace it wholesale. Put project-specific instructions after the END marker below. -->
-# auriga Workflow (v1.25.0)
+# auriga Workflow (v1.25.1)
 
 1. Requirement clarification: For new or changed externally observable behavior, use `spec-design` first to judge value and align the goal from actual code and product evidence. **spec = why + observable what; arch design = structural how; plan = implementation steps**. A change that preserves the external behavior contract may skip the spec but can still need architecture clarification.
 
@@ -42,14 +42,14 @@ Repo documentation lives under `docs/`, one directory per purpose:
 - **Enforce constraints via mechanisms, not prompts**: core rules belong in linters / CI / type systems / hooks.
 - **Keep durable facts in the repository**: current facts, plans, and design decisions needed across sessions must live in versioned assets that Agents can access.
 - **Keep durable references self-contained**: Code comments and Agent instruction documents must not cite identifiers from spec documents, such as `VAL-*`, clause numbers, slice numbers, or decision numbers, because spec artifacts may be archived or deleted. Use a concise description of the underlying requirement that remains meaningful without the source spec.
-- **Continuously fight entropy**: when deciding how to handle review findings, pay down small, certain, low-risk technical debt without expanding the current change's scope.
+- **Continuously fight entropy**: when handling review findings, allow low-risk local cleanup that is directly necessary for the current change, preserves behavior, and has a known impact. Independently deliverable refactoring expands scope; propose it without implementing it unless authorized.
 - **Layer context, load on demand**: a rule belongs to the scope it actually governs; keep the root `AGENTS.md` to global rules and an index. A subpackage, or a directory with its own toolchain and conventions, maintains its own `AGENTS.md` plus a `CLAUDE.md -> AGENTS.md` compatibility symlink. Runtimes differ in how much of a sub-scope they auto-load, so anything pushed down must also be pointed at by a one-line index in the parent `AGENTS.md` — never assume it will be read automatically. See `documentation-management` for the layering criteria.
 
 ## Agent Dispatch Principles
 
 - The current Agent handles simple, clear work; prefer runtime-native subagents for independent read-only tasks.
 - For multiple writers, use `incremental-impl` to define file ownership, dependencies, integration order, and isolation. Parallel writers use separate worktrees or fully disjoint directories.
-- Use an external Agent only when the user explicitly requests a separate process or the task genuinely needs a cross-model, context-clean perspective.
+- Default to the current runtime's internal Agent tools. Use an external Agent only when the user explicitly authorizes invoking another command-line Agent. Differences in internal model availability, cross-model needs, or fresh-context needs do not authorize external invocation; report a capability gap when internal tools cannot meet the need instead of switching to another command-line Agent on your own.
 - Dispatch with an explicit result, scope, verification method, and output contract. Choose model and reasoning effort by task risk, overriding them only when the runtime supports it.
 
 <!-- AURIGA:WORKFLOW:v1 END -->
