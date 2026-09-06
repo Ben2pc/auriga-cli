@@ -52,7 +52,7 @@ Repo documentation lives under `docs/`, one directory per purpose:
 ## Agent Dispatch Principles
 
 - The current Agent handles simple tasks, shared state, and sequential decisions; delegate independent work only when it saves time or improves quality.
-- For multiple writers, use `incremental-impl` to define file ownership, dependencies, integration order, and isolation. Parallel writers use separate worktrees or fully disjoint directories.
+- For multiple writers, use `incremental-impl` to define file ownership, dependencies, integration order, and isolation. Prefer separate worktrees for parallel writes; sharing a worktree requires verifying both file ownership and shared-state isolation through that skill.
 - Default to internal Agent tools. Invoking an external command-line Agent requires explicit user authorization, even when internal models or capabilities are insufficient.
 - Specify inputs, scope, outputs, and completion criteria when delegating; the primary Agent verifies key evidence and coverage. Select models and reasoning effort by task risk and runtime capabilities.
 
