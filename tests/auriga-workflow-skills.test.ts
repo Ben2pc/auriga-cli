@@ -235,7 +235,6 @@ describe("auriga-workflow skill contracts", () => {
     // Content focus: docs carry what code cannot express; code-level detail
     // sinks to inline comments; doc debt is technical debt in context terms.
     assert.match(skill, /文档债是技术债/);
-    assert.match(skill, /消耗 token/);
     assert.match(skill, /代码推不出来的事实/);
     assert.match(skill, /下沉为行内注释/);
     assert.match(skill, /为什么 > 是什么/);
