@@ -7,7 +7,7 @@
 
 | 验收要求 | 当前状态 | 结果引用与缺口 |
 |---|---|---|
-| `VAL-INSTALLATION-001` 新安装只生成原生入口 | 待复验 | 文件系统集成测试通过；待远端分支端到端安装复验 |
+| `VAL-INSTALLATION-001` 新安装只生成原生入口 | 通过 | 文件系统集成测试与远端分支 tarball 端到端安装均通过 |
 | `VAL-MIGRATION-001` Auriga 旧入口安全退场 | 通过 | 两代旧形态迁移与当前兼容软链移除测试通过 |
 | `VAL-SAFETY-001` 用户 Claude 指令不被覆盖 | 通过 | 真实文件与外国软链保持测试通过 |
 | `VAL-COMPATIBILITY-001` 历史形态保持可识别可卸载 | 通过 | 状态与卸载回归包含在根测试 549/549 中 |
@@ -24,4 +24,4 @@
 - `npm --prefix ui test`：6 个测试文件、75 项测试通过。
 - Claude Code 与 Codex 的 `quick_validate.py`：`documentation-management` skill 均通过。
 - `git diff --check`：通过。
-- `npm run test:e2e`：待当前提交推送远端后执行。
+- `npm run test:e2e`：4 项通过，0 项失败；包含 tarball 安装后只生成 `AGENTS.md` 的真实文件验收。
