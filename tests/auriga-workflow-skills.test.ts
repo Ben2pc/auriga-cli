@@ -1392,6 +1392,12 @@ describe("deep-review modernization contract", () => {
     assert.match(text, /可以[^。\n]*不选择[^。\n]*(?:内置|专门)[^。\n]*审查者/);
     assert.match(text, /零个[^。\n]*审查者[^。\n]*(?:不属于|不视为)[^。\n]*审查缺口/);
     assert.match(text, /选择依据/);
+    assert.match(text, /新增行数不超过 400 行/);
+    assert.match(text, /包括指导子代理/);
+    assert.match(text, /不能通过选择零个[^。]*绕过/);
+    assert.match(text, /通用审查代理/);
+    assert.match(text, /完整读取[^。]*正文/);
+    assert.match(text, /删除行数[^。]*抵扣/);
   });
 
   test("risk surfaces nominate candidates without mechanically dispatching them", () => {
