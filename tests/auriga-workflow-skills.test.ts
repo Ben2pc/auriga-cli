@@ -1605,7 +1605,13 @@ describe("deep-review modernization contract", () => {
 
   test("skill and plugin review covers context engineering of instruction assets", () => {
     const text = reviewer("skill-plugin-quality");
-    // The four reportable finding classes for instruction entry points.
+    for (const boundary of ["触发失准", "过度规定", "授权与完成", "代表性请求", "规则目录", "索引的文档", "必要的安全、兼容性和权限边界"]) {
+      assert.ok(text.includes(boundary), `missing instruction review boundary: ${boundary}`);
+    }
+    assert.match(text, /原文位置[^。]*适用场景[^。]*行为偏差[^。]*影响/);
+    assert.match(text, /缺少行为证据[^。]*需要验证/);
+    assert.match(text, /不因字数、步骤数/);
+    // Preserve the existing context checks alongside behavior-level review.
     assert.match(text, /分层错位/);
     assert.match(text, /披露失败/);
     assert.match(text, /内容焦点/);
