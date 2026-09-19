@@ -1069,7 +1069,7 @@ export const LEGACY_MENU_CHOICES: ReadonlyArray<{
 }> = [
   {
     value: "preset",
-    name: "Recommended preset — AGENTS.md/CLAUDE.md + workflow skills + auriga-workflow plugin (scope user · agent both · lang zh-CN)",
+    name: "Recommended preset — AGENTS.md + workflow skills + auriga-workflow plugin (scope user · agent both · lang zh-CN)",
     checked: true,
   },
   {

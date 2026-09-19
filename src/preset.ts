@@ -3,7 +3,7 @@
 // installPreset —— 「推荐预设安装」的单一编排入口。
 //
 // 预设由三部分组成,按下面的顺序安装:
-//   1. workflow 文档 (AGENTS.md + CLAUDE.md 兼容软链)
+//   1. workflow 文档 (AGENTS.md)
 //   2. 工作流 skill (WORKFLOW_SKILLS 全集 —— installSkills 自身已限定)
 //   3. auriga-workflow 插件
 //
@@ -81,7 +81,7 @@ export async function installPreset(
 /**
  * 安装 `--preset` 中除 workflow 文档以外的成员。
  *
- * 用于已经手工维护 AGENTS.md / CLAUDE.md、但仍想拿到预设 skills 和
+ * 用于已经手工维护项目指令、但仍想拿到预设 skills 和
  * auriga-workflow 插件的项目。
  */
 export async function installPresetPluginsSkills(

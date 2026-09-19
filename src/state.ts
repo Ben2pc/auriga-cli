@@ -31,7 +31,7 @@ import { parse as parseToml } from "smol-toml";
 
 import { hasAurigaHeader, parseMarkers } from "./workflow-markers.js";
 import {
-  WORKFLOW_COMPAT_FILE,
+  LEGACY_WORKFLOW_FILE,
   WORKFLOW_PRIMARY_FILE,
 } from "./workflow-docs.js";
 
@@ -277,7 +277,7 @@ function workflowPathsForScope(scope: ScanScope, projectRoot: string, home: stri
   // user scope when projectRoot === HOME.
   return [
     path.join(projectRoot, WORKFLOW_PRIMARY_FILE),
-    path.join(projectRoot, WORKFLOW_COMPAT_FILE),
+    path.join(projectRoot, LEGACY_WORKFLOW_FILE),
   ];
 }
 
@@ -289,7 +289,10 @@ function workflowForeignWarningCode(filePath: string): "workflow-foreign-agentsm
 
 function workflowForeignWarningMessage(filePath: string): string {
   const name = path.basename(filePath);
-  return `Foreign ${name} detected at the workflow path — no auriga-workflow header. Install will preserve existing content or link intent before replacing the workflow path.`;
+  if (name === LEGACY_WORKFLOW_FILE) {
+    return "Foreign CLAUDE.md detected at the legacy workflow path — no auriga-workflow header. Install leaves it unchanged and writes AGENTS.md separately; Claude Code may keep preferring CLAUDE.md.";
+  }
+  return `Foreign ${name} detected at the workflow path — no auriga-workflow header. Install preserves its content or link intent before replacing the AGENTS.md workflow path.`;
 }
 
 function readFirstWorkflowCandidate(candidates: string[]): { content: string; filePath: string } | null {

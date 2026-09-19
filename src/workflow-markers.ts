@@ -7,8 +7,8 @@
 // it. This lets a downstream project extend its AGENTS.md while still
 // receiving workflow upgrades.
 //
-// Markers are HTML comments so both Claude Code and Codex (which read the same
-// file via the CLAUDE.md → AGENTS.md symlink) treat them as inert.
+// Markers are HTML comments so both Claude Code and Codex, which can read
+// AGENTS.md directly, treat them as inert.
 //
 // This module is the single source of truth for the marker contract; it is
 // imported by both src/workflow.ts (install / upgrade) and src/state.ts

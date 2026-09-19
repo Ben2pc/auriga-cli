@@ -4,6 +4,7 @@
 > **Date**: 2026-04-21
 > **Issue**: [#28](https://github.com/Ben2pc/auriga-cli/issues/28)
 > **Breaking change**: 否（minor bump，见 §6）
+> **Historical note**: 本文保留最初的非交互安装设计，默认工作流文件形态已演进；当前行为以根 README、`docs/architecture/auriga-cli-dev-guide.md` 和实现测试为准。
 
 ## 1. 背景与动机
 

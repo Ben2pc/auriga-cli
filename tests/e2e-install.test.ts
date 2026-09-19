@@ -267,7 +267,7 @@ describe(
       assert.ok(tarballPath && fs.existsSync(tarballPath), "tarball not packed");
     });
 
-    test("install workflow → AGENTS.md primary + CLAUDE.md symlink land in the project", { timeout: TIMEOUT }, () => {
+    test("install workflow → AGENTS.md is the only default instruction file", { timeout: TIMEOUT }, () => {
       const proj = setupProject(tarballPath!);
       const r = runCli(proj, ["install", "workflow"]);
       assert.equal(
@@ -286,10 +286,7 @@ describe(
       );
 
       const claudeMd = path.join(proj, "CLAUDE.md");
-      assert.ok(fs.existsSync(claudeMd), `CLAUDE.md missing at ${claudeMd}`);
-      const lst = fs.lstatSync(claudeMd);
-      assert.ok(lst.isSymbolicLink(), "CLAUDE.md should be a symlink to AGENTS.md");
-      assert.equal(fs.readlinkSync(claudeMd), "AGENTS.md");
+      assert.equal(fs.existsSync(claudeMd), false, "workflow install should not create CLAUDE.md");
     });
 
     test(

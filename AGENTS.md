@@ -1,5 +1,5 @@
 <!-- AURIGA:WORKFLOW:v1 START — 受管区块,由 auriga-cli 维护,请勿手改;升级会整块覆盖。工程专属规则写在下方 END 标记之后。 -->
-# auriga 工作流 (v1.25.1)
+# auriga 工作流 (v1.26.0)
 
 按用户请求确定完成条件并持续推进：调研交付证据与建议，设计交付可审查方案，实现包含必要修复与验证；待评审、合并和部署以授权范围为准。状态询问或要求纠正不终止原任务，明确停止除外。
 
@@ -47,7 +47,7 @@
 - **仓库保存长期事实**：需要跨会话使用的当前事实、计划和设计决定必须存在于 Agent 可访问的版本化资产中。
 - **长期引用保持自足**：代码注释和指令以简洁原意描述需求，不引用可能归档或删除的规格编号。
 - **持续对抗熵增**：处理评审发现时，可完成当前修改直接必要、行为不变且影响确定的低风险局部整理；独立重构须另获授权。
-- **上下文分层，按需加载**：根 `AGENTS.md` 只放全局规则和索引；独立子包维护自己的 `AGENTS.md` 与 `CLAUDE.md -> AGENTS.md`。运行时加载范围不一致，父级须有单行索引。分层和产物处置时读取 `documentation-management`。
+- **上下文分层，按需加载**：根 `AGENTS.md` 只放全局规则和索引；独立子包维护自己的 `AGENTS.md`。父级须有单行索引，帮助不支持原生分层发现的运行时定位子级规则。分层和产物处置时读取 `documentation-management`。
 
 ## Agent 分发原则
 
@@ -60,15 +60,15 @@
 
 先给结论与影响，再给必要证据；技术解释匹配用户背景。因技能暂停时指出具体文件和规则，说明适用原因，区分明确要求与自身判断。
 
-<!-- AURIGA:WORKFLOW:v1 END sha256=eb62e19a857ea40e -->
+<!-- AURIGA:WORKFLOW:v1 END sha256=6ff0cfae5632cfed -->
 
 <!-- 在下方添加你的工程专属规则。上方受管区块由 auriga-cli 维护,升级时整块替换;此处内容会被保留。 -->
 
 # auriga-cli 工程专属规则
 
-这个仓库是一个带有 auriga Workflow 的示例项目：受管工作流区块放在最前面，仓库专属规则写在 END 标记下面。根目录的 `CLAUDE.md` 指向这个文件。
+这个仓库是一个带有 auriga Workflow 的示例项目：受管工作流区块放在最前面，仓库专属规则写在 END 标记下面。根目录直接使用 `AGENTS.md`，不再默认创建 `CLAUDE.md` 兼容软链。
 
-`auriga-cli` 是一个用于安装 workflow docs、skills、recommended skills 和 plugins 的 Interactive CLI。产品工作流模板位于根目录，文件名是 `AGENTS.template.zh-CN.md` 和 `AGENTS.template.en.md`；它们会安装到用户项目中，生成 `AGENTS.md` 以及 `CLAUDE.md -> AGENTS.md`。
+`auriga-cli` 是一个用于安装 workflow docs、skills、recommended skills 和 plugins 的 Interactive CLI。产品工作流模板位于根目录，文件名是 `AGENTS.template.zh-CN.md` 和 `AGENTS.template.en.md`；它们会安装为用户项目的 `AGENTS.md`。
 
 完整的开发者指南位于 `docs/architecture/auriga-cli-dev-guide.md`。这个根文件应尽量只保留可执行的仓库指令和示例安装形态。
 

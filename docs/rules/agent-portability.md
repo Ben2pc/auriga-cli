@@ -14,7 +14,7 @@ auriga-cli 的技能和插件要服务使用**不同编码 Agent** 的同事。�
 
 4. **把功能归因到某个 Agent 之前先核实。** 共有功能不可误标 —— 例如 `/goal` 在 Claude Code 和 Codex 都内建,"Claude Code 内建的 /goal" 是错的。
 
-5. **项目指令文件优先写成 `AGENTS.md`,必要时再补 `CLAUDE.md` 兼容入口。** Codex 原生项目可能只带 `AGENTS.md`;只写 `CLAUDE.md` 会让指令在那种项目里找不到文件。
+5. **项目指令默认只写 `AGENTS.md`,必要时再补 `CLAUDE.md` 兼容入口。** Claude Code 2.1.277 起可以原生读取 `AGENTS.md`;仅当目标会话无法获得该能力,或确有 Claude 专属指令时才增加 `CLAUDE.md`。只写 `CLAUDE.md` 会让其他宿主找不到指令。
 
 6. **散文里不枚举 Agent。** "粘回 Claude / Codex" 会随第三个 Agent 的出现而过期 —— 写 "the Agent"。
 

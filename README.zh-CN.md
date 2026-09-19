@@ -44,11 +44,11 @@ npx -y auriga-cli
 非交互安装命令：
 
 ```bash
-npx -y auriga-cli install --preset           # 工作流核心:AGENTS.md/CLAUDE.md
+npx -y auriga-cli install --preset           # 工作流核心:AGENTS.md
                                              #   + 工作流 skill + auriga-workflow 插件
                                              #   (默认:scope user、agent both、lang zh-CN)
 npx -y auriga-cli install --preset-plugins-skills
-                                             # 跳过 AGENTS.md/CLAUDE.md,只装预设 skill + auriga-workflow 插件
+                                             # 跳过 AGENTS.md,只装预设 skill + auriga-workflow 插件
                                              #   (默认:scope user、agent both)
 npx -y auriga-cli install --all              # 全装:workflow + skills + recommended + plugins
 npx -y auriga-cli install recommended        # 只装可选工具 skills
@@ -57,7 +57,7 @@ npx -y auriga-cli install <type> [--flags]   # 单类:workflow | skills | recomm
 npx -y auriga-cli --help                     # 完整 catalog + flag 说明
 ```
 
-`--preset` 是原子标志 —— 不能与 `<type>` 或任何过滤标志同时使用,但可带 `--scope`、`--agent`、`--lang`(预设默认 `user` / `both` / `zh-CN`,与分类安装的默认不同)。如果项目已经有自己的 `AGENTS.md / CLAUDE.md`,用 `--preset-plugins-skills` 只安装同一组预设 skills 和 `auriga-workflow` 插件,不触碰 workflow 文档。
+`--preset` 是原子标志 —— 不能与 `<type>` 或任何过滤标志同时使用,但可带 `--scope`、`--agent`、`--lang`(预设默认 `user` / `both` / `zh-CN`,与分类安装的默认不同)。如果项目已经有自己的指令文件,用 `--preset-plugins-skills` 只安装同一组预设 skills 和 `auriga-workflow` 插件,不触碰 `AGENTS.md`。
 
 退出码：`0` 成功；`1` 致命错误（前置检查 / 解析 / 拉取失败）；`2` 部分成功——`stderr` 会列出逐类 `[OK]/[FAIL]` 和 `Retry:` 提示。装完后请重启 Agent 会话，让新的 `AGENTS.md` / skills / plugins / hook 插件注册生效。
 
@@ -83,7 +83,7 @@ npx auriga-cli
 
 ```
 ? Select what to install:
-  ◉ Recommended preset — AGENTS.md/CLAUDE.md + workflow skills + auriga-workflow plugin
+  ◉ Recommended preset — AGENTS.md + workflow skills + auriga-workflow plugin
   ◯ Optional skills — opt-in utility skills (frontend-design, design-taste-frontend...)
   ◯ Other plugins — everything except auriga-workflow (auriga-notify, skill-creator, codex...)
 ```
@@ -94,10 +94,11 @@ npx auriga-cli
 
 ### Workflow
 
-将 `AGENTS.md` 安装到目标项目，并创建 `CLAUDE.md` 软链接以兼容 Claude Code。默认安装中文版本，英文可通过 `--lang en` 显式选择。
+将 `AGENTS.md` 作为目标项目唯一的默认工作流指令文件。默认安装中文版本，英文可通过 `--lang en` 显式选择。
 
 - **可扩展、可升级**：auriga 工作流被一对 `<!-- AURIGA:WORKFLOW:v1 START/END -->` 标记包成「受管区块」。把你的工程专属规则写在 END 标记**之后**——再次安装只就地升级受管区块,你的内容原样保留。
-- 旧版本装下的、无标记的 `CLAUDE.md` 会在下次安装时安全迁移到新的 `AGENTS.md` 主文件形态,旧文件备份到 `CLAUDE.md.bak`。别的工具生成的 `AGENTS.md` 或 `CLAUDE.md` 会作为用户区保留在全新受管区块下方。
+- 旧版本装下的、无标记的 Auriga `CLAUDE.md` 会在下次安装时安全迁移到 `AGENTS.md`,旧文件备份到 `CLAUDE.md.bak`;上一版 `CLAUDE.md -> AGENTS.md` 兼容软链会被移除。别的工具生成的 `AGENTS.md` 仍作为用户区保留;用户自有的 `CLAUDE.md` 或外国软链保持原样并给出提示。
+- Claude Code 2.1.277 及以上版本会在当前目录及祖先没有项目级 `CLAUDE.md` / `CLAUDE.local.md` 时原生读取 `AGENTS.md`。旧版本和拿不到 Anthropic 功能开关的会话（包括部分第三方模型提供商或关闭遥测的会话）仍需显式兼容入口：在同目录 `CLAUDE.md` 中写入 `@AGENTS.md`（Windows 推荐），或创建 `CLAUDE.md -> AGENTS.md`，然后新开会话确认指令已加载。详见 [Claude Code 项目记忆文档](https://code.claude.com/docs/en/memory#agents-md)。
 - 涵盖：需求澄清、TDD、代码 Review、分支工作流、Subagent 编排
 
 ### Skills

@@ -814,7 +814,7 @@ export default function Dashboard(): JSX.Element {
     );
     if (workflowUninstall !== undefined) {
       const first = window.confirm(
-        "Uninstall workflow? This deletes AGENTS.md and the CLAUDE.md symlink from the current project.",
+        "Uninstall workflow? This deletes AGENTS.md and any Auriga-owned legacy CLAUDE.md entry from the current project.",
       );
       if (!first) return;
       const second = window.confirm(

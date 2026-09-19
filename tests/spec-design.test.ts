@@ -494,13 +494,13 @@ describe("spec-design skill — repo-check VALs", () => {
   const LAYERING_ANCHORS: Record<string, RegExp[]> = {
     "zh-CN": [
       /根 `AGENTS\.md`[^\n]*全局规则[^\n]*索引/,
-      /子包[^\n]*`AGENTS\.md`[^\n]*`CLAUDE\.md -> AGENTS\.md`/,
-      /运行时[^\n]*不一致[^\n]*单行索引/,
+      /独立子包[^\n]*自己的 `AGENTS\.md`/,
+      /父级[^\n]*单行索引[^\n]*不支持原生分层发现/,
     ],
     en: [
       /root `AGENTS\.md`[^\n]*global rules[^\n]*index/i,
-      /subpackage[^\n]*`AGENTS\.md`[^\n]*`CLAUDE\.md -> AGENTS\.md`/i,
-      /[Rr]untimes differ[^\n]*one-line index/,
+      /independent subpackage[^\n]*own `AGENTS\.md`/i,
+      /parent[^\n]*one-line index[^\n]*without native layered discovery/i,
     ],
   };
 
