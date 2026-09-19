@@ -48,7 +48,7 @@ const plugins = [
   },
   {
     name: "quality-gate-scaffolder",
-    version: "0.2.2",
+    version: "0.2.3",
     hasHooks: false,
     nativeManifests: [
       ".claude-plugin/plugin.json",

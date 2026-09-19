@@ -395,6 +395,26 @@ describe("scanState — #4 Workflow / project scope happy path", () => {
     assert.equal(report.workflow.status, "not-installed");
     assert.equal((report.workflow as any).observedScope, "project");
   });
+
+  test("project AGENTS.md symlink does not expose a CLAUDE.md workflow", async () => {
+    const home = makeScratch("home4claudelink");
+    redirectHome(home);
+    const proj = makeScratch("proj4claudelink");
+    writeWorkflowFile(path.join(proj, "CLAUDE.md"), "1.6.0");
+    fs.symlinkSync("CLAUDE.md", path.join(proj, "AGENTS.md"));
+
+    const report = await scan(proj, makeCatalog(), {
+      scopes: { workflow: "project" },
+      homeDir: home,
+    });
+
+    assert.equal(report.workflow.status, "not-installed");
+    assert.equal((report.workflow as any).observedScope, "project");
+    assert.ok(
+      report.warnings.some((warning: StateWarning) => warning.code === "workflow-foreign-agentsmd"),
+      "the foreign AGENTS.md symlink should be reported without reading its target",
+    );
+  });
 });
 
 // ===========================================================================

@@ -83,7 +83,7 @@
 - `plugins/auriga-workflow/` 负责 workflow skills 和 git 生命周期钩子。
 - `plugins/session-instructions-loader/` 负责 Codex SessionStart 的祖先指令注入。
 - 不含 Hook 的自有插件可用 `plugins/<name>/plugin.json` 提供 Agent Plugins 1.0.0 根 `plugin.json`，标准组件只从固定的 `skills/` 与 `mcp.json` 发现。当前包含 Hook 的插件暂时不提供根 `plugin.json`，避免 Codex 选择标准入口后跳过 `hooks/hooks.json`；这些插件保留适用的 `.claude-plugin/plugin.json`、`.codex-plugin/plugin.json`、`.cursor-plugin/plugin.json` 和宿主专属 Hook 路径。
-- `.codex/session-instructions-loader.json` 在这个仓库里有意设置为 `{ "ancestorLevel": 1 }`；不要重新加回 `.claude/CLAUDE.md` 的额外注入。
+- `.codex/session-instructions-loader.json` 在这个仓库里有意设置为 `{ "ancestorLevel": 1 }`；SessionStart 不额外注入项目指令文件。
 - `.claude/` 只保留本地设置和外部 skill 的符号链接。不要在其中复制项目指令。
 - `ui/` 是独立工具链的 Web UI 子项目，规则见 `ui/AGENTS.md`；改动该目录前先读它。
 

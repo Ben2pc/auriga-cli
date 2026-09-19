@@ -1218,6 +1218,17 @@ test("claude analyzer does not fall back to cwd CLAUDE.md [VAL-SUB-002]", () => 
   assertEqual(wr.length, 0, "CLAUDE.md is outside the project workflow parser scope");
 });
 
+test("claude analyzer does not follow cwd AGENTS.md symlink to CLAUDE.md [VAL-SUB-002]", () => {
+  const cwd = writeCwdDir("claude-link", null);
+  fs.writeFileSync(path.join(cwd, "CLAUDE.md"), managedAgentsMd(["linked legacy rules must be ignored"]));
+  fs.symlinkSync("CLAUDE.md", path.join(cwd, "AGENTS.md"));
+  const file = writeClaudeFixtureWithCwd("wr-claude-link", [claudeUser("go", T0)], cwd);
+  const out = runAnalyzerArgs(CLAUDE, ["--file", file], { cwd });
+  const wr = pickWorkflowRules(out);
+  assert(Array.isArray(wr), "workflow_rules must exist as an empty array");
+  assertEqual(wr.length, 0, "the project workflow parser must not follow instruction symlinks");
+});
+
 // ---------------------------------------------------------------------
 // VAL-SUB-003 — workflow_signals is a NEUTRAL facts object (no verdicts):
 // git_branch / on_main / had_code_edit / first_edit_ts / prs_count /

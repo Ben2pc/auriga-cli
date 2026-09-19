@@ -189,9 +189,11 @@ const END_LINE_RE = /^<!--\s*AURIGA:WORKFLOW:v1\s+END(?:\s+sha256=([0-9a-f]+))?[
 // managed block — never throws.
 export function parseWorkflowRules(cwd) {
   if (!cwd) return []
+  const agentsPath = path.join(cwd, 'AGENTS.md')
   let content = null
   try {
-    content = fs.readFileSync(path.join(cwd, 'AGENTS.md'), 'utf8')
+    if (fs.lstatSync(agentsPath).isSymbolicLink()) return []
+    content = fs.readFileSync(agentsPath, 'utf8')
   } catch {
     // no project workflow file
   }

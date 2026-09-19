@@ -231,6 +231,9 @@ describe("installWorkflow — unrelated instruction files", () => {
     assert.equal(fs.readFileSync(claudePath, "utf-8"), foreign);
     const parsed = parseMarkers(fs.readFileSync(path.join(cwd, "AGENTS.md"), "utf-8"));
     assert.equal(parsed.kind, "marked");
+    if (parsed.kind === "marked") {
+      assert.equal(parsed.userRegion, DEFAULT_USER_REGION, "CLAUDE.md content must not be migrated");
+    }
     assert.deepEqual(listBackups(cwd), [], "CLAUDE.md is outside the workflow installer scope");
     assert.doesNotMatch(warnings, /CLAUDE\.md/);
   });
@@ -377,7 +380,11 @@ describe("installWorkflow — AGENTS.md-only ownership", () => {
 
     assert.equal(fs.readlinkSync(claudePath), "shared.md");
     assert.equal(fs.existsSync(path.join(cwd, "CLAUDE.md.bak")), false);
-    assert.equal(parseMarkers(fs.readFileSync(path.join(cwd, "AGENTS.md"), "utf-8")).kind, "marked");
+    const parsed = parseMarkers(fs.readFileSync(path.join(cwd, "AGENTS.md"), "utf-8"));
+    assert.equal(parsed.kind, "marked");
+    if (parsed.kind === "marked") {
+      assert.equal(parsed.userRegion, DEFAULT_USER_REGION, "linked CLAUDE.md content must not be migrated");
+    }
     assert.doesNotMatch(warnings, /CLAUDE\.md/);
   });
 

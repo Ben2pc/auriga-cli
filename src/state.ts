@@ -262,11 +262,11 @@ function aggregateStatus(
 // Workflow
 // ---------------------------------------------------------------------------
 
-function workflowPathsForScope(scope: ScanScope, projectRoot: string, home: string): string[] {
+function workflowPathForScope(scope: ScanScope, projectRoot: string, home: string): string {
   if (scope === "user") {
-    return [path.join(home, ".claude", "CLAUDE.md")];
+    return path.join(home, ".claude", "CLAUDE.md");
   }
-  return [path.join(projectRoot, WORKFLOW_PRIMARY_FILE)];
+  return path.join(projectRoot, WORKFLOW_PRIMARY_FILE);
 }
 
 function workflowForeignWarningCode(filePath: string): "workflow-foreign-agentsmd" | "workflow-foreign-claudemd" {
@@ -283,31 +283,34 @@ function workflowForeignWarningMessage(filePath: string): string {
   return `Foreign ${name} detected at the workflow path — no auriga-workflow header. Install preserves its content or link intent before replacing the AGENTS.md workflow path.`;
 }
 
-function readFirstWorkflowCandidate(candidates: string[]): { content: string; filePath: string } | null {
-  for (const candidate of candidates) {
-    try {
-      return { content: fs.readFileSync(candidate, "utf8"), filePath: candidate };
-    } catch {
-      // try next candidate
-    }
-  }
-  return null;
-}
-
 function scanWorkflow(
   scope: ScanScope,
   projectRoot: string,
   home: string,
   warnings: StateWarning[],
 ): WorkflowState {
-  const candidates = workflowPathsForScope(scope, projectRoot, home);
-  const workflowFile = readFirstWorkflowCandidate(candidates);
+  const filePath = workflowPathForScope(scope, projectRoot, home);
 
-  if (workflowFile === null) {
-    return { status: "not-installed", observedScope: scope };
+  if (scope === "project") {
+    try {
+      if (fs.lstatSync(filePath).isSymbolicLink()) {
+        warnings.push({
+          code: workflowForeignWarningCode(filePath),
+          message: workflowForeignWarningMessage(filePath),
+        });
+        return { status: "not-installed", observedScope: scope };
+      }
+    } catch {
+      return { status: "not-installed", observedScope: scope };
+    }
   }
 
-  const { content, filePath } = workflowFile;
+  let content: string;
+  try {
+    content = fs.readFileSync(filePath, "utf8");
+  } catch {
+    return { status: "not-installed", observedScope: scope };
+  }
 
   // "Is this our workflow instruction file?" — two recognizable shapes:
   //   - managed-block markers (the current install format). The START marker

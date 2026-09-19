@@ -125,7 +125,8 @@ export async function installWorkflow(
   // always replaced with the packaged version; the cases differ in how the
   // project's own content (the user region) is preserved or backed up.
   if (!currentPath) {
-    // 1. Fresh install — write the marked template as-is, no backup.
+    // 1. No readable regular primary file. A missing file is written directly;
+    //    a foreign symlink is backed up and replaced by writePrimary.
     writePrimary(
       composeMarkedFile({ blockBody: sourceBlock, userRegion: templateUserRegion, lang }),
     );
