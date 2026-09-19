@@ -192,7 +192,13 @@ describe("auriga-workflow skill contracts", () => {
     assert.match(skill, /先确定消费者/);
     assert.match(skill, /区分 Agent 资料与 Agent 指令/);
     assert.match(skill, /工程资料沿用各自的文档结构/);
-    assert.match(skill, /只有提示词、项目规则或标准操作流程（SOP）[^。]*才按目标/);
+    assert.match(skill, /`docs\/rules\/`[^。]*均按指令管理/);
+    assert.match(skill, /被 `AGENTS\.md` 或规则文件索引[^。]*均按指令管理/);
+    for (const principle of ["触发与加载", "执行自由度", "授权与完成", "重复验证", "代表性任务", "不同模型"]) {
+      assert.ok(skill.includes(principle), `instruction optimization must cover ${principle}`);
+    }
+    assert.match(skill, /不把所有链接解释为无条件必读/);
+    assert.match(skill, /不是每次文档维护都要跑完的固定流程/);
     for (const contract of [
       "目标",
       "成功标准",
@@ -260,9 +266,8 @@ describe("auriga-workflow skill contracts", () => {
     assert.match(goalify, /归档用 `documentation-management` 执行[^。\n]*不直接移动文件/);
     const archDesign = read("plugins/auriga-workflow/skills/arch-design/SKILL.md");
     assert.match(archDesign, /晋升与归档用 `documentation-management` 执行[^。\n]*不直接移动文件/);
-    assert.match(standards, /架构文档、接口契约、schema、ADR 等资料[^。]*不套用提示词结构/);
-    assert.match(standards, /仅对提示词、项目规则和标准操作流程等行为指令/);
-    assert.match(skill, /docs-sync[^。\n]*独立审查/);
+    assert.match(standards, /指令范围与优化方法[^。]*SKILL\.md/);
+    assert.match(skill, /审查维度与执行方式[^。]*`deep-review`/);
     assert.doesNotMatch(skill, /常见的自我辩解|危险信号/);
 
     for (const heading of [
