@@ -1073,11 +1073,22 @@ describe("deep-review custom-reviewer explicit protocol", () => {
     );
   });
 
-  test("extension trigger can activate its host", () => {
+  test("project always remains mandatory while tag matches only nominate candidates", () => {
     const text = deepReview();
-    assert.ok(
-      /宿主默认条件或任一项目扩展[^]*?命中[^]*?运行宿主/.test(text),
-      "host and extension triggers must be combined",
+    assert.match(
+      text,
+      /项目审查者[^。\n]*`trigger: always`[^。\n]*(?:必须|强制)[^。\n]*执行/,
+      "project-owned always reviewers must remain mandatory",
+    );
+    assert.match(
+      text,
+      /项目审查者[^。\n]*`trigger: tag:<标签>`[^。\n]*候选/,
+      "tag-matched project reviewers must be candidates instead of mandatory dispatches",
+    );
+    assert.doesNotMatch(
+      text,
+      /宿主默认条件或任一项目扩展[^]*?命中[^]*?运行宿主/,
+      "tag matching must no longer force the host packet to run",
     );
   });
 
@@ -1241,12 +1252,12 @@ describe("reviewer-creator extends support", () => {
     assert.match(text.match(/\*\*可选：\*\*[\s\S]*?(?:##|$)/)?.[0] ?? "", /effort/);
   });
 
-  // VAL-REV-004 — deep-review owns the current registry and routing vocabulary
+  // VAL-REV-004 — deep-review owns the current registry and selection vocabulary
   test("reviewer-creator reads the current deep-review protocol instead of duplicating its registry", () => {
     const text = read(
       "plugins/auriga-workflow/skills/reviewer-creator/SKILL.md",
     );
-    assert.match(text, /deep-review[^。\n]*(?:路由表|元数据协议|注册表)/);
+    assert.match(text, /deep-review[^。\n]*(?:候选表|选择表|元数据协议|注册表)/);
     assert.doesNotMatch(text, /内置名称：/);
     for (const trigger of Object.values(builtinReviewerTriggers)) {
       assert.ok(
@@ -1270,11 +1281,12 @@ describe("reviewer-creator extends support", () => {
     assert.match(template, /没有[^。\n]*(?:真实|必要)[^。\n]*删除本节/);
   });
 
-  test("reviewer-creator uses only mechanically routable triggers", () => {
+  test("reviewer-creator preserves mandatory always and candidate tag semantics", () => {
     const text = read(
       "plugins/auriga-workflow/skills/reviewer-creator/SKILL.md",
     );
-    assert.doesNotMatch(text, /detection-driven/);
+    assert.match(text, /`always`[^。\n]*(?:必须|强制)[^。\n]*(?:执行|检查)/);
+    assert.match(text, /`tag:<标签>`[^。\n]*候选/);
   });
 
   // VAL-REV-005 — project reviewers keep dimension rules without changing the shared envelope
@@ -1374,7 +1386,15 @@ describe("deep-review modernization contract", () => {
     assert.match(execution, /持续集成[^。\n]*证据/);
   });
 
-  test("routing uses risk surfaces instead of a trivial/non-trivial split", () => {
+  test("the main agent owns the complete review and specialist reviewers are optional", () => {
+    const text = deepReview();
+    assert.match(text, /主代理[^。\n]*(?:完整|全面)[^。\n]*审查/);
+    assert.match(text, /可以[^。\n]*不选择[^。\n]*(?:内置|专门)[^。\n]*审查者/);
+    assert.match(text, /零个[^。\n]*审查者[^。\n]*(?:不属于|不视为)[^。\n]*审查缺口/);
+    assert.match(text, /选择依据/);
+  });
+
+  test("risk surfaces nominate candidates without mechanically dispatching them", () => {
     const text = deepReview();
     for (const signal of [
       "executable-behavior",
@@ -1387,20 +1407,22 @@ describe("deep-review modernization contract", () => {
       assert.ok(text.includes(`\`${signal}\``), `missing signal ${signal}`);
     }
     assert.match(text, /新增普通文件本身不等于架构变化/);
-    assert.match(text, /生产代码或测试变化时触发|`executable-behavior` 或 `tests`/);
+    assert.match(text, /标签[^。\n]*(?:候选|提示)/);
+    assert.match(text, /命中[^。\n]*不强制[^。\n]*(?:执行|分派)/);
     for (const [reviewer, trigger] of Object.entries(builtinReviewerTriggers)) {
       const row = text
         .split("\n")
         .find((line) => line.startsWith(`| \`${reviewer}\` |`));
-      assert.ok(row, `missing routing row for ${reviewer}`);
+      assert.ok(row, `missing candidate row for ${reviewer}`);
       const expectedSignals = trigger === "tag:executable-behavior-or-tests"
         ? ["`executable-behavior`", "`tests`"]
-        : [trigger === "always" ? "始终执行" : `\`${trigger.slice(4)}\``];
+        : [trigger === "always" ? "通用候选" : `\`${trigger.slice(4)}\``];
       assert.ok(
         expectedSignals.every((signal) => row.includes(signal)),
-        `${reviewer} must keep routing trigger ${trigger}`,
+        `${reviewer} must keep candidate signal ${trigger}`,
       );
     }
+    assert.doesNotMatch(text, /\| `(?:spec-conformance|docs-sync)` \| 始终执行 \|/);
   });
 
   test("correctness owns edge and failure behavior and robustness is retired", () => {
