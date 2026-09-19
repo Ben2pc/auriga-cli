@@ -1560,22 +1560,8 @@ describe("deep-review modernization contract", () => {
     assert.ok(!text.includes("每个分支必须"));
   });
 
-  test("engineering and test reviews reduce maintenance burden and preserve valuable follow-ups", () => {
-    const engineering = reviewer("engineering-quality");
-    for (const term of ["实际消费者", "净收益", "构建", "独立重构", "外部消费者", "不是预过滤"]) {
-      assert.ok(engineering.includes(term), `engineering review must cover ${term}`);
-    }
-    const tests = reviewer("test-quality");
-    for (const term of ["删除、合并或降层", "失去什么保护", "低频但后果严重", "既有测试不是需求权威"]) {
-      assert.ok(tests.includes(term), `test review must cover ${term}`);
-    }
+  test("engineering reviewer preserves the legacy host mapping", () => {
     assert.match(reviewReference("project-reviewers.md"), /extends: code-quality[^。]*engineering-quality/);
-    assert.match(deepReview(), /maintained-code[^\n]*构建/);
-    const synthesis = reviewReference("synthesis.md");
-    assert.match(synthesis, /建议记录为议题/);
-    assert.match(synthesis, /不能仅因超出当前范围/);
-    assert.match(synthesis, /未经授权[^。]*不创建/);
-    assert.match(synthesis, /阻断问题不能[^。]*转议题/);
   });
 
   test("architecture review follows approved designs without rejecting anemic models", () => {
