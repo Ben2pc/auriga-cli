@@ -14,9 +14,12 @@ function read(rel: string): string {
 const deepReview = (): string =>
   read("plugins/auriga-workflow/skills/deep-review/SKILL.md");
 
+const reviewReference = (file: string): string =>
+  read(`plugins/auriga-workflow/skills/deep-review/references/${file}`);
+
 const builtinReviewerTriggers = {
   architecture: "tag:architecture",
-  "code-quality": "tag:maintained-code",
+  "engineering-quality": "tag:maintained-code",
   correctness: "tag:executable-behavior",
   "docs-sync": "always",
   performance: "tag:performance-sensitive",
@@ -189,7 +192,13 @@ describe("auriga-workflow skill contracts", () => {
     assert.match(skill, /先确定消费者/);
     assert.match(skill, /区分 Agent 资料与 Agent 指令/);
     assert.match(skill, /工程资料沿用各自的文档结构/);
-    assert.match(skill, /只有提示词、项目规则或标准操作流程（SOP）[^。]*才按目标/);
+    assert.match(skill, /`docs\/rules\/`[^。]*均按指令管理/);
+    assert.match(skill, /被 `AGENTS\.md` 或规则文件索引[^。]*均按指令管理/);
+    for (const principle of ["触发与加载", "执行自由度", "授权与完成", "重复验证", "代表性任务", "不同模型"]) {
+      assert.ok(skill.includes(principle), `instruction optimization must cover ${principle}`);
+    }
+    assert.match(skill, /不把所有链接解释为无条件必读/);
+    assert.match(skill, /不是每次文档维护都要跑完的固定流程/);
     for (const contract of [
       "目标",
       "成功标准",
@@ -257,9 +266,8 @@ describe("auriga-workflow skill contracts", () => {
     assert.match(goalify, /归档用 `documentation-management` 执行[^。\n]*不直接移动文件/);
     const archDesign = read("plugins/auriga-workflow/skills/arch-design/SKILL.md");
     assert.match(archDesign, /晋升与归档用 `documentation-management` 执行[^。\n]*不直接移动文件/);
-    assert.match(standards, /架构文档、接口契约、schema、ADR 等资料[^。]*不套用提示词结构/);
-    assert.match(standards, /仅对提示词、项目规则和标准操作流程等行为指令/);
-    assert.match(skill, /docs-sync[^。\n]*独立审查/);
+    assert.match(standards, /指令范围与优化方法[^。]*SKILL\.md/);
+    assert.match(skill, /审查维度与执行方式[^。]*`deep-review`/);
     assert.doesNotMatch(skill, /常见的自我辩解|危险信号/);
 
     for (const heading of [
@@ -875,7 +883,7 @@ describe("auriga-workflow skill contracts", () => {
         anchors: ["归档快照", "精简或删除"],
       },
       {
-        file: "code-quality.md",
+        file: "engineering-quality.md",
         section: "Audience tiers",
         anchors: ["低受众代码", "机制优先"],
       },
@@ -910,7 +918,7 @@ describe("auriga-workflow skill contracts", () => {
 describe("project rule discovery anchors to the repo root", () => {
   const ruleConsumers: Array<{ rel: string; area: string; label: string }> = [
     {
-      rel: "plugins/auriga-workflow/skills/deep-review/SKILL.md",
+      rel: "plugins/auriga-workflow/skills/deep-review/references/project-reviewers.md",
       area: "docs/rules/review/",
       label: "deep-review",
     },
@@ -1003,7 +1011,7 @@ describe("project rule discovery anchors to the repo root", () => {
 
 describe("deep-review custom-reviewer explicit protocol", () => {
   test("custom reviewers declare a host or standalone explicitly", () => {
-    const text = deepReview();
+    const text = reviewReference("project-reviewers.md");
     assert.ok(
       text.includes("extends: <内置审查者名>"),
       "SKILL.md must require an explicit built-in host",
@@ -1015,7 +1023,7 @@ describe("deep-review custom-reviewer explicit protocol", () => {
   });
 
   test("hosted custom content is delivered as a project supplement", () => {
-    const text = deepReview();
+    const text = reviewReference("project-reviewers.md");
     assert.ok(
       text.includes("项目专属补充"),
       "absorbed custom content must be labelled as a project-specific supplement",
@@ -1027,7 +1035,7 @@ describe("deep-review custom-reviewer explicit protocol", () => {
   });
 
   test("standalone custom reviewer remains an independent dimension", () => {
-    const text = deepReview();
+    const text = reviewReference("project-reviewers.md");
     assert.ok(
       text.includes("独立维度"),
       "SKILL.md must describe a standalone reviewer as an independent dimension",
@@ -1039,7 +1047,7 @@ describe("deep-review custom-reviewer explicit protocol", () => {
   });
 
   test("invalid metadata becomes a review gap instead of semantic guessing", () => {
-    const text = deepReview();
+    const text = reviewReference("project-reviewers.md");
     assert.ok(
       text.includes("不做正文语义猜测"),
       "the orchestrator must not infer a host from the reviewer body",
@@ -1066,23 +1074,34 @@ describe("deep-review custom-reviewer explicit protocol", () => {
   });
 
   test("name collision does not silently choose a host", () => {
-    const text = deepReview();
+    const text = reviewReference("project-reviewers.md");
     assert.ok(
       /重名[^]*?显式声明/.test(text),
       "a name collision must still require an explicit declaration",
     );
   });
 
-  test("extension trigger can activate its host", () => {
-    const text = deepReview();
-    assert.ok(
-      /宿主默认条件或任一项目扩展[^]*?命中[^]*?运行宿主/.test(text),
-      "host and extension triggers must be combined",
+  test("project always remains mandatory while tag matches only nominate candidates", () => {
+    const text = reviewReference("project-reviewers.md");
+    assert.match(
+      text,
+      /项目审查者[^。\n]*`trigger: always`[^。\n]*(?:必须|强制)[^。\n]*执行/,
+      "project-owned always reviewers must remain mandatory",
+    );
+    assert.match(
+      text,
+      /项目审查者[^。\n]*`trigger: tag:<标签>`[^。\n]*候选/,
+      "tag-matched project reviewers must be candidates instead of mandatory dispatches",
+    );
+    assert.doesNotMatch(
+      text,
+      /宿主默认条件或任一项目扩展[^]*?命中[^]*?运行宿主/,
+      "tag matching must no longer force the host packet to run",
     );
   });
 
   test("absorbed findings preserve the project reviewer source", () => {
-    const text = deepReview();
+    const text = reviewReference("project-reviewers.md");
     assert.ok(
       /\(宿主名 \/ 项目审查者名\)/.test(text),
       "findings from project supplements must preserve their source",
@@ -1095,27 +1114,27 @@ describe("deep-review custom-reviewer explicit protocol", () => {
   });
 
   test("project reviewer instructions come from the trusted base", () => {
-    const text = deepReview();
+    const text = reviewReference("project-reviewers.md");
     assert.match(text, /基准分支[^。\n]*(?:可信|信任)/);
     assert.match(text, /新增或修改[^。\n]*项目审查者[^。\n]*(?:不执行|不能执行)/);
     assert.match(text, /作为[^。\n]*(?:差异|审查对象)/);
   });
 
-  // VAL-OVL-008 — Extends: standalone is a sentinel that forces independent dispatch
-  test("Extends: standalone forces independent dispatch", () => {
-    const text = deepReview();
+  test("extends standalone defines a separate dimension without overriding executor eligibility", () => {
+    const text = reviewReference("project-reviewers.md");
     assert.ok(
       text.includes("extends: standalone") || text.includes("`standalone`"),
       "SKILL.md must recognize the standalone sentinel value of extends",
     );
     assert.ok(
-      /standalone[^]*?独立[^]*?分派/.test(text),
-      "Extends: standalone must force the custom reviewer to dispatch independently",
+      /extends: standalone[^。\n]*独立维度/.test(text),
+      "standalone must define a dimension outside built-in coverage",
     );
+    assert.match(deepReview(), /项目 `trigger: always`[^。\n]*执行方式仍按第 5 节决定/);
   });
 
   test("missing Extends is rejected instead of absorbed by default", () => {
-    const text = deepReview();
+    const text = reviewReference("project-reviewers.md");
     assert.ok(
       /缺失(?:、|或)非法[^]*?extends/.test(text),
       "missing or invalid extends must be called out",
@@ -1128,6 +1147,28 @@ describe("deep-review custom-reviewer explicit protocol", () => {
 });
 
 describe("deep-review dispatch delivery", () => {
+  test("conditional references remain discoverable and report formats load only for their consumers", () => {
+    const entry = deepReview();
+    for (const file of ["project-reviewers.md", "reviewer-output.md", "synthesis.md"]) {
+      assert.ok(entry.includes(`references/${file}`), `missing reference route: ${file}`);
+      assert.ok(reviewReference(file).trim().length > 0);
+    }
+    assert.ok(!entry.includes("## Reviewer Result:"));
+    assert.ok(!entry.includes("## Deep Review: PR #"));
+    assert.match(entry, /执行者[^。\n]*读取[^。\n]*reviewer-output/);
+    assert.match(entry, /完成条件/);
+    assert.match(entry, /可信基准与目标版本[^。\n]*docs\/rules\/review/);
+    assert.match(entry, /每个数据包[^。\n]*绝对路径[^。\n]*权限与信任限制/);
+    assert.match(entry, /待复用证据及其版本与覆盖范围/);
+    const creator = read("plugins/auriga-workflow/skills/reviewer-creator/SKILL.md");
+    assert.ok(creator.includes("../deep-review/references/project-reviewers.md"));
+    assert.ok(creator.includes("../deep-review/references/reviewer-output.md"));
+    assert.doesNotMatch(entry, /即使相同行以前通过过审查/);
+    assert.doesNotMatch(entry, /作为差异交给 `skill-plugin-quality` 审查/);
+    assert.doesNotMatch(reviewReference("reviewers/test-quality.md"), /发生变化时触发/);
+    assert.match(reviewReference("reviewers/correctness.md"), /不要求固定数量的路径/);
+  });
+
   // VAL-DISP-001 — reviewer content is self-read by the subagent via absolute path
   test("reviewer content is delivered by absolute-path self-read, not inlined through the main agent", () => {
     const text = deepReview();
@@ -1164,7 +1205,7 @@ describe("deep-review dispatch delivery", () => {
   });
 
   test("reviewers without frontmatter are reported as gaps without prose fallback", () => {
-    const text = deepReview();
+    const text = reviewReference("project-reviewers.md");
     assert.ok(
       /合法 YAML frontmatter/.test(text),
       "SKILL.md must require valid YAML frontmatter",
@@ -1228,7 +1269,7 @@ describe("reviewer-creator extends support", () => {
 
   // VAL-CRT-003 — the field schema (required vs optional) is documented explicitly
   test("shared protocol documents required and optional metadata", () => {
-    const text = deepReview();
+    const text = reviewReference("project-reviewers.md");
     assert.ok(
       /Frontmatter schema|字段 schema|frontmatter 字段/.test(text),
       "must include an explicit frontmatter schema section",
@@ -1241,12 +1282,12 @@ describe("reviewer-creator extends support", () => {
     assert.match(text.match(/\*\*可选：\*\*[\s\S]*?(?:##|$)/)?.[0] ?? "", /effort/);
   });
 
-  // VAL-REV-004 — deep-review owns the current registry and routing vocabulary
+  // VAL-REV-004 — deep-review owns the current registry and selection vocabulary
   test("reviewer-creator reads the current deep-review protocol instead of duplicating its registry", () => {
     const text = read(
       "plugins/auriga-workflow/skills/reviewer-creator/SKILL.md",
     );
-    assert.match(text, /deep-review[^。\n]*(?:路由表|元数据协议|注册表)/);
+    assert.match(text, /deep-review[^。\n]*(?:候选表|选择表|元数据协议|注册表)/);
     assert.doesNotMatch(text, /内置名称：/);
     for (const trigger of Object.values(builtinReviewerTriggers)) {
       assert.ok(
@@ -1270,11 +1311,12 @@ describe("reviewer-creator extends support", () => {
     assert.match(template, /没有[^。\n]*(?:真实|必要)[^。\n]*删除本节/);
   });
 
-  test("reviewer-creator uses only mechanically routable triggers", () => {
+  test("reviewer-creator preserves mandatory always and candidate tag semantics", () => {
     const text = read(
       "plugins/auriga-workflow/skills/reviewer-creator/SKILL.md",
     );
-    assert.doesNotMatch(text, /detection-driven/);
+    assert.match(text, /`always`[^。\n]*(?:必须|强制)[^。\n]*(?:执行|检查)/);
+    assert.match(text, /`tag:<标签>`[^。\n]*候选/);
   });
 
   // VAL-REV-005 — project reviewers keep dimension rules without changing the shared envelope
@@ -1374,7 +1416,21 @@ describe("deep-review modernization contract", () => {
     assert.match(execution, /持续集成[^。\n]*证据/);
   });
 
-  test("routing uses risk surfaces instead of a trivial/non-trivial split", () => {
+  test("the main agent owns the complete review and specialist reviewers are optional", () => {
+    const text = deepReview();
+    assert.match(text, /主代理[^。\n]*(?:完整|全面)[^。\n]*审查/);
+    assert.match(text, /可以[^。\n]*不选择[^。\n]*(?:内置|专门)[^。\n]*审查者/);
+    assert.match(text, /零个[^。\n]*审查者[^。\n]*(?:不属于|不视为)[^。\n]*审查缺口/);
+    assert.match(text, /选择依据/);
+    assert.match(text, /新增行数不超过 400 行/);
+    assert.match(text, /包括指导子代理/);
+    assert.match(text, /不能通过选择零个[^。]*绕过/);
+    assert.match(text, /通用审查代理/);
+    assert.match(text, /完整读取[^。]*正文/);
+    assert.match(text, /删除行数[^。]*抵扣/);
+  });
+
+  test("risk surfaces nominate candidates without mechanically dispatching them", () => {
     const text = deepReview();
     for (const signal of [
       "executable-behavior",
@@ -1387,20 +1443,22 @@ describe("deep-review modernization contract", () => {
       assert.ok(text.includes(`\`${signal}\``), `missing signal ${signal}`);
     }
     assert.match(text, /新增普通文件本身不等于架构变化/);
-    assert.match(text, /生产代码或测试变化时触发|`executable-behavior` 或 `tests`/);
+    assert.match(text, /标签[^。\n]*(?:候选|提示)/);
+    assert.match(text, /命中[^。\n]*不强制[^。\n]*(?:执行|分派)/);
     for (const [reviewer, trigger] of Object.entries(builtinReviewerTriggers)) {
       const row = text
         .split("\n")
         .find((line) => line.startsWith(`| \`${reviewer}\` |`));
-      assert.ok(row, `missing routing row for ${reviewer}`);
+      assert.ok(row, `missing candidate row for ${reviewer}`);
       const expectedSignals = trigger === "tag:executable-behavior-or-tests"
         ? ["`executable-behavior`", "`tests`"]
-        : [trigger === "always" ? "始终执行" : `\`${trigger.slice(4)}\``];
+        : [trigger === "always" ? "通用候选" : `\`${trigger.slice(4)}\``];
       assert.ok(
         expectedSignals.every((signal) => row.includes(signal)),
-        `${reviewer} must keep routing trigger ${trigger}`,
+        `${reviewer} must keep candidate signal ${trigger}`,
       );
     }
+    assert.doesNotMatch(text, /\| `(?:spec-conformance|docs-sync)` \| 始终执行 \|/);
   });
 
   test("correctness owns edge and failure behavior and robustness is retired", () => {
@@ -1502,6 +1560,10 @@ describe("deep-review modernization contract", () => {
     assert.ok(!text.includes("每个分支必须"));
   });
 
+  test("engineering reviewer preserves the legacy host mapping", () => {
+    assert.match(reviewReference("project-reviewers.md"), /extends: code-quality[^。]*engineering-quality/);
+  });
+
   test("architecture review follows approved designs without rejecting anemic models", () => {
     const text = reviewer("architecture");
     assert.match(text, /docs\/rules\/arch/);
@@ -1547,7 +1609,13 @@ describe("deep-review modernization contract", () => {
 
   test("skill and plugin review covers context engineering of instruction assets", () => {
     const text = reviewer("skill-plugin-quality");
-    // The four reportable finding classes for instruction entry points.
+    for (const boundary of ["触发失准", "过度规定", "授权与完成", "代表性请求", "规则目录", "索引的文档", "必要的安全、兼容性和权限边界"]) {
+      assert.ok(text.includes(boundary), `missing instruction review boundary: ${boundary}`);
+    }
+    assert.match(text, /原文位置[^。]*适用场景[^。]*行为偏差[^。]*影响/);
+    assert.match(text, /缺少行为证据[^。]*需要验证/);
+    assert.match(text, /不因字数、步骤数/);
+    // Preserve the existing context checks alongside behavior-level review.
     assert.match(text, /分层错位/);
     assert.match(text, /披露失败/);
     assert.match(text, /内容焦点/);
@@ -1561,11 +1629,7 @@ describe("deep-review modernization contract", () => {
   });
 
   test("reviewer packets use shared category tables and architecture owns observations", () => {
-    const text = deepReview();
-    const output = text.slice(
-      text.indexOf("### Reviewer Output Contract"),
-      text.indexOf("## 6. 综合"),
-    );
+    const output = reviewReference("reviewer-output.md");
     assert.ok(output.startsWith("### Reviewer Output Contract"));
     for (const section of ["### 阻断问题", "### 非阻断问题", "### 需要验证"]) {
       assert.ok(output.includes(section), `reviewer output must keep ${section}`);
@@ -1601,10 +1665,7 @@ describe("deep-review modernization contract", () => {
 
   test("synthesis uses stable category tables with action decisions", () => {
     const text = deepReview();
-    const synthesis = text.slice(
-      text.indexOf("## 6. 综合"),
-      text.indexOf("## 7. 交回用户决定"),
-    );
+    const synthesis = reviewReference("synthesis.md");
     for (const section of [
       "### 阻断问题",
       "### 非阻断问题",
@@ -1653,7 +1714,7 @@ describe("deep-review modernization contract", () => {
       "不按严重度或置信度预过滤",
       "不修改代码、创建问题、提交评论、批准设计",
       "不要编写补丁",
-      "必须重新检查本次差异",
+      "独立检查本轮分配的差异",
       "只对本维度有证据的问题下结论",
     ]) {
       assert.ok(preamble.includes(prohibition), `missing prohibition: ${prohibition}`);
