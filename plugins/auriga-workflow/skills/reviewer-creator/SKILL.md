@@ -17,7 +17,7 @@ description: 用户要求创建或修改项目专属审查者、扩展审查维�
 
 ## 读取当前协议
 
-创建前读取同一插件 [deep-review](../deep-review/SKILL.md) 的风险标签、项目审查者元数据协议和候选表，再按需要读取相关宿主；这些部分是当前协议的唯一信息源，无需读取其余正式评审流程。
+创建前读取同一插件 [deep-review](../deep-review/SKILL.md) 的风险标签和候选表，以及 [项目审查者元数据协议](../deep-review/references/project-reviewers.md) 和 [统一输出契约](../deep-review/references/reviewer-output.md)，再按需要读取相关宿主；这些部分是当前协议的唯一信息源，无需读取其余正式评审流程。
 每个项目审查者必须显式选择一种定位：
 
 1. **补充内置维度**：写 `extends: <内置名>`，与宿主由同一执行者完成，不额外占用审查代理；执行方式遵循 `deep-review` 的直接执行条件与独立上下文要求。
