@@ -19,7 +19,7 @@ value: "用项目规则和官方验证器发现代理扩展资产的结构缺陷
 
 按以下顺序获取规则：
 
-1. 当前仓库 `AGENTS.md` / `CLAUDE.md`、开发指南和项目测试；
+1. 当前仓库 `AGENTS.md`、开发指南和项目测试；
 2. 差异中固定的 schema、验证脚本或插件工具；
 3. 本机可用的官方技能验证器；
 4. 只有出现本地规则未覆盖的新字段、新事件或新平台能力时，才按需查询对应官方文档。
@@ -73,7 +73,7 @@ value: "用项目规则和官方验证器发现代理扩展资产的结构缺陷
 
 ## Checklist — instruction entry points
 
-Auriga 项目规范以 `AGENTS.md` 作为默认跨宿主指令入口，不要求同时存在 `CLAUDE.md`。只有目标 Claude Code 会话无法原生读取 `AGENTS.md`，或仓库确有 Claude 专属指令时，才保留 `CLAUDE.md` 兼容入口；若两者并存，检查默认优先级、导入关系和管理边界，避免复制两套会漂移的正文。
+Auriga 项目规范只使用 `AGENTS.md` 作为跨宿主项目指令入口，不保留替代入口、软链或重复正文。宿主专属配置只检查其专属边界，不把它当作项目规则入口。
 
 指令文件应作为导航而非百科全书，但只有实际造成发现、优先级或上下文问题时才报告体积。
 
@@ -112,14 +112,14 @@ python3 <validator> <SKILL.md 所在目录>
 | `**/agents/*` | 目标平台格式、描述与提示引用 |
 | hooks 配置 | 事件、匹配器、输入输出、脚本路径 |
 | `mcp.json`、`.mcp.json` 或 `mcpServers` | 标准或宿主传输与发现结构 |
-| `AGENTS.md`、`CLAUDE.md` | 默认入口、宿主专属内容与实际加载优先级 |
+| `AGENTS.md` | 项目指令入口、作用域与分层发现 |
 
 ## Worked scenarios
 
 1. Auriga 改了技能但只通过 Codex 验证器；Claude 验证器本机可用却未运行。报告验证证据不完整。
 2. 某 Claude 专属插件只有 `.claude-plugin/plugin.json`，项目没有宣称 Codex 支持。不因缺少 Codex 清单报告。
 3. 平台新增了本文件没列出的钩子事件。按需查官方文档；若合法，不把“缓存清单没有”作为目标差异缺陷。
-4. Auriga 根目录只有 `AGENTS.md`，目标 Claude Code 版本支持原生读取且没有项目级 `CLAUDE.md` 抑制发现。不报告缺少兼容入口。
+4. Auriga 根目录只有 `AGENTS.md`。这是预期形态，不报告缺少 `CLAUDE.md`。
 5. 某 Hook 插件仍提供根 `plugin.json`。按当前临时兼容边界报告，因为 Codex 可能选择标准入口并跳过原生 Hook；同时检查原生清单与 `hooks/hooks.json` 是否完整。
 
 ## Output contract

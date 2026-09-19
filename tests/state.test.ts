@@ -8,8 +8,7 @@
 // to Claude Code's *actual* install locations, per scope:
 //
 //   Workflow user      → ~/.claude/CLAUDE.md
-//   Workflow project   → <proj>/AGENTS.md  (primary)
-//                        <proj>/CLAUDE.md  (legacy fallback)
+//   Workflow project   → <proj>/AGENTS.md
 //   Skills user        → ~/.claude/skills/<name>/SKILL.md
 //   Skills project     → <proj>/.claude/skills/<name>/SKILL.md
 //   Plugins user       → `claude plugins list --user --json`
@@ -382,19 +381,18 @@ describe("scanState — #4 Workflow / project scope happy path", () => {
     assert.equal((report.workflow as any).observedScope, "project");
   });
 
-  test("VAL-SCAN-003: legacy AGENTS.md -> CLAUDE.md project install remains installed", async () => {
-    const home = makeScratch("home4legacy");
+  test("project CLAUDE.md alone is not treated as an installed workflow", async () => {
+    const home = makeScratch("home4claude");
     redirectHome(home);
-    const proj = makeScratch("proj4legacy");
+    const proj = makeScratch("proj4claude");
     writeWorkflowFile(path.join(proj, "CLAUDE.md"), "1.6.0");
-    fs.symlinkSync("CLAUDE.md", path.join(proj, "AGENTS.md"));
 
     const report = await scan(proj, makeCatalog(), {
       scopes: { workflow: "project" },
       homeDir: home,
     });
 
-    assert.equal(report.workflow.status, "installed");
+    assert.equal(report.workflow.status, "not-installed");
     assert.equal((report.workflow as any).observedScope, "project");
   });
 });

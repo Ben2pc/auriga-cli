@@ -46,13 +46,13 @@ describe("uninstallWorkflow", () => {
       path.join(cwd, "AGENTS.md"),
       composeMarkedFile({ blockBody: "# auriga Workflow (v1.9.0)\nbody\n" }),
     );
-    fs.symlinkSync("AGENTS.md", path.join(cwd, "CLAUDE.md"));
+    fs.writeFileSync(path.join(cwd, "CLAUDE.md"), "# unrelated\n");
     await uninstallWorkflow({ cwd, force: true });
     assert.equal(fs.existsSync(path.join(cwd, "AGENTS.md")), false);
-    assert.equal(fs.existsSync(path.join(cwd, "CLAUDE.md")), false);
+    assert.equal(fs.readFileSync(path.join(cwd, "CLAUDE.md"), "utf-8"), "# unrelated\n");
   });
 
-  test("legacy AGENTS.md -> CLAUDE.md install shape is removed", async () => {
+  test("an AGENTS.md symlink is preserved as foreign", async () => {
     const cwd = makeScratch("symlink");
     fs.writeFileSync(
       path.join(cwd, "CLAUDE.md"),
@@ -64,11 +64,8 @@ describe("uninstallWorkflow", () => {
 
     await uninstallWorkflow({ cwd, force: true });
 
-    // Both gone; no leftover dangling symlink
-    assert.equal(fs.existsSync(path.join(cwd, "CLAUDE.md")), false);
-    let lstatErr: NodeJS.ErrnoException | null = null;
-    try { fs.lstatSync(path.join(cwd, "AGENTS.md")); } catch (e) { lstatErr = e as NodeJS.ErrnoException; }
-    assert.equal(lstatErr?.code, "ENOENT");
+    assert.equal(fs.readlinkSync(path.join(cwd, "AGENTS.md")), "CLAUDE.md");
+    assert.equal(fs.existsSync(path.join(cwd, "CLAUDE.md")), true);
   });
 
   test("foreign AGENTS.md as a real file is preserved", async () => {
@@ -79,8 +76,8 @@ describe("uninstallWorkflow", () => {
     const logs: string[] = [];
     await uninstallWorkflow({ cwd, force: true, onLog: (l) => logs.push(l) });
 
-    // CLAUDE.md gone, foreign AGENTS.md preserved
-    assert.equal(fs.existsSync(path.join(cwd, "CLAUDE.md")), false);
+    // Both unrelated instruction entries are preserved.
+    assert.equal(fs.readlinkSync(path.join(cwd, "CLAUDE.md")), "AGENTS.md");
     assert.equal(fs.existsSync(path.join(cwd, "AGENTS.md")), true);
     assert.equal(
       fs.readFileSync(path.join(cwd, "AGENTS.md"), "utf-8"),
@@ -105,21 +102,17 @@ describe("uninstallWorkflow", () => {
 
     assert.equal(fs.readlinkSync(path.join(cwd, "AGENTS.md")), "shared-agents.md");
     assert.equal(fs.readlinkSync(path.join(cwd, "CLAUDE.md")), "shared-claude.md");
-    assert.ok(
-      logs.some((l) => /foreign AGENTS\.md/i.test(l)) &&
-        logs.some((l) => /foreign CLAUDE\.md/i.test(l)),
-      `expected foreign symlink logs, got: ${logs.join(" | ")}`,
-    );
+    assert.ok(logs.some((l) => /foreign AGENTS\.md/i.test(l)));
+    assert.ok(logs.every((l) => !/CLAUDE\.md/.test(l)), "CLAUDE.md is outside uninstall scope");
   });
 
   test("missing files are idempotent (no throw, no error)", async () => {
     const cwd = makeScratch("empty");
-    // Empty dir, no CLAUDE.md, no AGENTS.md
+    // Empty dir, no AGENTS.md
     await uninstallWorkflow({ cwd, force: true });
     // Second run is also a no-op
     await uninstallWorkflow({ cwd, force: true });
     // Nothing got created
-    assert.equal(fs.existsSync(path.join(cwd, "CLAUDE.md")), false);
     assert.equal(fs.existsSync(path.join(cwd, "AGENTS.md")), false);
   });
 
@@ -147,6 +140,7 @@ describe("uninstallWorkflow", () => {
       fs.existsSync(path.join(cwd, ".claude", "skills", "x", "SKILL.md")),
       true,
     );
+    assert.equal(fs.readlinkSync(path.join(cwd, "CLAUDE.md")), "AGENTS.md");
   });
 
   test("onLog receives one line per action", async () => {
@@ -160,14 +154,10 @@ describe("uninstallWorkflow", () => {
     const logs: string[] = [];
     await uninstallWorkflow({ cwd, force: true, onLog: (l) => logs.push(l) });
 
-    // Two distinct log lines — one per file we manipulated
-    assert.ok(
-      logs.some((l) => /CLAUDE\.md/.test(l)),
-      `missing CLAUDE.md log: ${logs.join(" | ")}`,
-    );
     assert.ok(
       logs.some((l) => /AGENTS\.md/.test(l)),
       `missing AGENTS.md log: ${logs.join(" | ")}`,
     );
+    assert.ok(logs.every((l) => !/CLAUDE\.md/.test(l)), "CLAUDE.md is outside uninstall scope");
   });
 });

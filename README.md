@@ -97,8 +97,8 @@ The **Recommended preset** is checked by default and installs silently with the 
 Installs `AGENTS.md` as the target project's single default workflow instruction file. Chinese is the default; English remains available with `--lang en`.
 
 - **Extensible and upgradable**: the auriga workflow ships inside a managed block delimited by `<!-- AURIGA:WORKFLOW:v1 START/END -->` markers. Add your project-specific instructions *after* the END marker — re-running install upgrades the managed block in place and leaves your section untouched.
-- A pre-marker Auriga `CLAUDE.md` is safely migrated into `AGENTS.md` on the next install, with the old file backed up to `CLAUDE.md.bak`. The previous `CLAUDE.md -> AGENTS.md` compatibility symlink is removed. A foreign `AGENTS.md` is kept as the user section below the managed block; a user-owned `CLAUDE.md` or foreign symlink is left byte-for-byte unchanged and reported.
-- Claude Code 2.1.277 or later reads `AGENTS.md` directly when no project-level `CLAUDE.md` or `CLAUDE.local.md` exists above the working directory. Older versions and sessions without Anthropic feature flags, including some third-party-provider or telemetry-disabled sessions, need an explicit compatibility entry. Put `@AGENTS.md` in a neighboring `CLAUDE.md` (recommended on Windows), or create `CLAUDE.md -> AGENTS.md`, then start a new session and verify the loaded instructions. See the [Claude Code project-memory documentation](https://code.claude.com/docs/en/memory#agents-md).
+- A pre-marker Auriga `AGENTS.md` is backed up and migrated to the current managed format on the next install. A foreign `AGENTS.md` is kept as the user section below the managed block.
+- Auriga project workflows manage only `AGENTS.md`; project-level `CLAUDE.md` files are not read, created, migrated, or removed.
 - Covers: requirement clarification, TDD, code review, branch workflow, subagent orchestration
 
 ### Skills

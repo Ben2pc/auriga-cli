@@ -66,7 +66,7 @@
 
 # auriga-cli 工程专属规则
 
-这个仓库是一个带有 auriga Workflow 的示例项目：受管工作流区块放在最前面，仓库专属规则写在 END 标记下面。根目录直接使用 `AGENTS.md`，不再默认创建 `CLAUDE.md` 兼容软链。
+这个仓库是一个带有 auriga Workflow 的示例项目：受管工作流区块放在最前面，仓库专属规则写在 END 标记下面。项目指令只使用根目录 `AGENTS.md`。
 
 `auriga-cli` 是一个用于安装 workflow docs、skills、recommended skills 和 plugins 的 Interactive CLI。产品工作流模板位于根目录，文件名是 `AGENTS.template.zh-CN.md` 和 `AGENTS.template.en.md`；它们会安装为用户项目的 `AGENTS.md`。
 
@@ -84,7 +84,7 @@
 - `plugins/session-instructions-loader/` 负责 Codex SessionStart 的祖先指令注入。
 - 不含 Hook 的自有插件可用 `plugins/<name>/plugin.json` 提供 Agent Plugins 1.0.0 根 `plugin.json`，标准组件只从固定的 `skills/` 与 `mcp.json` 发现。当前包含 Hook 的插件暂时不提供根 `plugin.json`，避免 Codex 选择标准入口后跳过 `hooks/hooks.json`；这些插件保留适用的 `.claude-plugin/plugin.json`、`.codex-plugin/plugin.json`、`.cursor-plugin/plugin.json` 和宿主专属 Hook 路径。
 - `.codex/session-instructions-loader.json` 在这个仓库里有意设置为 `{ "ancestorLevel": 1 }`；不要重新加回 `.claude/CLAUDE.md` 的额外注入。
-- `.claude/` 只保留本地设置和外部 skill 的符号链接。不要重新引入 `.claude/AGENTS.md` 或 `.claude/CLAUDE.md` 兼容项。
+- `.claude/` 只保留本地设置和外部 skill 的符号链接。不要在其中复制项目指令。
 - `ui/` 是独立工具链的 Web UI 子项目，规则见 `ui/AGENTS.md`；改动该目录前先读它。
 
 这个区域的关键测试：
@@ -111,7 +111,7 @@
 
 以下情况不需要提升版本：
 
-- 根目录 `AGENTS.md` / `CLAUDE.md` 开发指令
+- 根目录 `AGENTS.md` 开发指令
 - `.cursor-plugin/marketplace.json` 与 `plugins/<name>/.cursor-plugin/plugin.json`（只给 Cursor 索引本仓库插件，不进 CLI 内容清单）
 - `.claude/skills/<name>` 软链
 - `tests/`, `docs/`, `tsconfig*.json`, `.github/`

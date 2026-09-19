@@ -77,8 +77,7 @@ describe("renderGuide", () => {
     const out = renderGuide({ color: false, version: "1.8.1" });
     assert.match(out, /If workflow docs were installed/);
     assert.match(out, /AGENTS\.md/);
-    assert.match(out, /Claude Code 2\.1\.277\+/);
-    assert.match(out, /@AGENTS\.md/);
+    assert.doesNotMatch(out, /CLAUDE\.md|2\.1\.277|@AGENTS\.md/);
     assert.match(out, /If using --preset-plugins-skills/);
     assert.match(out, /\.agents\/skills\/<name>\//);
     assert.match(out, /claude plugins list/);

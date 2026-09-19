@@ -97,8 +97,8 @@ npx auriga-cli
 将 `AGENTS.md` 作为目标项目唯一的默认工作流指令文件。默认安装中文版本，英文可通过 `--lang en` 显式选择。
 
 - **可扩展、可升级**：auriga 工作流被一对 `<!-- AURIGA:WORKFLOW:v1 START/END -->` 标记包成「受管区块」。把你的工程专属规则写在 END 标记**之后**——再次安装只就地升级受管区块,你的内容原样保留。
-- 旧版本装下的、无标记的 Auriga `CLAUDE.md` 会在下次安装时安全迁移到 `AGENTS.md`,旧文件备份到 `CLAUDE.md.bak`;上一版 `CLAUDE.md -> AGENTS.md` 兼容软链会被移除。别的工具生成的 `AGENTS.md` 仍作为用户区保留;用户自有的 `CLAUDE.md` 或外国软链保持原样并给出提示。
-- Claude Code 2.1.277 及以上版本会在当前目录及祖先没有项目级 `CLAUDE.md` / `CLAUDE.local.md` 时原生读取 `AGENTS.md`。旧版本和拿不到 Anthropic 功能开关的会话（包括部分第三方模型提供商或关闭遥测的会话）仍需显式兼容入口：在同目录 `CLAUDE.md` 中写入 `@AGENTS.md`（Windows 推荐），或创建 `CLAUDE.md -> AGENTS.md`，然后新开会话确认指令已加载。详见 [Claude Code 项目记忆文档](https://code.claude.com/docs/en/memory#agents-md)。
+- 旧版无受管标记的 Auriga `AGENTS.md` 会在下次安装时先备份，再迁移到当前受管格式；别的工具生成的 `AGENTS.md` 仍作为用户区保留。
+- Auriga 的项目工作流只管理 `AGENTS.md`，不读取、创建、迁移或删除项目级 `CLAUDE.md`。
 - 涵盖：需求澄清、TDD、代码 Review、分支工作流、Subagent 编排
 
 ### Skills

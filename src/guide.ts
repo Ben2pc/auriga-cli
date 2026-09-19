@@ -134,10 +134,6 @@ Expected artifacts/checks:
   - .claude/settings.json     (updated plugin registrations, if selected)
   - .claude/auriga-notify/    (project notify config, if auriga-notify selected)
 
-Claude Code 2.1.277+ reads AGENTS.md natively when no project CLAUDE.md or
-CLAUDE.local.md shadows it. For older or feature-flag-limited sessions, add
-\`@AGENTS.md\` to a neighboring CLAUDE.md explicitly.
-
 ${h("## Troubleshooting")}
 
 - Network error during fetch → retry; if persistent, check GitHub raw access

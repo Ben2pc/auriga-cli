@@ -1,27 +1,23 @@
-# 原生 AGENTS.md 工作流入口 — 验证结果
+# 原生 AGENTS.md 单一入口 — 验证结果
 
 > 验收来源：[validation-contract.md](validation-contract.md)。
-> 交付范围：当前任务分支。
-
-## 1. 当前验收覆盖
 
 | 验收要求 | 当前状态 | 结果引用与缺口 |
 |---|---|---|
-| `VAL-INSTALLATION-001` 新安装只生成原生入口 | 通过 | 文件系统集成测试与远端分支 tarball 端到端安装均通过 |
-| `VAL-MIGRATION-001` Auriga 旧入口安全退场 | 通过 | 两代旧形态迁移与当前兼容软链移除测试通过 |
-| `VAL-SAFETY-001` 用户 Claude 指令不被覆盖 | 通过 | 真实文件与外国软链保持测试通过 |
-| `VAL-COMPATIBILITY-001` 历史形态保持可识别可卸载 | 通过 | 状态与卸载回归包含在根测试 549/549 中 |
-| `VAL-DOCUMENTATION-001` 活跃规范统一原生策略 | 通过 | 双语模板与技能契约测试通过，活跃表述已反向检查 |
-| `VAL-DOCUMENTATION-002` 旧环境恢复路径可发现 | 通过 | 中英文 README 与 guide 记录版本门槛和显式导入路径 |
+| `VAL-OWNERSHIP-001` | 待复验 | 文件系统测试与全量根测试通过；待推送后端到端复验 |
+| `VAL-SCAN-001` | 通过 | 项目只有 `CLAUDE.md` 时报告未安装；受管 `AGENTS.md` 正常识别 |
+| `VAL-DOCUMENTATION-001` | 通过 | 契约测试、双宿主技能验证器与活跃文件反向搜索通过 |
+| `VAL-REGRESSION-001` | 待复验 | 根测试与会话分析器通过；待推送后端到端复验 |
 
-> 状态：未执行 / 通过 / 失败 / 阻塞 / 待复验 / 不适用。
+## 当前证据
 
-## 2. 验证记录
-
-- `npm test`：549 项通过，0 项失败。
+- 修改测试后、删除实现前，窄测试出现 8 项预期失败，覆盖项目扫描回退、安装提示和卸载清理旧入口。
+- 删除兼容实现后，同一组安装、卸载与状态扫描测试 65/65 通过。
+- `npm test`：547 项通过，0 项失败。
+- `node tests/session-compound-analyzers.test.mjs`：68 项通过，0 项失败。
 - `npm run test:session-instructions-loader`：20 项通过，0 项失败。
-- `npm run test:git-guards`：commit reminder 39 项、pr-create 33 项、pr-ready 60 项、pr-merge 35 项全部通过。
-- `npm --prefix ui test`：6 个测试文件、75 项测试通过。
+- `npm run test:git-guards`：四组守卫测试全部通过。
+- `npm --prefix ui test`：75 项通过，0 项失败。
 - Claude Code 与 Codex 的 `quick_validate.py`：`documentation-management` skill 均通过。
 - `git diff --check`：通过。
-- `npm run test:e2e`：4 项通过，0 项失败；包含 tarball 安装后只生成 `AGENTS.md` 的真实文件验收。
+- `npm run test:e2e`：待当前提交推送后执行。

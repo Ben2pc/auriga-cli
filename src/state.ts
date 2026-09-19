@@ -3,8 +3,7 @@
 // own dev-repo layout. The truth sources:
 //
 //   Workflow:  ~/.claude/CLAUDE.md                          (user scope)
-//              <proj>/AGENTS.md                             (project scope primary)
-//              <proj>/CLAUDE.md                             (project scope legacy fallback)
+//              <proj>/AGENTS.md                             (project scope)
 //   Skills:    ~/.claude/skills/<name>/SKILL.md             (user scope)
 //              <proj>/.claude/skills/<name>/SKILL.md        (project scope)
 //   Plugins(Claude): execPluginList(scope) + settings.json enabledPlugins
@@ -30,10 +29,7 @@ import path from "node:path";
 import { parse as parseToml } from "smol-toml";
 
 import { hasAurigaHeader, parseMarkers } from "./workflow-markers.js";
-import {
-  LEGACY_WORKFLOW_FILE,
-  WORKFLOW_PRIMARY_FILE,
-} from "./workflow-docs.js";
+import { WORKFLOW_PRIMARY_FILE } from "./workflow-docs.js";
 
 import type {
   ApplyAgent,
@@ -270,15 +266,7 @@ function workflowPathsForScope(scope: ScanScope, projectRoot: string, home: stri
   if (scope === "user") {
     return [path.join(home, ".claude", "CLAUDE.md")];
   }
-  // Project: prefer the current `<proj>/AGENTS.md` primary. Keep
-  // `<proj>/CLAUDE.md` as a legacy fallback so already-installed projects do
-  // not flash as missing before their next install flips the symlink direction.
-  // Never fall back to `<proj>/.claude/CLAUDE.md`: that path can collapse onto
-  // user scope when projectRoot === HOME.
-  return [
-    path.join(projectRoot, WORKFLOW_PRIMARY_FILE),
-    path.join(projectRoot, LEGACY_WORKFLOW_FILE),
-  ];
+  return [path.join(projectRoot, WORKFLOW_PRIMARY_FILE)];
 }
 
 function workflowForeignWarningCode(filePath: string): "workflow-foreign-agentsmd" | "workflow-foreign-claudemd" {
@@ -289,8 +277,8 @@ function workflowForeignWarningCode(filePath: string): "workflow-foreign-agentsm
 
 function workflowForeignWarningMessage(filePath: string): string {
   const name = path.basename(filePath);
-  if (name === LEGACY_WORKFLOW_FILE) {
-    return "Foreign CLAUDE.md detected at the legacy workflow path — no auriga-workflow header. Install leaves it unchanged and writes AGENTS.md separately; Claude Code may keep preferring CLAUDE.md.";
+  if (name !== WORKFLOW_PRIMARY_FILE) {
+    return `Foreign ${name} detected at the user workflow path — no auriga-workflow header; left unchanged.`;
   }
   return `Foreign ${name} detected at the workflow path — no auriga-workflow header. Install preserves its content or link intent before replacing the AGENTS.md workflow path.`;
 }

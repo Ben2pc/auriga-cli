@@ -183,21 +183,17 @@ export function buildSkillCatalog(roots, repoCwd) {
 const START_LINE_RE = /^<!--\s*AURIGA:WORKFLOW:v1\s+START\b.*?-->[ \t]*$/m
 const END_LINE_RE = /^<!--\s*AURIGA:WORKFLOW:v1\s+END(?:\s+sha256=([0-9a-f]+))?[ \t]*-->[ \t]*$/m
 
-// Parse the auriga managed-block workflow rules from the repo's AGENTS.md
-// (fallback CLAUDE.md) at `cwd`. Returns [{n, text}] (one per top-level
+// Parse the auriga managed-block workflow rules from the repo's AGENTS.md at
+// `cwd`. Returns [{n, text}] (one per top-level
 // numbered item, multi-line items joined); [] when no readable file or no
 // managed block — never throws.
 export function parseWorkflowRules(cwd) {
   if (!cwd) return []
-  const candidates = [path.join(cwd, 'AGENTS.md'), path.join(cwd, 'CLAUDE.md')]
   let content = null
-  for (const f of candidates) {
-    try {
-      content = fs.readFileSync(f, 'utf8')
-      break
-    } catch {
-      // try next
-    }
+  try {
+    content = fs.readFileSync(path.join(cwd, 'AGENTS.md'), 'utf8')
+  } catch {
+    // no project workflow file
   }
   if (content == null) return []
   const start = START_LINE_RE.exec(content)

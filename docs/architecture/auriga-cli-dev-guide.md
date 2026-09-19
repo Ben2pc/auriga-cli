@@ -19,7 +19,7 @@ src/
     generate-catalog.ts — 构建期：解析 SKILL.md + plugin configs → dist/catalog.json
   codex-plugin-config.ts — Codex plugin manifest/config 校验 + 安全的本地路径辅助函数
   utils.ts      — 常量、远程 fetch、exec、日志、InstallOpts、getPackageRoot
-  workflow.ts   — AGENTS.md 单一默认入口的安装与历史 CLAUDE.md 形态迁移。Install/upgrade 使用 managed-block splice（五种情况：fresh / marked-upgrade / hand-edited-block / foreign / old-format migration），不是整文件覆盖；只移除 Auriga 可证明拥有的旧软链或旧主文件，用户自有 CLAUDE.md 原样保留并警告。非交互模式下失败会抛错。还导出 `uninstallWorkflow({force, cwd})`，供 Web UI 的 /api/apply 路由使用。
+  workflow.ts   — AGENTS.md 单一入口的安装与升级。Install/upgrade 使用 managed-block splice（五种情况：fresh / marked-upgrade / hand-edited-block / foreign / old-format migration），不是整文件覆盖；项目级 CLAUDE.md 完全不在安装器管理范围内。非交互模式下失败会抛错。还导出 `uninstallWorkflow({force, cwd})`，供 Web UI 的 /api/apply 路由使用。
   workflow-markers.ts — AGENTS.md managed-block marker 约定的单一真源（`<!-- AURIGA:WORKFLOW:v1 START/END -->`）。导出 parseMarkers / composeMarkedFile / hashBlock / hasAurigaHeader / WORKFLOW_HEADER_RE。这里不能有重量级 import，因为 workflow.ts 和 state.ts 都要用它（state.ts 不能 import workflow.ts，后者会拉入 @inquirer/prompts）。
   skills.ts     — Workflow + recommended skills 的安装；导出 WORKFLOW_SKILLS 和 `uninstallSkill(name, opts)`
   plugins.ts    — Plugin + marketplace 安装；导出 `uninstallPlugin(id, agent, opts)` 和 `excludeByName`（TUI「其他插件」过滤器）
@@ -277,7 +277,7 @@ pkill -f 'auriga-cli web-ui'
     - `AGENTS.template.zh-CN.md` / `AGENTS.template.en.md` —— workflow templates，runtime 会获取
     - `README.md` / `README.zh-CN.md` 中改变 CLI 安装、发布、运行时行为或用户可见 package 说明的内容——这些会随 tarball 发出；其中 `README.md` 会驱动 npmjs.com landing page
   - **豁免**（不需要 bump）：
-    - `AGENTS.md`（本仓库的 dev guide——不发布、不获取；历史 `CLAUDE.md` 形态只用于迁移兼容）
+    - `AGENTS.md`（本仓库的 dev guide——不发布、不获取）
     - `.claude/skills/<name>` 软链（仅供本仓库内的 Agents 使用；不发布、不获取）
     - `tests/`、`tsconfig*.json`、CI 配置（`.github/`）
     - `docs/`

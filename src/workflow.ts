@@ -16,12 +16,7 @@ import {
   hashBlock,
   parseMarkers,
 } from "./workflow-markers.js";
-import {
-  LEGACY_CLAUDE_SYMLINK_TARGET,
-  LEGACY_AGENTS_SYMLINK_TARGET,
-  LEGACY_WORKFLOW_FILE,
-  WORKFLOW_PRIMARY_FILE,
-} from "./workflow-docs.js";
+import { WORKFLOW_PRIMARY_FILE } from "./workflow-docs.js";
 
 /**
  * Back up `filePath` once. The canonical `<file>.bak` slot is reserved for the
@@ -57,20 +52,6 @@ function lstatMaybe(filePath: string): fs.Stats | undefined {
     return fs.lstatSync(filePath);
   } catch {
     return undefined;
-  }
-}
-
-function isSymlinkTo(filePath: string, target: string): boolean {
-  const stat = lstatMaybe(filePath);
-  return !!stat?.isSymbolicLink() && fs.readlinkSync(filePath) === target;
-}
-
-function isAurigaWorkflowCandidate(filePath: string): boolean {
-  try {
-    const content = fs.readFileSync(filePath, "utf8");
-    return parseMarkers(content).kind !== "unmarked" || hasAurigaHeader(content);
-  } catch {
-    return false;
   }
 }
 
@@ -110,7 +91,6 @@ export async function installWorkflow(
 
   const sourceWorkflow = path.join(packageRoot, langOpt.file);
   const targetPrimary = path.join(resolved, WORKFLOW_PRIMARY_FILE);
-  const targetCompat = path.join(resolved, LEGACY_WORKFLOW_FILE);
 
   // The packaged template is authored with managed-block markers. Extract its
   // managed block (the auriga workflow body) and its user-region placeholder.
@@ -128,38 +108,17 @@ export async function installWorkflow(
     sourceParsed.kind === "marked" ? sourceParsed.userRegion : "";
 
   const primaryStat = lstatMaybe(targetPrimary);
-  const compatStat = lstatMaybe(targetCompat);
-  const legacyShape =
-    primaryStat?.isSymbolicLink() === true &&
-    fs.readlinkSync(targetPrimary) === LEGACY_AGENTS_SYMLINK_TARGET &&
-    compatStat?.isFile() === true;
-  const primaryForeignSymlink =
-    primaryStat?.isSymbolicLink() === true &&
-    fs.readlinkSync(targetPrimary) !== LEGACY_AGENTS_SYMLINK_TARGET;
-  const compatIsLegacyPrimary =
-    !primaryStat &&
-    compatStat?.isFile() === true &&
-    isAurigaWorkflowCandidate(targetCompat);
-  const currentPath =
-    primaryStat && !primaryStat.isSymbolicLink()
-      ? targetPrimary
-      : legacyShape || compatIsLegacyPrimary
-        ? targetCompat
-        : undefined;
+  const currentPath = primaryStat && !primaryStat.isSymbolicLink() ? targetPrimary : undefined;
 
-  let wrotePrimary = false;
   const writePrimary = (content: string): void => {
     if (primaryStat?.isSymbolicLink()) {
-      if (primaryForeignSymlink) {
-        const bak = backupOnce(targetPrimary);
-        log.warn(
-          `AGENTS.md 是指向其它目标的软链;已备份到 ${path.basename(bak)} 后改为主文件。`,
-        );
-      }
+      const bak = backupOnce(targetPrimary);
+      log.warn(
+        `AGENTS.md 是软链;已备份到 ${path.basename(bak)} 后改为主文件。`,
+      );
       fs.unlinkSync(targetPrimary);
     }
     fs.writeFileSync(targetPrimary, content);
-    wrotePrimary = true;
   };
 
   // Installing the workflow doc is one of five cases. The managed block is
@@ -245,33 +204,10 @@ export async function installWorkflow(
     }
   }
 
-  // Retire only CLAUDE.md paths whose Auriga ownership is provable. A foreign
-  // real file or symlink is user-owned and stays byte-for-byte untouched, even
-  // though Claude Code will prefer it over native AGENTS.md discovery.
-  const latestCompatStat = lstatMaybe(targetCompat);
-  if (latestCompatStat) {
-    const pointsToPrimary = isSymlinkTo(targetCompat, LEGACY_CLAUDE_SYMLINK_TARGET);
-    const migratedFromCompat =
-      currentPath === targetCompat && wrotePrimary && !latestCompatStat.isSymbolicLink();
-    if (pointsToPrimary || migratedFromCompat) {
-      fs.unlinkSync(targetCompat);
-      log.ok(
-        migratedFromCompat
-          ? "legacy Auriga CLAUDE.md migrated to AGENTS.md and removed"
-          : "legacy CLAUDE.md -> AGENTS.md symlink removed",
-      );
-    } else {
-      log.warn(
-        "检测到用户自有 CLAUDE.md;已原样保留。Claude Code 默认会优先读取它;" +
-          "如需同时应用 Auriga 工作流,请在 CLAUDE.md 中导入 @AGENTS.md。",
-      );
-    }
-  }
 }
 
 /**
- * Uninstall the workflow AGENTS.md and any recognized legacy CLAUDE.md path
- * from `opts.cwd`.
+ * Uninstall the workflow AGENTS.md from `opts.cwd`.
  *
  * Safety contract:
  * - `opts.force` MUST be true. The CLI / server caller is responsible for
@@ -302,7 +238,6 @@ export async function uninstallWorkflow(
     opts.onLog?.(line);
   };
 
-  const targetClaude = path.join(resolved, LEGACY_WORKFLOW_FILE);
   const targetAgents = path.join(resolved, WORKFLOW_PRIMARY_FILE);
 
   const isAurigaWorkflowFile = (filePath: string): boolean => {
@@ -329,18 +264,8 @@ export async function uninstallWorkflow(
     }
 
     if (stat.isSymbolicLink()) {
-      const linkTarget = fs.readlinkSync(filePath);
-      const isManagedSymlink =
-        (name === WORKFLOW_PRIMARY_FILE && linkTarget === LEGACY_AGENTS_SYMLINK_TARGET) ||
-        (name === LEGACY_WORKFLOW_FILE && linkTarget === LEGACY_CLAUDE_SYMLINK_TARGET);
-      if (isManagedSymlink) {
-        fs.unlinkSync(filePath);
-        log.ok(`${name} symlink removed`);
-        emit(`removed ${name} symlink`);
-      } else {
-        log.warn(`foreign ${name} symlink left in place`);
-        emit(`foreign ${name} symlink left in place`);
-      }
+      log.warn(`foreign ${name} symlink left in place`);
+      emit(`foreign ${name} symlink left in place`);
     } else if (stat.isFile() && isAurigaWorkflowFile(filePath)) {
       fs.unlinkSync(filePath);
       log.ok(`${name} removed`);
@@ -351,9 +276,5 @@ export async function uninstallWorkflow(
     }
   };
 
-  // Remove AGENTS.md first because it is the current primary. lstatSync refuses
-  // to follow symlinks, so the legacy AGENTS.md -> CLAUDE.md shape is handled
-  // without deleting CLAUDE.md through the link.
   removeWorkflowPath(targetAgents, "AGENTS.md");
-  removeWorkflowPath(targetClaude, "CLAUDE.md");
 }
