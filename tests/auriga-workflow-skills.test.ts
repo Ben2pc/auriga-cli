@@ -19,7 +19,7 @@ const reviewReference = (file: string): string =>
 
 const builtinReviewerTriggers = {
   architecture: "tag:architecture",
-  "code-quality": "tag:maintained-code",
+  "engineering-quality": "tag:maintained-code",
   correctness: "tag:executable-behavior",
   "docs-sync": "always",
   performance: "tag:performance-sensitive",
@@ -883,7 +883,7 @@ describe("auriga-workflow skill contracts", () => {
         anchors: ["归档快照", "精简或删除"],
       },
       {
-        file: "code-quality.md",
+        file: "engineering-quality.md",
         section: "Audience tiers",
         anchors: ["低受众代码", "机制优先"],
       },
@@ -1558,6 +1558,24 @@ describe("deep-review modernization contract", () => {
     assert.match(text, /不强制单断言/);
     assert.ok(!text.includes("五类场景"));
     assert.ok(!text.includes("每个分支必须"));
+  });
+
+  test("engineering and test reviews reduce maintenance burden and preserve valuable follow-ups", () => {
+    const engineering = reviewer("engineering-quality");
+    for (const term of ["实际消费者", "净收益", "构建", "独立重构", "外部消费者", "不是预过滤"]) {
+      assert.ok(engineering.includes(term), `engineering review must cover ${term}`);
+    }
+    const tests = reviewer("test-quality");
+    for (const term of ["删除、合并或降层", "失去什么保护", "低频但后果严重", "既有测试不是需求权威"]) {
+      assert.ok(tests.includes(term), `test review must cover ${term}`);
+    }
+    assert.match(reviewReference("project-reviewers.md"), /extends: code-quality[^。]*engineering-quality/);
+    assert.match(deepReview(), /maintained-code[^\n]*构建/);
+    const synthesis = reviewReference("synthesis.md");
+    assert.match(synthesis, /建议记录为议题/);
+    assert.match(synthesis, /不能仅因超出当前范围/);
+    assert.match(synthesis, /未经授权[^。]*不创建/);
+    assert.match(synthesis, /阻断问题不能[^。]*转议题/);
   });
 
   test("architecture review follows approved designs without rejecting anemic models", () => {

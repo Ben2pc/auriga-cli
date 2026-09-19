@@ -40,7 +40,7 @@ description: "审查拉取请求或用户明确指定的代码差异；显式调
 |---|---|
 | `executable-behavior` | 生产代码、运行时配置、schema、数据转换、命令或其他会改变执行结果的差异 |
 | `tests` | 新增或修改测试、测试工具、夹具或测试规则 |
-| `maintained-code` | 需要长期维护且存在实质逻辑、结构或接口变化的代码；机械生成物和纯格式不算 |
+| `maintained-code` | 代码、配置、依赖、测试、构建或交付流程的长期维护对象与关系发生实质变化；机械生成物和纯格式不算 |
 | `security-sensitive` | 信任边界、身份与权限、秘密、外部输入、文件或网络、支付、隐私数据、代理工具执行能力 |
 | `ui` | Web、移动端、桌面端、终端交互或命令行用户体验 |
 | `performance-sensitive` | 热路径、大数据量、高频或并发路径、资源预算、第三方或模型调用成本 |
@@ -63,7 +63,7 @@ description: "审查拉取请求或用户明确指定的代码差异；显式调
 | `docs-sync` | 通用候选；差异可能使承重文档漂移或文档资产失去维护价值时优先考虑 |
 | `correctness` | `executable-behavior` |
 | `test-quality` | `executable-behavior` 或 `tests` |
-| `code-quality` | `maintained-code` |
+| `engineering-quality` | `maintained-code`；包括只有配置、工具链或工程流程变化的差异 |
 | `security` | `security-sensitive` |
 | `ux` | `ui` |
 | `performance` | `performance-sensitive` |
@@ -120,7 +120,7 @@ frontmatter 的 `tools` 是审查者申请的最大权限，不是提示词建�
 
 ## 6. 综合
 
-主代理读取 [综合规则与报告模板](references/synthesis.md)，逐条复核证据、按根因去重并保留全部来源，给出修或不修的建议。沿用证据注明版本与覆盖，不把主代理复核当作独立意见。
+主代理读取 [综合规则与报告模板](references/synthesis.md)，逐条复核证据、按根因去重并保留全部来源，区分当前修复、有价值的后续议题和不采纳。沿用证据注明版本与覆盖，不把主代理复核当作独立意见。
 
 **完成条件**：已选与项目强制维度均已完成，或明确报告无法完成的缺口；完整差异已有审查覆盖说明，发现已核验、分类并形成综合报告。只因新证据、具体疑点或覆盖未完成继续检查，不为重复确认而重跑已有效的验证。
 
