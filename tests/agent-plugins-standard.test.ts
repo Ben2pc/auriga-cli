@@ -65,7 +65,7 @@ const plugins = [
   },
   {
     name: "session-instructions-loader",
-    version: "1.0.5",
+    version: "1.0.6",
     hasHooks: true,
     nativeManifests: [".codex-plugin/plugin.json"],
     skills: [],
