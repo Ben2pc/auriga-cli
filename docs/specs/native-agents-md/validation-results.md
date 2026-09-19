@@ -4,10 +4,10 @@
 
 | 验收要求 | 当前状态 | 结果引用与缺口 |
 |---|---|---|
-| `VAL-OWNERSHIP-001` | 待复验 | 文件系统测试与全量根测试通过；待推送后端到端复验 |
+| `VAL-OWNERSHIP-001` | 通过 | 文件系统测试、全量根测试与远端分支 tarball 端到端安装均通过 |
 | `VAL-SCAN-001` | 通过 | 项目只有 `CLAUDE.md` 时报告未安装；受管 `AGENTS.md` 正常识别 |
 | `VAL-DOCUMENTATION-001` | 通过 | 契约测试、双宿主技能验证器与活跃文件反向搜索通过 |
-| `VAL-REGRESSION-001` | 待复验 | 根测试与会话分析器通过；待推送后端到端复验 |
+| `VAL-REGRESSION-001` | 通过 | 根测试、会话分析器与远端分支 tarball 端到端安装均通过 |
 
 ## 当前证据
 
@@ -20,4 +20,4 @@
 - `npm --prefix ui test`：75 项通过，0 项失败。
 - Claude Code 与 Codex 的 `quick_validate.py`：`documentation-management` skill 均通过。
 - `git diff --check`：通过。
-- `npm run test:e2e`：待当前提交推送后执行。
+- `npm run test:e2e`：4 项通过，0 项失败；包含 tarball 安装后只有 `AGENTS.md` 的真实文件验收。
