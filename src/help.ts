@@ -38,7 +38,7 @@ USAGE
     npx -y auriga-cli install --preset-plugins-skills
 
 TYPES (exactly one with <type> form)
-  workflow       AGENTS.md + CLAUDE.md symlink (workflow manifesto)
+  workflow       AGENTS.md workflow manifesto
   skills         Default-on workflow skills (listed below)
   recommended    Opt-in utility skills (listed below)
   plugins        Claude Code and Codex plugins (listed below)
@@ -101,7 +101,7 @@ FLAGS
   --cwd <dir>     default current working directory
 
 NOTE
-  workflow has no --scope flag (AGENTS.md primary + CLAUDE.md symlink).
+  workflow has no --scope flag (writes AGENTS.md in the target project).
 `;
 
     case "skills":

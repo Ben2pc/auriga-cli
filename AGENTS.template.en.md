@@ -1,5 +1,5 @@
 <!-- AURIGA:WORKFLOW:v1 START — Managed block, maintained by auriga-cli. Do not edit by hand; upgrades replace it wholesale. Put project-specific instructions after the END marker below. -->
-# auriga Workflow (v1.25.1)
+# auriga Workflow (v1.26.0)
 
 Persist to the requested endpoint: research delivers evidence and recommendations, design a reviewable proposal, and implementation includes fixes and verification. Ready, merge, and deployment require authorization. Continue after status questions or corrections unless explicitly stopped.
 
@@ -47,7 +47,7 @@ Repo documentation lives under `docs/`, one directory per purpose:
 - **Keep durable facts in the repository**: current facts, plans, and design decisions needed across sessions must live in versioned assets that Agents can access.
 - **Keep durable references self-contained**: Code comments and instructions describe the underlying requirement concisely instead of citing spec identifiers that may be archived or deleted.
 - **Continuously fight entropy**: when handling review findings, allow directly necessary, behavior-preserving local cleanup with known, low risk. Independent refactoring requires separate authorization.
-- **Layer context, load on demand**: The root `AGENTS.md` holds global rules and an index; each independent subpackage maintains its own `AGENTS.md` and `CLAUDE.md -> AGENTS.md`. Runtimes differ in loading scope, so the parent must provide a one-line index. Read `documentation-management` for layering and artifact disposition.
+- **Layer context, load on demand**: The root `AGENTS.md` holds global rules and an index; each independent subpackage maintains its own `AGENTS.md`. The parent must provide a one-line index so runtimes without native layered discovery can still locate child rules. Read `documentation-management` for layering and artifact disposition.
 
 ## Agent Dispatch Principles
 

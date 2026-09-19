@@ -28,7 +28,7 @@ Example config:
 {
   "ancestorLevel": 1,
   "extraFiles": [
-    ".claude/CLAUDE.md"
+    "docs/domain-context.md"
   ]
 }
 ```

@@ -201,7 +201,8 @@ describe("auriga-workflow skill contracts", () => {
       assert.ok(skill.includes(contract), `Agent documents must preserve ${contract}`);
     }
     assert.match(skill, /同一规则只写一次/);
-    assert.match(skill, /`CLAUDE\.md -> AGENTS\.md` 兼容软链/);
+    assert.match(skill, /项目指令只使用[^。]*`AGENTS\.md`/);
+    assert.doesNotMatch(skill, /`CLAUDE\.md`|无法原生读取|兼容入口/);
     assert.match(skill, /仓库根只放全局规则与导航/);
     assert.match(skill, /子包[^。\n]*自己的根目录维护 `AGENTS\.md`/);
     // Layered loading: the parent one-line pointer to a sub-scope AGENTS.md is
@@ -1533,10 +1534,11 @@ describe("deep-review modernization contract", () => {
     assert.match(ux, /heuristic:/);
   });
 
-  test("skill and plugin review keeps Auriga dual entry points and validators", () => {
+  test("skill and plugin review enforces AGENTS.md as the only project instruction entry", () => {
     const text = reviewer("skill-plugin-quality");
-    assert.match(text, /`AGENTS\.md` 与 `CLAUDE\.md` \*\*同时存在\*\*/);
-    assert.match(text, /`CLAUDE\.md -> AGENTS\.md` 兼容软链/);
+    assert.match(text, /只使用 `AGENTS\.md` 作为跨宿主项目指令入口/);
+    assert.match(text, /不保留替代入口、软链或重复正文/);
+    assert.match(text, /宿主专属配置/);
     assert.match(text, /Claude Code：[\s\S]*quick_validate\.py/);
     assert.match(text, /Codex：[\s\S]*quick_validate\.py/);
     assert.match(text, /两种验证器可用时都运行/);

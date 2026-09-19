@@ -44,11 +44,11 @@ The leading `-y` belongs to `npx` (it auto-confirms package installation), **not
 Non-interactive install commands:
 
 ```bash
-npx -y auriga-cli install --preset           # curated workflow core: AGENTS.md/CLAUDE.md
+npx -y auriga-cli install --preset           # curated workflow core: AGENTS.md
                                              #   + workflow skills + auriga-workflow plugin
                                              #   (defaults: scope user, agent both, lang zh-CN)
 npx -y auriga-cli install --preset-plugins-skills
-                                             # skip AGENTS.md/CLAUDE.md; install preset skills + auriga-workflow plugin
+                                             # skip AGENTS.md; install preset skills + auriga-workflow plugin
                                              #   (defaults: scope user, agent both)
 npx -y auriga-cli install --all              # everything: workflow + skills + recommended + plugins
 npx -y auriga-cli install recommended        # just the opt-in utility skills
@@ -57,7 +57,7 @@ npx -y auriga-cli install <type> [--flags]   # one of: workflow | skills | recom
 npx -y auriga-cli --help                     # full catalog + flags
 ```
 
-`--preset` is atomic — it cannot be combined with a `<type>` or any filter flag, but it accepts `--scope`, `--agent`, and `--lang` (preset defaults: `user` / `both` / `zh-CN`, which differ from the per-category defaults). If the project already has its own `AGENTS.md / CLAUDE.md`, use `--preset-plugins-skills` to install the same preset skills and `auriga-workflow` plugin without touching workflow docs.
+`--preset` is atomic — it cannot be combined with a `<type>` or any filter flag, but it accepts `--scope`, `--agent`, and `--lang` (preset defaults: `user` / `both` / `zh-CN`, which differ from the per-category defaults). If the project already has its own instruction files, use `--preset-plugins-skills` to install the same preset skills and `auriga-workflow` plugin without touching `AGENTS.md`.
 
 Exit codes: `0` success, `1` fatal (precheck / parse / fetch), `2` partial success — `stderr` lists per-category `[OK]/[FAIL]` and a `Retry:` hint. After install, reload the Agent session so the new `AGENTS.md` / skills / plugins / hook-plugin registrations are picked up.
 
@@ -83,7 +83,7 @@ Interactive menu — select what to install:
 
 ```
 ? Select what to install:
-  ◉ Recommended preset — AGENTS.md/CLAUDE.md + workflow skills + auriga-workflow plugin
+  ◉ Recommended preset — AGENTS.md + workflow skills + auriga-workflow plugin
   ◯ Optional skills — opt-in utility skills (frontend-design, design-taste-frontend...)
   ◯ Other plugins — everything except auriga-workflow (auriga-notify, skill-creator, codex...)
 ```
@@ -94,10 +94,11 @@ The **Recommended preset** is checked by default and installs silently with the 
 
 ### Workflow
 
-Installs `AGENTS.md` into the target project and creates a `CLAUDE.md` symlink for Claude Code compatibility. Chinese is the default; English remains available with `--lang en`.
+Installs `AGENTS.md` as the target project's single default workflow instruction file. Chinese is the default; English remains available with `--lang en`.
 
 - **Extensible and upgradable**: the auriga workflow ships inside a managed block delimited by `<!-- AURIGA:WORKFLOW:v1 START/END -->` markers. Add your project-specific instructions *after* the END marker — re-running install upgrades the managed block in place and leaves your section untouched.
-- A pre-marker `CLAUDE.md` (installed by an older version) is safely migrated into the new `AGENTS.md` primary shape on the next install, with the old file backed up to `CLAUDE.md.bak`. A foreign `AGENTS.md` or `CLAUDE.md` from another tool is kept as your user section below a fresh managed block.
+- A pre-marker Auriga `AGENTS.md` is backed up and migrated to the current managed format on the next install. A foreign `AGENTS.md` is kept as the user section below the managed block.
+- Auriga project workflows manage only `AGENTS.md`; project-level `CLAUDE.md` files are not read, created, migrated, or removed.
 - Covers: requirement clarification, TDD, code review, branch workflow, subagent orchestration
 
 ### Skills

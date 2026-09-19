@@ -78,15 +78,13 @@ after(() => {
 });
 
 describe("installWorkflow — fresh install (VAL-WF-001, 002)", () => {
-  test("VAL-FILE-001/002: writes AGENTS.md as the primary file and CLAUDE.md as compatibility symlink", async () => {
+  test("VAL-INSTALLATION-001: writes AGENTS.md as the only default instruction file", async () => {
     const cwd = makeScratch("fresh-agents-primary");
     await installWorkflow(makePackageRoot(), { interactive: false, cwd, lang: "en" });
 
     const agentsPath = path.join(cwd, "AGENTS.md");
-    const claudePath = path.join(cwd, "CLAUDE.md");
     assert.equal(fs.lstatSync(agentsPath).isSymbolicLink(), false);
-    assert.equal(fs.lstatSync(claudePath).isSymbolicLink(), true);
-    assert.equal(fs.readlinkSync(claudePath), "AGENTS.md");
+    assert.equal(fs.existsSync(path.join(cwd, "CLAUDE.md")), false);
 
     const parsed = parseMarkers(fs.readFileSync(agentsPath, "utf-8"));
     assert.equal(parsed.kind, "marked");
@@ -109,7 +107,7 @@ describe("installWorkflow — fresh install (VAL-WF-001, 002)", () => {
     const cwd = makeScratch("fresh");
     await installWorkflow(makePackageRoot(), { interactive: false, cwd, lang: "en" });
 
-    const content = fs.readFileSync(path.join(cwd, "CLAUDE.md"), "utf-8");
+    const content = fs.readFileSync(path.join(cwd, "AGENTS.md"), "utf-8");
     const parsed = parseMarkers(content);
     assert.equal(parsed.kind, "marked");
     if (parsed.kind !== "marked") return;
@@ -123,7 +121,7 @@ describe("installWorkflow — fresh install (VAL-WF-001, 002)", () => {
     const cwd = makeScratch("fresh-userregion");
     await installWorkflow(makePackageRoot(), { interactive: false, cwd, lang: "en" });
 
-    const parsed = parseMarkers(fs.readFileSync(path.join(cwd, "CLAUDE.md"), "utf-8"));
+    const parsed = parseMarkers(fs.readFileSync(path.join(cwd, "AGENTS.md"), "utf-8"));
     assert.equal(parsed.kind, "marked");
     if (parsed.kind !== "marked") return;
     assert.ok(parsed.userRegion.includes("工程专属规则"), "template placeholder is the user region");
@@ -146,9 +144,9 @@ describe("installWorkflow — upgrade of a marked file (VAL-WF-003, 004)", () =>
     });
 
     // Author a recognizable user-region edit.
-    const claudePath = path.join(cwd, "CLAUDE.md");
+    const agentsPath = path.join(cwd, "AGENTS.md");
     const userEdit = "## 我们工程的额外约定\n- 用 pnpm,不用 npm\n";
-    fs.writeFileSync(claudePath, fs.readFileSync(claudePath, "utf-8") + userEdit);
+    fs.writeFileSync(agentsPath, fs.readFileSync(agentsPath, "utf-8") + userEdit);
 
     // Upgrade with a new workflow version.
     await installWorkflow(makePackageRoot("# auriga Workflow (v2.0.0)\nbrand new\n"), {
@@ -157,7 +155,7 @@ describe("installWorkflow — upgrade of a marked file (VAL-WF-003, 004)", () =>
       lang: "en",
     });
 
-    const parsed = parseMarkers(fs.readFileSync(claudePath, "utf-8"));
+    const parsed = parseMarkers(fs.readFileSync(agentsPath, "utf-8"));
     assert.equal(parsed.kind, "marked");
     if (parsed.kind !== "marked") return;
     assert.match(parsed.blockBody, /brand new/, "block upgraded to the new version");
@@ -184,7 +182,7 @@ describe("installWorkflow — upgrade of a marked file (VAL-WF-003, 004)", () =>
 describe("installWorkflow — hand-edited managed block (VAL-WF-005)", () => {
   test("VAL-WF-005: block replaced, whole old file backed up, warning emitted", async () => {
     const cwd = makeScratch("handedited");
-    const claudePath = path.join(cwd, "CLAUDE.md");
+    const agentsPath = path.join(cwd, "AGENTS.md");
     await installWorkflow(makePackageRoot("# auriga Workflow (v1.0.0)\nkeep\n"), {
       interactive: false,
       cwd,
@@ -192,8 +190,8 @@ describe("installWorkflow — hand-edited managed block (VAL-WF-005)", () => {
     });
 
     // Hand-edit inside the managed block — the END hash now goes stale.
-    const edited = fs.readFileSync(claudePath, "utf-8").replace("keep", "TAMPERED");
-    fs.writeFileSync(claudePath, edited);
+    const edited = fs.readFileSync(agentsPath, "utf-8").replace("keep", "TAMPERED");
+    fs.writeFileSync(agentsPath, edited);
 
     const warnings = await captureWarnings(() =>
       installWorkflow(makePackageRoot("# auriga Workflow (v2.0.0)\nfresh\n"), {
@@ -203,7 +201,7 @@ describe("installWorkflow — hand-edited managed block (VAL-WF-005)", () => {
       }),
     );
 
-    const parsed = parseMarkers(fs.readFileSync(claudePath, "utf-8"));
+    const parsed = parseMarkers(fs.readFileSync(agentsPath, "utf-8"));
     assert.equal(parsed.kind, "marked");
     if (parsed.kind !== "marked") return;
     assert.match(parsed.blockBody, /fresh/, "managed block still replaced");
@@ -219,63 +217,67 @@ describe("installWorkflow — hand-edited managed block (VAL-WF-005)", () => {
   });
 });
 
-describe("installWorkflow — foreign first install (VAL-WF-006)", () => {
-  test("VAL-WF-006: foreign content kept as the user region, no backup", async () => {
+describe("installWorkflow — unrelated instruction files", () => {
+  test("a project CLAUDE.md is ignored", async () => {
     const cwd = makeScratch("foreign");
     const claudePath = path.join(cwd, "CLAUDE.md");
     const foreign = "# 别的工具生成的 CLAUDE.md\n一些项目说明\n";
     fs.writeFileSync(claudePath, foreign);
 
-    await installWorkflow(makePackageRoot(), { interactive: false, cwd, lang: "en" });
+    const warnings = await captureWarnings(() =>
+      installWorkflow(makePackageRoot(), { interactive: false, cwd, lang: "en" }),
+    );
 
-    const content = fs.readFileSync(claudePath, "utf-8");
-    const parsed = parseMarkers(content);
+    assert.equal(fs.readFileSync(claudePath, "utf-8"), foreign);
+    const parsed = parseMarkers(fs.readFileSync(path.join(cwd, "AGENTS.md"), "utf-8"));
     assert.equal(parsed.kind, "marked");
-    if (parsed.kind !== "marked") return;
-    assert.match(parsed.blockBody, /auriga Workflow/, "managed block installed");
-    assert.ok(parsed.userRegion.includes(foreign), "foreign content preserved in the user region");
-    assert.deepEqual(listBackups(cwd), [], "foreign first install needs no backup");
+    if (parsed.kind === "marked") {
+      assert.equal(parsed.userRegion, DEFAULT_USER_REGION, "CLAUDE.md content must not be migrated");
+    }
+    assert.deepEqual(listBackups(cwd), [], "CLAUDE.md is outside the workflow installer scope");
+    assert.doesNotMatch(warnings, /CLAUDE\.md/);
   });
 });
 
 describe("installWorkflow — old-format migration (VAL-WF-007, 008)", () => {
   test("VAL-WF-007: pre-marker auriga file backed up to .bak, fresh marked install, migration hint", async () => {
     const cwd = makeScratch("migrate");
-    const claudePath = path.join(cwd, "CLAUDE.md");
+    const agentsPath = path.join(cwd, "AGENTS.md");
     const oldFormat = "# auriga Workflow (v1.5.0)\n旧版工作流正文\n";
-    fs.writeFileSync(claudePath, oldFormat);
+    fs.writeFileSync(agentsPath, oldFormat);
 
     const warnings = await captureWarnings(() =>
       installWorkflow(makePackageRoot(), { interactive: false, cwd, lang: "en" }),
     );
 
     assert.equal(
-      fs.readFileSync(path.join(cwd, "CLAUDE.md.bak"), "utf-8"),
+      fs.readFileSync(path.join(cwd, "AGENTS.md.bak"), "utf-8"),
       oldFormat,
       ".bak holds the whole old-format file",
     );
-    assert.equal(parseMarkers(fs.readFileSync(claudePath, "utf-8")).kind, "marked");
+    assert.equal(parseMarkers(fs.readFileSync(path.join(cwd, "AGENTS.md"), "utf-8")).kind, "marked");
+    assert.equal(fs.existsSync(agentsPath), true);
     assert.match(warnings, /备份|迁移/, "a hint telling the user to migrate from the backup");
   });
 
   test("VAL-WF-008: a pre-existing .bak is preserved; the current file spills to a timestamped backup", async () => {
     const cwd = makeScratch("migrate-bakonce");
-    const claudePath = path.join(cwd, "CLAUDE.md");
-    const firstBak = "# 用户最早的原始 CLAUDE.md\n";
+    const agentsPath = path.join(cwd, "AGENTS.md");
+    const firstBak = "# 用户最早的原始 AGENTS.md\n";
     const oldFormat = "# auriga Workflow (v1.5.0)\n旧版正文\n";
-    fs.writeFileSync(path.join(cwd, "CLAUDE.md.bak"), firstBak);
-    fs.writeFileSync(claudePath, oldFormat);
+    fs.writeFileSync(path.join(cwd, "AGENTS.md.bak"), firstBak);
+    fs.writeFileSync(agentsPath, oldFormat);
 
     await installWorkflow(makePackageRoot(), { interactive: false, cwd, lang: "en" });
 
     assert.equal(
-      fs.readFileSync(path.join(cwd, "CLAUDE.md.bak"), "utf-8"),
+      fs.readFileSync(path.join(cwd, "AGENTS.md.bak"), "utf-8"),
       firstBak,
       "canonical .bak untouched (backup-once invariant)",
     );
     const stamped = fs
       .readdirSync(cwd)
-      .filter((n) => n.startsWith("CLAUDE.md.bak.") && n !== "CLAUDE.md.bak");
+      .filter((n) => n.startsWith("AGENTS.md.bak.") && n !== "AGENTS.md.bak");
     assert.equal(stamped.length, 1, "old-format file spilled to a timestamped backup");
     assert.equal(fs.readFileSync(path.join(cwd, stamped[0]), "utf-8"), oldFormat);
   });
@@ -294,8 +296,8 @@ describe("installWorkflow — malformed markers (VAL-WF-009)", () => {
   for (const [label, malformed] of cases) {
     test(`VAL-WF-009: ${label} → original backed up, fresh marked reinstall`, async () => {
       const cwd = makeScratch("malformed");
-      const claudePath = path.join(cwd, "CLAUDE.md");
-      fs.writeFileSync(claudePath, malformed);
+      const agentsPath = path.join(cwd, "AGENTS.md");
+      fs.writeFileSync(agentsPath, malformed);
 
       await installWorkflow(makePackageRoot(), { interactive: false, cwd, lang: "en" });
 
@@ -306,43 +308,14 @@ describe("installWorkflow — malformed markers (VAL-WF-009)", () => {
         malformed,
         "backup holds the original malformed file verbatim",
       );
-      const reinstalled = parseMarkers(fs.readFileSync(claudePath, "utf-8"));
+      const reinstalled = parseMarkers(fs.readFileSync(path.join(cwd, "AGENTS.md"), "utf-8"));
       assert.equal(reinstalled.kind, "marked", "reinstalled file has a complete marker pair");
+      assert.equal(fs.existsSync(agentsPath), true);
     });
   }
 });
 
-describe("installWorkflow — AGENTS.md primary with CLAUDE.md compatibility symlink (VAL-WF-010)", () => {
-  test("VAL-FILE-004/005: old CLAUDE-primary install flips to AGENTS-primary and preserves user region", async () => {
-    const cwd = makeScratch("old-shape-flip");
-    const claudePath = path.join(cwd, "CLAUDE.md");
-    const agentsPath = path.join(cwd, "AGENTS.md");
-    fs.writeFileSync(
-      claudePath,
-      composeMarkedFile({
-        blockBody: "# auriga Workflow (v1.0.0)\nold body\n",
-        userRegion: "\n## 工程规则\n- keep this\n",
-      }),
-    );
-    fs.symlinkSync("CLAUDE.md", agentsPath);
-
-    await installWorkflow(makePackageRoot("# auriga Workflow (v2.0.0)\nnew body\n"), {
-      interactive: false,
-      cwd,
-      lang: "en",
-    });
-
-    assert.equal(fs.lstatSync(agentsPath).isSymbolicLink(), false);
-    assert.equal(fs.lstatSync(claudePath).isSymbolicLink(), true);
-    assert.equal(fs.readlinkSync(claudePath), "AGENTS.md");
-
-    const parsed = parseMarkers(fs.readFileSync(agentsPath, "utf-8"));
-    assert.equal(parsed.kind, "marked");
-    if (parsed.kind !== "marked") return;
-    assert.match(parsed.blockBody, /new body/);
-    assert.ok(parsed.userRegion.includes("keep this"));
-  });
-
+describe("installWorkflow — AGENTS.md-only ownership", () => {
   test("VAL-FILE-006: a foreign real-file AGENTS.md is preserved before becoming the primary file", async () => {
     const cwd = makeScratch("agents-realfile-primary");
     const agentsPath = path.join(cwd, "AGENTS.md");
@@ -357,17 +330,8 @@ describe("installWorkflow — AGENTS.md primary with CLAUDE.md compatibility sym
     assert.equal(parsed.kind, "marked");
     if (parsed.kind !== "marked") return;
     assert.ok(parsed.userRegion.includes(foreign));
-    assert.equal(fs.readlinkSync(path.join(cwd, "CLAUDE.md")), "AGENTS.md");
+    assert.equal(fs.existsSync(path.join(cwd, "CLAUDE.md")), false);
     assert.match(warnings, /AGENTS\.md/);
-  });
-
-  test("VAL-WF-010: install creates CLAUDE.md as a compatibility symlink to AGENTS.md", async () => {
-    const cwd = makeScratch("symlink");
-    await installWorkflow(makePackageRoot(), { interactive: false, cwd, lang: "en" });
-
-    assert.equal(fs.lstatSync(path.join(cwd, "AGENTS.md")).isSymbolicLink(), false);
-    assert.equal(fs.lstatSync(path.join(cwd, "CLAUDE.md")).isSymbolicLink(), true);
-    assert.equal(fs.readlinkSync(path.join(cwd, "CLAUDE.md")), "AGENTS.md");
   });
 
   test("a foreign real-file AGENTS.md is kept as the user region before becoming primary", async () => {
@@ -384,7 +348,7 @@ describe("installWorkflow — AGENTS.md primary with CLAUDE.md compatibility sym
     assert.equal(parsed.kind, "marked");
     if (parsed.kind !== "marked") return;
     assert.ok(parsed.userRegion.includes(foreign), "foreign content survives in the user region");
-    assert.equal(fs.readlinkSync(path.join(cwd, "CLAUDE.md")), "AGENTS.md");
+    assert.equal(fs.existsSync(path.join(cwd, "CLAUDE.md")), false);
     assert.match(warnings, /AGENTS\.md/);
   });
 
@@ -401,25 +365,27 @@ describe("installWorkflow — AGENTS.md primary with CLAUDE.md compatibility sym
     assert.equal(bak.isSymbolicLink(), true);
     assert.equal(fs.readlinkSync(path.join(cwd, "AGENTS.md.bak")), "other.md");
     assert.equal(fs.lstatSync(agentsPath).isSymbolicLink(), false);
-    assert.equal(fs.readlinkSync(path.join(cwd, "CLAUDE.md")), "AGENTS.md");
+    assert.equal(fs.existsSync(path.join(cwd, "CLAUDE.md")), false);
   });
 
-  test("a symlink CLAUDE.md pointing elsewhere is backed up as a symlink before becoming compatibility link", async () => {
+  test("a CLAUDE.md symlink is outside installer scope", async () => {
     const cwd = makeScratch("claude-foreignlink");
     const claudePath = path.join(cwd, "CLAUDE.md");
     fs.writeFileSync(path.join(cwd, "shared.md"), "# Shared instructions\nkeep link\n");
     fs.symlinkSync("shared.md", claudePath);
 
-    await installWorkflow(makePackageRoot(), { interactive: false, cwd, lang: "en" });
-
-    const bak = fs.lstatSync(path.join(cwd, "CLAUDE.md.bak"));
-    assert.equal(bak.isSymbolicLink(), true);
-    assert.equal(fs.readlinkSync(path.join(cwd, "CLAUDE.md.bak")), "shared.md");
-    assert.equal(fs.readlinkSync(claudePath), "AGENTS.md");
-    assert.match(
-      fs.readFileSync(path.join(cwd, "AGENTS.md"), "utf-8"),
-      /Shared instructions/,
+    const warnings = await captureWarnings(() =>
+      installWorkflow(makePackageRoot(), { interactive: false, cwd, lang: "en" }),
     );
+
+    assert.equal(fs.readlinkSync(claudePath), "shared.md");
+    assert.equal(fs.existsSync(path.join(cwd, "CLAUDE.md.bak")), false);
+    const parsed = parseMarkers(fs.readFileSync(path.join(cwd, "AGENTS.md"), "utf-8"));
+    assert.equal(parsed.kind, "marked");
+    if (parsed.kind === "marked") {
+      assert.equal(parsed.userRegion, DEFAULT_USER_REGION, "linked CLAUDE.md content must not be migrated");
+    }
+    assert.doesNotMatch(warnings, /CLAUDE\.md/);
   });
 
   test("re-install over the new AGENTS.md primary shape does not create a backup", async () => {
@@ -432,19 +398,19 @@ describe("installWorkflow — AGENTS.md primary with CLAUDE.md compatibility sym
       false,
       "an AGENTS.md primary file is our shape — no backup",
     );
-    assert.equal(fs.readlinkSync(path.join(cwd, "CLAUDE.md")), "AGENTS.md");
+    assert.equal(fs.existsSync(path.join(cwd, "CLAUDE.md")), false);
   });
 });
 
 describe("installWorkflow — re-install preserves the original .bak (F1 regression)", () => {
   test("re-installing over a migrated file does not clobber the first .bak", async () => {
     const cwd = makeScratch("reinstall");
-    const claudePath = path.join(cwd, "CLAUDE.md");
+    const agentsPath = path.join(cwd, "AGENTS.md");
     // First: an old-format file migrates → its content lands in .bak.
     const oldFormat = "# auriga Workflow (v1.5.0)\n旧正文\n";
-    fs.writeFileSync(claudePath, oldFormat);
+    fs.writeFileSync(agentsPath, oldFormat);
     await installWorkflow(makePackageRoot(), { interactive: false, cwd, lang: "en" });
-    assert.equal(fs.readFileSync(path.join(cwd, "CLAUDE.md.bak"), "utf-8"), oldFormat);
+    assert.equal(fs.readFileSync(path.join(cwd, "AGENTS.md.bak"), "utf-8"), oldFormat);
 
     // Second: a clean marked upgrade must not touch the canonical .bak.
     await installWorkflow(makePackageRoot("# auriga Workflow (v2.0.0)\nnew\n"), {
@@ -453,7 +419,7 @@ describe("installWorkflow — re-install preserves the original .bak (F1 regress
       lang: "en",
     });
     assert.equal(
-      fs.readFileSync(path.join(cwd, "CLAUDE.md.bak"), "utf-8"),
+      fs.readFileSync(path.join(cwd, "AGENTS.md.bak"), "utf-8"),
       oldFormat,
       "canonical .bak still holds the user's original pre-auriga content",
     );
@@ -484,11 +450,11 @@ describe("installWorkflow — marked file with a hash-less END marker", () => {
   // conservatively rather than risk silently dropping an edit.
   test("upgrade of a hash-less marked file backs up conservatively + warns", async () => {
     const cwd = makeScratch("nohash");
-    const claudePath = path.join(cwd, "CLAUDE.md");
+    const agentsPath = path.join(cwd, "AGENTS.md");
     const noHashFile =
       `${workflowStartMarker()}\n# auriga Workflow (v1.0.0)\nbody\n` +
       `<!-- AURIGA:WORKFLOW:v1 END -->\n## 我的规则\n- keep me\n`;
-    fs.writeFileSync(claudePath, noHashFile);
+    fs.writeFileSync(agentsPath, noHashFile);
 
     const warnings = await captureWarnings(() =>
       installWorkflow(makePackageRoot("# auriga Workflow (v2.0.0)\nfresh\n"), {
@@ -498,7 +464,7 @@ describe("installWorkflow — marked file with a hash-less END marker", () => {
       }),
     );
 
-    const parsed = parseMarkers(fs.readFileSync(claudePath, "utf-8"));
+    const parsed = parseMarkers(fs.readFileSync(path.join(cwd, "AGENTS.md"), "utf-8"));
     assert.equal(parsed.kind, "marked");
     if (parsed.kind !== "marked") return;
     assert.match(parsed.blockBody, /fresh/, "managed block upgraded");
@@ -506,6 +472,7 @@ describe("installWorkflow — marked file with a hash-less END marker", () => {
     assert.notEqual(parsed.endHash, null, "upgraded file now carries a verification hash");
     assert.equal(listBackups(cwd).length, 1, "hash-less file backed up conservatively");
     assert.match(warnings, /校验标记/, "warning names the missing verification marker");
+    assert.equal(fs.existsSync(agentsPath), true);
   });
 });
 

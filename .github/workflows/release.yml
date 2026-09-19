@@ -2,7 +2,7 @@ name: Release
 
 # Triggered by tag push `v*` (canonical release path) or manual
 # workflow_dispatch for dry-run validation of this workflow itself.
-# See `.claude/CLAUDE.md` → "Release flow" for the discipline.
+# See `docs/architecture/auriga-cli-dev-guide.md` → "版本与发布" for the discipline.
 on:
   push:
     tags:

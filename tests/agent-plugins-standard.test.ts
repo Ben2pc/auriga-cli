@@ -23,7 +23,7 @@ type JsonObject = Record<string, unknown>;
 const plugins = [
   {
     name: "auriga-workflow",
-    version: "4.0.36",
+    version: "4.1.0",
     hasHooks: true,
     nativeManifests: [
       ".claude-plugin/plugin.json",
@@ -48,7 +48,7 @@ const plugins = [
   },
   {
     name: "quality-gate-scaffolder",
-    version: "0.2.2",
+    version: "0.2.3",
     hasHooks: false,
     nativeManifests: [
       ".claude-plugin/plugin.json",
@@ -65,7 +65,7 @@ const plugins = [
   },
   {
     name: "session-instructions-loader",
-    version: "1.0.5",
+    version: "1.0.6",
     hasHooks: true,
     nativeManifests: [".codex-plugin/plugin.json"],
     skills: [],

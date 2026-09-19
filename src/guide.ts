@@ -71,14 +71,14 @@ Per-type detail (flags + only that category's catalog slice):
 
 ${h("## Step 3 — Install")}
 
-Recommended — the curated workflow preset (AGENTS.md/CLAUDE.md +
+Recommended — the curated workflow preset (AGENTS.md +
 workflow skills + the auriga-workflow plugin). Defaults: scope user,
 agent both (Claude Code + Codex), lang zh-CN. Scope applies to skills
 and plugins; the workflow doc always writes to the current project:
   ${cmd("npx -y auriga-cli install --preset")}
 
 Without workflow docs — same preset skills + auriga-workflow plugin,
-but leaves AGENTS.md / CLAUDE.md untouched:
+but leaves AGENTS.md untouched:
   ${cmd("npx -y auriga-cli install --preset-plugins-skills")}
 
 Everything — workflow + skills + recommended skills + default plugins:
@@ -126,9 +126,8 @@ ${h("## Step 5 — Verify install")}
 Expected artifacts/checks:
   - If workflow docs were installed:
     - AGENTS.md                 (workflow manifesto, Chinese by default)
-    - CLAUDE.md -> AGENTS.md    (Claude Code compatibility symlink)
   - If using --preset-plugins-skills:
-    - AGENTS.md / CLAUDE.md remain untouched
+    - AGENTS.md remains untouched
   - .agents/skills/<name>/    (one per installed skill)
   - claude plugins list       (shows Claude plugins, if Claude plugins selected)
   - ~/.codex/config.toml      (Codex plugin enablement, if Codex plugins selected)

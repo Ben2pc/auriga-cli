@@ -19,7 +19,7 @@ src/
     generate-catalog.ts — 构建期：解析 SKILL.md + plugin configs → dist/catalog.json
   codex-plugin-config.ts — Codex plugin manifest/config 校验 + 安全的本地路径辅助函数
   utils.ts      — 常量、远程 fetch、exec、日志、InstallOpts、getPackageRoot
-  workflow.ts   — AGENTS.md + CLAUDE.md 兼容软链安装。Install/upgrade 使用 managed-block splice（五种情况：fresh / marked-upgrade / hand-edited-block / foreign / old-format migration），不是整文件覆盖。非交互模式下失败会抛错。还导出 `uninstallWorkflow({force, cwd})`，供 Web UI 的 /api/apply 路由使用。
+  workflow.ts   — AGENTS.md 单一入口的安装与升级。Install/upgrade 使用 managed-block splice（五种情况：fresh / marked-upgrade / hand-edited-block / foreign / old-format migration），不是整文件覆盖；项目级 CLAUDE.md 完全不在安装器管理范围内。非交互模式下失败会抛错。还导出 `uninstallWorkflow({force, cwd})`，供 Web UI 的 /api/apply 路由使用。
   workflow-markers.ts — AGENTS.md managed-block marker 约定的单一真源（`<!-- AURIGA:WORKFLOW:v1 START/END -->`）。导出 parseMarkers / composeMarkedFile / hashBlock / hasAurigaHeader / WORKFLOW_HEADER_RE。这里不能有重量级 import，因为 workflow.ts 和 state.ts 都要用它（state.ts 不能 import workflow.ts，后者会拉入 @inquirer/prompts）。
   skills.ts     — Workflow + recommended skills 的安装；导出 WORKFLOW_SKILLS 和 `uninstallSkill(name, opts)`
   plugins.ts    — Plugin + marketplace 安装；导出 `uninstallPlugin(id, agent, opts)` 和 `excludeByName`（TUI「其他插件」过滤器）
@@ -172,7 +172,7 @@ tests/
 - **plugin-bundled hooks**：通过 `plugins/<name>/hooks/hooks.json` 注册 hooks，并使用 `command: "${CLAUDE_PLUGIN_ROOT}/..."`。这个替换在 `claude -p` 和交互模式下都稳定生效（已实测）。通过 `SKILL.md` frontmatter 的 `hooks:` 字段也能注册 hook，但 `${CLAUDE_SKILL_DIR}` 目前**不会**在 hook command 字符串里展开（这是 Claude Code bug），而且 Claude Code 下这类 hook 的 cwd 是项目根目录，不是 skill 目录，所以文档里的 `./scripts/...` 示例也会失败。Cursor 的**插件**钩子进程目录是插件缓存，不是用户仓库；依赖 git / 项目文件的脚本要从载荷或 `CLAUDE_PROJECT_DIR` / `CURSOR_PROJECT_DIR` 定位仓库（`auriga-workflow` 的 `scripts/repo-root.mjs`）。需要 hook 时的 workaround 是：把 skill 打包进 plugin，再把 hook 提到 plugin 根目录（canonical dual-Agent 示例见 `plugins/auriga-workflow/`）。不要为了新 hooks 重新引入根目录的 `.claude/hooks/hooks.json`；未来的 hooks 应该跟着 plugins 一起分发。
 - **Plugin 配置**：`.claude-plugin/marketplace.json`、`.agents/plugins/marketplace.json` 和 `.cursor-plugin/marketplace.json` 定义本地 plugin surface。`extra_plugin_configs.json` 定义 external plugins 和本地默认策略覆盖。
 - **Hook 配置**：仓库自有 hooks 通过 plugin 的 `plugins/<name>/hooks/hooks.json` 分发，不再有 CLI 可安装的 `hooks` 类别。`auriga-notify` 的迁移就是一个 Claude Code-only hook plugin 带用户配置迁移的参考形状。
-- **Agent 可移植性**：skills 和 plugins 是给不同 coding agent 的队友用的。当前安装面是 Claude Code、Codex 和 Cursor；`auriga-workflow` 与 `quality-gate-scaffolder` 会进入这三个市场。编写或修改 `plugins/<name>/` 下内容时，不要让 prose 或 tooling 默认假设 agent 是 Claude Code：例如写成“Claude 专属”的泛化表述、只写 Claude-only tool 名而不写 Codex 对应物、把共享能力误归到某一个 agent，或者在项目指令里只写 `CLAUDE.md` 而不写 `AGENTS.md`。完整清单见 [`docs/rules/agent-portability.md`](../rules/agent-portability.md)。
+- **Agent 可移植性**：skills 和 plugins 是给不同 coding agent 的队友用的。当前安装面是 Claude Code、Codex 和 Cursor；`auriga-workflow` 与 `quality-gate-scaffolder` 会进入这三个市场。编写或修改 `plugins/<name>/` 下内容时，不要让 prose 或 tooling 默认假设 agent 是 Claude Code：例如写成“Claude 专属”的泛化表述、只写 Claude-only tool 名而不写 Codex 对应物、把共享能力误归到某一个 agent。项目指令只维护分层的 `AGENTS.md`，不创建替代入口、软链或重复正文。完整清单见 [`docs/rules/agent-portability.md`](../rules/agent-portability.md)。
 - **子进程调用**：使用 `exec()` wrapper，流式输出时用 `{ inherit: true }`。
 - **面向用户的输出**：统一使用 `log.ok/warn/error/skip`，保证颜色风格一致。
 
@@ -277,7 +277,7 @@ pkill -f 'auriga-cli web-ui'
     - `AGENTS.template.zh-CN.md` / `AGENTS.template.en.md` —— workflow templates，runtime 会获取
     - `README.md` / `README.zh-CN.md` 中改变 CLI 安装、发布、运行时行为或用户可见 package 说明的内容——这些会随 tarball 发出；其中 `README.md` 会驱动 npmjs.com landing page
   - **豁免**（不需要 bump）：
-    - `AGENTS.md` / `CLAUDE.md`（本仓库的 dev guide 和兼容软链——不发布、不获取）
+    - `AGENTS.md`（本仓库的 dev guide——不发布、不获取）
     - `.claude/skills/<name>` 软链（仅供本仓库内的 Agents 使用；不发布、不获取）
     - `tests/`、`tsconfig*.json`、CI 配置（`.github/`）
     - `docs/`

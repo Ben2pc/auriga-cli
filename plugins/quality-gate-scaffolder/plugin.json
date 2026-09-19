@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "quality-gate-scaffolder",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "description": "Scaffold stack-specific repository quality gates for Swift iOS, Kotlin Android, Python backend, TypeScript frontend, and Node tool projects.",
   "author": {
     "name": "Ben2pc",

@@ -351,7 +351,7 @@ function PresetBar({
             color: "var(--color-cloud-dark)",
           }}
         >
-          AGENTS.md/CLAUDE.md + workflow skills + auriga-workflow plugin
+          AGENTS.md + workflow skills + auriga-workflow plugin
           (scope applies to skills/plugins)
         </span>
       </span>
@@ -803,7 +803,7 @@ export default function Dashboard(): JSX.Element {
     const items = Array.from(selected.values());
 
     // Two-stage confirmation for destructive batches:
-    //   1. Workflow uninstall is the hardest — removes AGENTS.md / CLAUDE.md
+    //   1. Workflow uninstall is the hardest — removes AGENTS.md
     //      and unconditionally with force=true. Spec §13.5 demands explicit
     //      double-confirm; we use two separate prompts so the user can't
     //      muscle-memory through a single "OK".
@@ -814,7 +814,7 @@ export default function Dashboard(): JSX.Element {
     );
     if (workflowUninstall !== undefined) {
       const first = window.confirm(
-        "Uninstall workflow? This deletes AGENTS.md and the CLAUDE.md symlink from the current project.",
+        "Uninstall workflow? This deletes the Auriga-managed AGENTS.md from the current project.",
       );
       if (!first) return;
       const second = window.confirm(

@@ -16,12 +16,7 @@ import {
   hashBlock,
   parseMarkers,
 } from "./workflow-markers.js";
-import {
-  LEGACY_AGENTS_SYMLINK_TARGET,
-  WORKFLOW_COMPAT_FILE,
-  WORKFLOW_COMPAT_SYMLINK_TARGET,
-  WORKFLOW_PRIMARY_FILE,
-} from "./workflow-docs.js";
+import { WORKFLOW_PRIMARY_FILE } from "./workflow-docs.js";
 
 /**
  * Back up `filePath` once. The canonical `<file>.bak` slot is reserved for the
@@ -60,11 +55,6 @@ function lstatMaybe(filePath: string): fs.Stats | undefined {
   }
 }
 
-function isSymlinkTo(filePath: string, target: string): boolean {
-  const stat = lstatMaybe(filePath);
-  return !!stat?.isSymbolicLink() && fs.readlinkSync(filePath) === target;
-}
-
 export async function installWorkflow(
   packageRoot: string,
   opts: InstallOpts,
@@ -101,7 +91,6 @@ export async function installWorkflow(
 
   const sourceWorkflow = path.join(packageRoot, langOpt.file);
   const targetPrimary = path.join(resolved, WORKFLOW_PRIMARY_FILE);
-  const targetCompat = path.join(resolved, WORKFLOW_COMPAT_FILE);
 
   // The packaged template is authored with managed-block markers. Extract its
   // managed block (the auriga workflow body) and its user-region placeholder.
@@ -119,45 +108,25 @@ export async function installWorkflow(
     sourceParsed.kind === "marked" ? sourceParsed.userRegion : "";
 
   const primaryStat = lstatMaybe(targetPrimary);
-  const compatStat = lstatMaybe(targetCompat);
-  const legacyShape =
-    primaryStat?.isSymbolicLink() === true &&
-    fs.readlinkSync(targetPrimary) === LEGACY_AGENTS_SYMLINK_TARGET &&
-    compatStat?.isFile() === true;
-  const primaryForeignSymlink =
-    primaryStat?.isSymbolicLink() === true &&
-    fs.readlinkSync(targetPrimary) !== LEGACY_AGENTS_SYMLINK_TARGET;
-  const compatIsCurrentPrimary =
-    !primaryStat &&
-    compatStat !== undefined &&
-    !isSymlinkTo(targetCompat, WORKFLOW_COMPAT_SYMLINK_TARGET);
-  const currentPath =
-    primaryStat && !primaryStat.isSymbolicLink()
-      ? targetPrimary
-      : legacyShape || compatIsCurrentPrimary
-        ? targetCompat
-        : undefined;
+  const currentPath = primaryStat && !primaryStat.isSymbolicLink() ? targetPrimary : undefined;
 
-  let wrotePrimary = false;
   const writePrimary = (content: string): void => {
     if (primaryStat?.isSymbolicLink()) {
-      if (primaryForeignSymlink) {
-        const bak = backupOnce(targetPrimary);
-        log.warn(
-          `AGENTS.md 是指向其它目标的软链;已备份到 ${path.basename(bak)} 后改为主文件。`,
-        );
-      }
+      const bak = backupOnce(targetPrimary);
+      log.warn(
+        `AGENTS.md 是软链;已备份到 ${path.basename(bak)} 后改为主文件。`,
+      );
       fs.unlinkSync(targetPrimary);
     }
     fs.writeFileSync(targetPrimary, content);
-    wrotePrimary = true;
   };
 
   // Installing the workflow doc is one of five cases. The managed block is
   // always replaced with the packaged version; the cases differ in how the
   // project's own content (the user region) is preserved or backed up.
   if (!currentPath) {
-    // 1. Fresh install — write the marked template as-is, no backup.
+    // 1. No readable regular primary file. A missing file is written directly;
+    //    a foreign symlink is backed up and replaced by writePrimary.
     writePrimary(
       composeMarkedFile({ blockBody: sourceBlock, userRegion: templateUserRegion, lang }),
     );
@@ -236,29 +205,10 @@ export async function installWorkflow(
     }
   }
 
-  // Point CLAUDE.md at AGENTS.md via a compatibility symlink. If CLAUDE.md was
-  // the old primary file and its content was migrated above, replacing it with
-  // the symlink is safe. Otherwise preserve any real file or foreign symlink
-  // before replacing it.
-  const latestCompatStat = lstatMaybe(targetCompat);
-  if (latestCompatStat) {
-    const pointsToPrimary = isSymlinkTo(targetCompat, WORKFLOW_COMPAT_SYMLINK_TARGET);
-    const migratedFromCompat =
-      currentPath === targetCompat && wrotePrimary && !latestCompatStat.isSymbolicLink();
-    if (!pointsToPrimary && !migratedFromCompat) {
-      const bak = backupOnce(targetCompat);
-      log.warn(
-        `CLAUDE.md 不是指向 AGENTS.md 的软链;已备份到 ${path.basename(bak)} 后替换为软链。`,
-      );
-    }
-    fs.unlinkSync(targetCompat);
-  }
-  fs.symlinkSync(WORKFLOW_COMPAT_SYMLINK_TARGET, targetCompat);
-  log.ok("CLAUDE.md -> AGENTS.md symlink created");
 }
 
 /**
- * Uninstall the workflow (AGENTS.md + CLAUDE.md) from `opts.cwd`.
+ * Uninstall the workflow AGENTS.md from `opts.cwd`.
  *
  * Safety contract:
  * - `opts.force` MUST be true. The CLI / server caller is responsible for
@@ -289,7 +239,6 @@ export async function uninstallWorkflow(
     opts.onLog?.(line);
   };
 
-  const targetClaude = path.join(resolved, WORKFLOW_COMPAT_FILE);
   const targetAgents = path.join(resolved, WORKFLOW_PRIMARY_FILE);
 
   const isAurigaWorkflowFile = (filePath: string): boolean => {
@@ -316,18 +265,8 @@ export async function uninstallWorkflow(
     }
 
     if (stat.isSymbolicLink()) {
-      const linkTarget = fs.readlinkSync(filePath);
-      const isManagedSymlink =
-        (name === WORKFLOW_PRIMARY_FILE && linkTarget === LEGACY_AGENTS_SYMLINK_TARGET) ||
-        (name === WORKFLOW_COMPAT_FILE && linkTarget === WORKFLOW_COMPAT_SYMLINK_TARGET);
-      if (isManagedSymlink) {
-        fs.unlinkSync(filePath);
-        log.ok(`${name} symlink removed`);
-        emit(`removed ${name} symlink`);
-      } else {
-        log.warn(`foreign ${name} symlink left in place`);
-        emit(`foreign ${name} symlink left in place`);
-      }
+      log.warn(`foreign ${name} symlink left in place`);
+      emit(`foreign ${name} symlink left in place`);
     } else if (stat.isFile() && isAurigaWorkflowFile(filePath)) {
       fs.unlinkSync(filePath);
       log.ok(`${name} removed`);
@@ -338,9 +277,5 @@ export async function uninstallWorkflow(
     }
   };
 
-  // Remove AGENTS.md first because it is the current primary. lstatSync refuses
-  // to follow symlinks, so the legacy AGENTS.md -> CLAUDE.md shape is handled
-  // without deleting CLAUDE.md through the link.
   removeWorkflowPath(targetAgents, "AGENTS.md");
-  removeWorkflowPath(targetClaude, "CLAUDE.md");
 }

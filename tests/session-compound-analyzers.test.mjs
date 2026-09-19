@@ -303,8 +303,8 @@ function pickAwaySummaries(out) {
 // substrate fields are driven by controlled inputs rather than the real
 // ~/.claude / ~/.codex / repo AGENTS.md. The analyzers gain a repeatable
 // --skill-root <path> flag; the workflow-rules source is the session cwd's
-// AGENTS.md (fallback CLAUDE.md), with the managed block delimited by the
-// markers defined in src/workflow-markers.ts.
+// AGENTS.md, with the managed block delimited by the markers defined in
+// src/workflow-markers.ts.
 
 // Real managed-block markers, mirrored from src/workflow-markers.ts
 // (START_LINE_RE / END_LINE_RE, MARKER_SCHEMA = "v1"). The parser keys on the
@@ -1206,6 +1206,27 @@ test("claude analyzer emits empty workflow_rules when cwd AGENTS.md has no manag
   const wr = pickWorkflowRules(out);
   assert(Array.isArray(wr), "workflow_rules must exist as an empty array, not be missing");
   assertEqual(wr.length, 0, "no managed block -> empty workflow_rules (not an error)");
+});
+
+test("claude analyzer does not fall back to cwd CLAUDE.md [VAL-SUB-002]", () => {
+  const cwd = writeCwdDir("claude-only", null);
+  fs.writeFileSync(path.join(cwd, "CLAUDE.md"), managedAgentsMd(["legacy fallback must be ignored"]));
+  const file = writeClaudeFixtureWithCwd("wr-claude-only", [claudeUser("go", T0)], cwd);
+  const out = runAnalyzerArgs(CLAUDE, ["--file", file], { cwd });
+  const wr = pickWorkflowRules(out);
+  assert(Array.isArray(wr), "workflow_rules must exist as an empty array");
+  assertEqual(wr.length, 0, "CLAUDE.md is outside the project workflow parser scope");
+});
+
+test("claude analyzer does not follow cwd AGENTS.md symlink to CLAUDE.md [VAL-SUB-002]", () => {
+  const cwd = writeCwdDir("claude-link", null);
+  fs.writeFileSync(path.join(cwd, "CLAUDE.md"), managedAgentsMd(["linked legacy rules must be ignored"]));
+  fs.symlinkSync("CLAUDE.md", path.join(cwd, "AGENTS.md"));
+  const file = writeClaudeFixtureWithCwd("wr-claude-link", [claudeUser("go", T0)], cwd);
+  const out = runAnalyzerArgs(CLAUDE, ["--file", file], { cwd });
+  const wr = pickWorkflowRules(out);
+  assert(Array.isArray(wr), "workflow_rules must exist as an empty array");
+  assertEqual(wr.length, 0, "the project workflow parser must not follow instruction symlinks");
 });
 
 // ---------------------------------------------------------------------

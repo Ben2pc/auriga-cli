@@ -243,11 +243,11 @@ const cases = [
       const repo = path.join(root, "repo");
       fs.mkdirSync(path.join(repo, ".git"), { recursive: true });
       fs.mkdirSync(path.join(repo, ".codex"), { recursive: true });
-      fs.mkdirSync(path.join(repo, ".claude"), { recursive: true });
-      fs.writeFileSync(path.join(repo, ".claude", "CLAUDE.md"), "repo claude instructions");
+      fs.mkdirSync(path.join(repo, "docs"), { recursive: true });
+      fs.writeFileSync(path.join(repo, "docs", "domain-context.md"), "repo domain context");
       fs.writeFileSync(
         path.join(repo, ".codex", "session-instructions-loader.json"),
-        JSON.stringify({ extraFiles: [".claude/CLAUDE.md"] }),
+        JSON.stringify({ extraFiles: ["docs/domain-context.md"] }),
       );
 
       const cwd = path.join(repo, "pkg");
@@ -255,7 +255,7 @@ const cases = [
       return cwd;
     },
     expect: {
-      includes: ["repo claude instructions"],
+      includes: ["repo domain context"],
       excludes: ["workspace parent instructions"],
     },
   },
@@ -272,11 +272,11 @@ const cases = [
       const originalRepo = path.join(workspace, "repo");
       fs.mkdirSync(path.join(originalRepo, ".git", "worktrees"), { recursive: true });
       fs.mkdirSync(path.join(originalRepo, ".codex"), { recursive: true });
-      fs.mkdirSync(path.join(originalRepo, ".claude"), { recursive: true });
-      fs.writeFileSync(path.join(originalRepo, ".claude", "CLAUDE.md"), "original repo claude instructions");
+      fs.mkdirSync(path.join(originalRepo, "docs"), { recursive: true });
+      fs.writeFileSync(path.join(originalRepo, "docs", "domain-context.md"), "original repo domain context");
       fs.writeFileSync(
         path.join(originalRepo, ".codex", "session-instructions-loader.json"),
-        JSON.stringify({ ancestorLevel: 1, extraFiles: [".claude/CLAUDE.md"] }),
+        JSON.stringify({ ancestorLevel: 1, extraFiles: ["docs/domain-context.md"] }),
       );
 
       const worktreeParent = path.join(root, "worktrees", "1234");
@@ -298,7 +298,7 @@ const cases = [
       return cwd;
     },
     expect: {
-      includes: ["workspace instructions", "original repo claude instructions"],
+      includes: ["workspace instructions", "original repo domain context"],
       excludes: ["worktree local config instructions"],
     },
   },
