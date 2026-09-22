@@ -51,12 +51,10 @@ describe("generateCatalog (build-time)", () => {
   });
 
   test("workflow skills exclude repo-owned skills migrated into auriga-workflow (and dropped retired brainstorming)", () => {
-    assert.equal(catalog.workflowSkills.length, 2);
+    assert.equal(catalog.workflowSkills.length, 1);
     const names = catalog.workflowSkills.map((e) => e.name).sort();
-    assert.deepEqual(names, [
-      "planning-with-files",
-      "playwright-cli",
-    ]);
+    assert.deepEqual(names, ["playwright-cli"]);
+    assert.equal(catalog.recommendedSkills.some((e) => e.name === "planning-with-files"), false);
     assertEntriesShape(catalog.workflowSkills, "workflowSkills");
   });
 

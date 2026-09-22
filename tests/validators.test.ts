@@ -14,7 +14,7 @@ describe("validateSkillsLock (codex deep-review #3)", () => {
     assert.doesNotThrow(() =>
       validateSkillsLock({
         skills: {
-          "planning-with-files": { source: "OthmanAdi/planning-with-files", sourceType: "github", computedHash: "x" },
+          "playwright-cli": { source: "microsoft/playwright-cli", sourceType: "github", computedHash: "x" },
           "codex-agent": { source: "Ben2pc/g-claude-code-plugins" },
         },
       }),

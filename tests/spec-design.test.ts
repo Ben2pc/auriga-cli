@@ -375,19 +375,12 @@ describe("spec-design skill — repo-check VALs", () => {
     }
   });
 
-  test("workflow consolidation separates planning carriers from autonomous execution", () => {
+  test("workflow uses incremental implementation for durable plans and explicit goal activation", () => {
     for (const f of ["AGENTS.md", "AGENTS.template.zh-CN.md", "AGENTS.template.en.md"]) {
       const text = read(f);
-      assert.match(
-        text,
-        /goalify[^\n]*(?:组合|combine)/i,
-        `${f} must describe goalify as composable with the selected planning carrier`,
-      );
-      assert.doesNotMatch(
-        text,
-        /Plan[^\n]*planning-with-files[^\n]*goalify[^\n]*(?:三选一|three|menu)/i,
-        `${f} must not treat goalify as a third planning carrier`,
-      );
+      assert.match(text, /incremental-impl[^\n]*(?:spec directory|规格目录)/i);
+      assert.match(text, /goalify[^\n]*(?:明确选择|explicitly selected)/i);
+      assert.doesNotMatch(text, /planning-with-files/i);
     }
   });
 

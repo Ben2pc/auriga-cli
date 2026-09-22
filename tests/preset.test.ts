@@ -192,7 +192,7 @@ describe("parseArgs --preset 解析契约", () => {
   // 明确的原子约束。遍历三个过滤标志,保证覆盖完整而非样例。
   test("--preset 与任一子项过滤标志同时出现被拒绝", () => {
     const cases: [string, string][] = [
-      ["--skill", "planning-with-files"],
+      ["--skill", "playwright-cli"],
       ["--plugin", "auriga-workflow"],
       ["--recommended-skill", "codex-agent"],
     ];
@@ -324,7 +324,7 @@ describe("parseArgs --preset-plugins-skills 解析契约", () => {
       ["install", "--preset-plugins-skills", "skills"],
       ["install", "plugins", "--preset-plugins-skills"],
       ["install", "--preset-plugins-skills", "--plugin", "auriga-workflow"],
-      ["install", "--preset-plugins-skills", "--skill", "planning-with-files"],
+      ["install", "--preset-plugins-skills", "--skill", "playwright-cli"],
     ];
     for (const argv of cases) {
       expectAtomicConflictRejected(
@@ -343,7 +343,6 @@ describe("parseArgs --preset-plugins-skills 解析契约", () => {
 const CATALOG = {
   generatedAt: "2026-04-21T00:00:00.000Z",
   workflowSkills: [
-    { name: "planning-with-files", description: "x" },
     { name: "playwright-cli", description: "x" },
   ],
   recommendedSkills: [{ name: "codex-agent", description: "x" }],

@@ -11,8 +11,7 @@
 // Block only on structural signals that can't be reasonably debated:
 //   B1  unpushed commits on the current branch  (Route A only — gh
 //       pr create handles push itself, so this check is moot there)
-//   B2  the active planning pointer and state named by it under .planning/
-//   B3  active specs left under docs/specs/ — that directory is a
+//   B2  active specs left under docs/specs/ — that directory is a
 //       dev-only temporary workspace and must be empty by PR Ready
 //       (promote to docs/architecture/, archive to docs/worklog/, or
 //       delete; per the root AGENTS.md document rules). Cross-PR program
@@ -105,7 +104,7 @@ function handlePrReady(cmd, repoHint) {
 function handlePrCreateGoingReady(repoHint) {
   // `gh pr create` without --draft publishes a Ready PR immediately,
   // bypassing Route A entirely. Run the same structural docs checks
-  // here so stray planning artifacts can't slip in via this route.
+  // here so active specs can't slip in via this route.
   // Skip B1 (gh handles push on create) and skip the body snapshot
   // (PR doesn't exist yet — PostToolUse pr-create-guard handles it).
   const repoRoot = gitToplevel(repoHint);
@@ -176,7 +175,6 @@ function stripQuoted(cmd) {
 
 const MAX_SCAN_DEPTH = 20;
 const MAX_SCAN_ENTRIES = 200;
-const MAX_POINTER_BYTES = 256;
 const MAX_REPORTED_ITEMS = 12;
 const MAX_REPORTED_PATH_CHARS = 160;
 
@@ -184,7 +182,7 @@ function issue(kind, relPath, code = null) {
   return { kind, path: relPath, code };
 }
 
-function lstatRoot(absPath, relPath, issues, { missingIsIssue = false } = {}) {
+function lstatRoot(absPath, relPath, issues) {
   try {
     const stat = fs.lstatSync(absPath);
     if (stat.isSymbolicLink()) {
@@ -197,9 +195,8 @@ function lstatRoot(absPath, relPath, issues, { missingIsIssue = false } = {}) {
     }
     return stat;
   } catch (error) {
-    if (error?.code === "ENOENT" && !missingIsIssue) return null;
-    const kind = error?.code === "ENOENT" ? "active plan directory is missing" : "scan root cannot be read";
-    issues.push(issue(kind, relPath, error?.code ?? "UNKNOWN"));
+    if (error?.code === "ENOENT") return null;
+    issues.push(issue("scan root cannot be read", relPath, error?.code ?? "UNKNOWN"));
     return null;
   }
 }
@@ -282,67 +279,8 @@ function collectBoundedEntries(absRoot, relRoot, include, issues) {
   return found;
 }
 
-function findActivePlanningState(repoRoot, issues) {
-  const planningRoot = path.join(repoRoot, ".planning");
-  if (!lstatRoot(planningRoot, ".planning", issues)) return [];
-
-  const pointerPath = path.join(planningRoot, ".active_plan");
-  let pointerStat;
-  try {
-    pointerStat = fs.lstatSync(pointerPath);
-  } catch (error) {
-    if (error?.code === "ENOENT") return [];
-    issues.push(issue("active plan pointer cannot be read", ".planning/.active_plan", error?.code ?? "UNKNOWN"));
-    return [];
-  }
-
-  const planning = [".planning/.active_plan"];
-  if (!pointerStat.isFile() || pointerStat.isSymbolicLink()) {
-    issues.push(issue("active plan pointer is not a regular file", ".planning/.active_plan"));
-    return planning;
-  }
-  if (pointerStat.size > MAX_POINTER_BYTES) {
-    issues.push(issue("active plan pointer exceeds size limit", ".planning/.active_plan"));
-    return planning;
-  }
-
-  let planId;
-  try {
-    planId = fs.readFileSync(pointerPath, "utf8").trim();
-  } catch (error) {
-    issues.push(issue("active plan pointer cannot be read", ".planning/.active_plan", error?.code ?? "UNKNOWN"));
-    return planning;
-  }
-
-  if (!/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(planId)) {
-    issues.push(issue("invalid active plan identifier", ".planning/.active_plan"));
-    return planning;
-  }
-
-  const planRel = `.planning/${planId}`;
-  const planAbs = path.join(planningRoot, planId);
-  if (!lstatRoot(planAbs, planRel, issues, { missingIsIssue: true })) return planning;
-  // The root has already been verified. collectBoundedEntries performs the
-  // same check immediately before walking to avoid time-of-check races.
-  const planFiles = collectBoundedEntries(
-    planAbs,
-    planRel,
-    (ent, childRel) => {
-      if (ent.isSymbolicLink()) {
-        issues.push(issue("active plan contains a symbolic link", childRel));
-        return false;
-      }
-      return ent.isFile();
-    },
-    issues,
-  );
-  planning.push(...planFiles);
-  return planning;
-}
-
 function findUnresolvedReadyArtifacts(repoRoot) {
   const scanIssues = [];
-  const planning = findActivePlanningState(repoRoot, scanIssues);
 
   // docs/specs/ preserves the historical contract: every non-directory
   // Markdown entry except *.bak blocks, including valid and broken symlinks.
@@ -352,15 +290,11 @@ function findUnresolvedReadyArtifacts(repoRoot) {
     (ent) => /\.md$/i.test(ent.name) && !/\.bak$/i.test(ent.name),
     scanIssues,
   );
-  return { planning, activeSpecs, scanIssues };
+  return { activeSpecs, scanIssues };
 }
 
 function hasUnresolvedArtifacts(artifacts) {
-  return (
-    artifacts.planning.length > 0 ||
-    artifacts.activeSpecs.length > 0 ||
-    artifacts.scanIssues.length > 0
-  );
+  return artifacts.activeSpecs.length > 0 || artifacts.scanIssues.length > 0;
 }
 
 function quotePath(value) {
@@ -388,11 +322,6 @@ function formatIssues(issues) {
 
 function formatReadyBlockMessage(artifacts, route) {
   const parts = [];
-  if (artifacts.planning.length > 0) {
-    parts.push(
-      `temporary planning artifacts for active plan: ${formatPathList(artifacts.planning)}`,
-    );
-  }
   if (artifacts.activeSpecs.length > 0) {
     parts.push(
       `unfinalized active specs in docs/specs/: ${formatPathList(artifacts.activeSpecs)}`,
@@ -402,8 +331,6 @@ function formatReadyBlockMessage(artifacts, route) {
     parts.push(`blocking scanner issues: ${formatIssues(artifacts.scanIssues)}`);
   }
   // Only active specs are "promote-able" to docs/architecture/.
-  // Planning state is session-ephemeral by definition — don't suggest
-  // promotion when only that fires.
   const promoteable = artifacts.activeSpecs.length > 0;
   const archiveTarget = "docs/worklog/worklog-<YYYY-MM-DD>-<branch>/";
 
@@ -414,13 +341,13 @@ function formatReadyBlockMessage(artifacts, route) {
     "execute via the documentation-management skill, not a bare file move";
   let remediation;
   if (route === "create-nondraft") {
-    const promoteHint = promoteable ? "promote to docs/architecture/, " : "";
-    remediation =
-      `Resolve before \`gh pr create\` without --draft: ${promoteHint}archive to ${archiveTarget}, or delete — ${routeHint}. Alternatively, pass --draft to defer the Ready transition to a separate \`gh pr ready\`.`;
+    remediation = promoteable
+      ? `Resolve before \`gh pr create\` without --draft: promote to docs/architecture/, archive to ${archiveTarget}, or delete — ${routeHint}. Alternatively, pass --draft to defer the Ready transition to a separate \`gh pr ready\`.`
+      : "Resolve scanner issues before `gh pr create` without --draft. Alternatively, pass --draft to defer the Ready transition to a separate `gh pr ready`.";
   } else {
     remediation = promoteable
       ? `Resolve before marking ready: promote to docs/architecture/, archive to ${archiveTarget}, or delete — ${routeHint}.`
-      : `Archive to ${archiveTarget} or delete before marking ready — ${routeHint}.`;
+      : "Resolve scanner issues before marking ready.";
   }
   return `${parts.join("; ")}. ${remediation}`;
 }
