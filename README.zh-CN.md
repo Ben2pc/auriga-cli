@@ -107,7 +107,6 @@ npx auriga-cli
 
 | Skill | 来源 | 说明 |
 |---|---|---|
-| planning-with-files | [OthmanAdi/planning-with-files](https://github.com/OthmanAdi/planning-with-files) | 文件化任务计划与进度跟踪 |
 | playwright-cli | [microsoft/playwright-cli](https://github.com/microsoft/playwright-cli) | 浏览器自动化与测试 |
 
 **Recommended Skills（可选工具类 skill —— `--all` 会装,`--preset` 不装）：**

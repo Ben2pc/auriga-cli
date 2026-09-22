@@ -107,7 +107,6 @@ Installs selected skills via `npx skills add`, targeting both Claude Code and Co
 
 | Skill | Source | Description |
 |---|---|---|
-| planning-with-files | [OthmanAdi/planning-with-files](https://github.com/OthmanAdi/planning-with-files) | File-based task planning and progress tracking |
 | playwright-cli | [microsoft/playwright-cli](https://github.com/microsoft/playwright-cli) | Browser automation and testing |
 
 **Recommended Skills (opt-in utility skills — installed by `--all`, not by `--preset`):**

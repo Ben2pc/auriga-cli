@@ -25,12 +25,6 @@
       "skillPath": "skills/make-interfaces-feel-better/SKILL.md",
       "computedHash": "54b6e221bbe4e2d1a8461c3f9ecabe69daf891f964e9ee5e699c323daa018f2e"
     },
-    "planning-with-files": {
-      "source": "OthmanAdi/planning-with-files",
-      "sourceType": "github",
-      "skillPath": "skills/planning-with-files/SKILL.md",
-      "computedHash": "bdd73f7761eb1a64d0b8e094b9d63067b256c3e146c0d2bab0afc627cedd5f56"
-    },
     "playwright-cli": {
       "source": "microsoft/playwright-cli",
       "sourceType": "github",

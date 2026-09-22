@@ -50,13 +50,13 @@ describe("parseArgs", () => {
         cwd: process.cwd(),
       },
     });
-    assert.deepEqual(installArgs(["skills", "--scope", "user", "--skill", "planning-with-files", "playwright-cli"]), {
+    assert.deepEqual(installArgs(["skills", "--scope", "user", "--skill", "playwright-cli"]), {
       command: "install",
       install: {
         all: false,
         type: "skills",
         scope: "user",
-        filter: ["planning-with-files", "playwright-cli"],
+        filter: ["playwright-cli"],
       },
     });
     assert.deepEqual(installArgs(["recommended", "--recommended-skill", "frontend-design"]), {
@@ -141,8 +141,8 @@ describe("parseArgs", () => {
   test("fail-fasts on illegal combinations, mismatched filters, and top-level misuse", () => {
     expectParseError(["install", "workflow", "skills"], /install takes one <type> at a time/i);
     expectParseError(["install", "--all", "recommended"], /--all is atomic; no extra types or filters/i);
-    expectParseError(["install", "--all", "--skill", "planning-with-files"], /--all is atomic; no extra types or filters/i);
-    expectParseError(["install", "workflow", "--skill", "planning-with-files"], /--skill requires 'install skills'/i);
+    expectParseError(["install", "--all", "--skill", "playwright-cli"], /--all is atomic; no extra types or filters/i);
+    expectParseError(["install", "workflow", "--skill", "playwright-cli"], /--skill requires 'install skills'/i);
     expectParseError(["install", "--recommended-skill", "frontend-design"], /--recommended-skill requires 'install recommended'/i);
     expectParseError(["install", "workflow", "--plugin", "auriga-workflow"], /--plugin requires 'install plugins'/i);
     expectParseError(["install", "skills", "--lang", "en"], /--lang\/--cwd only apply to workflow/i);
@@ -188,7 +188,8 @@ describe("parseArgs", () => {
 
   // Covers spec §7 catalog-backed validation, strict value validation, and guide arity fail-fast.
   test("validates names, language, scope, cwd, and guide arity", () => {
-    expectParseError(["install", "skills", "--skill", "foo"], /unknown skill 'foo'; available: .*planning-with-files/i);
+    expectParseError(["install", "skills", "--skill", "foo"], /unknown skill 'foo'; available: .*playwright-cli/i);
+    expectParseError(["install", "skills", "--skill", "planning-with-files"], /unknown skill 'planning-with-files'/i);
     expectParseError(["install", "recommended", "--recommended-skill", "foo"], /available: .*frontend-design/i);
     expectParseError(["install", "plugins", "--plugin", "foo"], /available: .*auriga-workflow/i);
     expectParseError(["install", "skills", "--skill", "incremental-impl"], /auriga-workflow/i);
@@ -238,9 +239,9 @@ describe("parseArgs", () => {
       command: "install",
       install: { all: false, type: "workflow", lang: "zh-CN", cwd: process.cwd() },
     });
-    assert.deepEqual(installArgs(["skills", "--scope=user", "--skill", "planning-with-files"]), {
+    assert.deepEqual(installArgs(["skills", "--scope=user", "--skill", "playwright-cli"]), {
       command: "install",
-      install: { all: false, type: "skills", scope: "user", filter: ["planning-with-files"] },
+      install: { all: false, type: "skills", scope: "user", filter: ["playwright-cli"] },
     });
     expectParseError(["install", "workflow", "--lang="], /--lang requires a value/i);
     expectParseError(["install", "plugins", "--scope="], /--scope requires a value/i);

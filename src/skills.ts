@@ -10,7 +10,6 @@ import type { InstallOpts, SkillEntry, SkillsLock } from "./utils.js";
 // instead. Anything else in skills-lock.json is surfaced via
 // installRecommendedSkills as an opt-in utility.
 export const WORKFLOW_SKILLS = [
-  "planning-with-files",
   "playwright-cli",
 ];
 

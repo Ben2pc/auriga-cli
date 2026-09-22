@@ -1,5 +1,5 @@
 <!-- AURIGA:WORKFLOW:v1 START — Managed block, maintained by auriga-cli. Do not edit by hand; upgrades replace it wholesale. Put project-specific instructions after the END marker below. -->
-# auriga Workflow (v1.26.0)
+# auriga Workflow (v1.27.0)
 
 Persist to the requested endpoint: research delivers evidence and recommendations, design a reviewable proposal, and implementation includes fixes and verification. Ready, merge, and deployment require authorization. Continue after status questions or corrections unless explicitly stopped.
 
@@ -7,7 +7,7 @@ Confirmed decisions and authorization persist within the task; phase changes, sk
 
 1. Requirement clarification: For new or changed externally observable behavior, use `spec-design` first to judge value and align the goal from actual code and product evidence. **spec = why + observable what; arch design = structural how; plan = implementation steps**. A change that preserves the external behavior contract may skip the spec but can still need architecture clarification.
 
-2. Architecture and planning: Use `arch-design` for substantive technical, domain model, or boundary decisions and confirm the design before implementation. Reuse an existing planning carrier; otherwise use `planning-with-files` for durable handoff and built-in Plan for other work. Ask only when unresolved preferences affect delivery. `goalify` can combine with either carrier and activates only when explicitly selected.
+2. Architecture and planning: Use `arch-design` for substantive technical, domain model, or boundary decisions and confirm the design before implementation. For non-trivial implementation, `incremental-impl` records the implementation breakdown in the corresponding spec directory; use the built-in Plan for other work as needed. Ask only when unresolved preferences affect delivery. `goalify` activates only when explicitly selected.
 
 3. Git lifecycle: Use `git-workflow` when changing branches, commits, remotes, or pull-request state; run read-only queries directly as needed. Before coding, create a task branch from the agreed base, or reuse an existing correct task branch; never commit directly to the base branch. Prefixes: `feat/`, `fix/`, `docs/`, `refactor/`, `chore/`. Within authorization, open a Draft PR after the first meaningful commit.
 
@@ -23,7 +23,7 @@ Confirmed decisions and authorization persist within the task; phase changes, sk
 
 ## Quick Development Flow (bug fix / small refactor / small feature)
 
-A task with one single clear outcome, no unresolved product or architecture decision, no cross-session tracking, and no need for multiple complete implementation units can proceed to coding preparation; otherwise select a planning carrier using the rules above. The quick flow still follows applicable requirement, architecture, testing, verification, and review requirements.
+A task with one single clear outcome, no unresolved product or architecture decision, no cross-session tracking, and no need for multiple complete implementation units can proceed to coding preparation; otherwise record the implementation breakdown using the rules above. The quick flow still follows applicable requirement, architecture, testing, verification, and review requirements.
 
 ## Document Conventions
 
@@ -37,7 +37,7 @@ Repo documentation lives under `docs/`, one directory per purpose:
 | `docs/rules/test/` | Project test rules; `test-driven-development` reads them before tests are written | Long-lived |
 | `docs/rules/spec/` | Project spec rules; `spec-design` must consult during research | Long-lived |
 | `docs/rules/arch/` | Project architecture rules; `arch-design` treats them as hard constraints | Long-lived |
-| `docs/specs/` | Default destination for `spec-design` / `arch-design` outputs; ephemeral dev workspace. **Must be empty by PR Ready**: promote to `docs/architecture/`, archive to worklog, or delete | Dev-only |
+| `docs/specs/` | Default destination for `spec-design` / `arch-design` outputs and `incremental-impl` implementation breakdowns; ephemeral dev workspace. **Must be empty by PR Ready**: promote to `docs/architecture/`, archive to worklog, or delete | Dev-only |
 | `docs/long-running-specs/` | Specs and design inputs still referenced across PRs; exempt from individual PR cleanup | Human disposition after all child PRs finish |
 | `docs/architecture/` | Stable design docs + ADRs (`ADR-<n>-<title>.md`) | Long-lived |
 

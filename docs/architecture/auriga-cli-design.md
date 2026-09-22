@@ -31,7 +31,6 @@ auriga-cli/
 │       ├── systematic-debugging/
 │       ├── test-driven-development/
 │       ├── verification-before-completion/
-│       ├── planning-with-files/
 │       └── playwright-cli/
 ├── .claude/
 │   └── settings.json          # 本地 Claude Code 配置（hooks 等本地项；插件启用在用户级 ~/.claude，不在仓库内固定）

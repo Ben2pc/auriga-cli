@@ -25,9 +25,7 @@ import { after, before, describe, test } from "node:test";
 // marketplace). Category composition (`install --all`, recommended
 // filters) and the legacy-notify migration are unit-covered
 // (cli-parse / apply-handlers / plugins tests); repeating them here
-// only added minutes of runtime and clones of slow external repos —
-// planning-with-files in particular flaked on unauthenticated GitHub
-// rate limits.
+// only added minutes of runtime and clones of slow external repos.
 //
 // Run after `git push` (the suite skips on unpushed HEAD):
 //   npm run test:e2e
@@ -350,11 +348,11 @@ describe(
       // check below would pass vacuously if the whole install silently
       // errored out and produced no skills dir at all.
       assert.ok(findSkillDir(proj, "playwright-cli"), "playwright-cli dir missing (filter test would be vacuous)");
-      // A random non-selected workflow skill must NOT be present —
-      // proves the filter isn't a silent no-op that installs everything.
+      // A non-selected recommended skill must NOT be present —
+      // proves the filter does not install other categories.
       assert.ok(
-        !findSkillDir(proj, "planning-with-files"),
-        "non-selected skill leaked through filter: planning-with-files",
+        !findSkillDir(proj, "frontend-design"),
+        "non-selected skill leaked through filter: frontend-design",
       );
       assert.equal(
         fs.readFileSync(retiredSkill, "utf-8"),
