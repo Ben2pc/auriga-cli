@@ -1645,12 +1645,12 @@ test("codex analyzer emits empty skill_timeline / review_syntheses defaults [VAL
     "codex review_syntheses must default to an empty array");
 });
 
-test("deep-review SKILL.md keeps the literal punch-list heading the analyzers capture [VAL-RS-008]", () => {
+test("deep-review synthesis template keeps the literal heading the analyzers capture [VAL-RS-008]", () => {
   // Cross-component contract: both analyzers capture review_syntheses by
   // matching this exact heading. Rewording the deep-review output contract
   // must be synced with REVIEW_SYNTHESIS_RE in analyzers/{claude-code,codex}.mjs.
   const dr = fs.readFileSync(
-    path.join(PLUGIN_ROOT, "skills/deep-review/SKILL.md"),
+    path.join(PLUGIN_ROOT, "skills/deep-review/references/synthesis.md"),
     "utf8",
   );
   assert(dr.includes("## Deep Review:"),

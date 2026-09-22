@@ -2,7 +2,7 @@
 name: <NAME>
 best_for: "<BEST_FOR>"
 extends: <EXTENDS>  # 内置审查者名，或 standalone
-trigger: <TRIGGER>
+trigger: <TRIGGER>  # always = 强制执行；tag:<标签> = 候选
 reasoning: <REASONING>
 tools: [Read, Grep, Glob]
 value: "<这个项目规则比宿主通用检查多防住什么风险>"
