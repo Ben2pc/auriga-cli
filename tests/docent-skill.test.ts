@@ -64,7 +64,7 @@ describe("docent skill assets", () => {
     assert.match(execution, /全过程[^。\n]*子代理内部/);
     assert.match(
       execution,
-      /派遣[^。\n]*references\/report-workflow\.md[^。\n]*报告生成流程/,
+      /派遣[^。\n]*references\/report-workflow\.md[^。\n]*讲解流程/,
       "the dispatch packet must tell the isolated Agent where to load its complete workflow",
     );
     assert.match(
@@ -84,9 +84,9 @@ describe("docent skill assets", () => {
     );
   });
 
-  // Keep the comprehension contract, but make history, hands-on verification,
-  // search methods, and visual customization conditional.
-  test("skill separates core report content from conditional tools and presentation", () => {
+  // Keep the comprehension contract while making visual format and offline
+  // assembly conditional on what the explanation actually needs.
+  test("skill defaults to in-conversation explanation with optional offline report", () => {
     const htmlAssets = listFilesRecursive(SKILL_DIR).filter((f) => f.endsWith(".html"));
     assert.deepEqual(htmlAssets, [], "docent must not ship a fixed HTML template asset");
     const text = read(`${SKILL_DIR}/SKILL.md`) + "\n" + read(`${SKILL_DIR}/references/report-workflow.md`);
@@ -95,19 +95,14 @@ describe("docent skill assets", () => {
       /文件:行号/.test(text),
       "SKILL.md must require file:line anchors for code conclusions",
     );
-    assert.ok(text.includes("自包含"), "SKILL.md must require a self-contained offline HTML");
+    assert.match(text, /默认交付可直接在对话中阅读的讲解/);
+    assert.match(text, /静态[^\n]*Mermaid 图[\s\S]{0,100}Markdown 表格/);
+    assert.match(text, /运行时支持对话内可视化[\s\S]{0,160}可视化能力说明/);
+    assert.match(text, /只有用户明确要求可离线分享的报告[\s\S]{0,120}才生成独立 HTML/);
+    assert.ok(text.includes("自包含"), "optional offline HTML must remain self-contained");
     assert.ok(text.includes("阅读足迹"), "SKILL.md must require the reading-footprint section");
-    assert.ok(
-      /至少(?:用)?一张/.test(text) && /时序图|流程图|状态图/.test(text) && /依赖图|组件图/.test(text),
-      "SKILL.md must require a primary relationship diagram chosen for the question",
-    );
-    assert.ok(
-      text.includes("架构总览"),
-      "SKILL.md must require an architecture overview diagram on the first screen",
-    );
-    assert.match(text, /代码实体命名[^。]*同时适用于[^。]*文字描述[^。]*图/);
-    assert.match(text, /同一实体[^。]*(?:正文|标题)[^。]*图中[^。]*保持一致/);
-    assert.match(text, /现有[^。]*(?:模块|类)[^。]*原始标识符[^。]*不[^。]*翻译/);
+    assert.match(text, /同一实体命名保持一致[^。]*不[^。]*翻译/);
+    assert.match(text, /复杂关系需要图时[^。]*系统中的位置/);
     assert.match(core, /可运行或可操作[\s\S]{0,120}端到端/);
     assert.match(core, /否则[\s\S]{0,140}(自动化测试|静态检查|人工核对)/);
     assert.match(
@@ -115,7 +110,7 @@ describe("docent skill assets", () => {
       /不是[^。\n]*(代码审查|架构评审)[\s\S]{0,180}(arch-design|架构设计)/,
       "Docent must explain current code without silently becoming a redesign workflow",
     );
-    const conditional = sectionBetween(text, "#### 条件内容", "### 4. 生成 HTML 报告");
+    const conditional = sectionBetween(text, "#### 条件内容", "### 4. 选择展示形式并交付");
     assert.match(conditional, /历史演化[\s\S]{0,120}(按需|条件)/, "git history must be conditional");
     assert.match(
       conditional,
