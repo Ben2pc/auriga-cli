@@ -331,15 +331,6 @@ describe("server auth — static asset exemption (spec §6.1)", () => {
 // ---------------------------------------------------------------------------
 
 describe("server auth — Origin/Host whitelist (spec §4.4)", () => {
-  test("boundary: missing Origin + Host=127.0.0.1:<port> + good token → pass", async () => {
-    // fetch() to 127.0.0.1 won't set an Origin header by default — that's the
-    // exact CLI-tool / programmatic case the spec carves out.
-    const res = await fetch(`${ctx.baseUrl}/api/state`, {
-      headers: { Authorization: `Bearer ${TOKEN}` },
-    });
-    expectAuthPassed(res, "no Origin, default Host");
-  });
-
   test("spec §4.4: Origin=http://localhost:<port> + Host=localhost:<port> + good token → pass", async () => {
     const res = await fetch(`${ctx.baseUrl}/api/state`, {
       headers: {

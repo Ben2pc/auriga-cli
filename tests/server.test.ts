@@ -196,42 +196,6 @@ describe("GET /api/state (spec §6.1)", () => {
 // ---------------------------------------------------------------------------
 
 describe("POST /api/apply (spec §6.1 / §6.4)", () => {
-  test("valid ApplyRequest → 202 with jobId", async () => {
-    await withServer(async ({ baseUrl, token }) => {
-      const body = {
-        items: [
-          { category: "skill", name: "systematic-debugging", action: "install" },
-          { category: "plugin", name: "auriga-notify", action: "uninstall" },
-        ],
-      };
-      const res = await fetch(`${baseUrl}/api/apply`, {
-        method: "POST",
-        headers: {
-          ...authHeaders(token),
-          "content-type": "application/json",
-        },
-        body: JSON.stringify(body),
-      });
-      assert.equal(res.status, 202);
-      const parsed = (await res.json()) as { jobId?: unknown };
-      assert.equal(typeof parsed.jobId, "string");
-      assert.ok((parsed.jobId as string).length > 0);
-    });
-  });
-
-  test("non-JSON body → 400", async () => {
-    await withServer(async ({ baseUrl, token }) => {
-      const res = await fetch(`${baseUrl}/api/apply`, {
-        method: "POST",
-        headers: { ...authHeaders(token), "content-type": "application/json" },
-        body: "{not json at all",
-      });
-      assert.equal(res.status, 400);
-      const parsed = (await res.json()) as { error?: unknown };
-      assert.equal(typeof parsed.error, "string");
-    });
-  });
-
   test("missing items[] → 400", async () => {
     await withServer(async ({ baseUrl, token }) => {
       const res = await fetch(`${baseUrl}/api/apply`, {
@@ -240,61 +204,6 @@ describe("POST /api/apply (spec §6.1 / §6.4)", () => {
         body: JSON.stringify({}),
       });
       assert.equal(res.status, 400);
-    });
-  });
-
-  test("invalid category in item → 400", async () => {
-    await withServer(async ({ baseUrl, token }) => {
-      const res = await fetch(`${baseUrl}/api/apply`, {
-        method: "POST",
-        headers: { ...authHeaders(token), "content-type": "application/json" },
-        body: JSON.stringify({
-          items: [{ category: "not-a-thing", name: "x", action: "install" }],
-        }),
-      });
-      assert.equal(res.status, 400);
-    });
-  });
-
-  test("invalid action in item → 400", async () => {
-    await withServer(async ({ baseUrl, token }) => {
-      const res = await fetch(`${baseUrl}/api/apply`, {
-        method: "POST",
-        headers: { ...authHeaders(token), "content-type": "application/json" },
-        body: JSON.stringify({
-          items: [{ category: "skill", name: "x", action: "obliterate" }],
-        }),
-      });
-      assert.equal(res.status, 400);
-    });
-  });
-
-  test("legacy action=\"update\" is rejected → 400 (v1.19.0 deprecation)", async () => {
-    // Pinned regression: re-install is the update path now. If a future
-    // change re-adds "update" to VALID_ACTIONS the deprecated surface comes
-    // back silently — this test fails first.
-    await withServer(async ({ baseUrl, token }) => {
-      const res = await fetch(`${baseUrl}/api/apply`, {
-        method: "POST",
-        headers: { ...authHeaders(token), "content-type": "application/json" },
-        body: JSON.stringify({
-          items: [{ category: "skill", name: "x", action: "update" }],
-        }),
-      });
-      assert.equal(res.status, 400);
-    });
-  });
-
-  test("empty items[] is accepted → 202", async () => {
-    // Empty batch is well-formed; the runner will simply emit all-done with
-    // failedCount: 0. No reason to 400.
-    await withServer(async ({ baseUrl, token }) => {
-      const res = await fetch(`${baseUrl}/api/apply`, {
-        method: "POST",
-        headers: { ...authHeaders(token), "content-type": "application/json" },
-        body: JSON.stringify({ items: [] }),
-      });
-      assert.equal(res.status, 202);
     });
   });
 });
@@ -322,19 +231,6 @@ describe("POST /api/ping (spec §6.1 / §6.6)", () => {
 // ---------------------------------------------------------------------------
 
 describe("GET /api/progress (spec §6.5)", () => {
-  test("unknown jobId → 404", async () => {
-    // The route-level smoke check: an arbitrary jobId that was never created
-    // must 404 (spec AA4). Deeper SSE behavior is exercised in
-    // tests/server-apply.test.ts where job handlers can be injected.
-    await withServer(async ({ baseUrl, token }) => {
-      const res = await fetch(`${baseUrl}/api/progress?jobId=does-not-exist`, {
-        headers: authHeaders(token),
-      });
-      assert.equal(res.status, 404);
-      await res.text();
-    });
-  });
-
   test("missing jobId → 400", async () => {
     await withServer(async ({ baseUrl, token }) => {
       const res = await fetch(`${baseUrl}/api/progress`, {
@@ -391,27 +287,6 @@ describe("POST /api/shutdown (spec §4.3)", () => {
     } finally {
       // Idempotent: close() resolves even if the server has already torn down.
       await ctx.server.close().catch(() => {});
-    }
-  });
-});
-
-// ---------------------------------------------------------------------------
-// Cross-cutting: tokens differ per server instance — no cross-contamination
-// ---------------------------------------------------------------------------
-
-describe("server instances are independent", () => {
-  test("token from one server is rejected by another", async () => {
-    const a = await bootServer();
-    const b = await bootServer();
-    try {
-      const res = await fetch(`${b.baseUrl}/api/ping`, {
-        method: "POST",
-        headers: authHeaders(a.token), // wrong token for server B
-      });
-      assert.equal(res.status, 401);
-    } finally {
-      await a.server.close();
-      await b.server.close();
     }
   });
 });

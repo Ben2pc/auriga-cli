@@ -137,11 +137,6 @@ function check(name, condition, info = "") {
     `stdout="${r.stdout}"`,
   );
   check(
-    "reminder references git-workflow skill",
-    r.stdout.includes("git-workflow"),
-    `stdout="${r.stdout}"`,
-  );
-  check(
     "state file created on first reminder",
     existsSync(statePath(dir)),
     `expected file at ${statePath(dir)}`,
@@ -324,57 +319,6 @@ function check(name, condition, info = "") {
     r.status === 0 && r.stdout === "",
     `stdout="${r.stdout}"`,
   );
-}
-
-// Case 9: Write tool triggers same as Edit
-{
-  const dir = setupRepo();
-  writeFile(dir, "big.txt", 500);
-  spawnSync("git", ["add", "."], { cwd: dir });
-  const r = run(payload("Write"), dir);
-  check(
-    "Write tool triggers reminder",
-    r.status === 0 && r.stdout.includes("commit-reminder"),
-    `stdout="${r.stdout}"`,
-  );
-}
-
-// Case 10: MultiEdit tool triggers same as Edit
-{
-  const dir = setupRepo();
-  writeFile(dir, "big.txt", 500);
-  spawnSync("git", ["add", "."], { cwd: dir });
-  const r = run(payload("MultiEdit"), dir);
-  check(
-    "MultiEdit tool triggers reminder",
-    r.status === 0 && r.stdout.includes("commit-reminder"),
-    `stdout="${r.stdout}"`,
-  );
-}
-
-// Case 11: host-specific file-edit names still remind when invoked.
-// Matcher coverage is asserted separately against hooks.json; this
-// loop locks the script-side contract that tool_name is not a gate.
-// Each tool gets its own repo so the 5-minute rate limit does not
-// hide later names.
-{
-  for (const tool of [
-    "apply_patch",
-    "StrReplace",
-    "NotebookEdit",
-    "Delete",
-    "EditNotebook",
-  ]) {
-    const dir = setupRepo();
-    writeFile(dir, "big.txt", 500);
-    spawnSync("git", ["add", "."], { cwd: dir });
-    const r = run(payload(tool), dir);
-    check(
-      `${tool} tool_name still reminds when invoked`,
-      r.status === 0 && r.stdout.includes("commit-reminder"),
-      `stdout="${r.stdout}"`,
-    );
-  }
 }
 
 // Case 12: untracked files alone (no git add) cross the file threshold

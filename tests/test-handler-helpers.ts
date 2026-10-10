@@ -10,7 +10,7 @@
 // expected to be re-exported from `src/server.ts` (see assumptions block at
 // the top of tests/server-apply.test.ts).
 
-import type { ApplyAction, ApplyItemRef } from "../src/api-types.js";
+import type { ApplyAction } from "../src/api-types.js";
 
 // ---------------------------------------------------------------------------
 // Mirror of the public type surface the implementer must expose from

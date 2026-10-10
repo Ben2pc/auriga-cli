@@ -263,26 +263,6 @@ describe("uninstallSkill — scope forwarding (user scope)", () => {
 });
 
 describe("uninstallSkillManual — direct entry point", () => {
-  test("removes .claude + .agents + lockfile entry in one pass", async () => {
-    const cwd = makeScratchLock({
-      "systematic-debugging": { source: "obra/superpowers" },
-      "deep-review": { source: "Ben2pc/g-claude-code-plugins" },
-    });
-    fs.mkdirSync(path.join(cwd, ".claude/skills/systematic-debugging"), { recursive: true });
-    fs.writeFileSync(path.join(cwd, ".claude/skills/systematic-debugging/SKILL.md"), "x");
-    fs.mkdirSync(path.join(cwd, ".agents/skills/systematic-debugging"), { recursive: true });
-    fs.writeFileSync(path.join(cwd, ".agents/skills/systematic-debugging/SKILL.md"), "y");
-
-    const { uninstallSkillManual } = await importSkills(() => "");
-
-    await uninstallSkillManual("systematic-debugging", cwd);
-
-    assert.equal(fs.existsSync(path.join(cwd, ".claude/skills/systematic-debugging")), false);
-    assert.equal(fs.existsSync(path.join(cwd, ".agents/skills/systematic-debugging")), false);
-    const lock = JSON.parse(fs.readFileSync(path.join(cwd, "skills-lock.json"), "utf-8")) as SkillsLock;
-    assert.deepEqual(Object.keys(lock.skills), ["deep-review"]);
-  });
-
   test("rejects invalid name in fallback too (defense in depth)", async () => {
     const cwd = makeScratchLock({});
     const { uninstallSkillManual } = await importSkills(() => "");

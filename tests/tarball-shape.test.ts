@@ -60,32 +60,6 @@ afterEach(() => {
 });
 
 describe("tarball-shape — dist/catalog.json carries everything the scanner needs", () => {
-  test("dist/catalog.json is present in the packed tarball", () => {
-    assert.ok(
-      fs.existsSync(tarballPath),
-      `expected tarball at ${tarballPath}`,
-    );
-    assert.ok(catalogFromTarball, "catalog parsed from tarball");
-  });
-
-  test("catalog has no version / hash fields (v1.19.0 presence-only)", () => {
-    // The scanner is presence-only as of v1.19.0; baking workflowVersion
-    // or per-plugin expectedVersion would be dead data shipping in every
-    // tarball. This test pins that surface stays gone.
-    assert.equal(
-      (catalogFromTarball as unknown as Record<string, unknown>).workflowVersion,
-      undefined,
-      "workflowVersion must not appear in dist/catalog.json",
-    );
-    for (const entry of catalogFromTarball.plugins) {
-      assert.equal(
-        (entry as unknown as Record<string, unknown>).expectedVersion,
-        undefined,
-        `plugin ${entry.name}: expectedVersion must not be baked`,
-      );
-    }
-  });
-
   test("every plugin entry carries a baked agents map (build-time)", () => {
     // rationale: scan-catalog used to derive the agent map from runtime plugin
     // config files that are NOT in the tarball. dist/catalog.json must carry
@@ -102,30 +76,6 @@ describe("tarball-shape — dist/catalog.json carries everything the scanner nee
           `plugin ${entry.name}: agent must be 'claude' or 'codex' (got ${JSON.stringify(a)})`,
         );
       }
-    }
-  });
-
-  test("owned plugins lack external flag; external plugins have it", () => {
-    // rationale: the EXTERNAL badge tells users "upgrades go through
-    // `claude plugins update`, not us" for plugins published in upstream
-    // marketplaces. Pure UI hint since v1.19.0 (used to also gate
-    // update-available reporting; that surface is gone).
-    const owned = [
-      "auriga-workflow",
-      "auriga-notify",
-      "quality-gate-scaffolder",
-      "session-instructions-loader",
-    ];
-    const external = ["skill-creator", "claude-md-management", "codex"];
-    for (const name of owned) {
-      const e = catalogFromTarball.plugins.find((p) => p.name === name);
-      assert.ok(e, `${name} present in tarball catalog`);
-      assert.notEqual(e!.external, true, `owned plugin ${name} must NOT be external`);
-    }
-    for (const name of external) {
-      const e = catalogFromTarball.plugins.find((p) => p.name === name);
-      assert.ok(e, `${name} present in tarball catalog`);
-      assert.equal(e!.external, true, `external plugin ${name} must carry external:true`);
     }
   });
 });

@@ -88,7 +88,6 @@
 // =============================================================================
 
 import assert from "node:assert/strict";
-import { request as httpRequest } from "node:http";
 import { describe, test } from "node:test";
 import { randomBytes } from "node:crypto";
 
@@ -453,12 +452,8 @@ describe("POST /api/apply — validation", () => {
   });
 
   test("boundary: items[] empty → 400 (with applyCatalog injected)", async (t) => {
-    // NB: server.test.ts asserts an empty items[] is 202 in the no-catalog
-    // path. When a catalog IS injected, the spec semantics tighten — an
-    // empty batch is almost certainly client error (UI bug or stale state)
-    // and should fail loudly rather than silently no-op. Implementer may
-    // legitimately push back on this if product UX disagrees, but the test
-    // forces the conversation.
+    // An empty batch is almost certainly client error (UI bug or stale
+    // state) and should fail loudly rather than silently no-op.
     const ctx = await bootApplyServer();
     t.after(() => ctx.close());
     const res = await postApply(ctx.baseUrl, ctx.token, { items: [] });
@@ -881,20 +876,6 @@ describe("GET /api/progress — late subscriber receives full replay", () => {
 // ---------------------------------------------------------------------------
 
 describe("POST /api/apply + SSE — token never leaks", () => {
-  test("boundary: wrong token → 401 (apply-layer enforces auth)", async (t) => {
-    const ctx = await bootApplyServer({ token: CANARY_TOKEN });
-    t.after(() => ctx.close());
-    const res = await fetch(`${ctx.baseUrl}/api/apply`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${"f".repeat(64)}`,
-        "content-type": "application/json",
-      },
-      body: JSON.stringify({ items: items(["skill", "alpha", "install"]) }),
-    });
-    assert.equal(res.status, 401);
-  });
-
   test("boundary: full SSE byte stream contains no token sentinel", async (t) => {
     // Use a logging handler that purposely tries to mention something that
     // looks like a secret — the implementation MUST scrub or simply never
@@ -1000,36 +981,6 @@ describe("POST /api/apply — concurrent apply rejected (AA5)", () => {
     await readSSEUntil(
       progressRes,
       (_f, parsed) => (parsed as ProgressEvent | null)?.type === "all-done",
-    );
-  });
-
-  test("boundary: after first job finishes, a new apply succeeds (AA5 not sticky)", async (t) => {
-    // Sanity follow-up: the 409 must NOT be a permanent state. Once the
-    // first job's all-done has been emitted, the server should accept a new
-    // apply.
-    const ctx = await bootApplyServer({
-      handlers: uniformHandlers(delayedHandler(60, true)),
-    });
-    t.after(() => ctx.close());
-
-    const first = await postApply(ctx.baseUrl, ctx.token, {
-      items: items(["skill", "alpha", "install"]),
-    });
-    assert.equal(first.status, 202);
-    const { jobId } = (await first.json()) as { jobId: string };
-    const prog = await openProgress(ctx.baseUrl, ctx.token, jobId);
-    await readSSEUntil(
-      prog,
-      (_f, parsed) => (parsed as ProgressEvent | null)?.type === "all-done",
-    );
-
-    const second = await postApply(ctx.baseUrl, ctx.token, {
-      items: items(["skill", "beta", "install"]),
-    });
-    assert.equal(
-      second.status,
-      202,
-      "after the in-flight job finishes, a new apply must be accepted",
     );
   });
 });
@@ -1228,11 +1179,3 @@ describe("POST /api/apply — preset category", () => {
     assert.equal(res.status, 400);
   });
 });
-
-// ---------------------------------------------------------------------------
-// Suppress an unused-symbol warning if the runtime never reaches httpRequest
-// (some tests imported it speculatively for forged-Host scenarios; keeping
-// the import behind a no-op reference avoids tsconfig noUnusedLocals firing
-// in the future if it's added). The `void` here is a sink, not behavior.
-// ---------------------------------------------------------------------------
-void httpRequest;

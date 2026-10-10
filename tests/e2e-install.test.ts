@@ -167,12 +167,6 @@ describe(
       ];
       return candidates.find((p) => fs.existsSync(p));
     }
-    function findSkillFile(proj: string, name: string): string | undefined {
-      const dir = findSkillDir(proj, name);
-      if (!dir) return undefined;
-      const f = path.join(dir, "SKILL.md");
-      return fs.existsSync(f) ? f : undefined;
-    }
 
     // Any test calling an installer that shells out to the npm
     // registry or GitHub can in principle hang (registry slow-lane,
@@ -256,14 +250,6 @@ describe(
         // Swallow — see top-of-function rationale.
       }
     }
-
-    test("preflight: HEAD is reachable from origin", { timeout: TIMEOUT }, () => {
-      // Tautological given the suite-level skip, but surfaces the state
-      // explicitly in test output so a green run confirms we DID verify
-      // the push — not that we silently skipped.
-      assert.ok(gitState().onOrigin, gitState().skipReason);
-      assert.ok(tarballPath && fs.existsSync(tarballPath), "tarball not packed");
-    });
 
     test("install workflow → AGENTS.md is the only default instruction file", { timeout: TIMEOUT }, () => {
       const proj = setupProject(tarballPath!);

@@ -65,6 +65,25 @@ describe("plugin-bundled SKILL.md frontmatter", () => {
         typeof parsed.data.description === "string" && parsed.data.description.length > 0,
         "frontmatter must have a non-empty string `description`",
       );
+      assert.equal(
+        parsed.data.name,
+        path.basename(path.dirname(skillMd)),
+        "frontmatter `name` must match the skill directory",
+      );
+    });
+
+    test(`${rel} references only bundled files that exist`, () => {
+      const raw = fs.readFileSync(skillMd, "utf-8");
+      // Agents load these paths relative to the skill directory; a dangling one
+      // silently drops the guidance it was meant to route to.
+      const refs = [...raw.matchAll(/[`(](?:<skill-dir>\/)?((?:\.\.\/)*(?:[\w-]+\/)?references\/[\w./-]+\.md)[`)]/g)]
+        .map((m) => m[1]);
+      for (const ref of new Set(refs)) {
+        assert.ok(
+          fs.existsSync(path.resolve(path.dirname(skillMd), ref)),
+          `${ref} does not resolve from ${rel}`,
+        );
+      }
     });
   }
 });

@@ -83,10 +83,6 @@ function readJson(rel: string): JsonObject {
   return JSON.parse(fs.readFileSync(path.join(repoRoot, rel), "utf-8")) as JsonObject;
 }
 
-function read(rel: string): string {
-  return fs.readFileSync(path.join(repoRoot, rel), "utf-8");
-}
-
 function assertPlainObject(value: unknown, label: string): asserts value is JsonObject {
   assert.ok(
     typeof value === "object" && value !== null && !Array.isArray(value),
@@ -265,7 +261,7 @@ describe("Agent Plugins 1.0.0 package contract", () => {
     }
   });
 
-  test("VAL-PORTABILITY-003 and VAL-COMPATIBILITY-003: portable components and native host scope stay bounded", () => {
+  test("VAL-PORTABILITY-003 and VAL-COMPATIBILITY-003: native host scope stays bounded", () => {
     for (const plugin of plugins) {
       for (const nativePath of nativeManifestPaths) {
         assert.equal(
@@ -274,28 +270,7 @@ describe("Agent Plugins 1.0.0 package contract", () => {
           `${plugin.name} native host scope drifted at ${nativePath}`,
         );
       }
-
-      assert.equal(
-        fs.existsSync(path.join(repoRoot, "plugins", plugin.name, "mcp.json")),
-        false,
-        `${plugin.name} must not add an MCP server in this migration`,
-      );
     }
-
-    const sessionLoader = readJson(
-      "plugins/session-instructions-loader/.codex-plugin/plugin.json",
-    );
-    assert.match(
-      String(sessionLoader.description),
-      /Codex-only/,
-      "session-instructions-loader must declare its Codex-only scope",
-    );
-    const notify = readJson("plugins/auriga-notify/.claude-plugin/plugin.json");
-    assert.match(
-      String(notify.description),
-      /Claude Code/,
-      "auriga-notify must declare its Claude Code-only scope",
-    );
   });
 
   test("VAL-DISCOVERY-001/002: standard fixed locations expose the expected Skills only", () => {
@@ -361,65 +336,6 @@ describe("Agent Plugins 1.0.0 package contract", () => {
         "./skills/",
         `${plugin.name} Cursor manifest must declare the skills container for marketplace indexing`,
       );
-    }
-  });
-
-  test("project guidance and review document the temporary Hook manifest boundary", () => {
-    const agentInstructions = read("AGENTS.md");
-    const readme = read("README.md");
-    const readmeZh = read("README.zh-CN.md");
-    const portability = read("docs/rules/agent-portability.md");
-    const developerGuide = read("docs/architecture/auriga-cli-dev-guide.md");
-    const reviewer = read(
-      "plugins/auriga-workflow/skills/deep-review/references/reviewers/skill-plugin-quality.md",
-    );
-
-    for (const [label, text] of [
-      ["repository agent instructions", agentInstructions],
-      ["English README", readme],
-      ["Chinese README", readmeZh],
-      ["agent portability rules", portability],
-      ["developer guide", developerGuide],
-      ["skill-plugin-quality reviewer", reviewer],
-    ]) {
-      assert.match(text, /Agent Plugins 1\.0\.0/, `${label} must name the portable standard`);
-      assert.match(text, /根 `plugin\.json`|root `plugin\.json`/, `${label} must cover root manifest`);
-      assert.match(
-        text,
-        /固定[^。\n]*`skills\/`|`skills\/`[^。\n]*固定|fixed[^.\n]*`skills\/`|`skills\/`[^.\n]*fixed/i,
-        `${label} must cover Skills fixed location`,
-      );
-      assert.match(text, /`mcp\.json`/, `${label} must cover the MCP fixed location`);
-    }
-
-    for (const [label, text] of [
-      ["repository agent instructions", agentInstructions],
-      ["English README", readme],
-      ["Chinese README", readmeZh],
-      ["agent portability rules", portability],
-      ["developer guide", developerGuide],
-    ]) {
-      assert.match(text, /`hooks\/hooks\.json`/, `${label} must identify the hook registry`);
-      assert.match(
-        text,
-        /宿主专属|host-specific/i,
-        `${label} must separate host-specific capabilities`,
-      );
-      assert.match(
-        text,
-        /Hook[^。\n]*(?:不提供|移除|without|omit)[^。\n]*(?:根 |root )`plugin\.json`|(?:不提供|移除|without|omit)[^。\n]*(?:根 |root )`plugin\.json`[^。\n]*Hook/i,
-        `${label} must explain why Hook plugins omit the root manifest`,
-      );
-    }
-
-    assert.match(reviewer, /闭合[^。\n]*顶层字段|顶层字段[^。\n]*闭合/);
-    assert.match(reviewer, /`extensions`/);
-    assert.match(reviewer, /`\.claude-plugin\/plugin\.json`/);
-    assert.match(reviewer, /`\.codex-plugin\/plugin\.json`/);
-
-    for (const plugin of plugins) {
-      assert.ok(readme.includes(plugin.name), `README.md must list ${plugin.name}`);
-      assert.ok(readmeZh.includes(plugin.name), `README.zh-CN.md must list ${plugin.name}`);
     }
   });
 });

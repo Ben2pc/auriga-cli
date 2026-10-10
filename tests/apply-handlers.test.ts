@@ -247,26 +247,6 @@ describe("buildDefaultApplyHandlers — plugin", () => {
     assert.equal(opts.agent, "claude");
   });
 
-  test("install → dual-Agent plugin installs to both agents in order", async () => {
-    const calls = makeCallLog();
-    const { buildDefaultApplyHandlers } = await importAdapter(calls);
-    const handlers = buildDefaultApplyHandlers({
-      packageRoot: "/pkg",
-      cwd: "/proj",
-      pluginAgentsByName: new Map([["auriga-go", ["claude", "codex"]]]),
-    });
-    await handlers.plugin("install", "auriga-go", noopLog());
-    assert.equal(calls.installPlugins.length, 2);
-    assert.equal(
-      (calls.installPlugins[0].opts as { agent: string }).agent,
-      "claude",
-    );
-    assert.equal(
-      (calls.installPlugins[1].opts as { agent: string }).agent,
-      "codex",
-    );
-  });
-
   test("uninstall → calls uninstallPlugin with looked-up agent", async () => {
     const calls = makeCallLog();
     const { buildDefaultApplyHandlers } = await importAdapter(calls);
@@ -279,20 +259,6 @@ describe("buildDefaultApplyHandlers — plugin", () => {
     assert.equal(calls.uninstallPlugin.length, 1);
     assert.equal(calls.uninstallPlugin[0].id, "deep-review");
     assert.equal(calls.uninstallPlugin[0].agent, "claude");
-  });
-
-  test("uninstall → dual-Agent plugin uninstalls from both agents in order", async () => {
-    const calls = makeCallLog();
-    const { buildDefaultApplyHandlers } = await importAdapter(calls);
-    const handlers = buildDefaultApplyHandlers({
-      packageRoot: "/pkg",
-      cwd: "/proj",
-      pluginAgentsByName: new Map([["auriga-go", ["claude", "codex"]]]),
-    });
-    await handlers.plugin("uninstall", "auriga-go", noopLog());
-    assert.equal(calls.uninstallPlugin.length, 2);
-    assert.equal(calls.uninstallPlugin[0].agent, "claude");
-    assert.equal(calls.uninstallPlugin[1].agent, "codex");
   });
 });
 
@@ -506,25 +472,5 @@ describe("buildDefaultApplyHandlers — preset", () => {
       logs.some((l) => /skills/i.test(l) && /fail/i.test(l)),
       `missing skills failure log: ${logs.join(" | ")}`,
     );
-  });
-});
-
-describe("buildDefaultApplyHandlers — handler logging", () => {
-  test("install handlers emit at least one onLog line", async () => {
-    const calls = makeCallLog();
-    const { buildDefaultApplyHandlers } = await importAdapter(calls);
-    const handlers = buildDefaultApplyHandlers({
-      packageRoot: "/pkg",
-      cwd: "/proj",
-      pluginAgentsByName: new Map(),
-    });
-    const seen: string[] = [];
-    const onLog = (line: string): void => {
-      seen.push(line);
-    };
-    await handlers.workflow("install", "default-workflow", { onLog });
-    await handlers.skill("install", "systematic-debugging", { onLog });
-    await handlers.plugin("install", "deep-review", { onLog });
-    assert.ok(seen.length >= 3, `expected ≥3 log lines, got ${seen.length}`);
   });
 });

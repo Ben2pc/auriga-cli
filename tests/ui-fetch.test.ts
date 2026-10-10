@@ -11,7 +11,7 @@
 
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { mkdtemp, readFile, rm, writeFile, mkdir, readdir, stat } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile, mkdir, readdir } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -311,6 +311,3 @@ describe("ensureUiBundle — corrupt archive", () => {
     );
   });
 });
-
-// Silence unused-import lint in case stat ends up redundant.
-void stat;

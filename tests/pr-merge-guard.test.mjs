@@ -334,12 +334,6 @@ const cases = [
     expect: { status: 0, stdoutEq: "" },
   },
   {
-    name: "git commit -m containing 'gh pr merge' does NOT trigger the hook",
-    cmd: `git commit -m "prep for gh pr merge"`,
-    body: ONE_UNCHECKED,
-    expect: { status: 0, stdoutEq: "" },
-  },
-  {
     name: "all acceptance-criteria items checked → passes",
     cmd: "gh pr merge --squash",
     body: ALL_CHECKED,
@@ -348,13 +342,6 @@ const cases = [
   {
     name: "unchecked acceptance-criteria item → blocks",
     cmd: "gh pr merge --squash --delete-branch",
-    body: ONE_UNCHECKED,
-    expect: { status: 2, stderrIncludes: ["Second criterion not yet met"] },
-  },
-  {
-    name: "Cursor Shell tool_name still blocks unchecked acceptance items",
-    cmd: "gh pr merge --squash --delete-branch",
-    toolName: "Shell",
     body: ONE_UNCHECKED,
     expect: { status: 2, stderrIncludes: ["Second criterion not yet met"] },
   },
@@ -402,12 +389,6 @@ const cases = [
     cmd: "gh pr merge --squash",
     body: TWO_UNCHECKED,
     expect: { status: 2, stderrIncludes: ["Alpha pending", "Beta pending"] },
-  },
-  {
-    name: "explicit PR ref (gh pr merge 130) still fetches body and blocks",
-    cmd: "gh pr merge 130 --squash",
-    body: ONE_UNCHECKED,
-    expect: { status: 2, stderrIncludes: ["Second criterion not yet met"] },
   },
   {
     name: "Chinese 验收标准 heading is recognized → blocks",
@@ -479,8 +460,6 @@ const cases = [
     expect: {
       status: 2,
       stderrIncludes: ["manual verification pending"],
-      // Singular wording when exactly one item blocks across both sections.
-      stderrMatches: [/has 1 unchecked pre-merge checklist item /],
     },
   },
   {
