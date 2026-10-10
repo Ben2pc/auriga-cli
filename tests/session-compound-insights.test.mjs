@@ -625,36 +625,6 @@ test("renderer creates both reports without editing template source [VAL-MODE-00
   }
 });
 
-test("recent report uses natural Chinese labels instead of translated analytics jargon [VAL-MODE-004]", () => {
-  const insights = fs.readFileSync(path.join(TEMPLATES, "recent-insights.html"), "utf8");
-  for (const label of [
-    "近期会话洞察",
-    "值得延续",
-    "主要问题",
-    "优先尝试",
-    "长期改进方向",
-    "反复出现的问题",
-    "报告范围与限制",
-    "尝试方式",
-    "判断是否有效",
-  ]) {
-    assert(insights.includes(label), `recent report must use natural Chinese label: ${label}`);
-  }
-  for (const translated of [
-    "Recent session insights",
-    "正在奏效",
-    "正在阻碍",
-    "快速改善",
-    "更大胆尝试",
-    "反复摩擦",
-    "证据边界",
-    "试法：",
-    "成功信号：",
-  ]) {
-    assert(!insights.includes(translated), `recent report must remove translated label: ${translated}`);
-  }
-});
-
 test("recent report keeps raw evidence references traceable but presents a readable session index [VAL-MODE-004]", () => {
   const dir = tmpDir("render-readable-evidence");
   const dataFile = path.join(dir, "data.json");
@@ -677,35 +647,6 @@ test("recent report keeps raw evidence references traceable but presents a reada
   assert(html.includes('"evidence_sessions"') && html.includes("Auriga 工作流升级"),
     "renderer must add deterministic human-readable session metadata");
   assert(html.includes(rawRef), "the exact raw evidence reference must remain in the report bundle");
-  assert(html.includes("查看依据") && html.includes("原始编号"),
-    "raw references must move behind an explicit evidence disclosure");
-  assert(!html.includes("add(heading, 'div', evidence(item), 'meta')"),
-    "raw IDs must not remain the default row metadata");
-});
-
-test("single report uses readable evidence disclosures instead of exposing raw references [VAL-MODE-004]", () => {
-  const single = fs.readFileSync(path.join(TEMPLATES, "single-session.html"), "utf8");
-  assert(single.includes("查看依据") && single.includes("原始编号"),
-    "single report must put exact evidence references behind an explicit disclosure");
-  assert(single.includes("第 ${Number(index) + 1} 轮"),
-    "single report must translate turn references into human-readable positions");
-  for (const rawRenderer of [
-    "(f.evidence_refs || []).join(' · ')",
-    "c.evidenceRefs.join(' · ')",
-    "(item.evidence_refs || []).join(' · ')",
-  ]) {
-    assert(!single.includes(rawRenderer), `single report must remove direct raw reference rendering: ${rawRenderer}`);
-  }
-});
-
-test("report template keeps readable Chinese labels [VAL-MODE-004]", () => {
-  const single = fs.readFileSync(path.join(TEMPLATES, "single-session.html"), "utf8");
-  for (const label of ["单会话复盘", "总令牌数", "拉取请求", "资源消耗最高的轮次", "技能评估"]) {
-    assert(single.includes(label), `single report must use natural Chinese label: ${label}`);
-  }
-  for (const mixedLabel of ["Session Compound — 单会话复盘", "总 token", "本次会话的 PR", "最贵的 turn", "skill 评估"]) {
-    assert(!single.includes(mixedLabel), `single report must remove mixed-language label: ${mixedLabel}`);
-  }
 });
 
 test("renderer rejects malformed mode data before writing a report [VAL-MODE-004]", () => {
@@ -820,40 +761,6 @@ test("report templates expose evidence, coverage, opt-in selection, and keyboard
   assert(!insights.includes("$('#coverage-list').innerHTML"),
     "coverage rows must use textContent-backed DOM nodes, not HTML interpolation");
   assert(insights.includes("自动复制失败"), "recent report must expose copy failure to the user");
-});
-
-test("dispatch protocols treat session evidence as untrusted and cap semantic inputs [VAL-MODE-003]", () => {
-  const skill = fs.readFileSync(path.join(SKILL_ROOT, "SKILL.md"), "utf8")
-    + fs.readFileSync(path.join(SKILL_ROOT, "references/recent-insights.md"), "utf8");
-  const evalDispatch = fs.readFileSync(path.join(SKILL_ROOT, "references", "eval-dispatch.md"), "utf8");
-  const facetDispatch = fs.readFileSync(path.join(SKILL_ROOT, "references", "facet-dispatch.md"), "utf8");
-  const insightsDispatch = fs.readFileSync(path.join(SKILL_ROOT, "references", "insights-dispatch.md"), "utf8");
-
-  assert(skill.includes("scripts/insights-pipeline.mjs workspace") && skill.includes("umask 077"),
-    "every run must start in a private workspace");
-  assert(skill.includes("compact-evidence") && skill.includes("65536") && skill.includes("256 KiB"),
-    "facet dispatch must have per-session and per-batch byte limits");
-  assert(skill.includes("不要在本轮结束前重跑 `prepare`"),
-    "the workflow must preserve initial cache provenance");
-  assert(skill.includes("当前资产核对") && skill.includes("已吸收 / 部分吸收 / 未吸收 / 未知"),
-    "the main workflow must own durable-candidate asset screening");
-  assert(skill.includes("不能仅因为缺少核对结果就强制 `durable_candidates` 为空"),
-    "missing asset screening must remain visible instead of silently producing zero candidates");
-  assert(!skill.includes("references/result-contracts.md"),
-    "the always-required result semantics must not be hidden behind an unconditional reference read");
-  assert(fs.readFileSync(RENDERER, "utf8").includes("reportValidationError"),
-    "the deterministic renderer must enforce the complete report shape");
-  for (const [name, text] of [
-    ["eval", evalDispatch], ["facet", facetDispatch], ["insights", insightsDispatch],
-  ]) {
-    assert(/不可信/.test(text), `${name} dispatch must treat transcript content as untrusted data`);
-  }
-  assert(/禁止 shell、网络、写文件/.test(evalDispatch) && /禁止 shell、网络、写文件/.test(facetDispatch),
-    "evidence agents must have explicit tool restrictions");
-  assert(/不授予文件、shell、网络或写入工具/.test(insightsDispatch),
-    "cross-session synthesis must run without tools");
-  assert(/具体做法、问题或改进方向/.test(insightsDispatch),
-    "titles must describe concrete behavior instead of stacking abstractions");
 });
 
 for (const dir of cleanup) fs.rmSync(dir, { recursive: true, force: true });

@@ -14,7 +14,7 @@ travel together so they share one distribution model and one install step.
 | `test-driven-development` | Minimal behavior-first TDD — requires risk-matched evidence and adds permanent tests only when stable contracts and reliable seams justify their maintenance cost. |
 | `spec-design` | Requirement clarification — a confirmed conversational requirement can be authoritative for simple work; traceable, handed-off, public-contract, or cross-PR work is persisted under `docs/specs/<topic>/` or an explicitly approved `docs/long-running-specs/<topic>/`. |
 | `arch-design` | Technical design clarification — domain models, module boundaries, dependency direction, human-reviewed design records, and migration constraints. |
-| `code-simplify` | Authorized code-level simplification — protects behavior, targets concrete maintenance cost, and supports user-approved code-smell scans. |
+| `code-simplify` | Authorized code-level simplification — protects behavior, targets concrete maintenance cost, prunes low-value tests, and supports user-approved code-smell scans. |
 | `session-compound` | Generates either a single-session retrospective or incremental 30-day usage insights as a self-contained HTML report. |
 | `goalify` | Adds bounded autonomous execution to an explicitly selected goal, defaulting Ready-time temporary artifacts to archival so unattended runs can continue. |
 | `deep-review` | Local multi-dimensional PR review — required when no CI review exists and optional by user choice when CI review already covers the PR. |

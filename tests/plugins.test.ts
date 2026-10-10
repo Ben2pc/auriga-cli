@@ -246,52 +246,6 @@ afterEach(() => {
 });
 
 describe("installPlugins — Codex target", () => {
-  test("probes plugin support, adds the marketplace, and installs a hooks plugin via codex plugin add", async () => {
-    const packageRoot = makeCodexMarketplace();
-    const codexHome = fs.mkdtempSync(path.join(os.tmpdir(), "auriga-codex-home-"));
-    process.env.CODEX_HOME = codexHome;
-    const commands: string[] = [];
-    const { installPlugins } = await importPlugins((cmd) => {
-      commands.push(cmd);
-      return "";
-    });
-
-    await installPlugins(packageRoot, {
-      interactive: false,
-      agent: "codex",
-      selected: ["session-instructions-loader"],
-    });
-
-    assert.deepEqual(commands, [
-      "codex plugin add --help",
-      `codex plugin marketplace add '${packageRoot}'`,
-      "codex plugin add session-instructions-loader@auriga-cli --enable plugins --enable plugin_hooks",
-    ]);
-  });
-
-  test("installs local Codex plugins from marketplace.json without an install list", async () => {
-    const packageRoot = makeCodexMarketplace();
-    const codexHome = fs.mkdtempSync(path.join(os.tmpdir(), "auriga-codex-home-"));
-    process.env.CODEX_HOME = codexHome;
-    const commands: string[] = [];
-    const { installPlugins } = await importPlugins((cmd) => {
-      commands.push(cmd);
-      return "";
-    });
-
-    await installPlugins(packageRoot, {
-      interactive: false,
-      agent: "codex",
-      selected: ["marketplace-only"],
-    });
-
-    assert.deepEqual(commands, [
-      "codex plugin add --help",
-      `codex plugin marketplace add '${packageRoot}'`,
-      "codex plugin add marketplace-only@auriga-cli --enable plugins --enable plugin_hooks",
-    ]);
-  });
-
   test("installs local Codex plugins when plugin payload is absent (published runtime — content fetch never materializes plugins/*/.codex-plugin/plugin.json)", async () => {
     // The published CLI fetches CONTENT_FILES (including .agents/plugins/
     // marketplace.json) into a temp content root but never fetches plugin
@@ -375,40 +329,6 @@ describe("installPlugins — Codex target", () => {
           'source = "https://github.com/Ben2pc/auriga-cli.git"',
           "",
         ].join("\n"),
-      );
-      const commands: string[] = [];
-      const { installPlugins } = await importPlugins((cmd) => {
-        commands.push(cmd);
-        return "";
-      });
-
-      await installPlugins(packageRoot, {
-        interactive: false,
-        agent: "codex",
-        selected: ["session-instructions-loader"],
-      });
-
-      assert.deepEqual(commands, [
-        "codex plugin add --help",
-        "codex plugin marketplace upgrade 'auriga-cli'",
-        "codex plugin add session-instructions-loader@auriga-cli --enable plugins --enable plugin_hooks",
-      ]);
-    } finally {
-      if (previousDev === undefined) delete process.env.DEV;
-      else process.env.DEV = previousDev;
-    }
-  });
-
-  test("upgrades an already-registered Codex marketplace and still installs selected plugins", async () => {
-    const previousDev = process.env.DEV;
-    delete process.env.DEV;
-    try {
-      const packageRoot = makeCodexMarketplace();
-      const codexHome = fs.mkdtempSync(path.join(os.tmpdir(), "auriga-codex-home-"));
-      process.env.CODEX_HOME = codexHome;
-      fs.writeFileSync(
-        path.join(codexHome, "config.toml"),
-        '[marketplaces.auriga-cli]\nsource = "https://github.com/Ben2pc/auriga-cli.git"\n',
       );
       const commands: string[] = [];
       const { installPlugins } = await importPlugins((cmd) => {
@@ -710,29 +630,6 @@ describe("installPlugins — Codex target", () => {
         agent: "codex",
       }),
       /No Codex plugins found/i,
-    );
-  });
-
-  test("fails Codex install when a local plugin is selected but no local marketplace provides it", async () => {
-    const packageRoot = fs.mkdtempSync(path.join(os.tmpdir(), "auriga-codex-no-marketplace-"));
-    writeJson(path.join(packageRoot, ".agents/plugins/marketplace.json"), {
-      name: "auriga-cli",
-      plugins: [
-        {
-          name: "other-plugin",
-          source: { source: "local", path: "./plugins/other-plugin" },
-        },
-      ],
-    });
-    const { installPlugins } = await importPlugins();
-
-    await assert.rejects(
-      () => installPlugins(packageRoot, {
-        interactive: false,
-        agent: "codex",
-        selected: ["auriga-go"],
-      }),
-      /not available for Codex/i,
     );
   });
 

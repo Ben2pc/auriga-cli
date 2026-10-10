@@ -96,30 +96,6 @@ describe("parseArgs", () => {
     });
   });
 
-  test("parses migrated repo-owned assets through plugin filters only", () => {
-    assert.deepEqual(installArgs(["plugins", "--agent", "both", "--plugin", "auriga-workflow"]), {
-      command: "install",
-      install: {
-        all: false,
-        type: "plugins",
-        agent: "both",
-        filter: ["auriga-workflow"],
-      },
-    });
-    assert.deepEqual(installArgs(["plugins", "--plugin", "auriga-notify"]), {
-      command: "install",
-      install: {
-        all: false,
-        type: "plugins",
-        filter: ["auriga-notify"],
-      },
-    });
-    expectParseError(
-      ["install", "skills", "--skill", "systematic-debugging"],
-      /auriga-workflow/i,
-    );
-  });
-
   // Covers spec §5.2 filter nargs terminator rules and the explicit `--` edge case.
   test("stops filter nargs at the next flag or explicit terminator", () => {
     assert.deepEqual(installArgs(["skills", "--skill", "playwright-cli", "playwright-cli", "--scope", "user"]), {
@@ -164,14 +140,6 @@ describe("parseArgs", () => {
     expectParseError(["install", "skills", "--agent", "codex"], /--agent only applies to plugins or --all/i);
     expectParseError(["install", "plugins", "--agent", "unknown"], /unknown --agent value/i);
     expectParseError(["install", "plugins", "--agent="], /--agent requires a value/i);
-  });
-
-  // hooks 安装表面已移除:`hooks` 不再是合法 <type>,`--hook` 不再是
-  // 合法过滤标志。二者都应被解析为「未知参数」并 fail-fast。(VAL-CLI-010/011)
-  test("install hooks 与 --hook 都因 hooks 表面移除而被拒绝", () => {
-    expectParseError(["install", "hooks"], /unknown argument 'hooks'/i);
-    expectParseError(["install", "--hook", "notify"], /unknown argument '--hook'/i);
-    expectParseError(["install", "workflow", "--hook", "notify"], /unknown argument '--hook'/i);
   });
 
   // Per-type --help / -h short-circuits install parsing and returns

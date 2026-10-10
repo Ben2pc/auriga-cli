@@ -136,12 +136,12 @@ extra_plugin_configs.json
 
 tests/
   skills.test.ts        — skill planner 单元测试
-  catalog.test.ts       — 构建期 catalog 结构 + description 覆盖测试
+  catalog.test.ts       — 构建期 catalog 的插件宿主映射与外部来源标记
   cli-parse.test.ts     — parseArgs 矩阵（spec §3.5 / §5.2）
   install-nontty.test.ts — 非交互 install 分发 + 分级退出
   preset.test.ts        — `--preset` parse / dispatch / 分级退出；`--all` 包含 recommended
-  legacy-menu.test.ts   — TUI 三项菜单契约 + excludeByName 过滤器
-  guide.test.ts         — renderGuide snapshot + ANSI 分支
+  legacy-menu.test.ts   — excludeByName 过滤器
+  guide.test.ts         — renderGuide ANSI 分支 + guide 参数个数
   validators.test.ts    — validateSkillsLock / validateExtraPluginConfigs
   entrypoint.test.ts    — dist/cli.js 符号链接 bin guard 回归
   e2e-install.test.ts   — tarball → npm install → auriga-cli install（网络 + 本地，走 npm run test:e2e，不在 `npm test` 内）

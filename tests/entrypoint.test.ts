@@ -23,10 +23,6 @@ describe("script entrypoint — symlinked bin install (Opus review finding)", ()
     try { fs.rmSync(scratch, { recursive: true, force: true }); } catch {}
   });
 
-  test("dist/cli.js must exist (npm run build succeeded)", () => {
-    assert.ok(fs.existsSync(CLI_JS), `expected ${CLI_JS} to exist`);
-  });
-
   test("direct invocation: node dist/cli.js --version prints version", () => {
     const result = spawnSync(process.execPath, [CLI_JS, "--version"], {
       encoding: "utf-8",

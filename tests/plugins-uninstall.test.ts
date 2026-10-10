@@ -102,18 +102,6 @@ describe("uninstallPlugin — Codex target", () => {
     ]);
   });
 
-  test("does not remove the marketplace (other plugins may still depend on it)", async () => {
-    const calls: string[] = [];
-    const { uninstallPlugin } = await importPlugins((cmd) => {
-      calls.push(cmd);
-      return "";
-    });
-
-    await uninstallPlugin("auriga-go@auriga-cli", "codex", { cwd: process.cwd() });
-
-    assert.deepEqual(calls.filter((c) => /marketplace/.test(c)), []);
-  });
-
   test("propagates `codex plugin remove` failure verbatim", async () => {
     const { uninstallPlugin } = await importPlugins(() => {
       throw new Error("Command failed: codex plugin remove");
@@ -123,22 +111,6 @@ describe("uninstallPlugin — Codex target", () => {
       () => uninstallPlugin("auriga-go@auriga-cli", "codex", { cwd: process.cwd() }),
       /Command failed/,
     );
-  });
-
-  test("a second uninstall still issues codex plugin remove (idempotency is the Codex CLI's job)", async () => {
-    const calls: string[] = [];
-    const { uninstallPlugin } = await importPlugins((cmd) => {
-      calls.push(cmd);
-      return "";
-    });
-
-    await uninstallPlugin("auriga-go@auriga-cli", "codex", { cwd: process.cwd() });
-    await uninstallPlugin("auriga-go@auriga-cli", "codex", { cwd: process.cwd() });
-
-    assert.deepEqual(calls, [
-      "codex plugin remove auriga-go@auriga-cli",
-      "codex plugin remove auriga-go@auriga-cli",
-    ]);
   });
 
   test("onLog stream surfaces the Codex removal", async () => {

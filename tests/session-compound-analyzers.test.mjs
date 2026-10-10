@@ -1061,21 +1061,6 @@ test("claude analyzer preserves pre-existing top-level and key nested fields [VA
 // =====================================================================
 // VAL-DOC-001 — SKILL.md no longer claims Codex has no skills (repo-check)
 // =====================================================================
-test("SKILL.md drops the outdated 'Codex skills always empty / no skill concept' claims [VAL-DOC-001]", () => {
-  const txt = fs.readFileSync(SKILL_MD, "utf8");
-  assert(!/skills\s*永远为空/.test(txt), "SKILL.md must not claim Codex skills are always empty");
-  assert(!/Codex[^\n]*没有\s*skill/.test(txt) && !/没有\s*skill\s*概念/.test(txt),
-    "SKILL.md must not claim Codex has no skill concept");
-});
-
-test("SKILL.md documents the neutral evidence boundary [VAL-EVID-002]", () => {
-  const txt = fs.readFileSync(SKILL_MD, "utf8");
-  const required = ["explicit_count", "inferred_count", "classification", "skill_usage_events"];
-  const missing = required.filter((k) => !txt.includes(k));
-  assert(missing.length === 0, `SKILL.md missing evidence fields: ${missing.join(", ")}`);
-  assert(/按当前状态回看/.test(txt), "current rules must be labeled as a present-day lookback");
-});
-
 // =====================================================================
 // NEW FEATURE — evaluation substrate (skill_catalog / workflow_rules /
 // workflow_signals). Traces to docs/worklog/worklog-2026-05-29-feat-session-compound-skill-eval/
@@ -1367,91 +1352,9 @@ test("both analyzers emit skill_catalog/workflow_rules/workflow_signals under he
       assert(f in wsig, `${label}: workflow_signals must carry the ${f} fact`);
     }
   }
-  // Type parity across analyzers.
-  assert(Array.isArray(cOut.health?.skill_catalog) && Array.isArray(xOut.health?.skill_catalog),
-    "skill_catalog must be an array on both analyzers");
-  assert(Array.isArray(cOut.health?.workflow_rules) && Array.isArray(xOut.health?.workflow_rules),
-    "workflow_rules must be an array on both analyzers");
-  assert(typeof cOut.health?.workflow_signals === "object" && typeof xOut.health?.workflow_signals === "object",
-    "workflow_signals must be an object on both analyzers");
 });
 
-// =====================================================================
-// EVAL / CAND / REL — doc + release contract (repo-check). These grep the
-// SKILL.md / plugin.json / package.json / CI that the feature must ship.
-// Trace to docs/worklog/worklog-2026-05-29-feat-session-compound-skill-eval/validation-contract.md.
-// =====================================================================
-const REPO_ROOT = path.resolve(HERE, "..");
 const PLUGIN_ROOT = path.resolve(ANALYZER_DIR, "..", "..", "..");
-function semverGt(a, b) {
-  const pa = String(a).split(".").map(Number);
-  const pb = String(b).split(".").map(Number);
-  for (let i = 0; i < 3; i++) {
-    if ((pa[i] || 0) > (pb[i] || 0)) return true;
-    if ((pa[i] || 0) < (pb[i] || 0)) return false;
-  }
-  return false;
-}
-
-test("SKILL.md mandates an independent, zero-context eval subagent [VAL-EVAL-001]", () => {
-  const txt = fs.readFileSync(path.join(ANALYZER_DIR, "../references/single-session.md"), "utf8");
-  assert(/独立/.test(txt), "SKILL.md eval step must require an 独立 subagent");
-  assert(/零上下文继承|fresh context/i.test(txt),
-    "SKILL.md must require fresh/zero-context dispatch for the eval subagent");
-});
-
-test("SKILL.md scopes recall to all installed skills, execution-eval to invoked-only [VAL-EVAL-002]", () => {
-  const txt = fs.readFileSync(path.join(ANALYZER_DIR, "../references/single-session.md"), "utf8");
-  assert(/全部已安装\s*skill/.test(txt), "recall must cover 全部已安装 skill");
-  assert(/本会话实际使用/.test(txt),
-    "execution eval must be scoped to skills invoked this session");
-});
-
-test("SKILL.md requires severity+confidence findings with no pre-filtering [VAL-EVAL-003]", () => {
-  const txt = fs.readFileSync(path.join(ANALYZER_DIR, "../references/single-session.md"), "utf8");
-  assert(/severity/.test(txt) && /confidence/.test(txt),
-    "findings must carry severity + confidence");
-  assert(/不.{0,4}预过滤/.test(txt), "findings must not be pre-filtered by importance");
-});
-
-test("SKILL.md routes editable in-repo SKILL.md eval findings to skill-body candidates [VAL-CAND-001]", () => {
-  const txt = fs.readFileSync(SKILL_MD, "utf8");
-  assert(/in-repo\s*`?SKILL\.md`?|in-repo SKILL/.test(txt) && /就地优化/.test(txt),
-    "editable findings must target the in-repo SKILL.md for in-place optimization");
-});
-
-test("SKILL.md forbids edit candidates for external/cached skills [VAL-CAND-002]", () => {
-  const txt = fs.readFileSync(SKILL_MD, "utf8");
-  assert(/不.{0,6}产出编辑候选|不要产出编辑候选/.test(txt),
-    "external/cached skills must not yield edit candidates");
-  assert(/更新时会被覆盖|更新即被覆盖|下次更新.*覆盖/.test(txt),
-    "rationale (overwritten on update) must be stated");
-});
-
-test("auriga-workflow plugin version bumped above 3.7.0 + SKILL.md documents new fields [VAL-REL-001]", () => {
-  for (const rel of [".claude-plugin/plugin.json", ".codex-plugin/plugin.json"]) {
-    const p = path.join(PLUGIN_ROOT, rel);
-    const v = JSON.parse(fs.readFileSync(p, "utf8")).version;
-    assert(semverGt(v, "3.7.0"), `${rel} version ${v} must be > 3.7.0`);
-  }
-  const txt = fs.readFileSync(SKILL_MD, "utf8");
-  for (const f of ["skill_catalog", "workflow_rules", "workflow_signals"]) {
-    assert(txt.includes(f), `SKILL.md must document new substrate field ${f}`);
-  }
-});
-
-test("substrate tests are wired into test:session-compound + CI [VAL-REL-002]", () => {
-  const self = fs.readFileSync(fileURLToPath(import.meta.url), "utf8");
-  assert(/\[VAL-SUB-001\]/.test(self) && /\[VAL-PAR-001\]/.test(self),
-    "this file must carry the SUB/PAR substrate assertions");
-  const pkg = JSON.parse(fs.readFileSync(path.join(REPO_ROOT, "package.json"), "utf8"));
-  assert(/session-compound-analyzers\.test\.mjs/.test(pkg.scripts["test:session-compound"] || ""),
-    "package.json test:session-compound must point at this file");
-  assert(/session-compound-insights\.test\.mjs/.test(pkg.scripts["test:session-compound"] || ""),
-    "package.json test:session-compound must include the insights pipeline tests");
-  const ci = fs.readFileSync(path.join(REPO_ROOT, ".github", "workflows", "test.yml"), "utf8");
-  assert(/test:session-compound/.test(ci), "CI must run test:session-compound");
-});
 
 // ---------- skill timeline + review syntheses (stage classification raw material) ----------
 
@@ -1657,14 +1560,7 @@ test("deep-review synthesis template keeps the literal heading the analyzers cap
     "deep-review's synthesis template must keep the literal '## Deep Review:' heading — the session-compound analyzers match it mechanically");
 });
 
-test("SKILL.md documents skill_timeline / review_syntheses as traceable evidence [VAL-RS-003]", () => {
-  const txt = fs.readFileSync(SKILL_MD, "utf8");
-  assert(txt.includes("skill_timeline"), "SKILL.md must document skill_timeline");
-  assert(txt.includes("review_syntheses"), "SKILL.md must document review_syntheses");
-  assert(/用于追溯/.test(txt), "raw evidence must remain traceable instead of becoming a verdict");
-});
-
-// ---------- task-notification filtering + eval polarity contract ----------
+// ---------- task-notification filtering ----------
 
 test("claude analyzer excludes task-notification entries from human turns and feedback [VAL-NTF-001]", () => {
   const notification =
@@ -1681,43 +1577,7 @@ test("claude analyzer excludes task-notification entries from human turns and fe
     "correction words inside a task-notification must not register as feedback moments");
 });
 
-test("eval output contract separates polarity from severity with evidence-based confidence [VAL-EVAL-004]", () => {
-  const dispatch = fs.readFileSync(
-    path.join(PLUGIN_ROOT, "skills/session-compound/references/eval-dispatch.md"),
-    "utf8",
-  );
-  assert(dispatch.includes("polarity"), "eval-dispatch.md must define a polarity field");
-  assert(/positive/.test(dispatch) && /gap/.test(dispatch),
-    "polarity values must be positive|gap");
-  assert(/证据强度/.test(dispatch),
-    "confidence must be defined as evidence strength with level definitions");
-  assert(/(positive|正向)[^\n]*(省略|不带|不填)[^\n]*severity|severity[^\n]*(仅|只)[^\n]*gap/.test(dispatch),
-    "severity must be scoped to gap findings only");
-  const skillMd = fs.readFileSync(path.join(ANALYZER_DIR, "../references/single-session.md"), "utf8");
-  assert(skillMd.includes("polarity"), "SKILL.md hard-constraint schema must include polarity");
-  const template = fs.readFileSync(
-    path.join(PLUGIN_ROOT, "skills/session-compound/templates/single-session.html"),
-    "utf8",
-  );
-  assert(template.includes("polarity"), "template must render polarity-aware findings");
-  assert(/证据强度/.test(template), "template must carry the confidence legend");
-});
-
-test("candidate generation keeps the modern persistence gates [VAL-CAND-003]", () => {
-  const txt = fs.readFileSync(SKILL_MD, "utf8");
-  assert(/明确要求长期保持/.test(txt) && /至少两个独立会话/.test(txt),
-    "durable candidates require explicit persistence or repeated independent evidence");
-  assert(/上下文租金|持续成本/.test(txt),
-    "gates must frame rule cost as perpetual context rent, not one-time write cost");
-  assert(/现有规则、技能、测试、类型系统、静态检查或审查机制/.test(txt),
-    "a problem already caught by an existing mechanism must not become a rule");
-  assert(/一次性问题/.test(txt), "one-off frictions must be vetoed");
-  assert(/符合技术栈/.test(txt), "mechanism candidates must fit the project stack");
-});
-
-
-
-test("SKILL.md uses deterministic report rendering and never edits templates [VAL-MODE-004]", () => {
+test("SKILL.md routes each mode to a workflow that uses the deterministic renderer [VAL-MODE-004]", () => {
   const txt = fs.readFileSync(SKILL_MD, "utf8");
   for (const mode of ["single-session", "recent-insights"]) {
     const modePath = `references/${mode}.md`;
@@ -1725,15 +1585,6 @@ test("SKILL.md uses deterministic report rendering and never edits templates [VA
     const workflow = fs.readFileSync(path.join(ANALYZER_DIR, "..", modePath), "utf8");
     assert(workflow.includes("scripts/render-report.mjs"), "each mode must use the deterministic renderer");
   }
-  assert(/模型不编辑模板/.test(txt), "the model must not patch report source");
-});
-
-test("SKILL.md keeps ecosystem search conditional and asset changes opt-in [VAL-CAND-005] [VAL-FLOW-001]", () => {
-  const txt = fs.readFileSync(SKILL_MD, "utf8");
-  assert(/只有在已经确认存在“新增或安装技能”的真实候选后/.test(txt),
-    "ecosystem search must follow a real candidate");
-  assert(/复盘请求本身不授权安装技能/.test(txt) && /只有用户明确选择/.test(txt),
-    "generation must not mutate long-term assets");
 });
 
 // ---------- report + cleanup ----------

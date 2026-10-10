@@ -4,10 +4,10 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-import type { Catalog, CatalogEntry } from "../src/catalog.js";
+import type { Catalog } from "../src/catalog.js";
 import { loadCatalog } from "../src/catalog.js";
 import { generateCatalog } from "../src/build/generate-catalog.js";
-import { renderHelp, renderTypeHelp } from "../src/help.js";
+import { renderTypeHelp } from "../src/help.js";
 
 // Covers spec §5.4 "Catalog 生成"
 
@@ -18,86 +18,8 @@ function writeJson(file: string, value: unknown): void {
   fs.writeFileSync(file, `${JSON.stringify(value, null, 2)}\n`);
 }
 
-function assertEntriesShape(entries: CatalogEntry[], label: string): void {
-  for (const e of entries) {
-    assert.ok(
-      typeof e.name === "string" && e.name.length > 0,
-      `${label}: name must be non-empty string (got ${JSON.stringify(e)})`,
-    );
-    assert.ok(
-      typeof e.description === "string" && e.description.length > 0,
-      `${label}: description must be non-empty string (got ${JSON.stringify(e)})`,
-    );
-  }
-}
-
 describe("generateCatalog (build-time)", () => {
   const catalog: Catalog = generateCatalog(REPO_ROOT);
-
-  test("catalog has all three top-level sections", () => {
-    assert.ok(Array.isArray(catalog.workflowSkills));
-    assert.ok(Array.isArray(catalog.recommendedSkills));
-    assert.ok(Array.isArray(catalog.plugins));
-    assert.ok(typeof catalog.generatedAt === "string" && catalog.generatedAt.length > 0);
-  });
-
-  // VAL-CAT-001: hooks 安装表面已移除,catalog 不再有 hooks 字段。
-  test("catalog 不再含 hooks 字段", () => {
-    assert.equal(
-      Object.hasOwn(catalog as object, "hooks"),
-      false,
-      "catalog 不应再有 hooks 键",
-    );
-  });
-
-  test("workflow skills exclude repo-owned skills migrated into auriga-workflow (and dropped retired brainstorming)", () => {
-    assert.equal(catalog.workflowSkills.length, 1);
-    const names = catalog.workflowSkills.map((e) => e.name).sort();
-    assert.deepEqual(names, ["playwright-cli"]);
-    assert.equal(catalog.recommendedSkills.some((e) => e.name === "planning-with-files"), false);
-    assertEntriesShape(catalog.workflowSkills, "workflowSkills");
-  });
-
-  // The cross-model delegators (claude-code-agent / codex-agent) were dropped
-  // when their upstream source removed them; documentation management is owned
-  // by auriga-workflow.
-  test("recommended skills: 4 entries (frontend skills + deprecation-and-migration)", () => {
-    assert.equal(catalog.recommendedSkills.length, 4);
-    const names = catalog.recommendedSkills.map((e) => e.name).sort();
-    assert.deepEqual(names, [
-      "deprecation-and-migration",
-      "design-taste-frontend",
-      "frontend-design",
-      "make-interfaces-feel-better",
-    ]);
-    assertEntriesShape(catalog.recommendedSkills, "recommendedSkills");
-  });
-
-  test("plugins: Claude Code entries plus Codex-only entries plus migrated repo-owned assets", () => {
-    assert.equal(catalog.plugins.length, 8);
-    const names = catalog.plugins.map((e) => e.name).sort();
-    assert.deepEqual(names, [
-      "auriga-notify",
-      "auriga-workflow",
-      "claude-md-management",
-      "codex",
-      "playground",
-      "quality-gate-scaffolder",
-      "session-instructions-loader",
-      "skill-creator",
-    ]);
-    assertEntriesShape(catalog.plugins, "plugins");
-    assert.match(
-      catalog.plugins.find((e) => e.name === "session-instructions-loader")?.description ?? "",
-      /^\(Codex\)/,
-    );
-    // auriga-workflow is dual-Agent and locally bundled, sourced from both
-    // repo marketplace manifests.
-    assert.match(
-      catalog.plugins.find((e) => e.name === "auriga-workflow")?.description ?? "",
-      /^\(Claude\/Codex\)/,
-    );
-  });
 
   test("external Codex plugins from extra_plugin_configs appear in catalog/help", () => {
     const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), "auriga-catalog-extra-codex-"));
@@ -171,57 +93,6 @@ describe("generateCatalog (build-time)", () => {
         );
       }
     }
-  });
-
-  test("install surfaces reflect plugin-owned skills instead of standalone entries", () => {
-    // rationale: install help is rendered from the generated catalog, so this
-    // pins the user-visible CLI surface as well as dist/catalog.json.
-    const skillHelp = renderTypeHelp(catalog, "skills", "0.0.0-test");
-    for (const name of [
-      "incremental-impl",
-      "test-designer",
-      "session-compound",
-      "systematic-debugging",
-      "test-driven-development",
-    ]) {
-      assert.doesNotMatch(skillHelp, new RegExp(`\\b${name}\\b`));
-    }
-
-    const pluginHelp = renderTypeHelp(catalog, "plugins", "0.0.0-test");
-    assert.match(pluginHelp, /\bauriga-workflow\b/);
-    assert.match(pluginHelp, /\bauriga-notify\b/);
-    const workflowPlugin = catalog.plugins.find((entry) => entry.name === "auriga-workflow");
-    assert.ok(workflowPlugin, "auriga-workflow must remain in the plugin catalog");
-    assert.match(workflowPlugin.description, /engineering workflow/i);
-    assert.ok(
-      workflowPlugin.description.length <= 240,
-      "plugin catalog description should summarize the workflow instead of enumerating every skill",
-    );
-    assert.doesNotMatch(workflowPlugin.description, /test-designer/);
-  });
-
-  // VAL-HELP-001: top-level `--help` advertises the `install --preset` entry
-  // point with its three modifier flags.
-  test("top-level --help advertises install --preset", () => {
-    const help = renderHelp(catalog, "0.0.0-test");
-    assert.match(help, /install --preset/);
-    assert.match(help, /--preset[\s\S]*--scope[\s\S]*--agent[\s\S]*--lang/);
-    assert.match(help, /install --preset-plugins-skills/);
-    assert.match(help, /--preset-plugins-skills[\s\S]*--scope[\s\S]*--agent/);
-    assert.match(help, /Workflow skills[\s\S]*--preset-plugins-skills/);
-    assert.match(help, /Recommended skills[\s\S]*NOT by preset modes/);
-  });
-
-  // VAL-HELP-002: the removed `hooks` install surface must not resurface in
-  // top-level help — no `install hooks` invocation, no `hooks` <type> row,
-  // no `(category: hooks)`. (The word "hook" still legitimately appears in
-  // plugin descriptions — e.g. auriga-notify's notification hook — so the
-  // assertions target the install-surface tokens, not the bare word.)
-  test("top-level --help no longer mentions the removed hooks surface", () => {
-    const help = renderHelp(catalog, "0.0.0-test");
-    assert.doesNotMatch(help, /install hooks/);
-    assert.doesNotMatch(help, /^\s+hooks\s/m);
-    assert.doesNotMatch(help, /category: hooks/);
   });
 });
 

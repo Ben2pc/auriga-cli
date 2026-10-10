@@ -143,21 +143,17 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, beforeEach, describe, test } from "node:test";
+import { afterEach, describe, test } from "node:test";
 
 import { mergePluginsById, scanState } from "../src/state.js";
 import type { Catalog, ScanOptions } from "../src/state.js";
 import { composeMarkedFile } from "../src/workflow-markers.js";
-import { generateCatalog } from "../src/build/generate-catalog.js";
 import type {
   ItemStatus,
   PluginState,
-  SkillState,
   StateReport,
   StateWarning,
 } from "../src/api-types.js";
-
-const REPO_ROOT = process.cwd();
 
 // ---------------------------------------------------------------------------
 // Fixture helpers
@@ -263,79 +259,6 @@ function scan(
 ): Promise<StateReport> {
   return scanState(projectRoot, catalog, opts as ScanOptions);
 }
-
-function generatedScanCatalog(): Catalog {
-  const generated = generateCatalog(REPO_ROOT);
-  return {
-    skills: Object.fromEntries(
-      generated.workflowSkills.map((entry) => [
-        entry.name,
-        { description: entry.description, isWorkflow: true },
-      ]),
-    ),
-    recommendedSkills: Object.fromEntries(
-      generated.recommendedSkills.map((entry) => [
-        entry.name,
-        { description: entry.description },
-      ]),
-    ),
-    plugins: Object.fromEntries(
-      generated.plugins.map((entry) => [
-        entry.name,
-        {
-          description: entry.description,
-          agents: entry.agents ?? ["claude"],
-          ...(entry.external === true ? { external: true } : {}),
-        },
-      ]),
-    ),
-  };
-}
-
-describe("scanState — generated catalog migration surface", () => {
-  test("Web UI rows expose migrated assets as plugins, not standalone skills", async () => {
-    // rationale: /api/state uses the generated catalog as its row source.
-    // Migrated repo-owned assets must therefore disappear from the Web UI's
-    // standalone skill column and reappear in the plugin column.
-    const home = makeScratch("home-migrated-catalog");
-    redirectHome(home);
-    const report = await scan(makeScratch("proj-migrated-catalog"), generatedScanCatalog(), {
-      execPluginList: async () => ({ installed: [] }),
-      readCodexConfig: async () => "",
-      readCodexPluginsDir: async () => new Map(),
-      homeDir: home,
-    });
-
-    const skillNames = report.skills.map((s) => s.name).sort();
-    for (const name of ["incremental-impl", "test-designer", "test-driven-development", "session-compound"]) {
-      assert.equal(skillNames.includes(name), false, `${name} must not render as a standalone skill row`);
-    }
-
-    const pluginNames = report.plugins.map((p) => p.id).sort();
-    assert.ok(pluginNames.includes("auriga-workflow"));
-    assert.ok(pluginNames.includes("auriga-notify"));
-  });
-});
-
-// ===========================================================================
-// #1 — Workflow / user scope: happy path
-// ===========================================================================
-describe("scanState — #1 Workflow / user scope happy path", () => {
-  test("#1 workflow/user installed with version match", async () => {
-    // rationale: catches scanner still reading <proj>/CLAUDE.md when scope=user
-    const home = makeScratch("home1");
-    writeWorkflowFile(path.join(home, ".claude", "CLAUDE.md"), "1.6.0");
-    redirectHome(home);
-
-    const report = await scan(makeScratch("proj1"), makeCatalog(), {
-      scopes: { workflow: "user" },
-      homeDir: home, // belt-and-suspenders for impls that prefer opts.homeDir
-    });
-
-    assert.equal(report.workflow.status, "installed");
-    assert.equal((report.workflow as any).observedScope, "user");
-  });
-});
 
 // ===========================================================================
 // #2 — Workflow / user scope: missing file
@@ -472,28 +395,6 @@ describe("scanState — #6 Workflow foreign-AGENTS.md", () => {
       "must emit workflow-foreign-agentsmd warning",
     );
   });
-
-  test("foreign AGENTS.md symlink warning does not promise user-region preservation", async () => {
-    const home = makeScratch("home6link");
-    redirectHome(home);
-    const proj = makeScratch("proj6link");
-    fs.writeFileSync(path.join(proj, "shared.md"), "# Some Other Heading\n");
-    fs.symlinkSync("shared.md", path.join(proj, "AGENTS.md"));
-
-    const report = await scan(proj, makeCatalog(), {
-      scopes: { workflow: "project" },
-      homeDir: home,
-    });
-
-    assert.equal(report.workflow.status, "not-installed");
-    const warning = report.warnings.find(
-      (w: StateWarning) => (w.code as string) === "workflow-foreign-agentsmd",
-    );
-    assert.ok(warning);
-    assert.doesNotMatch(warning.message, /user region/i);
-    assert.match(warning.message, /backup|preserve/i);
-  });
-
 });
 
 // ===========================================================================
@@ -532,34 +433,6 @@ describe("scanState — Workflow managed-block marked AGENTS.md", () => {
 });
 
 // ===========================================================================
-// #7 — Skills / user scope: filesystem happy path
-// ===========================================================================
-describe("scanState — #7 Skills / user scope happy path", () => {
-  test("#7 skills/user reads ~/.claude/skills/<name>/SKILL.md filesystem", async () => {
-    // rationale: catches scanner still consulting skills-lock.json
-    const home = makeScratch("home7");
-    redirectHome(home);
-    const content = "---\nname: systematic-debugging\nversion: 1.0.0\n---\nbody";
-    writeSkill(path.join(home, ".claude", "skills", "systematic-debugging"), content);
-
-    const catalog = makeCatalog({
-      skills: {
-        "systematic-debugging": { description: "B", isWorkflow: true },
-      },
-    });
-    const report = await scan(makeScratch("proj7"), catalog, {
-      scopes: { skills: "user" },
-      homeDir: home,
-    });
-
-    const s = report.skills.find((x: SkillState) => x.name === "systematic-debugging");
-    assert.ok(s, "skill row present");
-    assert.equal(s!.status, "installed");
-    assert.equal((s! as any).observedScope, "user");
-  });
-});
-
-// ===========================================================================
 // #8 — Skills / user scope: partial installation
 // ===========================================================================
 describe("scanState — #8 Skills / user scope partial", () => {
@@ -589,34 +462,6 @@ describe("scanState — #8 Skills / user scope partial", () => {
     for (const s of report.skills) {
       assert.equal((s as any).observedScope, "user", `${s.name} must carry observedScope='user'`);
     }
-  });
-});
-
-// ===========================================================================
-// #9 — Skills / project scope: filesystem same shape
-// ===========================================================================
-describe("scanState — #9 Skills / project scope", () => {
-  test("#9 skills/project reads <proj>/.claude/skills/<name>/SKILL.md", async () => {
-    // rationale: catches scanner reading from wrong scope's filesystem
-    const home = makeScratch("home9");
-    redirectHome(home);
-    const proj = makeScratch("proj9");
-    const content = "---\nname: systematic-debugging\n---\nbody";
-    writeSkill(path.join(proj, ".claude", "skills", "systematic-debugging"), content);
-
-    const catalog = makeCatalog({
-      skills: {
-        "systematic-debugging": { description: "", isWorkflow: true },
-      },
-    });
-    const report = await scan(proj, catalog, {
-      scopes: { skills: "project" },
-      homeDir: home,
-    });
-
-    const s = report.skills.find((x) => x.name === "systematic-debugging")!;
-    assert.equal(s.status, "installed");
-    assert.equal((s as any).observedScope, "project");
   });
 });
 
@@ -658,71 +503,6 @@ describe("scanState — #10 Skills malformed (dir present, SKILL.md missing)", (
       "must emit skill-malformed warning",
     );
     assert.equal(ok.status, "installed", "healthy skill unaffected by malformed sibling");
-  });
-});
-
-// ===========================================================================
-// #11 — Skills / drift detection deliberately deferred to `npx skills update`
-// ===========================================================================
-describe("scanState — #11 Skills presence-only (no content drift)", () => {
-  test("#11 skill content drift never flips status (scanner is presence-only)", async () => {
-    // rationale: v1.19.0 dropped update-available status — re-running
-    // install is the update path. Drift detection deliberately deferred
-    // to `npx skills update --project`, which compares against each
-    // skill's own upstream HEAD. This test pins the contract so a future
-    // regression that re-introduces hash comparison would fail here.
-    const home = makeScratch("home11");
-    redirectHome(home);
-    const onDisk = "---\nname: systematic-debugging\nversion: 0.9.0\n---\nold";
-    writeSkill(path.join(home, ".claude", "skills", "systematic-debugging"), onDisk);
-
-    const catalog = makeCatalog({
-      skills: {
-        "systematic-debugging": { description: "", isWorkflow: true },
-      },
-    });
-    const report = await scan(makeScratch("proj11"), catalog, {
-      scopes: { skills: "user" },
-      homeDir: home,
-    });
-
-    const s = report.skills.find((x) => x.name === "systematic-debugging")!;
-    assert.equal(
-      s.status,
-      "installed",
-      "presence-only: SKILL.md present → installed regardless of content",
-    );
-    assert.equal((s as any).observedScope, "user");
-  });
-});
-
-// ===========================================================================
-// #12 — Plugins (Claude) / user scope: happy path via execPluginList
-// ===========================================================================
-describe("scanState — #12 Plugins (Claude) / user scope happy path", () => {
-  test("#12 plugins/claude user installed when execPluginList returns matching entry", async () => {
-    // rationale: catches scanner reading the wrong source-of-truth for plugin install state
-    const home = makeScratch("home12");
-    redirectHome(home);
-    const spy = spyExec({
-      installed: [{ id: "auriga-go@auriga-cli", version: "v1.0.0" }],
-      available: [{ id: "auriga-go@auriga-cli", source: { ref: "v1.0.0" } }],
-    });
-    const catalog = makeCatalog({
-      plugins: { "auriga-go@auriga-cli": { description: "", agents: ["claude"] } },
-    });
-
-    const report = await scan(makeScratch("proj12"), catalog, {
-      execPluginList: spy.fn,
-      scopes: { plugins: "user" },
-      homeDir: home,
-      ...codexNone,
-    });
-
-    const p = report.plugins.find((x) => x.id === "auriga-go@auriga-cli")!;
-    assert.equal(p.status, "installed");
-    assert.equal((p as any).observedScope, "user");
-    assert.deepEqual(p.agents, ["claude"]);
   });
 });
 

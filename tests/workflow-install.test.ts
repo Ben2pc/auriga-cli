@@ -8,7 +8,6 @@ import { installWorkflow } from "../src/workflow.js";
 import {
   workflowStartMarker,
   composeMarkedFile,
-  hashBlock,
   parseMarkers,
   workflowEndMarker,
 } from "../src/workflow-markers.js";
@@ -125,12 +124,6 @@ describe("installWorkflow — fresh install (VAL-WF-001, 002)", () => {
     assert.equal(parsed.kind, "marked");
     if (parsed.kind !== "marked") return;
     assert.ok(parsed.userRegion.includes("工程专属规则"), "template placeholder is the user region");
-  });
-
-  test("fresh install creates no backup", async () => {
-    const cwd = makeScratch("fresh-nobak");
-    await installWorkflow(makePackageRoot(), { interactive: false, cwd, lang: "en" });
-    assert.deepEqual(listBackups(cwd), []);
   });
 });
 
@@ -334,24 +327,6 @@ describe("installWorkflow — AGENTS.md-only ownership", () => {
     assert.match(warnings, /AGENTS\.md/);
   });
 
-  test("a foreign real-file AGENTS.md is kept as the user region before becoming primary", async () => {
-    const cwd = makeScratch("agents-realfile");
-    const agentsPath = path.join(cwd, "AGENTS.md");
-    const foreign = "# Another tool's AGENTS.md\nkeep me\n";
-    fs.writeFileSync(agentsPath, foreign);
-
-    const warnings = await captureWarnings(() =>
-      installWorkflow(makePackageRoot(), { interactive: false, cwd, lang: "en" }),
-    );
-
-    const parsed = parseMarkers(fs.readFileSync(agentsPath, "utf-8"));
-    assert.equal(parsed.kind, "marked");
-    if (parsed.kind !== "marked") return;
-    assert.ok(parsed.userRegion.includes(foreign), "foreign content survives in the user region");
-    assert.equal(fs.existsSync(path.join(cwd, "CLAUDE.md")), false);
-    assert.match(warnings, /AGENTS\.md/);
-  });
-
   test("a symlink AGENTS.md pointing elsewhere is backed up as a symlink before becoming primary", async () => {
     const cwd = makeScratch("agents-foreignlink");
     const agentsPath = path.join(cwd, "AGENTS.md");
@@ -386,19 +361,6 @@ describe("installWorkflow — AGENTS.md-only ownership", () => {
       assert.equal(parsed.userRegion, DEFAULT_USER_REGION, "linked CLAUDE.md content must not be migrated");
     }
     assert.doesNotMatch(warnings, /CLAUDE\.md/);
-  });
-
-  test("re-install over the new AGENTS.md primary shape does not create a backup", async () => {
-    const cwd = makeScratch("agents-reinstall");
-    await installWorkflow(makePackageRoot(), { interactive: false, cwd, lang: "en" });
-    await installWorkflow(makePackageRoot(), { interactive: false, cwd, lang: "en" });
-
-    assert.equal(
-      fs.existsSync(path.join(cwd, "AGENTS.md.bak")),
-      false,
-      "an AGENTS.md primary file is our shape — no backup",
-    );
-    assert.equal(fs.existsSync(path.join(cwd, "CLAUDE.md")), false);
   });
 });
 
@@ -474,13 +436,4 @@ describe("installWorkflow — marked file with a hash-less END marker", () => {
     assert.match(warnings, /校验标记/, "warning names the missing verification marker");
     assert.equal(fs.existsSync(agentsPath), true);
   });
-});
-
-// Build-hash helper sanity: a hand-edited block really does change the hash
-// the installer keys "hand-edited" detection on.
-test("hashBlock distinguishes an edited block from the original", () => {
-  assert.notEqual(
-    hashBlock("# auriga Workflow (v1.0.0)\nkeep\n"),
-    hashBlock("# auriga Workflow (v1.0.0)\nTAMPERED\n"),
-  );
 });

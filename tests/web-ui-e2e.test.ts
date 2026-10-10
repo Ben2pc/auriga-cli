@@ -19,7 +19,7 @@
 
 import assert from "node:assert/strict";
 import { spawn, type ChildProcess } from "node:child_process";
-import { copyFile, mkdir, mkdtemp, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, rm } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -308,9 +308,3 @@ describe("web UI e2e (spec §8.1 hermetic guarantee)", () => {
     );
   });
 });
-
-// Suppress unused-imports for fixtures kept for future expansion.
-void copyFile;
-void writeFile;
-void readFile;
-void stat;

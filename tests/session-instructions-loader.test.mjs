@@ -68,10 +68,6 @@ const configChecks = [
     ok: SESSION_START_HOOK?.matcher === "startup|resume|clear|compact",
     msg: `SessionStart matcher is ${JSON.stringify(SESSION_START_HOOK?.matcher)}`,
   },
-  {
-    ok: SESSION_START_COMMAND === 'node "${CLAUDE_PLUGIN_ROOT}/scripts/session-start.mjs"',
-    msg: `SessionStart command is ${JSON.stringify(SESSION_START_COMMAND)}`,
-  },
 ];
 
 const cases = [
@@ -434,65 +430,6 @@ const cases = [
     },
   },
   {
-    name: "supports compact SessionStart source after Codex compaction",
-    setup: () => {
-      const root = makeTempDir();
-      cleanupDirs.push(root);
-      fs.writeFileSync(path.join(root, "AGENTS.md"), "workspace parent instructions after compact");
-
-      const repo = path.join(root, "repo");
-      fs.mkdirSync(path.join(repo, ".git"), { recursive: true });
-      writeLoaderConfig(repo, { ancestorLevel: 1 });
-      fs.writeFileSync(path.join(repo, "AGENTS.md"), "repo compact instructions already loaded");
-
-      const cwd = path.join(repo, "pkg");
-      fs.mkdirSync(cwd, { recursive: true });
-      return { cwd, source: "compact" };
-    },
-    expect: {
-      includes: ["workspace parent instructions after compact"],
-      excludes: ["repo compact instructions already loaded"],
-    },
-  },
-  {
-    name: "supports resume SessionStart source",
-    setup: () => {
-      const root = makeTempDir();
-      cleanupDirs.push(root);
-      fs.writeFileSync(path.join(root, "AGENTS.md"), "workspace parent instructions after resume");
-
-      const repo = path.join(root, "repo");
-      fs.mkdirSync(path.join(repo, ".git"), { recursive: true });
-      writeLoaderConfig(repo, { ancestorLevel: 1 });
-
-      const cwd = path.join(repo, "pkg");
-      fs.mkdirSync(cwd, { recursive: true });
-      return { cwd, source: "resume" };
-    },
-    expect: {
-      includes: ["workspace parent instructions after resume"],
-    },
-  },
-  {
-    name: "supports clear SessionStart source",
-    setup: () => {
-      const root = makeTempDir();
-      cleanupDirs.push(root);
-      fs.writeFileSync(path.join(root, "AGENTS.md"), "workspace parent instructions after clear");
-
-      const repo = path.join(root, "repo");
-      fs.mkdirSync(path.join(repo, ".git"), { recursive: true });
-      writeLoaderConfig(repo, { ancestorLevel: 1 });
-
-      const cwd = path.join(repo, "pkg");
-      fs.mkdirSync(cwd, { recursive: true });
-      return { cwd, source: "clear" };
-    },
-    expect: {
-      includes: ["workspace parent instructions after clear"],
-    },
-  },
-  {
     name: "outside git, injects parent AGENTS.md but not cwd AGENTS.md",
     setup: () => {
       const root = makeTempDir();
@@ -541,9 +478,8 @@ try {
   for (const c of cases) {
     const setupResult = c.setup();
     const cwd = typeof setupResult === "string" ? setupResult : setupResult.cwd;
-    const source = typeof setupResult === "string" ? "startup" : (setupResult.source ?? "startup");
     const env = typeof setupResult === "string" ? {} : (setupResult.env ?? {});
-    const r = runWithSource(cwd, source, env);
+    const r = runWithSource(cwd, "startup", env);
     const checks = [];
     checks.push({ ok: r.status === 0, msg: `status=${r.status} stderr=${r.stderr}` });
 

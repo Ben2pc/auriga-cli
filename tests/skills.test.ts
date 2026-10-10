@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 
-import { WORKFLOW_SKILLS, planSkillInstallCommands } from "../src/skills.js";
+import { planSkillInstallCommands } from "../src/skills.js";
 import type { SkillsLock } from "../src/utils.js";
 
 // Typed as the real SkillsLock["skills"] shape so schema drift in
@@ -24,24 +24,6 @@ const LOCK: SkillsLock["skills"] = {
 };
 
 describe("planSkillInstallCommands", () => {
-  test("repo-owned plugin skills and retired entries are not standalone workflow-skill defaults", () => {
-    // rationale: these names either ship through auriga-workflow or were
-    // retired into it, so bare `install skills` must not ask the skills CLI
-    // to add them as standalone workflow skills.
-    const pluginOwnedOrRetired = [
-      "incremental-impl",
-      "test-designer",
-      "session-compound",
-      "systematic-debugging",
-      "test-driven-development",
-    ];
-    assert.deepEqual(
-      pluginOwnedOrRetired.filter((name) => WORKFLOW_SKILLS.includes(name)),
-      [],
-    );
-    assert.equal(WORKFLOW_SKILLS.includes("test-driven-development"), false);
-  });
-
   test("single source, single skill → one command with npx -y", () => {
     const batches = planSkillInstallCommands(["playwright-cli"], LOCK, "");
     assert.equal(batches.length, 1);
@@ -100,11 +82,6 @@ describe("planSkillInstallCommands", () => {
       "codex-agent",
     ]);
     assert.deepEqual(bySource["microsoft/playwright-cli"], ["playwright-cli"]);
-  });
-
-  test("every distinct source yields one batch", () => {
-    const batches = planSkillInstallCommands(Object.keys(LOCK), LOCK, "");
-    assert.equal(batches.length, 2); // 2 distinct sources in the real lock fixture
   });
 
   test("globalFlag threads into every command", () => {

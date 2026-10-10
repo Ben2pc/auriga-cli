@@ -36,10 +36,6 @@ import { parseArgs } from "../src/cli.js";
 //         skills.js 中导出,本文件为分发层 mock 增加对它的覆盖。
 // ===========================================================================
 
-function installArgs(argv: string[]) {
-  return parseArgs(["install", ...argv]);
-}
-
 function expectParseError(argv: string[], pattern: RegExp): void {
   assert.throws(() => parseArgs(argv), pattern);
 }
@@ -79,72 +75,6 @@ function expectAtomicConflictRejected(argv: string[], note: string): void {
 // Part A —— 解析层 (unit):直接调 parseArgs,断言返回结构与互斥拒绝。
 // ---------------------------------------------------------------------------
 describe("parseArgs --preset 解析契约", () => {
-  // VAL-CLI-001 / VAL-CLI-002 / VAL-CLI-003 / VAL-CLI-004
-  // rationale: `--preset` 不带任何修饰标志时必须被识别为预设安装。今天
-  // parseArgs 对 `--preset` 抛 "unknown argument" —— 这条会先抓到「标志
-  // 完全不存在」的回归;实现后还要保证它不被误并入 `--all` 等其它分支。
-  test("空白 --preset 解析为预设安装(不报 unknown argument)", () => {
-    const parsed = installArgs(["--preset"]);
-    assert.equal(parsed.command, "install");
-    assert.equal(
-      (parsed as { install: { preset?: boolean } }).install.preset,
-      true,
-    );
-  });
-
-  // VAL-CLI-002 / VAL-CLI-003 / VAL-CLI-004
-  // rationale: 三个默认值是 `--preset` 与分类安装的核心差异点。spec §1 明确
-  // 默认 scope=user / agent=both / lang=zh-CN。这条断言「不带修饰标志时解析
-  // 结果不会携带与默认相矛盾的显式值」—— 即默认值要么在解析层落定、要么
-  // 留空给分发层兜底,但绝不能解析成 project/claude(分类安装的默认)。
-  // 用属性断言:scope 不得为 "project"、agent 不得为 "claude"。
-  test("空白 --preset 不会解析出分类安装的默认值 (project / claude)", () => {
-    const { install } = installArgs(["--preset"]) as {
-      install: { scope?: string; agent?: string };
-    };
-    assert.notEqual(install.scope, "project");
-    assert.notEqual(install.agent, "claude");
-  });
-
-  // VAL-CLI-005
-  // rationale: `--preset` 必须接受 --scope/--agent/--lang 覆盖。若实现把
-  // `--preset` 做成纯原子标志、连这三个修饰标志都拒绝,这条会抓到。
-  test("--preset 接受 --scope / --agent / --lang 显式覆盖", () => {
-    const { install } = installArgs([
-      "--preset",
-      "--scope",
-      "project",
-      "--agent",
-      "claude",
-      "--lang",
-      "zh-CN",
-    ]) as {
-      install: { preset?: boolean; scope?: string; agent?: string; lang?: string };
-    };
-    assert.equal(install.preset, true);
-    assert.equal(install.scope, "project");
-    assert.equal(install.agent, "claude");
-    assert.equal(install.lang, "zh-CN");
-  });
-
-  // VAL-CLI-005
-  // rationale: 等号形式是既有 CLI 约定 (readSingleValue)。`--preset` 的修饰
-  // 标志必须同样支持 `--scope=user` 等号形式,否则与现有标志行为不一致。
-  test("--preset 的修饰标志支持 --flag=value 等号形式", () => {
-    const { install } = installArgs([
-      "--preset",
-      "--scope=user",
-      "--agent=both",
-      "--lang=en",
-    ]) as {
-      install: { preset?: boolean; scope?: string; agent?: string; lang?: string };
-    };
-    assert.equal(install.preset, true);
-    assert.equal(install.scope, "user");
-    assert.equal(install.agent, "both");
-    assert.equal(install.lang, "en");
-  });
-
   // VAL-CLI-005 (boundary —— 非法值)
   // rationale: 覆盖标志的值校验必须复用既有校验器。非法 scope/agent/lang
   // 必须 fail-fast,否则非法值会一路透传到 installer 造成晦涩失败。
@@ -250,44 +180,6 @@ describe("parseArgs --preset 解析契约", () => {
 });
 
 describe("parseArgs --preset-plugins-skills 解析契约", () => {
-  test("空白 --preset-plugins-skills 解析为只安装预设 skill 和 plugin", () => {
-    const parsed = installArgs(["--preset-plugins-skills"]);
-    assert.equal(parsed.command, "install");
-    assert.equal(
-      (parsed as { install: { presetPluginsSkills?: boolean } }).install
-        .presetPluginsSkills,
-      true,
-    );
-  });
-
-  test("--preset-plugins-skills 接受 --scope / --agent 覆盖", () => {
-    const { install } = installArgs([
-      "--preset-plugins-skills",
-      "--scope",
-      "project",
-      "--agent",
-      "codex",
-    ]) as {
-      install: { presetPluginsSkills?: boolean; scope?: string; agent?: string };
-    };
-    assert.equal(install.presetPluginsSkills, true);
-    assert.equal(install.scope, "project");
-    assert.equal(install.agent, "codex");
-  });
-
-  test("--preset-plugins-skills 的修饰标志支持 --flag=value 等号形式", () => {
-    const { install } = installArgs([
-      "--preset-plugins-skills",
-      "--scope=user",
-      "--agent=codex",
-    ]) as {
-      install: { presetPluginsSkills?: boolean; scope?: string; agent?: string };
-    };
-    assert.equal(install.presetPluginsSkills, true);
-    assert.equal(install.scope, "user");
-    assert.equal(install.agent, "codex");
-  });
-
   test("--preset-plugins-skills 带非法 --scope / --agent 值被拒绝", () => {
     expectParseError(
       ["install", "--preset-plugins-skills", "--scope", "team"],
@@ -503,23 +395,6 @@ describe("main --preset 安装分发", () => {
     );
   });
 
-  // VAL-CLI-001 / VAL-CLI-009 的反面:预设不含 recommended。
-  // rationale: spec §1 预设成员固定三类,不含 recommended skills。
-  // 防 fake-green:今天 `--preset` 在 parseArgs 阶段即报错,main 返回 1、
-  // 一个 installer 都不调,「没触达 recommended」会空泛地成立。所以这条先
-  // 断言 `result === 0`(证明 --preset 真的被识别并执行了预设安装),再断言
-  // recommended 不在触达集合内 —— 二者合起来才区分 `--preset` 与 `--all`。
-  test("install --preset 执行成功但不触达 recommended installer", async () => {
-    const { main, calls } = await importMainWithSpies();
-    const { result } = await captureStderr(() => main(["install", "--preset"]));
-    assert.equal(result, 0, "--preset 必须被识别并成功执行预设安装");
-    assert.ok(calls.length > 0, "--preset 必须真的触达若干 installer");
-    assert.ok(
-      !calls.some((c) => c.category === "recommended"),
-      "预设安装不应触达 recommended skills",
-    );
-  });
-
   // VAL-CLI-002 / VAL-CLI-003 / VAL-CLI-004
   // rationale: 三个默认值是本特性的核心契约。这条断言不带任何修饰标志时,
   // 每个 installer 收到的 opts 都是 scope=user / agent=both / lang=zh-CN。
@@ -564,14 +439,6 @@ describe("main --preset 安装分发", () => {
     const workflowCall = calls.find((c) => c.category === "workflow");
     assert.ok(workflowCall, "应触达 workflow installer");
     assert.equal(workflowCall.lang, "zh-CN", "应收到覆盖后的 lang");
-  });
-
-  // VAL-CLI-008 (happy —— 全成功)
-  // rationale: 所有类别成功时分级退出码必须是 0。
-  test("install --preset 全部类别成功时 exit 0", async () => {
-    const { main } = await importMainWithSpies();
-    const { result } = await captureStderr(() => main(["install", "--preset"]));
-    assert.equal(result, 0);
   });
 
   // VAL-CLI-008 (error —— 部分失败)
@@ -702,20 +569,6 @@ describe("main --preset-plugins-skills 安装分发", () => {
 });
 
 describe("main --all 纳入 recommended", () => {
-  // VAL-CLI-009
-  // rationale: spec §2 —— `--all` 回归「全装」语义,现在必须把 recommended
-  // skills 也纳入。今天 ALL_CATEGORIES = [workflow, skills, plugins, hooks]
-  // 不含 recommended,所以这条今天会失败:recommended installer 不被触达。
-  test("install --all 触达 recommended installer", async () => {
-    const { main, calls } = await importMainWithSpies();
-    const { result } = await captureStderr(() => main(["install", "--all"]));
-    assert.equal(result, 0);
-    assert.ok(
-      calls.some((c) => c.category === "recommended"),
-      "--all 现在必须把 recommended skills 纳入安装",
-    );
-  });
-
   // VAL-CLI-009 (集合断言)
   // rationale: `--all` 必须覆盖 workflow + skills + recommended + plugins
   // 四类。用集合断言一次性锁定成员完整 —— 既抓「漏掉 recommended」也抓

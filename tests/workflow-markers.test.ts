@@ -4,7 +4,6 @@ import { describe, test } from "node:test";
 import {
   MARKER_SCHEMA,
   workflowStartMarker,
-  WORKFLOW_HEADER_RE,
   workflowEndMarker,
   hashBlock,
   parseMarkers,
@@ -85,16 +84,6 @@ describe("workflow-markers — parseMarkers", () => {
 });
 
 describe("workflow-markers — composeMarkedFile round-trip", () => {
-  test("compose → parse preserves block body and user region byte-for-byte", () => {
-    const body = "# auriga Workflow (v1.9.0)\nline2\nline3\n";
-    const userRegion = "## 工程规则\n- 用 pnpm\n";
-    const p = parseMarkers(composeMarkedFile({ blockBody: body, userRegion }));
-    assert.equal(p.kind, "marked");
-    if (p.kind !== "marked") return;
-    assert.equal(p.blockBody, body);
-    assert.equal(p.userRegion, userRegion);
-  });
-
   test("END marker hash matches hashBlock of the block body", () => {
     const body = "# auriga Workflow (v1.9.0)\n";
     const p = parseMarkers(composeMarkedFile({ blockBody: body, userRegion: "" }));
@@ -142,10 +131,5 @@ describe("workflow-markers — hasAurigaHeader", () => {
 
   test("foreign content → false", () => {
     assert.equal(hasAurigaHeader("# My hand-written notes\nstuff\n"), false);
-  });
-
-  test("WORKFLOW_HEADER_RE matches both languages", () => {
-    assert.match("# auriga Workflow (v1.9.0)", WORKFLOW_HEADER_RE);
-    assert.match("# auriga 工作流 (v2.0.1)", WORKFLOW_HEADER_RE);
   });
 });

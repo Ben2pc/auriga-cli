@@ -65,8 +65,55 @@ describe("plugin-bundled SKILL.md frontmatter", () => {
         typeof parsed.data.description === "string" && parsed.data.description.length > 0,
         "frontmatter must have a non-empty string `description`",
       );
+      assert.equal(
+        parsed.data.name,
+        path.basename(path.dirname(skillMd)),
+        "frontmatter `name` must match the skill directory",
+      );
     });
   }
+});
+
+// Agents load bundled files by paths written in the skill's markdown, relative
+// to the skill directory or the citing file; a dangling path silently drops the
+// guidance or asset it was meant to route to.
+const BUNDLED_REF_RE =
+  /[`(](?:\.\/|<skill-dir>\/)?((?:\.\.\/)+(?:[\w-]+\/)?(?:references|assets|scripts)\/[\w./-]*\w|(?:references|assets|scripts)\/[\w./-]*\w)(?:#[^`)\s]*)?[`)]/g;
+
+function listMarkdown(dir: string): string[] {
+  return fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) return listMarkdown(full);
+    return entry.name.endsWith(".md") ? [full] : [];
+  });
+}
+
+describe("plugin-bundled skill file references", () => {
+  let checked = 0;
+
+  for (const skillMd of discoverPluginSkillMds()) {
+    const skillDir = path.dirname(skillMd);
+    for (const doc of listMarkdown(skillDir)) {
+      const rel = path.relative(REPO_ROOT, doc);
+      const refs = new Set([...fs.readFileSync(doc, "utf-8").matchAll(BUNDLED_REF_RE)].map((m) => m[1]));
+      checked += refs.size;
+      if (refs.size === 0) continue;
+      test(`${rel} references only bundled files that exist`, () => {
+        for (const ref of refs) {
+          assert.ok(
+            fs.existsSync(path.resolve(skillDir, ref)) ||
+              fs.existsSync(path.resolve(path.dirname(doc), ref)),
+            `${ref} does not resolve from ${rel}`,
+          );
+        }
+      });
+    }
+  }
+
+  test("the reference scan still recognizes how skills cite bundled files", () => {
+    // Guards against a pattern drift that would make every check above vacuous.
+    assert.ok(checked >= 50, `only ${checked} bundled references recognized`);
+  });
 });
 
 describe("plugin hooks.json contracts", () => {

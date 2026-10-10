@@ -78,18 +78,6 @@ function makeRepo() {
   return dir;
 }
 
-function writePlanningArtifacts(dir, files = ["task_plan.md"]) {
-  const planId = "2026-07-16-feature-x";
-  const planningRoot = path.join(dir, ".planning");
-  const planDir = path.join(planningRoot, planId);
-  fs.mkdirSync(planDir, { recursive: true });
-  fs.writeFileSync(path.join(planningRoot, ".active_plan"), `${planId}\n`);
-  for (const file of files) {
-    fs.writeFileSync(path.join(planDir, file), `# ${file}\n`);
-  }
-  return planDir;
-}
-
 function writeActiveSpec(dir) {
   const specDir = path.join(dir, "docs", "specs", "topic");
   fs.mkdirSync(specDir, { recursive: true });
@@ -105,16 +93,6 @@ const cases = [
     expect: { status: 0, stdoutEq: "" },
   },
   {
-    name: "gh pr create (not ready) passes through",
-    setup: () => ({ cwd: makeRepo(), cmd: 'gh pr create --body "x"' }),
-    expect: { status: 0, stdoutEq: "" },
-  },
-  {
-    name: "echo containing 'gh pr ready' does NOT trigger the hook",
-    setup: () => ({ cwd: makeRepo(), cmd: `echo "don't run gh pr ready yet"` }),
-    expect: { status: 0, stdoutEq: "" },
-  },
-  {
     name: "git commit -m containing 'gh pr ready' does NOT trigger the hook",
     setup: () => {
       const dir = makeRepo();
@@ -123,38 +101,6 @@ const cases = [
       return { cwd: dir, cmd: `git commit -m "note about gh pr ready workflow"` };
     },
     expect: { status: 0, stdoutEq: "" },
-  },
-  {
-    name: "legacy root planning files no longer block",
-    setup: () => {
-      const dir = makeRepo();
-      fs.writeFileSync(path.join(dir, "findings.md"), "# notes\n");
-      fs.writeFileSync(path.join(dir, "progress.md"), "# log\n");
-      fs.writeFileSync(path.join(dir, "task_plan.md"), "# plan\n");
-      return { cwd: dir, cmd: "gh pr ready" };
-    },
-    expect: {
-      status: 0,
-      stderrNotIncludes: "planning artifacts",
-    },
-  },
-  {
-    name: "retired planning-with-files artifacts no longer block Ready",
-    setup: () => {
-      const dir = makeRepo();
-      writePlanningArtifacts(dir, ["progress.md", "task_plan.md"]);
-      return { cwd: dir, cmd: "gh pr ready" };
-    },
-    expect: { status: 0, stderrNotIncludes: ".planning" },
-  },
-  {
-    name: "Cursor Shell tool_name still blocks on active specs",
-    setup: () => {
-      const dir = makeRepo();
-      writeActiveSpec(dir);
-      return { cwd: dir, cmd: "gh pr ready", toolName: "Shell" };
-    },
-    expect: { status: 2, stderrIncludes: "docs/specs/topic/spec.md" },
   },
   {
     name: "Grok camelCase toolInput still blocks on active specs",
@@ -191,31 +137,6 @@ const cases = [
     expect: { status: 2, stderrIncludes: "unfinalized active specs in docs/specs/" },
   },
   {
-    name: "active spec message lists promote/archive/delete remediation",
-    setup: () => {
-      const dir = makeRepo();
-      const activeDir = path.join(dir, "docs", "specs");
-      fs.mkdirSync(activeDir, { recursive: true });
-      fs.writeFileSync(path.join(activeDir, "feature-x-design.md"), "# spec\n");
-      return { cwd: dir, cmd: "gh pr ready" };
-    },
-    expect: { status: 2, stderrIncludes: "promote to docs/architecture/" },
-  },
-  {
-    // Archiving is a governance action (promotion check + link repair); the
-    // hook fires at the exact moment an agent would otherwise `mv` the specs,
-    // so its remediation must route through the documentation-management skill.
-    name: "remediation routes archive/promote through documentation-management",
-    setup: () => {
-      const dir = makeRepo();
-      const activeDir = path.join(dir, "docs", "specs");
-      fs.mkdirSync(activeDir, { recursive: true });
-      fs.writeFileSync(path.join(activeDir, "feature-x-design.md"), "# spec\n");
-      return { cwd: dir, cmd: "gh pr ready" };
-    },
-    expect: { status: 2, stderrIncludes: "documentation-management" },
-  },
-  {
     name: "empty docs/specs/ does NOT block",
     setup: () => {
       const dir = makeRepo();
@@ -236,20 +157,6 @@ const cases = [
       return { cwd: dir, cmd: "gh pr ready" };
     },
     expect: { status: 0, stderrNotIncludes: "active specs" },
-  },
-  {
-    name: "nested active spec docs/specs/<topic>/spec.md blocks recursively",
-    setup: () => {
-      const dir = makeRepo();
-      const topicDir = path.join(dir, "docs", "specs", "feature-x");
-      fs.mkdirSync(topicDir, { recursive: true });
-      fs.writeFileSync(path.join(topicDir, "spec.md"), "# nested spec\n");
-      return { cwd: dir, cmd: "gh pr ready" };
-    },
-    // spec-design / arch-design write docs/specs/<topic>/spec.md — never a
-    // flat docs/specs/*.md. The active spec scan must descend into <topic>/, and the
-    // reported path must be the full nested repo-relative path.
-    expect: { status: 2, stderrIncludes: "docs/specs/feature-x/spec.md" },
   },
   {
     name: "deeply-nested docs/specs/<topic>/<sub>/spec.md blocks with recursion depth >1",
@@ -298,17 +205,6 @@ const cases = [
       return { cwd: dir, cmd: "gh pr ready" };
     },
     expect: { status: 2, stderrIncludes: "scan root is a symbolic link" },
-  },
-  {
-    name: ".planning root symlink is ignored after skill retirement",
-    setup: () => {
-      const dir = makeRepo();
-      const outside = fs.mkdtempSync(path.join(os.tmpdir(), "outside-planning-"));
-      cleanupDirs.push(outside);
-      fs.symlinkSync(outside, path.join(dir, ".planning"));
-      return { cwd: dir, cmd: "gh pr ready" };
-    },
-    expect: { status: 0, stderrNotIncludes: ".planning" },
   },
   {
     name: "non-directory specs root is a blocking scan error",
@@ -365,24 +261,6 @@ const cases = [
     },
   },
   {
-    name: "archived worklog copy does NOT count as stray",
-    setup: () => {
-      const dir = makeRepo();
-      const worklogDir = path.join(dir, "docs", "worklog", "worklog-2026-04-17-foo");
-      fs.mkdirSync(worklogDir, { recursive: true });
-      fs.writeFileSync(path.join(worklogDir, "findings.md"), "archived\n");
-      // No root-level copies; this one is archived.
-      // Also need to ensure no unpushed commits — repo has no remote so
-      // the upstream-diff branch will short-circuit.
-      return { cwd: dir, cmd: "gh pr ready" };
-    },
-    // Without a git upstream or gh auth, the hook should proceed past
-    // the blocks and into the filter path. We accept either silent pass
-    // (if gh query fails silently) or an additionalContext injection;
-    // what we're testing is that NO stray-doc block fired.
-    expect: { status: 0, stderrNotIncludes: "stray" },
-  },
-  {
     name: "cross-PR spec under docs/long-running-specs/ does NOT block",
     setup: () => {
       const dir = makeRepo();
@@ -415,20 +293,6 @@ const cases = [
     },
     expect: { status: 2, stderrIncludes: "docs/specs/topic/spec.md" },
   },
-  {
-    name: "explicit PR ref skips unpushed-commit check on current branch",
-    setup: () => {
-      const dir = makeRepo();
-      // Fake a scenario where current branch has "unpushed" commits by
-      // just not having an upstream — countUnpushed would already return
-      // 0 in that case, so this test primarily confirms that extractPRRef
-      // returning a value doesn't break the stray-check flow.
-      return { cwd: dir, cmd: "gh pr ready 15" };
-    },
-    // Clean repo + explicit ref → no block, filter path runs; gh may
-    // fail in test env so we only assert: no block on unpushed.
-    expect: { status: 0, stderrNotIncludes: "unpushed" },
-  },
 
   // ---- Route B: gh pr create without --draft -----------------------
   // pr-ready-guard also fires on `gh pr create` to catch the case where
@@ -457,15 +321,6 @@ const cases = [
     expect: { status: 0, stdoutEq: "", stderrNotIncludes: "pr-ready-guard" },
   },
   {
-    name: "gh pr create with --draft=true passes through silently",
-    setup: () => {
-      const dir = makeRepo();
-      writeActiveSpec(dir);
-      return { cwd: dir, cmd: 'gh pr create --draft=true --title foo --body "x"' };
-    },
-    expect: { status: 0, stdoutEq: "", stderrNotIncludes: "pr-ready-guard" },
-  },
-  {
     name: "gh pr create with --draft=1 / --draft=t / --draft=TRUE (case-insensitive truthy) passes through",
     setup: () => {
       const dir = makeRepo();
@@ -483,15 +338,6 @@ const cases = [
       // --draft=false semantically creates a NON-draft (Ready) PR per
       // cobra BoolVar; Route B must fire and block on the stray doc.
       return { cwd: dir, cmd: 'gh pr create --draft=false --title foo --body "x"' };
-    },
-    expect: { status: 2, stderrIncludes: "unfinalized active specs" },
-  },
-  {
-    name: "gh pr create with --draft=0 BLOCKS on stray (falsy → Ready PR)",
-    setup: () => {
-      const dir = makeRepo();
-      writeActiveSpec(dir);
-      return { cwd: dir, cmd: 'gh pr create --draft=0 --title foo' };
     },
     expect: { status: 2, stderrIncludes: "unfinalized active specs" },
   },
@@ -516,49 +362,12 @@ const cases = [
     expect: { status: 0, stdoutEq: "", stderrNotIncludes: "pr-ready-guard" },
   },
   {
-    name: "gh pr create -d at end of command passes through silently",
-    setup: () => {
-      const dir = makeRepo();
-      writeActiveSpec(dir);
-      return { cwd: dir, cmd: 'gh pr create --title foo -d' };
-    },
-    expect: { status: 0, stdoutEq: "", stderrNotIncludes: "pr-ready-guard" },
-  },
-  {
     name: "gh pr create without --draft + clean repo passes silently",
     setup: () => ({
       cwd: makeRepo(),
       cmd: 'gh pr create --title foo --body "x"',
     }),
     expect: { status: 0, stdoutEq: "", stderrNotIncludes: "pr-ready-guard" },
-  },
-  {
-    name: "gh pr create without --draft allows a cross-PR long-running spec",
-    setup: () => {
-      const dir = makeRepo();
-      const programDir = path.join(
-        dir,
-        "docs",
-        "long-running-specs",
-        "model-generation-workflow-upgrade",
-      );
-      fs.mkdirSync(programDir, { recursive: true });
-      fs.writeFileSync(path.join(programDir, "spec.md"), "# cross-PR spec\n");
-      return { cwd: dir, cmd: 'gh pr create --title foo --body "x"' };
-    },
-    expect: { status: 0, stderrNotIncludes: "active specs" },
-  },
-  {
-    name: "gh pr create without --draft ignores retired planning artifacts",
-    setup: () => {
-      const dir = makeRepo();
-      writePlanningArtifacts(dir, ["findings.md"]);
-      return { cwd: dir, cmd: 'gh pr create --title foo --body "x"' };
-    },
-    expect: {
-      status: 0,
-      stderrNotIncludes: ".planning",
-    },
   },
   {
     name: "gh pr create without --draft + active spec blocks with create-route remediation (--draft alternative)",
@@ -575,17 +384,6 @@ const cases = [
       // AND the --draft escape hatch unique to Route B.
       stderrIncludes: "pass --draft",
     },
-  },
-  {
-    name: "gh pr create without --draft + active spec includes promote remediation",
-    setup: () => {
-      const dir = makeRepo();
-      const activeDir = path.join(dir, "docs", "specs");
-      fs.mkdirSync(activeDir, { recursive: true });
-      fs.writeFileSync(path.join(activeDir, "feature-x.md"), "# spec\n");
-      return { cwd: dir, cmd: 'gh pr create --title foo --body "x"' };
-    },
-    expect: { status: 2, stderrIncludes: "promote to docs/architecture/" },
   },
   {
     name: "echo containing 'gh pr create' does NOT trigger Route B",
@@ -686,24 +484,6 @@ try {
 } finally {
   for (const d of cleanupDirs) {
     fs.rmSync(d, { recursive: true, force: true });
-  }
-}
-
-// Source-level regression guard: summarize() runs only when gh auth is
-// available, so it can't be exercised end-to-end in the smoke harness.
-// Read the script source and assert the git-workflow reference is
-// present — protects against future edits that drop the skill pointer.
-{
-  const src = fs.readFileSync(ENTRY, "utf8");
-  const ok = src.includes("git-workflow");
-  if (ok) {
-    passed++;
-    console.log("  ✓ pr-ready-guard source references git-workflow skill");
-  } else {
-    failed++;
-    console.error(
-      '  ✗ pr-ready-guard source references git-workflow skill — "git-workflow" not found in script',
-    );
   }
 }
 

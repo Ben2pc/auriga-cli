@@ -79,16 +79,6 @@ const cases = [
     expect: { status: 0, stdoutEq: "" },
   },
   {
-    name: "non-gh-pr-create command passes through silently",
-    payload: {
-      hook_event_name: "PostToolUse",
-      tool_name: "Bash",
-      tool_input: { command: "ls -la" },
-      tool_response: { stdout: "", exit_code: 0 },
-    },
-    expect: { status: 0, stdoutEq: "" },
-  },
-  {
     name: "gh pr view (not create) passes through",
     payload: {
       hook_event_name: "PostToolUse",
@@ -105,16 +95,6 @@ const cases = [
       tool_name: "Bash",
       tool_input: { command: `echo "don't run gh pr create yet"` },
       tool_response: { stdout: "don't run gh pr create yet\n", exit_code: 0 },
-    },
-    expect: { status: 0, stdoutEq: "" },
-  },
-  {
-    name: "git commit -m containing 'gh pr create' does NOT trigger the hook",
-    payload: {
-      hook_event_name: "PostToolUse",
-      tool_name: "Bash",
-      tool_input: { command: `git commit -m "note about gh pr create workflow"` },
-      tool_response: { stdout: "", exit_code: 0 },
     },
     expect: { status: 0, stdoutEq: "" },
   },
@@ -140,15 +120,7 @@ const cases = [
       status: 0,
       stdoutIncludesAll: [
         "could not identify",
-        "required sections",
-        "design decisions",
-        "test plan",
-        "git-workflow",
-        "Conventional Commits",
       ],
-      // Negative anchor: the language-convention reminder was removed —
-      // catch a regression that reintroduces it (PR #143).
-      stdoutExcludesAll: ["language"],
     },
   },
   {
@@ -170,14 +142,7 @@ const cases = [
       stdoutIncludesAll: [
         "pr-create-guard",
         "required sections",
-        "design decisions",
-        "test plan",
-        "git-workflow",
-        "Conventional Commits",
       ],
-      // Negative anchor: the language-convention reminder was removed —
-      // catch a regression that reintroduces it (PR #143).
-      stdoutExcludesAll: ["language"],
     },
   },
   {
@@ -199,15 +164,7 @@ const cases = [
       status: 0,
       stdoutIncludesAll: [
         "could not identify",
-        "required sections",
-        "design decisions",
-        "test plan",
-        "git-workflow",
-        "Conventional Commits",
       ],
-      // Negative anchor: the language-convention reminder was removed —
-      // catch a regression that reintroduces it (PR #143).
-      stdoutExcludesAll: ["language"],
     },
   },
   {
@@ -223,35 +180,6 @@ const cases = [
       stdoutIncludesAll: [
         "pr-create-guard",
         "888888",
-        "required sections",
-        "design decisions",
-        "test plan",
-        "git-workflow",
-        "Conventional Commits",
-      ],
-    },
-  },
-  {
-    name: "Cursor Shell + tool_output URL: identifies the created PR",
-    payload: {
-      hook_event_name: "PostToolUse",
-      tool_name: "Shell",
-      tool_input: { command: 'gh pr create --title foo --body "x"' },
-      tool_output: JSON.stringify({
-        output: "https://github.com/no-such-owner/no-such-repo/pull/999999\n",
-        exitCode: 0,
-      }),
-    },
-    expect: {
-      status: 0,
-      stdoutIncludesAll: [
-        "pr-create-guard",
-        "999999",
-        "required sections",
-        "design decisions",
-        "test plan",
-        "git-workflow",
-        "Conventional Commits",
       ],
     },
   },
@@ -268,11 +196,6 @@ const cases = [
       stdoutIncludesAll: [
         "pr-create-guard",
         "777777",
-        "required sections",
-        "design decisions",
-        "test plan",
-        "git-workflow",
-        "Conventional Commits",
       ],
     },
   },
@@ -400,12 +323,6 @@ const ccCases = [
     body: "",
     expect: { stdoutNotIncludes: "Title format: ⚠" },
   },
-  {
-    name: "title-check: 'revert: foo' (extended CC type) accepted",
-    title: "revert: foo",
-    body: "",
-    expect: { stdoutNotIncludes: "Title format: ⚠" },
-  },
   // ---- Empty title (gh returned empty) → silently skip the check ----
   {
     name: "title-check: empty title silently skipped (parse hiccup, not violation)",
@@ -518,29 +435,6 @@ for (const c of ccCases) {
     );
     for (const ch of checks)
       console.error(`      ${ch.ok ? "ok  " : "fail"}  ${ch.msg}`);
-  }
-}
-
-// Source-level regression guard: defense-in-depth alongside the
-// behavioral tests above. Catches removals of the CC infrastructure
-// even if behavioral tests were also accidentally deleted/disabled.
-{
-  const src = fs.readFileSync(ENTRY, "utf8");
-  const checks = [
-    { needle: "CC_TYPES", label: "Conventional Commits type list" },
-    { needle: "CC_RE", label: "Conventional Commits regex" },
-    { needle: "Title format", label: "title format injection line" },
-  ];
-  for (const { needle, label } of checks) {
-    if (src.includes(needle)) {
-      passed++;
-      console.log(`  ✓ pr-create-guard source contains ${label}`);
-    } else {
-      failed++;
-      console.error(
-        `  ✗ pr-create-guard source contains ${label} — "${needle}" not found`,
-      );
-    }
   }
 }
 

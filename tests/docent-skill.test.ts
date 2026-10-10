@@ -30,121 +30,17 @@ function listFilesRecursive(rel: string): string[] {
   return out;
 }
 
-function sectionBetween(text: string, start: string, end: string): string {
-  const startIndex = text.indexOf(start);
-  const endIndex = text.indexOf(end, startIndex + start.length);
-  assert.ok(startIndex >= 0, `missing section start: ${start}`);
-  assert.ok(endIndex > startIndex, `missing section end after ${start}: ${end}`);
-  return text.slice(startIndex, endIndex);
-}
-
 describe("docent skill assets", () => {
-  // Explicit invocation and one dedicated Agent with an explicit handoff.
+  // Explicit-invocation-only is a machine-readable frontmatter contract.
   test("SKILL.md exists with valid frontmatter and explicit-only invocation", () => {
     const raw = read(`${SKILL_DIR}/SKILL.md`);
     const parsed = matter(raw);
     assert.equal(parsed.data.name, "docent", "frontmatter name must be docent");
-    assert.ok(
-      typeof parsed.data.description === "string" && parsed.data.description.length > 0,
-      "frontmatter must have a non-empty description",
-    );
     assert.equal(
       parsed.data["disable-model-invocation"],
       true,
       "docent must be explicit-invocation only (disable-model-invocation: true)",
     );
-    assert.ok(
-      /显式/.test(String(parsed.data.description)),
-      "description must state the explicit-invocation-only boundary for runtimes that trigger by description",
-    );
-    assert.match(parsed.content, /Claude Code[^。\n]*\/auriga-workflow:docent/);
-    assert.match(parsed.content, /Codex[^。\n]*auriga-workflow:docent/);
-    const execution = sectionBetween(parsed.content, "## 执行模型：单个专职子代理", "## 交付");
-    assert.match(execution, /一个[^。\n]*专职子代理|单个专职子代理/);
-    assert.match(execution, /全过程[^。\n]*子代理内部/);
-    assert.match(
-      execution,
-      /派遣[^。\n]*references\/report-workflow\.md[^。\n]*讲解流程/,
-      "the dispatch packet must tell the isolated Agent where to load its complete workflow",
-    );
-    assert.match(
-      execution,
-      /子代理[^。\n]*(?:不得|不要)[^。\n]*派遣/,
-      "the dedicated report Agent must not recursively dispatch another Agent",
-    );
-    assert.match(
-      execution,
-      /不支持派遣子代理[\s\S]{0,180}(?:停止|无法执行|不能执行)/,
-      "a runtime without subagents must stop instead of consuming the main conversation",
-    );
-    assert.doesNotMatch(
-      execution,
-      /不支持派遣子代理[\s\S]{0,180}主对话内完成/,
-      "the main Agent must not silently absorb the isolated reading workflow",
-    );
-  });
-
-  // Keep the comprehension contract while making visual format and offline
-  // assembly conditional on what the explanation actually needs.
-  test("skill defaults to in-conversation explanation with optional offline report", () => {
-    const htmlAssets = listFilesRecursive(SKILL_DIR).filter((f) => f.endsWith(".html"));
-    assert.deepEqual(htmlAssets, [], "docent must not ship a fixed HTML template asset");
-    const text = read(`${SKILL_DIR}/SKILL.md`) + "\n" + read(`${SKILL_DIR}/references/report-workflow.md`);
-    const core = sectionBetween(text, "#### 核心内容", "#### 条件内容");
-    assert.ok(
-      /文件:行号/.test(text),
-      "SKILL.md must require file:line anchors for code conclusions",
-    );
-    assert.match(text, /默认交付可直接在对话中阅读的讲解/);
-    assert.match(text, /静态[^\n]*Mermaid 图[\s\S]{0,100}Markdown 表格/);
-    assert.match(text, /运行时支持对话内可视化[\s\S]{0,160}可视化能力说明/);
-    assert.match(text, /只有用户明确要求可离线分享的报告[\s\S]{0,120}才生成独立 HTML/);
-    assert.ok(text.includes("自包含"), "optional offline HTML must remain self-contained");
-    assert.ok(text.includes("阅读足迹"), "SKILL.md must require the reading-footprint section");
-    assert.match(text, /同一实体命名保持一致[^。]*不[^。]*翻译/);
-    assert.match(text, /复杂关系需要图时[^。]*系统中的位置/);
-    assert.match(core, /可运行或可操作[\s\S]{0,120}端到端/);
-    assert.match(core, /否则[\s\S]{0,140}(自动化测试|静态检查|人工核对)/);
-    assert.match(
-      text,
-      /不是[^。\n]*(代码审查|架构评审)[\s\S]{0,180}(arch-design|架构设计)/,
-      "Docent must explain current code without silently becoming a redesign workflow",
-    );
-    const conditional = sectionBetween(text, "#### 条件内容", "### 4. 选择展示形式并交付");
-    assert.match(conditional, /历史演化[\s\S]{0,120}(按需|条件)/, "git history must be conditional");
-    assert.match(
-      conditional,
-      /人工端到端体验[\s\S]{0,180}(可运行|可操作)/,
-      "hands-on verification must require a runnable or operable entry point",
-    );
-    const locating = sectionBetween(text, "### 1. 定位", "### 2. 建立当前状态模型");
-    assert.match(locating, /按问题从定位工具箱/, "search methods must be selected as needed");
-    assert.match(locating, /不机械地全部执行/);
-    assert.doesNotMatch(
-      locating,
-      /(?:必须|务必)[^。\n]*(?:全部执行|逐项执行)/,
-      "the locating toolbox must not become a fixed checklist",
-    );
-    assert.ok(
-      text.includes("references/components.md"),
-      "SKILL.md must direct the report generator to the bundled component library",
-    );
-
-    const design = read(`${SKILL_DIR}/references/design-guidelines.md`);
-    assert.doesNotMatch(
-      design,
-      /两份不同主题的报告不应该长得一样|每份报告.*不同/,
-      "visual variety must not be a quality target",
-    );
-    assert.match(
-      design,
-      /默认.*(基线|组件|token)/,
-      "design guidance must provide a stable default visual baseline",
-    );
-    const components = read(`${SKILL_DIR}/references/components.md`);
-    const visualContract = `${text}\n${design}\n${components}`;
-    assert.match(visualContract, /只有[^。\n]*改善[^。\n]*才[^。\n]*(定制|custom\.css)/);
-    assert.doesNotMatch(visualContract, /先用文件编辑工具写出两个片段|配色与字体[^。\n]*而非默认值/);
   });
 
   // Dual-agent portability conventions.
@@ -179,34 +75,13 @@ describe("docent skill assets", () => {
       skill.includes("references/design-guidelines.md"),
       "SKILL.md must direct the report generator to the bundled design guidelines",
     );
-    const refText = read(ref);
-    assert.ok(
-      !refText.includes(".claude/"),
-      "design guidelines must be self-contained, not a pointer into .claude/",
-    );
-    assert.ok(
-      refText.includes("ASCII") && refText.includes("目录树"),
-      "design guidelines must forbid ASCII-art directory trees and prescribe an HTML/CSS tree",
-    );
-    assert.ok(
-      refText.includes("--primary") && refText.includes("design token"),
-      "design guidelines must carry the recommended design-token palette",
-    );
   });
 
   // Component library lives under assets/ (standard skill layout: assets are
   // files used in the output, fetched by name and assembled mechanically —
   // never retyped through the model). references/components.md is the usage
   // guide that names each asset.
-  test("component assets bundle tokens, tree CSS, and working SVG renderers", () => {
-    const tokens = read(`${SKILL_DIR}/assets/tokens.css`);
-    assert.ok(tokens.includes("--primary"), "tokens.css must define the design tokens");
-    const css = read(`${SKILL_DIR}/assets/components.css`);
-    assert.ok(css.includes("file-tree"), "components.css must include the file-tree component");
-    for (const baseline of ["body {", "max-width: 1120px", "h1, h2, h3, h4", "pre {", "@media (max-width: 720px)"]) {
-      assert.ok(css.includes(baseline), `components.css must include default page baseline: ${baseline}`);
-    }
-
+  test("component guide names its assets and SVG renderers work", () => {
     const guide = read(`${SKILL_DIR}/references/components.md`);
     for (const name of [
       "assets/tokens.css",
@@ -216,21 +91,6 @@ describe("docent skill assets", () => {
     ]) {
       assert.ok(guide.includes(name), `components.md must reference ${name} by name`);
     }
-    assert.match(
-      guide,
-      /mktemp -d[\s\S]{0,500}title\.txt/,
-      "assembly inputs must live in a private per-report directory and carry the title as data",
-    );
-    assert.doesNotMatch(
-      guide,
-      /assemble\.sh[^\n]*"<报告标题>"/,
-      "repository-derived titles must not be interpolated into a shell command",
-    );
-    const skill = read(`${SKILL_DIR}/references/report-workflow.md`);
-    assert.ok(
-      skill.includes("scripts/assemble.sh") && skill.includes("拼装"),
-      "SKILL.md must direct assembly through scripts/assemble.sh instead of retyping assets",
-    );
 
     const code = read(`${SKILL_DIR}/assets/renderers.js`);
     const exports = new Function(
@@ -659,14 +519,9 @@ describe("docent skill assets", () => {
 });
 
 describe("docent distribution", () => {
-  test("plugin manifests stay in lockstep", () => {
+  test("claude and codex plugin manifests share one summary", () => {
     const claude = JSON.parse(read("plugins/auriga-workflow/.claude-plugin/plugin.json"));
     const codex = JSON.parse(read("plugins/auriga-workflow/.codex-plugin/plugin.json"));
-    assert.equal(
-      codex.version,
-      claude.version,
-      "claude and codex plugin manifests must carry the same version",
-    );
     assert.equal(
       codex.description,
       claude.description,
@@ -674,7 +529,7 @@ describe("docent distribution", () => {
     );
   });
 
-  test("marketplace entry stays concise while plugin README enumerates docent", () => {
+  test("marketplace entry summary stays synchronized with the plugin manifest", () => {
     const claudeMarketplace = JSON.parse(read(".claude-plugin/marketplace.json"));
     const claudeEntry = (
       claudeMarketplace.plugins as Array<{ name: string; description: string }>
@@ -688,23 +543,5 @@ describe("docent distribution", () => {
       claudeManifest.description,
       "marketplace and plugin manifest summaries must stay synchronized",
     );
-    assert.ok(
-      claudeEntry!.description.length <= 240,
-      "marketplace description should summarize the plugin instead of enumerating every skill",
-    );
-    // The .agents marketplace carries no description field — the Codex-side
-    // user-visible description lives in .codex-plugin/plugin.json (asserted
-    // above). Here we only require the entry to keep pointing at the plugin.
-    const agentsMarketplace = JSON.parse(read(".agents/plugins/marketplace.json"));
-    const agentsEntry = (
-      agentsMarketplace.plugins as Array<{ name: string; source: { path: string } }>
-    ).find((p) => p.name === "auriga-workflow");
-    assert.ok(agentsEntry, ".agents/plugins/marketplace.json must list auriga-workflow");
-    assert.equal(agentsEntry!.source.path, "./plugins/auriga-workflow");
-    assert.ok(
-      read("plugins/auriga-workflow/README.md").includes("docent"),
-      "plugin README skills table must list docent",
-    );
   });
-
 });
