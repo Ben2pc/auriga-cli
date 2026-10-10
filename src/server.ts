@@ -549,7 +549,7 @@ export async function startServer(
     } finally {
       // Clear the in-flight slot BEFORE emitting all-done so a client that
       // reacts immediately to the terminal frame can submit a new apply
-      // without racing (test "after first job finishes, new apply succeeds").
+      // without racing (covered by the sequential-applies jobId test).
       if (currentJobId === job.jobId) currentJobId = null;
       emit(job, {
         type: "all-done",

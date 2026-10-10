@@ -577,7 +577,6 @@ README 更新：
   - `install --all` (mock plugins 类别失败、其它成功) → exit 2 + 按类状态 + 重试命令
   - `install catalog.json 缺失` 冒烟
 - `tests/guide.test.ts`：
-  - `guide` 输出包含 Step 1–5 + Troubleshooting 标题
   - `guide` 在非 TTY（`stdout: 'pipe'`）或 `NO_COLOR=1` 下输出不含 ANSI escape 码
   - `guide` 带任意参数 → exit 1
 
@@ -596,7 +595,7 @@ README 更新：
 5. **`--skill foo`（不存在名）的校验依赖 catalog**：若 catalog 漏生成（发布失误），校验会误报"未知 skill"。§5.4 已约定 CI 发布前校验 `dist/catalog.json` 存在。
 6. **插件目录源漂移**：本仓库插件以 Claude/Codex 官方 marketplace manifest 为真源，外部插件与 `defaultOn` 覆盖放在 `extra_plugin_configs.json`。新增插件 PR 必须同步对应 manifest 或 extra config，避免 help/catalog 与实际安装入口漂移。
 7. **`--skill` 等 filter flag 的值里含类似类别名的 skill**（理论可能，例如将来若有 skill 叫 `plugins`）：当前 nargs terminator 基于 `--` 前缀，不把类别名算作 terminator，所以安全。catalog 校验会挡住误用。
-8. **Guide SOP 漂移**：SOP 静态模板写在 `src/guide.ts`，与实际 `install --all` 行为硬编码对齐。若将来改 exit code 语义或 install 流程，guide 得同步改。缓解：test 覆盖——`tests/guide.test.ts` 快照 guide 输出，修改时触发审阅。
+8. **Guide SOP 漂移**：SOP 静态模板写在 `src/guide.ts`，与实际 `install --all` 行为硬编码对齐。若将来改 exit code 语义或 install 流程，guide 得同步改。缓解：修改 install 流程或退出码时在评审中同步核对 guide；不再用快照测试锁定 SOP 文案。
 
 ## 10. 未决项（落地前必须 spike）
 

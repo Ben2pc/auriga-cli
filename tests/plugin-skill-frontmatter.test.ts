@@ -71,21 +71,49 @@ describe("plugin-bundled SKILL.md frontmatter", () => {
         "frontmatter `name` must match the skill directory",
       );
     });
-
-    test(`${rel} references only bundled files that exist`, () => {
-      const raw = fs.readFileSync(skillMd, "utf-8");
-      // Agents load these paths relative to the skill directory; a dangling one
-      // silently drops the guidance it was meant to route to.
-      const refs = [...raw.matchAll(/[`(](?:<skill-dir>\/)?((?:\.\.\/)*(?:[\w-]+\/)?references\/[\w./-]+\.md)[`)]/g)]
-        .map((m) => m[1]);
-      for (const ref of new Set(refs)) {
-        assert.ok(
-          fs.existsSync(path.resolve(path.dirname(skillMd), ref)),
-          `${ref} does not resolve from ${rel}`,
-        );
-      }
-    });
   }
+});
+
+// Agents load bundled files by paths written in the skill's markdown, relative
+// to the skill directory or the citing file; a dangling path silently drops the
+// guidance or asset it was meant to route to.
+const BUNDLED_REF_RE =
+  /[`(](?:\.\/|<skill-dir>\/)?((?:\.\.\/)+(?:[\w-]+\/)?(?:references|assets|scripts)\/[\w./-]*\w|(?:references|assets|scripts)\/[\w./-]*\w)(?:#[^`)\s]*)?[`)]/g;
+
+function listMarkdown(dir: string): string[] {
+  return fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) return listMarkdown(full);
+    return entry.name.endsWith(".md") ? [full] : [];
+  });
+}
+
+describe("plugin-bundled skill file references", () => {
+  let checked = 0;
+
+  for (const skillMd of discoverPluginSkillMds()) {
+    const skillDir = path.dirname(skillMd);
+    for (const doc of listMarkdown(skillDir)) {
+      const rel = path.relative(REPO_ROOT, doc);
+      const refs = new Set([...fs.readFileSync(doc, "utf-8").matchAll(BUNDLED_REF_RE)].map((m) => m[1]));
+      checked += refs.size;
+      if (refs.size === 0) continue;
+      test(`${rel} references only bundled files that exist`, () => {
+        for (const ref of refs) {
+          assert.ok(
+            fs.existsSync(path.resolve(skillDir, ref)) ||
+              fs.existsSync(path.resolve(path.dirname(doc), ref)),
+            `${ref} does not resolve from ${rel}`,
+          );
+        }
+      });
+    }
+  }
+
+  test("the reference scan still recognizes how skills cite bundled files", () => {
+    // Guards against a pattern drift that would make every check above vacuous.
+    assert.ok(checked >= 50, `only ${checked} bundled references recognized`);
+  });
 });
 
 describe("plugin hooks.json contracts", () => {
