@@ -18,7 +18,7 @@ value: "发现会扩大长期变化成本或偏离人工确认设计的结构问
 按适用性读取：
 
 1. 仓库级与更近子包级 `docs/rules/arch/`，冲突时更近规则优先；
-2. 当前 `docs/specs/**/arch_design.md` 及用户明确确认结果；
+2. 当前 `docs/specs/**/arch_design.md` 及用户明确确认结果；规格拆成子规范时为总设计和本次子规范的子设计，长期规格同样适用；
 3. `docs/architecture/` 中稳定设计和架构决策记录；
 4. 当前 `docs/long-running-specs/` 的共同约束；
 5. 当前分支 worklog 中已确认的历史设计，作为当时快照，不要求改写；
