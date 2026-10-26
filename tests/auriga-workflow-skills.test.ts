@@ -293,3 +293,19 @@ describe("built-in reviewer metadata is machine-readable frontmatter", () => {
     });
   }
 });
+
+describe("spec-design and arch-design share one set of writing principles", () => {
+  const principlesOf = (skill: string): string => {
+    const text = read(`plugins/auriga-workflow/skills/${skill}/SKILL.md`);
+    const match = text.match(/^## 写作原则\n([\s\S]*?)(?=^## )/m);
+    assert.ok(match, `${skill}/SKILL.md must have a "## 写作原则" section`);
+    return match[1].trim();
+  };
+
+  test("both skills carry the writing principles word for word", () => {
+    const spec = principlesOf("spec-design");
+    const arch = principlesOf("arch-design");
+    assert.ok(spec.includes("首要读者是评审者"), "principles must name the reviewer as the primary reader");
+    assert.equal(arch, spec, "the two writing-principle sections must stay identical");
+  });
+});
