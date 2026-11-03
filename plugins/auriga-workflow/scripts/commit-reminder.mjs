@@ -166,7 +166,6 @@ function formatMessage(files, lines) {
   return [
     `[commit-reminder] Uncommitted diff: ${lines} line(s) across ${files} file(s).`,
     "Consider committing at the next semantic boundary so the working tree stays manageable.",
-    "Atomic commits make rebase / bisect / revert dramatically easier.",
     "Follow the `git-workflow` skill for commit boundaries and message format.",
   ].join("\n");
 }

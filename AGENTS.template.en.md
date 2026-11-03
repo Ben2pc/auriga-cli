@@ -1,5 +1,5 @@
 <!-- AURIGA:WORKFLOW:v1 START — Managed block, maintained by auriga-cli. Do not edit by hand; upgrades replace it wholesale. Put project-specific instructions after the END marker below. -->
-# auriga Workflow (v1.27.0)
+# auriga Workflow (v1.28.0)
 
 Persist to the requested endpoint: research delivers evidence and recommendations, design a reviewable proposal, and implementation includes fixes and verification. Ready, merge, and deployment require authorization. Continue after status questions or corrections unless explicitly stopped.
 
@@ -7,23 +7,21 @@ Confirmed decisions and authorization persist within the task; phase changes, sk
 
 1. Requirement clarification: For new or changed externally observable behavior, use `spec-design` first to judge value and align the goal from actual code and product evidence. **spec = why + observable what; arch design = structural how; plan = implementation steps**. A change that preserves the external behavior contract may skip the spec but can still need architecture clarification.
 
-2. Architecture and planning: Use `arch-design` for substantive technical, domain model, or boundary decisions and confirm the design before implementation. For non-trivial implementation, `incremental-impl` records the implementation breakdown in the corresponding spec directory; use the built-in Plan for other work as needed. Ask only when unresolved preferences affect delivery. `goalify` activates only when explicitly selected.
+2. Architecture and planning: Use `arch-design` for substantive technical, domain model, or boundary decisions and confirm the design before implementation. When the work coordinates multiple complete outcomes, delivery dependencies, or migration intermediate states, `incremental-impl` records the implementation breakdown in the corresponding spec directory and delivers it in dependency order; use the built-in Plan for other work as needed. Ask only when unresolved preferences affect delivery. `goalify` activates only when explicitly selected.
 
 3. Git lifecycle: Use `git-workflow` when changing branches, commits, remotes, or pull-request state; run read-only queries directly as needed. Before coding, create a task branch from the agreed base, or reuse an existing correct task branch; never commit directly to the base branch. Prefixes: `feat/`, `fix/`, `docs/`, `refactor/`, `chore/`. Within authorization, open a Draft PR after the first meaningful commit.
 
-4. Tests and defects: New behavior, defect fixes, and refactors use `test-driven-development` to establish meaningful failing evidence or a behavior-protection net. For defects, use `systematic-debugging` to establish evidence and confirm the root cause before fix implementation.
+4. Tests and defects: New behavior, defect fixes, and refactors use `test-driven-development` to choose risk-matched verification evidence and decide whether it becomes a permanent test. For defects, use `systematic-debugging` to establish evidence and confirm the root cause before fix implementation.
 
-5. Incremental implementation: For non-trivial implementation, use `incremental-impl` to first decompose the work into complete implementation units that are verifiable and integrable, then deliver them in dependency order.
+5. Verify before claiming done: Completion claims require valid evidence after the last relevant change. Once applicable verification and required project checks pass, broaden or repeat checks only for new changes, failures, or concrete doubts. With file-based specs, follow `spec-design` to record delivery evidence in `validation-results.md`, excluding trial runs; otherwise report results and gaps in the conversation.
 
-6. Verify before claiming done: Completion claims require valid evidence after the last relevant change. Once applicable verification and required project checks pass, broaden or repeat checks only for new changes, failures, or concrete doubts. With file-based specs, follow `spec-design` to record delivery evidence in `validation-results.md`, excluding trial runs; otherwise report results and gaps in the conversation.
+6. PR readiness: Mark Ready after verification and preparation through `git-workflow`. Reuse the agreed destination for temporary artifacts; otherwise the normal flow asks delete or archive via `AskUserQuestion` / `request_user_input`, while autonomous goals default to archiving through `goalify`. Use `documentation-management` for disposition and retain delivery evidence. A human decides when to archive cross-PR specs after all child PRs finish.
 
-7. PR readiness: Mark Ready after verification and preparation through `git-workflow`. Reuse the agreed destination for temporary artifacts; otherwise the normal flow asks delete or archive via `AskUserQuestion` / `request_user_input`, while autonomous goals default to archiving through `goalify`. Use `documentation-management` for disposition and retain delivery evidence. A human decides when to archive cross-PR specs after all child PRs finish.
-
-8. PR review: After Ready, projects without CI review must run a local `deep-review`; with CI review, let the user decide whether local review is also needed. “Run until Ready” includes the applicable first review and its handoff, without an automatic fix loop; an explicit state-only request ends at the state change. The skill owns routing, output, and rerun authorization.
+7. PR review: After Ready, projects without CI review must run a local `deep-review`; with CI review, let the user decide whether local review is also needed. “Run until Ready” includes the applicable first review and its handoff, without an automatic fix loop; an explicit state-only request ends at the state change. The skill owns routing, output, and rerun authorization.
 
 ## Quick Development Flow (bug fix / small refactor / small feature)
 
-A task with one single clear outcome, no unresolved product or architecture decision, no cross-session tracking, and no need for multiple complete implementation units can proceed to coding preparation; otherwise record the implementation breakdown using the rules above. The quick flow still follows applicable requirement, architecture, testing, verification, and review requirements.
+A task with one single clear outcome, no unresolved product or architecture decision, no cross-session tracking, and no need for multiple complete implementation units can proceed to coding preparation without a separate implementation breakdown; whether a file-based spec is needed still follows `spec-design`, and other applicable requirements still apply.
 
 ## Document Conventions
 
@@ -51,10 +49,9 @@ Repo documentation lives under `docs/`, one directory per purpose:
 
 ## Agent Dispatch Principles
 
-- The current Agent handles simple tasks, shared state, and sequential decisions; delegate independent work only when it saves time or improves quality.
 - For multiple writers, use `incremental-impl` to define file ownership, dependencies, integration order, and isolation. Prefer separate worktrees for parallel writes; sharing a worktree requires verifying both file ownership and shared-state isolation through that skill.
 - Default to internal Agent tools. Invoking an external command-line Agent requires explicit user authorization, even when internal models or capabilities are insufficient.
-- Specify inputs, scope, outputs, and completion criteria when delegating; the primary Agent verifies key evidence and coverage. Select models and reasoning effort by task risk and runtime capabilities.
+- The primary Agent verifies key evidence and coverage of delegated results.
 
 ## Communication
 
