@@ -21,7 +21,7 @@ Confirmed decisions and authorization persist within the task; phase changes, sk
 
 ## Quick Development Flow (bug fix / small refactor / small feature)
 
-A task with one single clear outcome, no unresolved product or architecture decision, and no cross-session tracking skips the file-based spec and implementation breakdown and proceeds to coding preparation; testing, verification, and review requirements still apply.
+A task with one single clear outcome, no unresolved product or architecture decision, no cross-session tracking, and no need for multiple complete implementation units can proceed to coding preparation without a separate implementation breakdown; whether a file-based spec is needed still follows `spec-design`, and other applicable requirements still apply.
 
 ## Document Conventions
 
