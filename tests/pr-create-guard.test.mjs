@@ -24,11 +24,17 @@ const ENTRY = path.resolve(
   "pr-create-guard.mjs",
 );
 
+function hookEnv(overrides = {}) {
+  const env = { ...process.env };
+  delete env.PLUGIN_ROOT;
+  return { ...env, ...overrides };
+}
+
 function run(payload, opts = {}) {
   const r = spawnSync("node", [ENTRY], {
     input: JSON.stringify(payload),
     encoding: "utf8",
-    env: opts.env ?? process.env,
+    env: opts.env ?? hookEnv(),
   });
   return { status: r.status, stdout: r.stdout ?? "", stderr: r.stderr ?? "" };
 }
@@ -53,7 +59,7 @@ function makeFakeGh(body, title) {
   fs.chmodSync(ghPath, 0o755);
   return {
     dir,
-    env: { ...process.env, PATH: `${binDir}:${process.env.PATH ?? ""}` },
+    env: hookEnv({ PATH: `${binDir}:${process.env.PATH ?? ""}` }),
   };
 }
 
@@ -212,9 +218,12 @@ const cases = [
   {
     name: "Antigravity PostToolUse returns empty JSON object",
     payload: {
-      agentEvent: "post_run_command",
+      hookEventName: "PostToolUse",
+      conversationId: "conv-test",
+      cwd: "/tmp/example-repo",
       workspacePaths: ["/tmp/example-repo"],
       toolCall: {
+        id: "call_1",
         name: "run_command",
         args: { CommandLine: 'gh pr create --title foo --body "x"' },
       },
@@ -222,11 +231,16 @@ const cases = [
     expect: { status: 0, stdoutEq: "{}\n" },
   },
   {
-    name: "Antigravity PostToolUse detected via artifactDirectoryPath returns empty JSON object",
+    name: "Antigravity PostToolUse detected via common fields returns empty JSON object",
     payload: {
+      hookEventName: "PostToolUse",
+      conversationId: "conv-test",
       artifactDirectoryPath: "/tmp/artifacts",
-      tool_input: { command: 'gh pr create --title foo --body "x"' },
-      tool_response: { stdout: "https://github.com/o/r/pull/42\n", exit_code: 0 },
+      toolCall: {
+        id: "call_2",
+        name: "run_command",
+        args: { CommandLine: 'gh pr create --title foo --body "x"' },
+      },
     },
     expect: { status: 0, stdoutEq: "{}\n" },
   },
@@ -491,6 +505,24 @@ for (const c of ccCases) {
 // Cleanup fake-gh tmpdirs
 for (const d of cleanupFakeGhDirs) {
   try { fs.rmSync(d, { recursive: true, force: true }); } catch {}
+}
+
+// Verify catch-branch fallback when stdin is malformed under Antigravity PLUGIN_ROOT.
+{
+  const r = spawnSync("node", [ENTRY], {
+    input: "not json",
+    encoding: "utf8",
+    env: hookEnv({ PLUGIN_ROOT: "/tmp/agy-plugin" }),
+  });
+  if (r.status === 0 && r.stdout === "{}\n" && r.stderr === "") {
+    passed++;
+    console.log("  ✓ malformed JSON with PLUGIN_ROOT fallback returns empty JSON");
+  } else {
+    failed++;
+    console.error(
+      `  ✗ malformed JSON with PLUGIN_ROOT fallback returns empty JSON (status=${r.status}, stdout=${JSON.stringify(r.stdout)}, stderr=${JSON.stringify(r.stderr)})`,
+    );
+  }
 }
 
 console.log(`\n${passed} passed, ${failed} failed`);

@@ -1,11 +1,13 @@
 // Shared workspace-root resolution for git lifecycle hooks.
 //
-// Cursor and Antigravity run plugin hooks with cwd = the plugin cache,
-// not the user repo. Cursor names the workspace via `workspace_roots`,
-// and Antigravity names it via `workspacePaths`. Grok names it as
-// `workspaceRoot` / `cwd`, or via env. Claude Code and Codex usually
-// already start in the project, so process.cwd() remains the last
-// fallback.
+// Cursor runs plugin hooks with cwd = the plugin cache, not the user
+// repo, and names the workspace via `workspace_roots[0]`.
+// Grok and Antigravity name the command working directory via
+// `workspaceRoot` / `cwd`, checked before `workspacePaths` so an
+// outer aggregate workspace directory does not shadow the actual
+// sub-repo or worktree in `cwd`. When `cwd` is absent or invalid,
+// `workspacePaths` is scanned for the first existing directory,
+// followed by env vars and process.cwd() as the last fallback.
 
 import { existsSync, statSync } from "node:fs";
 
@@ -26,16 +28,23 @@ export function resolveRepoRoot(
   env = process.env,
   fallbackCwd = process.cwd(),
 ) {
-  for (const roots of [payload?.workspace_roots, payload?.workspacePaths]) {
-    if (Array.isArray(roots) && roots.length > 0) {
-      const first = existingDir(roots[0]);
-      if (first) return first;
-    }
+  const roots = payload?.workspace_roots;
+  if (Array.isArray(roots) && roots.length > 0) {
+    const first = existingDir(roots[0]);
+    if (first) return first;
   }
 
   for (const key of ["workspaceRoot", "cwd"]) {
     const found = existingDir(payload?.[key]);
     if (found) return found;
+  }
+
+  const workspacePaths = payload?.workspacePaths;
+  if (Array.isArray(workspacePaths)) {
+    for (const candidate of workspacePaths) {
+      const found = existingDir(candidate);
+      if (found) return found;
+    }
   }
 
   for (const key of [

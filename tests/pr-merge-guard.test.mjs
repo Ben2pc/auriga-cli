@@ -65,16 +65,20 @@ function hookEnv(overrides = {}) {
   delete env.CLAUDE_PROJECT_DIR;
   delete env.CURSOR_PROJECT_DIR;
   delete env.GROK_WORKSPACE_ROOT;
+  delete env.PLUGIN_ROOT;
   return { ...env, ...overrides };
 }
 
 function run(command, body, toolName = "Bash", style = "snake", extras = {}) {
   const { dir, bin, argvFile } = makeScratch(body);
+  const cwd = extras.cwd ?? dir;
   const payload =
     style === "antigravity"
       ? {
-          agentEvent: "pre_run_command",
+          hookEventName: "PreToolUse",
+          conversationId: "conv-test",
           toolCall: {
+            id: "call_1",
             name: toolName ?? "run_command",
             args: { CommandLine: command },
           },
@@ -94,7 +98,6 @@ function run(command, body, toolName = "Bash", style = "snake", extras = {}) {
     else if (style === "snake") payload.tool_name = toolName;
   }
   Object.assign(payload, extras.payload ?? {});
-  const cwd = extras.cwd ?? dir;
   const r = spawnSync("node", [ENTRY], {
     input: JSON.stringify(payload),
     encoding: "utf8",
@@ -516,20 +519,20 @@ const cases = [
     expect: { status: 0, stdoutEq: "" },
   },
   {
-    name: "Antigravity non-gh command allows via JSON stdout",
+    name: "Antigravity non-gh command allows via empty JSON",
     cmd: "ls -la",
     toolName: "run_command",
     style: "antigravity",
     body: ONE_UNCHECKED,
-    expect: { status: 0, stdoutEq: '{"decision":"allow"}\n', stderrEq: "" },
+    expect: { status: 0, stdoutEq: "{}\n", stderrEq: "" },
   },
   {
-    name: "Antigravity all acceptance items checked allows via JSON stdout",
+    name: "Antigravity all acceptance items checked allows via empty JSON",
     cmd: "gh pr merge --squash",
     toolName: "run_command",
     style: "antigravity",
     body: ALL_CHECKED,
-    expect: { status: 0, stdoutEq: '{"decision":"allow"}\n', stderrEq: "" },
+    expect: { status: 0, stdoutEq: "{}\n", stderrEq: "" },
   },
 ];
 
@@ -660,6 +663,43 @@ for (const c of cases) {
     errs.push(`expected gh cwd ${expectedCwd}, got ${JSON.stringify(r.ghCwd)}`);
   }
   check("Antigravity workspacePaths from plugin-cache cwd denies unchecked PR via JSON", errs);
+}
+
+{
+  const outerNonGit = makePluginCache();
+  const repo = makeGitRepo();
+  const cache = makePluginCache();
+  const r = run("gh pr merge --squash", ONE_UNCHECKED, "run_command", "antigravity", {
+    cwd: cache,
+    payload: { cwd: repo, workspacePaths: [outerNonGit] },
+  });
+  const errs = [];
+  if (r.status !== 0) errs.push(`expected exit 0, got ${r.status}`);
+  if (r.stderr !== "") errs.push(`expected empty stderr, got ${JSON.stringify(r.stderr)}`);
+  let parsed = null;
+  try {
+    parsed = JSON.parse(r.stdout);
+  } catch (err) {
+    errs.push(`expected valid JSON stdout (${err.message}), got ${JSON.stringify(r.stdout)}`);
+  }
+  if (parsed) {
+    if (parsed.decision !== "deny") {
+      errs.push(`expected decision="deny", got ${JSON.stringify(parsed)}`);
+    }
+    if (
+      typeof parsed.reason !== "string" ||
+      !parsed.reason.includes("pr-merge-guard:") ||
+      !parsed.reason.includes("Second criterion not yet met")
+    ) {
+      errs.push(`expected deny reason with pr-merge-guard prefix and unchecked item, got ${JSON.stringify(parsed.reason)}`);
+    }
+  }
+  const expectedCwd = fs.realpathSync(repo);
+  const actualCwd = r.ghCwd ? fs.realpathSync(r.ghCwd) : "";
+  if (actualCwd !== expectedCwd) {
+    errs.push(`expected gh cwd ${expectedCwd}, got ${JSON.stringify(r.ghCwd)}`);
+  }
+  check("Antigravity payload cwd takes precedence over outer non-git workspacePaths", errs);
 }
 
 // hooks.json wiring: pr-merge-guard.mjs must be registered on the

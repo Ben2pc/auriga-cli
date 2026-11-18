@@ -30,6 +30,7 @@ function hookEnv(overrides = {}) {
   delete env.CLAUDE_PROJECT_DIR;
   delete env.CURSOR_PROJECT_DIR;
   delete env.GROK_WORKSPACE_ROOT;
+  delete env.PLUGIN_ROOT;
   return { ...env, ...overrides };
 }
 
@@ -37,8 +38,10 @@ function run(command, cwd, toolName = "Bash", style = "snake", extras = {}) {
   const payload =
     style === "antigravity"
       ? {
-          agentEvent: "pre_run_command",
+          hookEventName: "PreToolUse",
+          conversationId: "conv-test",
           toolCall: {
+            id: "call_1",
             name: toolName ?? "run_command",
             args: { CommandLine: command },
           },
@@ -470,14 +473,14 @@ const cases = [
     expect: { status: 0, stdoutEq: "", stderrNotIncludes: "pr-ready-guard" },
   },
   {
-    name: "Antigravity non-gh command allows via JSON stdout",
+    name: "Antigravity non-gh command allows via empty JSON",
     setup: () => ({
       cwd: makeRepo(),
       cmd: "ls -la",
       toolName: "run_command",
       style: "antigravity",
     }),
-    expect: { status: 0, stdoutEq: '{"decision":"allow"}\n', stderrEq: "" },
+    expect: { status: 0, stdoutEq: "{}\n", stderrEq: "" },
   },
   {
     name: "Antigravity workspacePaths from plugin-cache cwd denies on active specs via JSON",
@@ -504,6 +507,31 @@ const cases = [
     },
   },
   {
+    name: "Antigravity payload cwd takes precedence over outer non-git workspacePaths",
+    setup: () => {
+      const outerNonGit = fs.mkdtempSync(path.join(os.tmpdir(), "pr-ready-guard-outer-"));
+      const repo = makeRepo();
+      writeActiveSpec(repo);
+      const cache = makePluginCache();
+      cleanupDirs.push(outerNonGit, repo, cache);
+      return {
+        cwd: cache,
+        cmd: "gh pr ready",
+        toolName: "run_command",
+        style: "antigravity",
+        extras: { payload: { cwd: repo, workspacePaths: [outerNonGit] } },
+      };
+    },
+    expect: {
+      status: 0,
+      stderrEq: "",
+      stdoutJson: {
+        decision: "deny",
+        reasonIncludes: ["pr-ready-guard:", "docs/specs/topic/spec.md"],
+      },
+    },
+  },
+  {
     name: "Antigravity non-draft gh pr create denies via JSON",
     setup: () => {
       const repo = makeRepo();
@@ -515,7 +543,7 @@ const cases = [
         cmd: 'gh pr create --title foo --body "x"',
         toolName: "run_command",
         style: "antigravity",
-        extras: { payload: { workspacePaths: [repo] } },
+        extras: { payload: { cwd: repo, workspacePaths: [repo] } },
       };
     },
     expect: {
@@ -528,24 +556,7 @@ const cases = [
     },
   },
   {
-    name: "Antigravity gh pr create --draft allows via JSON",
-    setup: () => {
-      const repo = makeRepo();
-      writeActiveSpec(repo);
-      const cache = makePluginCache();
-      cleanupDirs.push(repo, cache);
-      return {
-        cwd: cache,
-        cmd: 'gh pr create --draft --title foo --body "x"',
-        toolName: "run_command",
-        style: "antigravity",
-        extras: { payload: { workspacePaths: [repo] } },
-      };
-    },
-    expect: { status: 0, stdoutEq: '{"decision":"allow"}\n', stderrEq: "" },
-  },
-  {
-    name: "Antigravity gh pr ready with PR body degrades inject to allow JSON",
+    name: "Antigravity gh pr ready with PR body degrades inject to empty JSON",
     setup: () => {
       const repo = makeRepo();
       const cache = makePluginCache();
@@ -557,12 +568,12 @@ const cases = [
         toolName: "run_command",
         style: "antigravity",
         extras: {
-          payload: { workspacePaths: [repo], artifactDirectoryPath: "/tmp/artifacts" },
+          payload: { cwd: repo, workspacePaths: [repo], artifactDirectoryPath: "/tmp/artifacts" },
           env: { PATH: `${fakeGh.binDir}:${process.env.PATH ?? ""}` },
         },
       };
     },
-    expect: { status: 0, stdoutEq: '{"decision":"allow"}\n', stderrEq: "" },
+    expect: { status: 0, stdoutEq: "{}\n", stderrEq: "" },
   },
 ];
 
@@ -655,6 +666,24 @@ try {
         `  ✗ hooks.json pr-ready-guard matcher missing ${tool} (found: ${JSON.stringify(group?.matcher)})`,
       );
     }
+  }
+}
+
+// Verify catch-branch fallback when stdin is malformed under Antigravity PLUGIN_ROOT.
+{
+  const r = spawnSync("node", [ENTRY], {
+    input: "not json",
+    encoding: "utf8",
+    env: hookEnv({ PLUGIN_ROOT: "/tmp/agy-plugin" }),
+  });
+  if (r.status === 0 && r.stdout === "{}\n" && r.stderr === "") {
+    passed++;
+    console.log("  ✓ malformed JSON with PLUGIN_ROOT fallback returns empty JSON");
+  } else {
+    failed++;
+    console.error(
+      `  ✗ malformed JSON with PLUGIN_ROOT fallback returns empty JSON (status=${r.status}, stdout=${JSON.stringify(r.stdout)}, stderr=${JSON.stringify(r.stderr)})`,
+    );
   }
 }
 

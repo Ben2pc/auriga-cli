@@ -63,7 +63,7 @@ process.stdin.on("end", () => {
     return allowPreToolUse(antigravity);
   } catch {
     // Never block on our own parse errors.
-    allowPreToolUse(antigravity);
+    return allowPreToolUse(antigravity || isAntigravity(null));
   }
 });
 

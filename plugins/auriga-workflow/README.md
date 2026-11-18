@@ -40,7 +40,7 @@ travel together so they share one distribution model and one install step.
   agent reads only the YAML frontmatter for orchestration and hands the file's
   absolute path to the reviewer subagent, which reads the body itself.
 - `hooks/hooks.json` — hook registry, `command` paths use `${CLAUDE_PLUGIN_ROOT}`.
-- `scripts/*.mjs` — the four hook scripts plus shared `repo-root.mjs`.
+- `scripts/*.mjs` — the four hook scripts plus shared `repo-root.mjs` and `hook-io.mjs`.
 
 ## Install
 
@@ -88,25 +88,31 @@ informational path** for `pr-ready-guard`: structural blocks fire identically,
 and the two PostToolUse hooks (`commit-reminder`, `pr-create-guard`) are at full
 parity.
 
-Cursor and Grok Build load the same plugin hooks. Shell-tool matchers list
-`Bash`, `Shell`, `PowerShell`, and Grok's `run_terminal_command`. The three
-PR guards key off the command, not `tool_name`, and read both
-`tool_input.command` and Grok's `toolInput.command`. `pr-create-guard` also
-reads Cursor's `tool_output` and Grok's `toolResult`. `commit-reminder` is
-invoked by the file-edit matcher (including Grok's `search_replace`) and
-then keys off the working-tree diff, not `tool_name`.
+Cursor, Grok Build, and Antigravity load the same plugin hooks. Shell-tool matchers
+list `Bash`, `Shell`, `PowerShell`, and Grok's `run_terminal_command` (Antigravity
+stages `hooks.json` onto its own tool runner). The three PR guards key off the
+command, not `tool_name`, and read `tool_input.command`, Grok's
+`toolInput.command`, and Antigravity's `toolCall.args.CommandLine`.
+`pr-create-guard` also reads Cursor's `tool_output` and Grok's `toolResult`.
+`commit-reminder` is invoked by the file-edit matcher (including Grok's
+`search_replace`) and then keys off the working-tree diff, not `tool_name`.
 
 `commit-reminder`, `pr-ready-guard`, and `pr-merge-guard` locate the user
 repo from the hook payload (`workspace_roots[0]`, then `workspaceRoot` /
-`cwd`) or `CLAUDE_PROJECT_DIR` / `CURSOR_PROJECT_DIR` /
-`GROK_WORKSPACE_ROOT`, and only then fall back to the process working
-directory. A missing or non-existent first `workspace_roots` entry falls
-through; a later array item is never used. Cursor starts plugin hooks
+`cwd`, then the first existing directory in `workspacePaths`) or
+`CLAUDE_PROJECT_DIR` / `CURSOR_PROJECT_DIR` / `GROK_WORKSPACE_ROOT`, and only
+then fall back to the process working directory. Checking `cwd` before
+`workspacePaths` keeps Antigravity's real command working directory ahead of an
+outer aggregate workspace root. Cursor and Antigravity start plugin hooks
 inside the plugin cache, so `process.cwd()` alone is not the user project.
 
 Grok Build ignores `PostToolUse` stdout, so `commit-reminder` and
-`pr-create-guard` cannot inject model context there. The two `PreToolUse`
+`pr-create-guard` cannot inject model context there; the two `PreToolUse`
 block paths (`pr-ready-guard`, `pr-merge-guard`) still work via exit code 2.
+Under Antigravity, `PreToolUse` allow / snapshot degradation and `PostToolUse`
+(`commit-reminder`, `pr-create-guard`) return `{}` with exit code 0 to preserve
+the host's default permission prompts, while `PreToolUse` blocks return
+`{"decision":"deny","reason":...}` with exit code 0.
 
 ## Block signals (pr-ready-guard)
 

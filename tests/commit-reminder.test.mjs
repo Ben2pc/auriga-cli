@@ -55,6 +55,7 @@ function hookEnv(overrides = {}) {
   delete env.CLAUDE_PROJECT_DIR;
   delete env.CURSOR_PROJECT_DIR;
   delete env.GROK_WORKSPACE_ROOT;
+  delete env.PLUGIN_ROOT;
   return { ...env, ...overrides };
 }
 
@@ -303,9 +304,15 @@ function check(name, condition, info = "") {
   const cache = makePluginCache();
   const r = run(
     {
-      agentEvent: "post_write_to_file",
+      hookEventName: "PostToolUse",
+      conversationId: "conv-test",
+      cwd: repo,
       workspacePaths: [repo],
-      toolCall: { name: "write_to_file", args: { TargetFile: path.join(repo, "big.txt") } },
+      toolCall: {
+        id: "call_1",
+        name: "write_to_file",
+        args: { TargetFile: path.join(repo, "big.txt") },
+      },
       artifactDirectoryPath: "/tmp/artifacts",
     },
     cache,

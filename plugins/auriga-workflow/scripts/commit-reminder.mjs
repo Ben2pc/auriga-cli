@@ -39,9 +39,11 @@ let input = "";
 process.stdin.setEncoding("utf8");
 process.stdin.on("data", (c) => (input += c));
 process.stdin.on("end", () => {
+  let antigravity = false;
   try {
     const data = JSON.parse(input);
-    if (isAntigravity(data)) return noopPostToolUse();
+    antigravity = isAntigravity(data);
+    if (antigravity) return noopPostToolUse();
     const repoRoot = resolveRepoRoot(data);
 
     const gitDir = resolveGitDir(repoRoot);
@@ -59,6 +61,7 @@ process.stdin.on("end", () => {
     writeStamp(gitDir, now);
     return inject(formatMessage(files, lines));
   } catch {
+    if (antigravity || isAntigravity(null)) return noopPostToolUse();
     return exit0();
   }
 });
@@ -180,9 +183,9 @@ function inject(message) {
     },
   };
   process.stdout.write(JSON.stringify(out));
-  process.exit(0);
+  process.exitCode = 0;
 }
 
 function exit0() {
-  process.exit(0);
+  process.exitCode = 0;
 }

@@ -65,7 +65,7 @@ process.stdin.on("end", () => {
     }
     return allowPreToolUse(antigravity);
   } catch {
-    allowPreToolUse(antigravity);
+    return allowPreToolUse(antigravity || isAntigravity(null));
   }
 });
 
@@ -106,7 +106,7 @@ function handlePrReady(cmd, repoHint, antigravity) {
     // Nothing useful to say without a body; stay out of the way.
     return allowPreToolUse(antigravity);
   }
-  injectPreToolUse(antigravity, summarize(prRef ?? "(current branch)", body));
+  return injectPreToolUse(antigravity, summarize(prRef ?? "(current branch)", body));
 }
 
 function handlePrCreateGoingReady(repoHint, antigravity) {

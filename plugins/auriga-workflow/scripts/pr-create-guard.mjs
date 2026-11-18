@@ -43,9 +43,11 @@ let input = "";
 process.stdin.setEncoding("utf8");
 process.stdin.on("data", (c) => (input += c));
 process.stdin.on("end", () => {
+  let antigravity = false;
   try {
     const data = JSON.parse(input);
-    if (isAntigravity(data)) return noopPostToolUse();
+    antigravity = isAntigravity(data);
+    if (antigravity) return noopPostToolUse();
     const cmd = toolCommand(data);
     if (typeof cmd !== "string") return exit0();
     // Strip simple quoted runs so mentions of "gh pr create" inside
@@ -75,10 +77,11 @@ process.stdin.on("end", () => {
       );
     }
 
-    inject(summarize(prRef, fields));
+    return inject(summarize(prRef, fields));
   } catch {
     // Never block on our own parse errors.
-    exit0();
+    if (antigravity || isAntigravity(null)) return noopPostToolUse();
+    return exit0();
   }
 });
 
@@ -251,9 +254,9 @@ function inject(message) {
     },
   };
   process.stdout.write(JSON.stringify(out));
-  process.exit(0);
+  process.exitCode = 0;
 }
 
 function exit0() {
-  process.exit(0);
+  process.exitCode = 0;
 }
