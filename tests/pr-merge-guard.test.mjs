@@ -519,20 +519,20 @@ const cases = [
     expect: { status: 0, stdoutEq: "" },
   },
   {
-    name: "Antigravity non-gh command allows via empty JSON",
+    name: "Antigravity non-gh command allows via decision=ask JSON",
     cmd: "ls -la",
     toolName: "run_command",
     style: "antigravity",
     body: ONE_UNCHECKED,
-    expect: { status: 0, stdoutEq: "{}\n", stderrEq: "" },
+    expect: { status: 0, stdoutEq: '{"decision":"ask"}\n', stderrEq: "" },
   },
   {
-    name: "Antigravity all acceptance items checked allows via empty JSON",
+    name: "Antigravity all acceptance items checked allows via decision=ask JSON",
     cmd: "gh pr merge --squash",
     toolName: "run_command",
     style: "antigravity",
     body: ALL_CHECKED,
-    expect: { status: 0, stdoutEq: "{}\n", stderrEq: "" },
+    expect: { status: 0, stdoutEq: '{"decision":"ask"}\n', stderrEq: "" },
   },
 ];
 

@@ -109,10 +109,12 @@ inside the plugin cache, so `process.cwd()` alone is not the user project.
 Grok Build ignores `PostToolUse` stdout, so `commit-reminder` and
 `pr-create-guard` cannot inject model context there; the two `PreToolUse`
 block paths (`pr-ready-guard`, `pr-merge-guard`) still work via exit code 2.
-Under Antigravity, `PreToolUse` allow / snapshot degradation and `PostToolUse`
-(`commit-reminder`, `pr-create-guard`) return `{}` with exit code 0 to preserve
-the host's default permission prompts, while `PreToolUse` blocks return
-`{"decision":"deny","reason":...}` with exit code 0.
+Under Antigravity, `PreToolUse` non-blocking exits (allow / snapshot
+degradation) return `{"decision":"ask"}` with exit code 0 to hand commands back
+to the host's existing permission policy (desktop rejects `{}` on `PreToolUse`,
+while `"allow"` would bypass default prompts), `PreToolUse` blocks return
+`{"decision":"deny","reason":...}` with exit code 0, and `PostToolUse`
+(`commit-reminder`, `pr-create-guard`) return `{}` with exit code 0.
 
 ## Block signals (pr-ready-guard)
 

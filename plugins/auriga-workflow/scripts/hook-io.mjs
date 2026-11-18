@@ -3,9 +3,10 @@
 // Claude Code, Codex, Cursor, and Grok share exit-code / stderr blocking and
 // hookSpecificOutput context injection. Antigravity uses distinct payload
 // fields (`workspacePaths`, `toolCall`, `artifactDirectoryPath`, `conversationId`)
-// and expects `{}` on PreToolUse allow / PostToolUse no-op (preserving host
-// permission policy) and `{"decision":"deny","reason":...}` on PreToolUse block
-// with exit code 0.
+// and expects `{"decision":"ask"}` on PreToolUse non-blocking exits (handing
+// the command back to the host's permission policy — desktop rejects `{}` and
+// `"allow"` bypasses default prompts), `{"decision":"deny","reason":...}` on
+// PreToolUse block, and `{}` on PostToolUse no-op, all with exit code 0.
 
 export function isAntigravity(data, env = process.env) {
   if (data?.tool_input != null || data?.toolInput != null) {
@@ -38,7 +39,7 @@ export function extractShellCommand(data) {
 
 export function allowPreToolUse(antigravity) {
   if (antigravity) {
-    process.stdout.write("{}\n");
+    process.stdout.write('{"decision":"ask"}\n');
   }
   process.exitCode = 0;
 }
@@ -59,8 +60,9 @@ export function blockPreToolUse(antigravity, prefix, reason) {
 export function injectPreToolUse(antigravity, message) {
   if (antigravity) {
     // Antigravity PreToolUse does not support additionalContext injection;
-    // return `{}` so host default permission prompts stay intact.
-    process.stdout.write("{}\n");
+    // return `{"decision":"ask"}` so the host evaluates its permission policy
+    // without rejecting `{}` or bypassing prompts with `"allow"`.
+    process.stdout.write('{"decision":"ask"}\n');
     process.exitCode = 0;
     return;
   }

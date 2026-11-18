@@ -473,14 +473,14 @@ const cases = [
     expect: { status: 0, stdoutEq: "", stderrNotIncludes: "pr-ready-guard" },
   },
   {
-    name: "Antigravity non-gh command allows via empty JSON",
+    name: "Antigravity non-gh command allows via decision=ask JSON",
     setup: () => ({
       cwd: makeRepo(),
       cmd: "ls -la",
       toolName: "run_command",
       style: "antigravity",
     }),
-    expect: { status: 0, stdoutEq: "{}\n", stderrEq: "" },
+    expect: { status: 0, stdoutEq: '{"decision":"ask"}\n', stderrEq: "" },
   },
   {
     name: "Antigravity workspacePaths from plugin-cache cwd denies on active specs via JSON",
@@ -556,7 +556,7 @@ const cases = [
     },
   },
   {
-    name: "Antigravity gh pr ready with PR body degrades inject to empty JSON",
+    name: "Antigravity gh pr ready with PR body degrades inject to decision=ask JSON",
     setup: () => {
       const repo = makeRepo();
       const cache = makePluginCache();
@@ -573,7 +573,7 @@ const cases = [
         },
       };
     },
-    expect: { status: 0, stdoutEq: "{}\n", stderrEq: "" },
+    expect: { status: 0, stdoutEq: '{"decision":"ask"}\n', stderrEq: "" },
   },
 ];
 
@@ -676,13 +676,13 @@ try {
     encoding: "utf8",
     env: hookEnv({ PLUGIN_ROOT: "/tmp/agy-plugin" }),
   });
-  if (r.status === 0 && r.stdout === "{}\n" && r.stderr === "") {
+  if (r.status === 0 && r.stdout === '{"decision":"ask"}\n' && r.stderr === "") {
     passed++;
-    console.log("  ✓ malformed JSON with PLUGIN_ROOT fallback returns empty JSON");
+    console.log("  ✓ malformed JSON with PLUGIN_ROOT fallback returns decision=ask JSON");
   } else {
     failed++;
     console.error(
-      `  ✗ malformed JSON with PLUGIN_ROOT fallback returns empty JSON (status=${r.status}, stdout=${JSON.stringify(r.stdout)}, stderr=${JSON.stringify(r.stderr)})`,
+      `  ✗ malformed JSON with PLUGIN_ROOT fallback returns decision=ask JSON (status=${r.status}, stdout=${JSON.stringify(r.stdout)}, stderr=${JSON.stringify(r.stderr)})`,
     );
   }
 }
