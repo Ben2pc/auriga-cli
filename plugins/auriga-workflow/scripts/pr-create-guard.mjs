@@ -18,6 +18,7 @@
 // already ran, so the value is informational only.
 
 import { spawnSync } from "node:child_process";
+import { isAntigravity, noopPostToolUse } from "./hook-io.mjs";
 
 // Standard Conventional Commits types. Mirrors what the `git-workflow`
 // skill prescribes for commit + PR title prefixes.
@@ -44,6 +45,7 @@ process.stdin.on("data", (c) => (input += c));
 process.stdin.on("end", () => {
   try {
     const data = JSON.parse(input);
+    if (isAntigravity(data)) return noopPostToolUse();
     const cmd = toolCommand(data);
     if (typeof cmd !== "string") return exit0();
     // Strip simple quoted runs so mentions of "gh pr create" inside

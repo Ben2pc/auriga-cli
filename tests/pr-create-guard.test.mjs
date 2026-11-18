@@ -209,6 +209,27 @@ const cases = [
     },
     expect: { status: 0, stdoutEq: "" },
   },
+  {
+    name: "Antigravity PostToolUse returns empty JSON object",
+    payload: {
+      agentEvent: "post_run_command",
+      workspacePaths: ["/tmp/example-repo"],
+      toolCall: {
+        name: "run_command",
+        args: { CommandLine: 'gh pr create --title foo --body "x"' },
+      },
+    },
+    expect: { status: 0, stdoutEq: "{}\n" },
+  },
+  {
+    name: "Antigravity PostToolUse detected via artifactDirectoryPath returns empty JSON object",
+    payload: {
+      artifactDirectoryPath: "/tmp/artifacts",
+      tool_input: { command: 'gh pr create --title foo --body "x"' },
+      tool_response: { stdout: "https://github.com/o/r/pull/42\n", exit_code: 0 },
+    },
+    expect: { status: 0, stdoutEq: "{}\n" },
+  },
 ];
 
 let failed = 0;

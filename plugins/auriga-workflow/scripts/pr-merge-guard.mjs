@@ -24,43 +24,48 @@
 // inside the plugin cache.
 
 import { spawnSync } from "node:child_process";
+import {
+  allowPreToolUse,
+  blockPreToolUse,
+  extractShellCommand,
+  isAntigravity,
+} from "./hook-io.mjs";
 import { resolveRepoRoot } from "./repo-root.mjs";
 
 let input = "";
 process.stdin.setEncoding("utf8");
 process.stdin.on("data", (c) => (input += c));
 process.stdin.on("end", () => {
+  let antigravity = false;
   try {
     const data = JSON.parse(input);
-    const cmd = toolCommand(data);
-    if (typeof cmd !== "string") return exit0();
+    antigravity = isAntigravity(data);
+    const cmd = extractShellCommand(data);
+    if (typeof cmd !== "string") return allowPreToolUse(antigravity);
     // Strip simple quoted runs so mentions of "gh pr merge" inside echo
     // args, git commit messages, etc. don't trigger the hook.
     const stripped = stripQuoted(cmd);
-    if (!/\bgh\s+pr\s+merge\b/.test(stripped)) return exit0();
+    if (!/\bgh\s+pr\s+merge\b/.test(stripped)) return allowPreToolUse(antigravity);
 
     const prRef = extractMergeRef(stripped);
     const repoRoot = resolveRepoRoot(data);
     const body = fetchBody(prRef, repoRoot);
-    if (body === null) return exit0(); // gh failure — non-fatal
+    if (body === null) return allowPreToolUse(antigravity); // gh failure — non-fatal
 
     const unchecked = findGatedUnchecked(body);
     if (unchecked.acceptance.length > 0 || unchecked.testPlan.length > 0) {
-      return block(formatBlockMessage(prRef, unchecked));
+      return blockPreToolUse(
+        antigravity,
+        "pr-merge-guard",
+        formatBlockMessage(prRef, unchecked),
+      );
     }
-    return exit0();
+    return allowPreToolUse(antigravity);
   } catch {
     // Never block on our own parse errors.
-    exit0();
+    allowPreToolUse(antigravity);
   }
 });
-
-// Claude Code / Codex / Cursor use tool_input; Grok Build uses toolInput.
-function toolCommand(data) {
-  const input = data?.tool_input ?? data?.toolInput;
-  const cmd = input?.command;
-  return typeof cmd === "string" ? cmd : null;
-}
 
 // ---------------------------------------------------------------------
 // Command parsing
@@ -219,13 +224,4 @@ function formatBlockMessage(prRef, unchecked) {
     `verified before merge, it is not a pre-merge gate for this PR — ` +
     `move it into the "Remaining TODOs" section as a plain bullet. Then re-run \`gh pr merge\`.`
   );
-}
-
-function block(reason) {
-  process.stderr.write(`pr-merge-guard: ${reason}\n`);
-  process.exit(2);
-}
-
-function exit0() {
-  process.exit(0);
 }

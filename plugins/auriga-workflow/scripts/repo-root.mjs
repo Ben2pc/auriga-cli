@@ -1,10 +1,11 @@
 // Shared workspace-root resolution for git lifecycle hooks.
 //
-// Cursor runs plugin hooks with cwd = the plugin cache, not the user
-// repo. The payload still names the workspace (`workspace_roots`).
-// Grok names it as `workspaceRoot` / `cwd`, or via env. Claude Code
-// and Codex usually already start in the project, so process.cwd()
-// remains the last fallback.
+// Cursor and Antigravity run plugin hooks with cwd = the plugin cache,
+// not the user repo. Cursor names the workspace via `workspace_roots`,
+// and Antigravity names it via `workspacePaths`. Grok names it as
+// `workspaceRoot` / `cwd`, or via env. Claude Code and Codex usually
+// already start in the project, so process.cwd() remains the last
+// fallback.
 
 import { existsSync, statSync } from "node:fs";
 
@@ -25,10 +26,11 @@ export function resolveRepoRoot(
   env = process.env,
   fallbackCwd = process.cwd(),
 ) {
-  const roots = payload?.workspace_roots;
-  if (Array.isArray(roots) && roots.length > 0) {
-    const first = existingDir(roots[0]);
-    if (first) return first;
+  for (const roots of [payload?.workspace_roots, payload?.workspacePaths]) {
+    if (Array.isArray(roots) && roots.length > 0) {
+      const first = existingDir(roots[0]);
+      if (first) return first;
+    }
   }
 
   for (const key of ["workspaceRoot", "cwd"]) {

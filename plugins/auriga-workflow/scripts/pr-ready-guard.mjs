@@ -29,16 +29,25 @@
 import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
+import {
+  allowPreToolUse,
+  blockPreToolUse,
+  extractShellCommand,
+  injectPreToolUse,
+  isAntigravity,
+} from "./hook-io.mjs";
 import { resolveRepoRoot } from "./repo-root.mjs";
 
 let input = "";
 process.stdin.setEncoding("utf8");
 process.stdin.on("data", (c) => (input += c));
 process.stdin.on("end", () => {
+  let antigravity = false;
   try {
     const data = JSON.parse(input);
-    const cmd = toolCommand(data);
-    if (typeof cmd !== "string") return exit0();
+    antigravity = isAntigravity(data);
+    const cmd = extractShellCommand(data);
+    if (typeof cmd !== "string") return allowPreToolUse(antigravity);
     // Strip simple quoted runs so mentions of our match phrases inside
     // echo args, git commit messages, etc. don't trigger the hook.
     const stripped = stripQuoted(cmd);
@@ -46,36 +55,33 @@ process.stdin.on("end", () => {
     const repoHint = resolveRepoRoot(data);
 
     if (/\bgh\s+pr\s+ready\b/.test(stripped)) {
-      return handlePrReady(cmd, repoHint);
+      return handlePrReady(cmd, repoHint, antigravity);
     }
     if (/\bgh\s+pr\s+create\b/.test(stripped)) {
       // --draft / -d defers the Ready transition to a later
       // `gh pr ready`, which Route A guards separately. Silent here.
-      if (hasDraftFlag(stripped)) return exit0();
-      return handlePrCreateGoingReady(repoHint);
+      if (hasDraftFlag(stripped)) return allowPreToolUse(antigravity);
+      return handlePrCreateGoingReady(repoHint, antigravity);
     }
-    return exit0();
+    return allowPreToolUse(antigravity);
   } catch {
-    exit0();
+    allowPreToolUse(antigravity);
   }
 });
-
-// Claude Code / Codex / Cursor use tool_input; Grok Build uses toolInput.
-function toolCommand(data) {
-  const input = data?.tool_input ?? data?.toolInput;
-  const cmd = input?.command;
-  return typeof cmd === "string" ? cmd : null;
-}
 
 // ---------------------------------------------------------------------
 // Route handlers
 
-function handlePrReady(cmd, repoHint) {
+function handlePrReady(cmd, repoHint, antigravity) {
   const repoRoot = gitToplevel(repoHint);
-  if (!repoRoot) return exit0();
+  if (!repoRoot) return allowPreToolUse(antigravity);
   const artifacts = findUnresolvedReadyArtifacts(repoRoot);
   if (hasUnresolvedArtifacts(artifacts)) {
-    return block(formatReadyBlockMessage(artifacts, "ready"));
+    return blockPreToolUse(
+      antigravity,
+      "pr-ready-guard",
+      formatReadyBlockMessage(artifacts, "ready"),
+    );
   }
 
   // B1: unpushed commits on current branch. Only meaningful when the
@@ -86,7 +92,9 @@ function handlePrReady(cmd, repoHint) {
   if (prRef === null) {
     const unpushed = countUnpushed(repoRoot);
     if (unpushed > 0) {
-      return block(
+      return blockPreToolUse(
+        antigravity,
+        "pr-ready-guard",
         `${unpushed} unpushed commit${unpushed === 1 ? "" : "s"} on current branch. Push first so the PR reflects your local state.`,
       );
     }
@@ -96,24 +104,28 @@ function handlePrReady(cmd, repoHint) {
   const body = fetchBody(prRef, repoRoot);
   if (body === null) {
     // Nothing useful to say without a body; stay out of the way.
-    return exit0();
+    return allowPreToolUse(antigravity);
   }
-  inject(summarize(prRef ?? "(current branch)", body));
+  injectPreToolUse(antigravity, summarize(prRef ?? "(current branch)", body));
 }
 
-function handlePrCreateGoingReady(repoHint) {
+function handlePrCreateGoingReady(repoHint, antigravity) {
   // `gh pr create` without --draft publishes a Ready PR immediately,
   // bypassing Route A entirely. Run the same structural docs checks
   // here so active specs can't slip in via this route.
   // Skip B1 (gh handles push on create) and skip the body snapshot
   // (PR doesn't exist yet — PostToolUse pr-create-guard handles it).
   const repoRoot = gitToplevel(repoHint);
-  if (!repoRoot) return exit0();
+  if (!repoRoot) return allowPreToolUse(antigravity);
   const artifacts = findUnresolvedReadyArtifacts(repoRoot);
   if (hasUnresolvedArtifacts(artifacts)) {
-    return block(formatReadyBlockMessage(artifacts, "create-nondraft"));
+    return blockPreToolUse(
+      antigravity,
+      "pr-ready-guard",
+      formatReadyBlockMessage(artifacts, "create-nondraft"),
+    );
   }
-  return exit0();
+  return allowPreToolUse(antigravity);
 }
 
 // ---------------------------------------------------------------------
@@ -431,27 +443,4 @@ function summarize(ref, body) {
   const tail =
     "Confirm acceptance criteria are met and the body reflects the final commits. Use `gh pr edit` to sync anything drifted. Follow the `git-workflow` skill for ready-state expectations and post-ready batch-comment discipline.";
   return [head, headingLine, todoLine, tail].join("\n");
-}
-
-// ---------------------------------------------------------------------
-// Output helpers
-
-function block(reason) {
-  process.stderr.write(`pr-ready-guard: ${reason}\n`);
-  process.exit(2);
-}
-
-function inject(message) {
-  const out = {
-    hookSpecificOutput: {
-      hookEventName: "PreToolUse",
-      additionalContext: message,
-    },
-  };
-  process.stdout.write(JSON.stringify(out));
-  process.exit(0);
-}
-
-function exit0() {
-  process.exit(0);
 }

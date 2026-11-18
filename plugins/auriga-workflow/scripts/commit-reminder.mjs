@@ -20,6 +20,7 @@ import { createHash } from "node:crypto";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { isAntigravity, noopPostToolUse } from "./hook-io.mjs";
 import { resolveRepoRoot } from "./repo-root.mjs";
 
 const LINE_THRESHOLD = 200;
@@ -40,6 +41,7 @@ process.stdin.on("data", (c) => (input += c));
 process.stdin.on("end", () => {
   try {
     const data = JSON.parse(input);
+    if (isAntigravity(data)) return noopPostToolUse();
     const repoRoot = resolveRepoRoot(data);
 
     const gitDir = resolveGitDir(repoRoot);

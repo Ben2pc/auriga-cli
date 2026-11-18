@@ -295,6 +295,33 @@ function check(name, condition, info = "") {
   );
 }
 
+// Case 6f: Antigravity PostToolUse payload → returns {} and exits 0 without touching repo state
+{
+  const repo = setupRepo();
+  writeFile(repo, "big.txt", 500);
+  spawnSync("git", ["add", "."], { cwd: repo });
+  const cache = makePluginCache();
+  const r = run(
+    {
+      agentEvent: "post_write_to_file",
+      workspacePaths: [repo],
+      toolCall: { name: "write_to_file", args: { TargetFile: path.join(repo, "big.txt") } },
+      artifactDirectoryPath: "/tmp/artifacts",
+    },
+    cache,
+  );
+  check(
+    "Antigravity PostToolUse returns empty JSON object",
+    r.status === 0 && r.stdout === "{}\n",
+    `status=${r.status} stdout=${JSON.stringify(r.stdout)}`,
+  );
+  check(
+    "Antigravity PostToolUse does not write cooldown state",
+    !existsSync(statePath(repo)),
+    `repoState=${existsSync(statePath(repo))}`,
+  );
+}
+
 // Case 7: file-count threshold (>8 files) triggers even at low line count
 {
   const dir = setupRepo();

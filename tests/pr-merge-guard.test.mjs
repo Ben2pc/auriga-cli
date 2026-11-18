@@ -71,19 +71,27 @@ function hookEnv(overrides = {}) {
 function run(command, body, toolName = "Bash", style = "snake", extras = {}) {
   const { dir, bin, argvFile } = makeScratch(body);
   const payload =
-    style === "camel"
+    style === "antigravity"
       ? {
-          hookEventName: "PreToolUse",
-          toolInput: { command, description: "test" },
+          agentEvent: "pre_run_command",
+          toolCall: {
+            name: toolName ?? "run_command",
+            args: { CommandLine: command },
+          },
         }
-      : {
-          session_id: "test",
-          hook_event_name: "PreToolUse",
-          tool_input: { command, description: "test" },
-        };
+      : style === "camel"
+        ? {
+            hookEventName: "PreToolUse",
+            toolInput: { command, description: "test" },
+          }
+        : {
+            session_id: "test",
+            hook_event_name: "PreToolUse",
+            tool_input: { command, description: "test" },
+          };
   if (toolName !== null) {
     if (style === "camel") payload.toolName = toolName;
-    else payload.tool_name = toolName;
+    else if (style === "snake") payload.tool_name = toolName;
   }
   Object.assign(payload, extras.payload ?? {});
   const cwd = extras.cwd ?? dir;
@@ -507,6 +515,22 @@ const cases = [
     body: TEST_PLAN_THEN_TODOS,
     expect: { status: 0, stdoutEq: "" },
   },
+  {
+    name: "Antigravity non-gh command allows via JSON stdout",
+    cmd: "ls -la",
+    toolName: "run_command",
+    style: "antigravity",
+    body: ONE_UNCHECKED,
+    expect: { status: 0, stdoutEq: '{"decision":"allow"}\n', stderrEq: "" },
+  },
+  {
+    name: "Antigravity all acceptance items checked allows via JSON stdout",
+    cmd: "gh pr merge --squash",
+    toolName: "run_command",
+    style: "antigravity",
+    body: ALL_CHECKED,
+    expect: { status: 0, stdoutEq: '{"decision":"allow"}\n', stderrEq: "" },
+  },
 ];
 
 // ---- Runner ----------------------------------------------------------
@@ -533,6 +557,9 @@ for (const c of cases) {
   }
   if (c.expect.stdoutEq !== undefined && r.stdout !== c.expect.stdoutEq) {
     errs.push(`expected stdout ${JSON.stringify(c.expect.stdoutEq)}, got ${JSON.stringify(r.stdout)}`);
+  }
+  if (c.expect.stderrEq !== undefined && r.stderr !== c.expect.stderrEq) {
+    errs.push(`expected stderr ${JSON.stringify(c.expect.stderrEq)}, got ${JSON.stringify(r.stderr)}`);
   }
   for (const needle of c.expect.stderrIncludes ?? []) {
     if (!r.stderr.includes(needle)) {
@@ -597,6 +624,42 @@ for (const c of cases) {
       ? []
       : [`expected silent pass, got status=${r.status} stdout=${JSON.stringify(r.stdout)}`],
   );
+}
+
+{
+  const repo = makeGitRepo();
+  const cache = makePluginCache();
+  const r = run("gh pr merge --squash", ONE_UNCHECKED, "run_command", "antigravity", {
+    cwd: cache,
+    payload: { workspacePaths: [repo] },
+  });
+  const errs = [];
+  if (r.status !== 0) errs.push(`expected exit 0, got ${r.status}`);
+  if (r.stderr !== "") errs.push(`expected empty stderr, got ${JSON.stringify(r.stderr)}`);
+  let parsed = null;
+  try {
+    parsed = JSON.parse(r.stdout);
+  } catch (err) {
+    errs.push(`expected valid JSON stdout (${err.message}), got ${JSON.stringify(r.stdout)}`);
+  }
+  if (parsed) {
+    if (parsed.decision !== "deny") {
+      errs.push(`expected decision="deny", got ${JSON.stringify(parsed)}`);
+    }
+    if (
+      typeof parsed.reason !== "string" ||
+      !parsed.reason.includes("pr-merge-guard:") ||
+      !parsed.reason.includes("Second criterion not yet met")
+    ) {
+      errs.push(`expected deny reason with pr-merge-guard prefix and unchecked item, got ${JSON.stringify(parsed.reason)}`);
+    }
+  }
+  const expectedCwd = fs.realpathSync(repo);
+  const actualCwd = r.ghCwd ? fs.realpathSync(r.ghCwd) : "";
+  if (actualCwd !== expectedCwd) {
+    errs.push(`expected gh cwd ${expectedCwd}, got ${JSON.stringify(r.ghCwd)}`);
+  }
+  check("Antigravity workspacePaths from plugin-cache cwd denies unchecked PR via JSON", errs);
 }
 
 // hooks.json wiring: pr-merge-guard.mjs must be registered on the
