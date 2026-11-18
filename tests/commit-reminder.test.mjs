@@ -55,6 +55,7 @@ function hookEnv(overrides = {}) {
   delete env.CLAUDE_PROJECT_DIR;
   delete env.CURSOR_PROJECT_DIR;
   delete env.GROK_WORKSPACE_ROOT;
+  delete env.PLUGIN_ROOT;
   return { ...env, ...overrides };
 }
 
@@ -292,6 +293,39 @@ function check(name, condition, info = "") {
     "plugin-cache cwd with no workspace signal stays silent",
     r.status === 0 && r.stdout === "",
     `stdout="${r.stdout}"`,
+  );
+}
+
+// Case 6f: Antigravity PostToolUse payload → returns {} and exits 0 without touching repo state
+{
+  const repo = setupRepo();
+  writeFile(repo, "big.txt", 500);
+  spawnSync("git", ["add", "."], { cwd: repo });
+  const cache = makePluginCache();
+  const r = run(
+    {
+      hookEventName: "PostToolUse",
+      conversationId: "conv-test",
+      cwd: repo,
+      workspacePaths: [repo],
+      toolCall: {
+        id: "call_1",
+        name: "write_to_file",
+        args: { TargetFile: path.join(repo, "big.txt") },
+      },
+      artifactDirectoryPath: "/tmp/artifacts",
+    },
+    cache,
+  );
+  check(
+    "Antigravity PostToolUse returns empty JSON object",
+    r.status === 0 && r.stdout === "{}\n",
+    `status=${r.status} stdout=${JSON.stringify(r.stdout)}`,
+  );
+  check(
+    "Antigravity PostToolUse does not write cooldown state",
+    !existsSync(statePath(repo)),
+    `repoState=${existsSync(statePath(repo))}`,
   );
 }
 

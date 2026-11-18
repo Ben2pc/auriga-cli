@@ -30,24 +30,35 @@ function hookEnv(overrides = {}) {
   delete env.CLAUDE_PROJECT_DIR;
   delete env.CURSOR_PROJECT_DIR;
   delete env.GROK_WORKSPACE_ROOT;
+  delete env.PLUGIN_ROOT;
   return { ...env, ...overrides };
 }
 
 function run(command, cwd, toolName = "Bash", style = "snake", extras = {}) {
   const payload =
-    style === "camel"
+    style === "antigravity"
       ? {
           hookEventName: "PreToolUse",
-          toolInput: { command, description: "test" },
+          conversationId: "conv-test",
+          toolCall: {
+            id: "call_1",
+            name: toolName ?? "run_command",
+            args: { CommandLine: command },
+          },
         }
-      : {
-          session_id: "test",
-          hook_event_name: "PreToolUse",
-          tool_input: { command, description: "test" },
-        };
+      : style === "camel"
+        ? {
+            hookEventName: "PreToolUse",
+            toolInput: { command, description: "test" },
+          }
+        : {
+            session_id: "test",
+            hook_event_name: "PreToolUse",
+            tool_input: { command, description: "test" },
+          };
   if (toolName !== null) {
     if (style === "camel") payload.toolName = toolName;
-    else payload.tool_name = toolName;
+    else if (style === "snake") payload.tool_name = toolName;
   }
   Object.assign(payload, extras.payload ?? {});
   const serialized = JSON.stringify(payload);
@@ -58,6 +69,19 @@ function run(command, cwd, toolName = "Bash", style = "snake", extras = {}) {
     env: hookEnv(extras.env),
   });
   return { status: r.status, stdout: r.stdout ?? "", stderr: r.stderr ?? "" };
+}
+
+function makeFakeGh(body) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "pr-ready-guard-fake-gh-"));
+  const binDir = path.join(dir, "bin");
+  fs.mkdirSync(binDir, { recursive: true });
+  const ghPath = path.join(binDir, "gh");
+  fs.writeFileSync(
+    ghPath,
+    `#!/usr/bin/env node\nprocess.stdout.write(${JSON.stringify(body)});\n`,
+  );
+  fs.chmodSync(ghPath, 0o755);
+  return { dir, binDir };
 }
 
 function makePluginCache() {
@@ -448,6 +472,109 @@ const cases = [
     },
     expect: { status: 0, stdoutEq: "", stderrNotIncludes: "pr-ready-guard" },
   },
+  {
+    name: "Antigravity non-gh command allows via decision=ask JSON",
+    setup: () => ({
+      cwd: makeRepo(),
+      cmd: "ls -la",
+      toolName: "run_command",
+      style: "antigravity",
+    }),
+    expect: { status: 0, stdoutEq: '{"decision":"ask"}\n', stderrEq: "" },
+  },
+  {
+    name: "Antigravity workspacePaths from plugin-cache cwd denies on active specs via JSON",
+    setup: () => {
+      const repo = makeRepo();
+      writeActiveSpec(repo);
+      const cache = makePluginCache();
+      cleanupDirs.push(repo, cache);
+      return {
+        cwd: cache,
+        cmd: "gh pr ready",
+        toolName: "run_command",
+        style: "antigravity",
+        extras: { payload: { workspacePaths: [repo] } },
+      };
+    },
+    expect: {
+      status: 0,
+      stderrEq: "",
+      stdoutJson: {
+        decision: "deny",
+        reasonIncludes: ["pr-ready-guard:", "docs/specs/topic/spec.md"],
+      },
+    },
+  },
+  {
+    name: "Antigravity payload cwd takes precedence over outer non-git workspacePaths",
+    setup: () => {
+      const outerNonGit = fs.mkdtempSync(path.join(os.tmpdir(), "pr-ready-guard-outer-"));
+      const repo = makeRepo();
+      writeActiveSpec(repo);
+      const cache = makePluginCache();
+      cleanupDirs.push(outerNonGit, repo, cache);
+      return {
+        cwd: cache,
+        cmd: "gh pr ready",
+        toolName: "run_command",
+        style: "antigravity",
+        extras: { payload: { cwd: repo, workspacePaths: [outerNonGit] } },
+      };
+    },
+    expect: {
+      status: 0,
+      stderrEq: "",
+      stdoutJson: {
+        decision: "deny",
+        reasonIncludes: ["pr-ready-guard:", "docs/specs/topic/spec.md"],
+      },
+    },
+  },
+  {
+    name: "Antigravity non-draft gh pr create denies via JSON",
+    setup: () => {
+      const repo = makeRepo();
+      writeActiveSpec(repo);
+      const cache = makePluginCache();
+      cleanupDirs.push(repo, cache);
+      return {
+        cwd: cache,
+        cmd: 'gh pr create --title foo --body "x"',
+        toolName: "run_command",
+        style: "antigravity",
+        extras: { payload: { cwd: repo, workspacePaths: [repo] } },
+      };
+    },
+    expect: {
+      status: 0,
+      stderrEq: "",
+      stdoutJson: {
+        decision: "deny",
+        reasonIncludes: ["pr-ready-guard:", "pass --draft"],
+      },
+    },
+  },
+  {
+    name: "Antigravity gh pr ready with PR body degrades inject to decision=ask JSON",
+    setup: () => {
+      const repo = makeRepo();
+      const cache = makePluginCache();
+      const fakeGh = makeFakeGh("## Summary\n- ready");
+      cleanupDirs.push(repo, cache, fakeGh.dir);
+      return {
+        cwd: cache,
+        cmd: "gh pr ready 42",
+        toolName: "run_command",
+        style: "antigravity",
+        extras: {
+          payload: { cwd: repo, workspacePaths: [repo], artifactDirectoryPath: "/tmp/artifacts" },
+          env: { PATH: `${fakeGh.binDir}:${process.env.PATH ?? ""}` },
+        },
+      };
+    },
+    expect: { status: 0, stdoutEq: '{"decision":"ask"}\n', stderrEq: "" },
+  },
 ];
 
 let failed = 0;
@@ -464,6 +591,30 @@ try {
       checks.push({ ok: r.stdout === c.expect.stdoutEq, msg: `stdout exact "${c.expect.stdoutEq}" (got "${r.stdout.slice(0, 80)}")` });
     if (c.expect.stdoutIncludes !== undefined)
       checks.push({ ok: r.stdout.includes(c.expect.stdoutIncludes), msg: `stdout includes "${c.expect.stdoutIncludes}" (got "${r.stdout.slice(0, 120)}")` });
+    if (c.expect.stdoutJson !== undefined) {
+      let parsed = null;
+      let parseErr = null;
+      try {
+        parsed = JSON.parse(r.stdout);
+      } catch (err) {
+        parseErr = err.message;
+      }
+      checks.push({ ok: parsed !== null, msg: `stdout valid JSON (${parseErr ?? "ok"}: ${r.stdout.slice(0, 120)})` });
+      if (parsed && c.expect.stdoutJson.decision !== undefined) {
+        checks.push({
+          ok: parsed.decision === c.expect.stdoutJson.decision,
+          msg: `stdout.decision=${JSON.stringify(parsed.decision)} (want ${JSON.stringify(c.expect.stdoutJson.decision)})`,
+        });
+      }
+      for (const needle of c.expect.stdoutJson.reasonIncludes ?? []) {
+        checks.push({
+          ok: typeof parsed?.reason === "string" && parsed.reason.includes(needle),
+          msg: `stdout.reason includes ${JSON.stringify(needle)} (got ${JSON.stringify(parsed?.reason?.slice(0, 160))})`,
+        });
+      }
+    }
+    if (c.expect.stderrEq !== undefined)
+      checks.push({ ok: r.stderr === c.expect.stderrEq, msg: `stderr exact "${c.expect.stderrEq}" (got "${r.stderr.slice(0, 80)}")` });
     if (c.expect.stderrIncludes !== undefined)
       checks.push({ ok: r.stderr.includes(c.expect.stderrIncludes), msg: `stderr includes "${c.expect.stderrIncludes}" (got "${r.stderr.slice(0, 120)}")` });
     if (c.expect.stderrNotIncludes !== undefined)
@@ -515,6 +666,24 @@ try {
         `  ✗ hooks.json pr-ready-guard matcher missing ${tool} (found: ${JSON.stringify(group?.matcher)})`,
       );
     }
+  }
+}
+
+// Verify catch-branch fallback when stdin is malformed under Antigravity PLUGIN_ROOT.
+{
+  const r = spawnSync("node", [ENTRY], {
+    input: "not json",
+    encoding: "utf8",
+    env: hookEnv({ PLUGIN_ROOT: "/tmp/agy-plugin" }),
+  });
+  if (r.status === 0 && r.stdout === '{"decision":"ask"}\n' && r.stderr === "") {
+    passed++;
+    console.log("  ✓ malformed JSON with PLUGIN_ROOT fallback returns decision=ask JSON");
+  } else {
+    failed++;
+    console.error(
+      `  ✗ malformed JSON with PLUGIN_ROOT fallback returns decision=ask JSON (status=${r.status}, stdout=${JSON.stringify(r.stdout)}, stderr=${JSON.stringify(r.stderr)})`,
+    );
   }
 }
 
